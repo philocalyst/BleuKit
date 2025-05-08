@@ -38,50 +38,53 @@ import CoreBluetoothMock
 // disabled for Xcode 12.5 beta
 // typealias CBPeer                          = CBMPeer
 // typealias CBAttribute                     = CBMAttribute
-public typealias CBCentralManagerFactory         = CBMCentralManagerFactory
-public typealias CBUUID                          = CBMUUID
-public typealias CBError                         = CBMError
-public typealias CBATTError                      = CBMATTError
-public typealias CBManagerState                  = CBMManagerState
-public typealias CBPeripheralState               = CBMPeripheralState
-public typealias CBCentralManager                = CBMCentralManager
-public typealias CBCentralManagerDelegate        = CBMCentralManagerDelegate
-public typealias CBPeripheral                    = CBMPeripheral
-public typealias CBPeripheralDelegate            = CBMPeripheralDelegate
-public typealias CBService                       = CBMService
-public typealias CBCharacteristic                = CBMCharacteristic
-public typealias CBCharacteristicWriteType       = CBMCharacteristicWriteType
-public typealias CBCharacteristicProperties      = CBMCharacteristicProperties
-public typealias CBDescriptor                    = CBMDescriptor
-public typealias CBConnectionEvent               = CBMConnectionEvent
+public typealias CBCentralManagerFactory = CBMCentralManagerFactory
+public typealias CBUUID = CBMUUID
+public typealias CBError = CBMError
+public typealias CBATTError = CBMATTError
+public typealias CBManagerState = CBMManagerState
+public typealias CBPeripheralState = CBMPeripheralState
+public typealias CBCentralManager = CBMCentralManager
+public typealias CBCentralManagerDelegate = CBMCentralManagerDelegate
+public typealias CBPeripheral = CBMPeripheral
+public typealias CBPeripheralDelegate = CBMPeripheralDelegate
+public typealias CBService = CBMService
+public typealias CBCharacteristic = CBMCharacteristic
+public typealias CBCharacteristicWriteType = CBMCharacteristicWriteType
+public typealias CBCharacteristicProperties = CBMCharacteristicProperties
+public typealias CBDescriptor = CBMDescriptor
+public typealias CBConnectionEvent = CBMConnectionEvent
 public typealias CBConnectionEventMatchingOption = CBMConnectionEventMatchingOption
 @available(iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-public typealias CBL2CAPPSM                      = CBML2CAPPSM
+public typealias CBL2CAPPSM = CBML2CAPPSM
 @available(iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-public typealias CBL2CAPChannel                  = CBML2CAPChannel
+public typealias CBL2CAPChannel = CBML2CAPChannel
 
-let CBCentralManagerScanOptionAllowDuplicatesKey       = CBMCentralManagerScanOptionAllowDuplicatesKey
-let CBCentralManagerOptionShowPowerAlertKey            = CBMCentralManagerOptionShowPowerAlertKey
-let CBCentralManagerOptionRestoreIdentifierKey         = CBMCentralManagerOptionRestoreIdentifierKey
-let CBCentralManagerScanOptionSolicitedServiceUUIDsKey = CBMCentralManagerScanOptionSolicitedServiceUUIDsKey
-let CBConnectPeripheralOptionStartDelayKey             = CBMConnectPeripheralOptionStartDelayKey
+let CBCentralManagerScanOptionAllowDuplicatesKey = CBMCentralManagerScanOptionAllowDuplicatesKey
+let CBCentralManagerOptionShowPowerAlertKey = CBMCentralManagerOptionShowPowerAlertKey
+let CBCentralManagerOptionRestoreIdentifierKey = CBMCentralManagerOptionRestoreIdentifierKey
+let CBCentralManagerScanOptionSolicitedServiceUUIDsKey =
+  CBMCentralManagerScanOptionSolicitedServiceUUIDsKey
+let CBConnectPeripheralOptionStartDelayKey = CBMConnectPeripheralOptionStartDelayKey
 #if !os(macOS)
-@available(iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-let CBConnectPeripheralOptionRequiresANCS              = CBMConnectPeripheralOptionRequiresANCS
+  @available(iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+  let CBConnectPeripheralOptionRequiresANCS = CBMConnectPeripheralOptionRequiresANCS
 #endif
-let CBCentralManagerRestoredStatePeripheralsKey        = CBMCentralManagerRestoredStatePeripheralsKey
-let CBCentralManagerRestoredStateScanServicesKey       = CBMCentralManagerRestoredStateScanServicesKey
-let CBCentralManagerRestoredStateScanOptionsKey        = CBMCentralManagerRestoredStateScanOptionsKey
+let CBCentralManagerRestoredStatePeripheralsKey = CBMCentralManagerRestoredStatePeripheralsKey
+let CBCentralManagerRestoredStateScanServicesKey = CBMCentralManagerRestoredStateScanServicesKey
+let CBCentralManagerRestoredStateScanOptionsKey = CBMCentralManagerRestoredStateScanOptionsKey
 
-let CBAdvertisementDataLocalNameKey                    = CBMAdvertisementDataLocalNameKey
-let CBAdvertisementDataServiceUUIDsKey                 = CBMAdvertisementDataServiceUUIDsKey
-let CBAdvertisementDataIsConnectable                   = CBMAdvertisementDataIsConnectable
-let CBAdvertisementDataTxPowerLevelKey                 = CBMAdvertisementDataTxPowerLevelKey
-let CBAdvertisementDataServiceDataKey                  = CBMAdvertisementDataServiceDataKey
-let CBAdvertisementDataManufacturerDataKey             = CBMAdvertisementDataManufacturerDataKey
-let CBAdvertisementDataOverflowServiceUUIDsKey         = CBMAdvertisementDataOverflowServiceUUIDsKey
-let CBAdvertisementDataSolicitedServiceUUIDsKey        = CBMAdvertisementDataSolicitedServiceUUIDsKey
+let CBAdvertisementDataLocalNameKey = CBMAdvertisementDataLocalNameKey
+let CBAdvertisementDataServiceUUIDsKey = CBMAdvertisementDataServiceUUIDsKey
+let CBAdvertisementDataIsConnectable = CBMAdvertisementDataIsConnectable
+let CBAdvertisementDataTxPowerLevelKey = CBMAdvertisementDataTxPowerLevelKey
+let CBAdvertisementDataServiceDataKey = CBMAdvertisementDataServiceDataKey
+let CBAdvertisementDataManufacturerDataKey = CBMAdvertisementDataManufacturerDataKey
+let CBAdvertisementDataOverflowServiceUUIDsKey = CBMAdvertisementDataOverflowServiceUUIDsKey
+let CBAdvertisementDataSolicitedServiceUUIDsKey = CBMAdvertisementDataSolicitedServiceUUIDsKey
 
-let CBConnectPeripheralOptionNotifyOnConnectionKey     = CBMConnectPeripheralOptionNotifyOnConnectionKey
-let CBConnectPeripheralOptionNotifyOnDisconnectionKey  = CBMConnectPeripheralOptionNotifyOnDisconnectionKey
-let CBConnectPeripheralOptionNotifyOnNotificationKey   = CBMConnectPeripheralOptionNotifyOnNotificationKey
+let CBConnectPeripheralOptionNotifyOnConnectionKey = CBMConnectPeripheralOptionNotifyOnConnectionKey
+let CBConnectPeripheralOptionNotifyOnDisconnectionKey =
+  CBMConnectPeripheralOptionNotifyOnDisconnectionKey
+let CBConnectPeripheralOptionNotifyOnNotificationKey =
+  CBMConnectPeripheralOptionNotifyOnNotificationKey

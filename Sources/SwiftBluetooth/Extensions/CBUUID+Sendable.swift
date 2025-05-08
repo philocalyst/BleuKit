@@ -1,4 +1,4 @@
-import Foundation
 import CoreBluetooth
+import Foundation
 
-extension CBUUID: @unchecked Sendable { }
+extension CBUUID: @unchecked Sendable {}
