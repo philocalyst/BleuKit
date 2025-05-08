@@ -1,7 +1,7 @@
 import XCTest
 
+@testable import BlueKitMock
 @testable import CoreBluetoothMock
-@testable import SwiftBluetoothMock
 
 final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
   @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)

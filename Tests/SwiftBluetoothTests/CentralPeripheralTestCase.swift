@@ -1,7 +1,7 @@
 import XCTest
 
+@testable import BlueKitMock
 @testable import CoreBluetoothMock
-@testable import SwiftBluetoothMock
 
 private final class CentralManagerDelegateThreadChecker: CentralManagerDelegate {
   func centralManagerDidUpdateState(_ central: CentralManager) {

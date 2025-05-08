@@ -1,7 +1,7 @@
 import XCTest
 
+@testable import BlueKitMock
 @testable import CoreBluetoothMock
-@testable import SwiftBluetoothMock
 
 final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
@@ -210,7 +210,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
       XCTAssertNil(characteristic.value)
 
       // TODO: Break this out into a seperate AsyncSubscriptionQueue test?
-      // Will also need to test that SwiftBluetooth.Peripheral implements a shared DispatchQueue (like this test is doing)
+      // Will also need to test that BlueKit.Peripheral implements a shared DispatchQueue (like this test is doing)
       var ran = 0
       let exp = XCTestExpectation()
       peripheral.readValue(for: characteristic) { result in
