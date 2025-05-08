@@ -281,9 +281,11 @@ extension Peripheral {
   public func discoverDescriptors(
     for characteristic: Characteristic,
     completionHandler: @escaping (Result<[CBDescriptor], Error>) -> Void
-  ) {
+  ) throws {
     guard let characteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     discoverDescriptors(for: characteristic)
@@ -330,9 +332,11 @@ extension Peripheral {
     }
   }
 
-  public func setNotifyValue(_ value: Bool, for characteristic: Characteristic) {
+  public func setNotifyValue(_ value: Bool, for characteristic: Characteristic) throws {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     setNotifyValue(value, for: mappedCharacteristic)
@@ -341,9 +345,11 @@ extension Peripheral {
   public func setNotifyValue(
     _ value: Bool, for characteristic: Characteristic,
     completionHandler: @escaping (Result<Bool, Error>) -> Void
-  ) {
+  ) throws {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     setNotifyValue(value, for: mappedCharacteristic, completionHandler: completionHandler)
@@ -351,9 +357,11 @@ extension Peripheral {
 
   public func writeValue(
     _ data: Data, for characteristic: Characteristic, type: CBCharacteristicWriteType
-  ) {
+  ) throws {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     writeValue(data, for: mappedCharacteristic, type: type)

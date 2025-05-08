@@ -14,7 +14,9 @@ extension Peripheral {
   @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
   public func readValue(for characteristic: Characteristic) async throws -> Data {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     return try await readValue(for: mappedCharacteristic)
@@ -87,9 +89,11 @@ extension Peripheral {
   }
 
   @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-  public func readValues(for characteristic: Characteristic) -> AsyncStream<Data> {
+  public func readValues(for characteristic: Characteristic) throws -> AsyncStream<Data> {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     return readValues(for: mappedCharacteristic)
@@ -130,7 +134,9 @@ extension Peripheral {
     _ data: Data, for characteristic: Characteristic, type: CBCharacteristicWriteType
   ) async throws {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     return try await writeValue(data, for: mappedCharacteristic, type: type)
@@ -182,7 +188,9 @@ extension Peripheral {
   public func discoverDescriptors(for characteristic: Characteristic) async throws -> [CBDescriptor]
   {
     guard let mappedCharacteristic = knownCharacteristics[characteristic.uuid] else {
-      fatalError("Characteristic \(characteristic.uuid) not found.")
+      throw PeripheralError.characteristicNotFound(
+        characteristicUUID: characteristic.uuid
+      )
     }
 
     return try await discoverDescriptors(for: mappedCharacteristic)
@@ -205,7 +213,7 @@ extension Peripheral {
   public func setNotifyValue(_ value: Bool, for characteristic: Characteristic) async throws -> Bool
   {
     try await withCheckedThrowingContinuation { cont in
-      self.setNotifyValue(value, for: characteristic) { result in
+      try self.setNotifyValue(value, for: characteristic) { result in
         cont.resume(with: result)
       }
     }
