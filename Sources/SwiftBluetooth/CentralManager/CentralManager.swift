@@ -1,4 +1,5 @@
 import CoreBluetooth
+import Dispatch
 import Foundation
 
 public class CentralManager: NSObject {
@@ -6,7 +7,7 @@ public class CentralManager: NSObject {
   private lazy var wrappedDelegate: CentralManagerDelegateWrapper = .init(parent: self)
 
   internal let eventQueue = DispatchQueue(label: "centralmanager-event-queue")
-  internal lazy var eventSubscriptions = AsyncSubscriptionQueue<CentralManagerEvent>(eventQueue)
+  internal lazy var eventSubscriptions = AsyncSubscriptionQueue<CentralManagerEvent>()
   private var peripheralMap: [UUID: Peripheral] = [:]
   internal var connectedPeripherals = Set<Peripheral>()
 

@@ -1,4 +1,5 @@
 import CoreBluetooth
+import Dispatch
 import Foundation
 
 public class Peripheral: NSObject {
@@ -6,11 +7,10 @@ public class Peripheral: NSObject {
   private lazy var wrappedDelegate: PeripheralDelegateWrapper = .init(parent: self)
 
   internal let eventQueue = DispatchQueue(label: "peripheral-event-queue")
-  internal lazy var responseMap = AsyncSubscriptionQueueMap<CBUUID, Result<Data, Error>>(eventQueue)
-  internal lazy var writeMap = AsyncSubscriptionQueueMap<CBUUID, Error?>(eventQueue)
-  internal lazy var descriptorMap = AsyncSubscriptionQueueMap<CBUUID, Result<Any?, Error>>(
-    eventQueue)
-  internal lazy var eventSubscriptions = AsyncSubscriptionQueue<PeripheralEvent>(eventQueue)
+  internal lazy var responseMap = AsyncSubscriptionQueueMap<CBUUID, Result<Data, Error>>()
+  internal lazy var writeMap = AsyncSubscriptionQueueMap<CBUUID, Error?>()
+  internal lazy var descriptorMap = AsyncSubscriptionQueueMap<CBUUID, Result<Any?, Error>>()
+  internal lazy var eventSubscriptions = AsyncSubscriptionQueue<PeripheralEvent>()
 
   internal var knownCharacteristics: [CBUUID: CBCharacteristic] = [:]
 

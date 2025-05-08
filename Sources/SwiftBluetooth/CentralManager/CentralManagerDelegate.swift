@@ -1,4 +1,5 @@
 import CoreBluetooth
+import Dispatch
 import Foundation
 
 public protocol CentralManagerDelegate: AnyObject {
