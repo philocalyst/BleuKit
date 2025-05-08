@@ -1,4 +1,5 @@
 import CoreBluetooth
 import Foundation
 
-extension CBUUID: @unchecked Sendable {}
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+extension CBUUID: @unchecked @retroactive Sendable {}
