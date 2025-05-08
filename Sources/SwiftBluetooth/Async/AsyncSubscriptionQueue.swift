@@ -27,7 +27,7 @@ internal final class AsyncSubscriptionQueue<Value> {
     return item
   }
 
-  func recieve(_ value: Value) {
+  func receive(_ value: Value) {
     dispatchQueue.async {
       for item in self.items.reversed() {
         item.block(value, item.cancel)

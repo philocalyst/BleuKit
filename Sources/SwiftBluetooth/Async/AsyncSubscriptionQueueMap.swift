@@ -35,11 +35,11 @@ internal final class AsyncSubscriptionQueueMap<Key, Value> where Key: Hashable {
     return item.queue(block: block, completion: completion)
   }
 
-  func recieve(key: Key, withValue value: Value) {
+  func receive(key: Key, withValue value: Value) {
     dispatchQueue.async {
       guard let queue = self.items[key] else { return }
 
-      queue.recieve(value)
+      queue.receive(value)
     }
   }
 }

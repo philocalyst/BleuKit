@@ -15,7 +15,7 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
     parent.delegate?.centralManagerDidUpdateState(parent)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.stateUpdated(parent.state))
+      parent.eventSubscriptions.receive(.stateUpdated(parent.state))
     }
   }
 
@@ -27,7 +27,7 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
     parent.delegate?.centralManager(parent, didConnect: peripheral)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.connected(peripheral))
+      parent.eventSubscriptions.receive(.connected(peripheral))
     }
   }
 
@@ -47,8 +47,8 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
     // parent.removePeripheral(peripheral.cbPeripheral)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.disconnected(peripheral, error))
-      peripheral.eventSubscriptions.recieve(.didDisconnect(error))
+      parent.eventSubscriptions.receive(.disconnected(peripheral, error))
+      peripheral.eventSubscriptions.receive(.didDisconnect(error))
     }
   }
 
@@ -61,7 +61,7 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
     parent.delegate?.centralManager(parent, didFailToConnect: peripheral, error: error)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.failToConnect(peripheral, error))
+      parent.eventSubscriptions.receive(.failToConnect(peripheral, error))
     }
   }
 
@@ -77,7 +77,7 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
       parent, didDiscover: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.discovered(peripheral, advertisementData, RSSI))
+      parent.eventSubscriptions.receive(.discovered(peripheral, advertisementData, RSSI))
     }
   }
 
@@ -87,7 +87,7 @@ class CentralManagerDelegateWrapper: NSObject, CBCentralManagerDelegate {
     parent.delegate?.centralManager(parent, willRestoreState: dict)
 
     parent.eventQueue.async {
-      parent.eventSubscriptions.recieve(.restoreState(dict))
+      parent.eventSubscriptions.receive(.restoreState(dict))
     }
   }
 
