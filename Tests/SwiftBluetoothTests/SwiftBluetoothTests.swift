@@ -1,404 +1,423 @@
 import XCTest
+
 @testable import CoreBluetoothMock
 @testable import SwiftBluetoothMock
 
 extension Characteristic {
-    static let firstChar = Self("00000000-0000-0000-0001-000000000001")
+  static let firstChar = Self("00000000-0000-0000-0001-000000000001")
 }
 
 final class SwiftBluetoothTests: CentralPeripheralTestCase {
-    var exp: XCTestExpectation!
+  var exp: XCTestExpectation!
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testAwaitReadyCold() async throws {
-        CBMCentralManagerMock.simulateInitialState(.poweredOff)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testAwaitReadyCold() async throws {
+    CBMCentralManagerMock.simulateInitialState(.poweredOff)
 
-        try await withTimeout { [self] in
-            central = CentralManager()
+    try await withTimeout { [self] in
+      central = CentralManager()
 
-            XCTAssertNotEqual(central.state, .poweredOn)
+      XCTAssertNotEqual(central.state, .poweredOn)
 
-            CBMCentralManagerMock.simulatePowerOn()
-            try await central.waitUntilReady()
+      CBMCentralManagerMock.simulatePowerOn()
+      try await central.waitUntilReady()
 
-            XCTAssertEqual(central.state, .poweredOn)
-        }
+      XCTAssertEqual(central.state, .poweredOn)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testAwaitReadyWarm() async throws {
-        CBMCentralManagerMock.simulateInitialState(.poweredOn)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testAwaitReadyWarm() async throws {
+    CBMCentralManagerMock.simulateInitialState(.poweredOn)
 
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
 
-            XCTAssertEqual(central.state, .poweredOn)
-        }
+      XCTAssertEqual(central.state, .poweredOn)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testAwaitReadyNotAuthorized() async throws {
-        CBMCentralManagerMock.simulateAuthorization(.denied)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testAwaitReadyNotAuthorized() async throws {
+    CBMCentralManagerMock.simulateAuthorization(.denied)
 
-        try await withTimeout { [self] in
-            central = CentralManager()
+    try await withTimeout { [self] in
+      central = CentralManager()
 
-            do {
-                try await central.waitUntilReady()
+      do {
+        try await central.waitUntilReady()
 
-                XCTFail("Should not continue when permissions are denied")
-            } catch {
-                XCTAssertEqual(error as? CentralError, .unauthorized)
-            }
-        }
+        XCTFail("Should not continue when permissions are denied")
+      } catch {
+        XCTAssertEqual(error as? CentralError, .unauthorized)
+      }
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testFindConnectDiscover() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testFindConnectDiscover() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
 
-            peripheral = await central.scanForPeripherals().first
+      peripheral = await central.scanForPeripherals().first
 
-            XCTAssertNotNil(peripheral)
-            guard let peripheral else { fatalError() }
+      XCTAssertNotNil(peripheral)
+      guard let peripheral else { fatalError() }
 
-            XCTAssertFalse(mockPeripheral.isConnected)
+      XCTAssertFalse(mockPeripheral.isConnected)
 
-            try await central.connect(peripheral, timeout: connectionTimeout)
+      try await central.connect(peripheral, timeout: connectionTimeout)
 
-            XCTAssertTrue(mockPeripheral.isConnected)
+      XCTAssertTrue(mockPeripheral.isConnected)
 
-            let services = try await peripheral.discoverServices()
+      let services = try await peripheral.discoverServices()
 
-            XCTAssertEqual(services.count, mockPeripheral.services?.count)
+      XCTAssertEqual(services.count, mockPeripheral.services?.count)
 
-            for service in services {
-                let foundService = mockServices.find(mockOf: service)
+      for service in services {
+        let foundService = mockServices.find(mockOf: service)
 
-                XCTAssertNotNil(foundService)
+        XCTAssertNotNil(foundService)
 
-                guard let foundService = foundService else { fatalError() }
+        guard let foundService = foundService else { fatalError() }
 
-                let characteristics = try await peripheral.discoverCharacteristics(for: service)
+        let characteristics = try await peripheral.discoverCharacteristics(for: service)
 
-                XCTAssertEqual(characteristics.count, foundService.characteristics?.count)
-            }
+        XCTAssertEqual(characteristics.count, foundService.characteristics?.count)
+      }
 
-            try await central.cancelPeripheralConnection(peripheral)
+      try await central.cancelPeripheralConnection(peripheral)
 
-            XCTAssertFalse(mockPeripheral.isConnected)
-        }
+      XCTAssertFalse(mockPeripheral.isConnected)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testReadValue() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            let services = try await peripheral.discoverServices()
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testReadValue() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      let services = try await peripheral.discoverServices()
 
-            var characteristics: [CBCharacteristic] = []
+      var characteristics: [CBCharacteristic] = []
 
-            for service in services {
-                characteristics.append(contentsOf: try await peripheral.discoverCharacteristics(for: service))
-            }
+      for service in services {
+        characteristics.append(
+          contentsOf: try await peripheral.discoverCharacteristics(for: service))
+      }
 
-            let readableMockCharacteristic = mockCharacteristics.first(where: { $0.properties.contains(.read) })!
-            let characteristic = characteristics.first(where: { $0.uuid == readableMockCharacteristic.uuid })
+      let readableMockCharacteristic = mockCharacteristics.first(where: {
+        $0.properties.contains(.read)
+      })!
+      let characteristic = characteristics.first(where: {
+        $0.uuid == readableMockCharacteristic.uuid
+      })
 
-            XCTAssertNotNil(characteristic)
+      XCTAssertNotNil(characteristic)
 
-            guard let characteristic = characteristic else { fatalError() }
+      guard let characteristic = characteristic else { fatalError() }
 
-            XCTAssertNil(characteristic.value)
+      XCTAssertNil(characteristic.value)
 
-            let value = try await peripheral.readValue(for: characteristic)
+      let value = try await peripheral.readValue(for: characteristic)
 
-            XCTAssertGreaterThan(value.count, 0)
-        }
+      XCTAssertGreaterThan(value.count, 0)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testReadWriteValue() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            let services = try await peripheral.discoverServices()
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testReadWriteValue() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      let services = try await peripheral.discoverServices()
 
-            var characteristics: [CBCharacteristic] = []
+      var characteristics: [CBCharacteristic] = []
 
-            for service in services {
-                characteristics.append(contentsOf: try await peripheral.discoverCharacteristics(for: service))
-            }
+      for service in services {
+        characteristics.append(
+          contentsOf: try await peripheral.discoverCharacteristics(for: service))
+      }
 
-            let mutableMockCharacteristic = mockCharacteristics.first(where: { $0.properties.contains(.read) && $0.properties.contains(.write) })!
-            let characteristic = characteristics.first(where: { $0.uuid == mutableMockCharacteristic.uuid })
+      let mutableMockCharacteristic = mockCharacteristics.first(where: {
+        $0.properties.contains(.read) && $0.properties.contains(.write)
+      })!
+      let characteristic = characteristics.first(where: {
+        $0.uuid == mutableMockCharacteristic.uuid
+      })
 
-            XCTAssertNotNil(characteristic)
+      XCTAssertNotNil(characteristic)
 
-            guard let characteristic = characteristic else { fatalError() }
+      guard let characteristic = characteristic else { fatalError() }
 
-            XCTAssertNil(characteristic.value)
+      XCTAssertNil(characteristic.value)
 
-            var value = try await peripheral.readValue(for: characteristic)
+      var value = try await peripheral.readValue(for: characteristic)
 
-            XCTAssertEqual(value, characteristic.value)
-            XCTAssertEqual(value, Data([0x00]))
+      XCTAssertEqual(value, characteristic.value)
+      XCTAssertEqual(value, Data([0x00]))
 
-            try await peripheral.writeValue(.init([0x01]), for: characteristic, type: .withResponse)
+      try await peripheral.writeValue(.init([0x01]), for: characteristic, type: .withResponse)
 
-            XCTAssertEqual(value, characteristic.value)
-            XCTAssertEqual(value, Data([0x00]))
+      XCTAssertEqual(value, characteristic.value)
+      XCTAssertEqual(value, Data([0x00]))
 
-            value = try await peripheral.readValue(for: characteristic)
+      value = try await peripheral.readValue(for: characteristic)
 
-            XCTAssertEqual(value, characteristic.value)
-            XCTAssertEqual(value, Data([0x01]))
-        }
+      XCTAssertEqual(value, characteristic.value)
+      XCTAssertEqual(value, Data([0x01]))
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testReadStaticCharacteristic() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            let services = try await peripheral.discoverServices()
-            let _ = try await peripheral.discoverCharacteristics(for: services[0])
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testReadStaticCharacteristic() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      let services = try await peripheral.discoverServices()
+      let _ = try await peripheral.discoverCharacteristics(for: services[0])
 
-            let value = try await peripheral.readValue(for: .firstChar)
-            XCTAssertEqual(value, Data([0x00]))
-        }
+      let value = try await peripheral.readValue(for: .firstChar)
+      XCTAssertEqual(value, Data([0x00]))
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testSubscribeToCharacteristic() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            let services = try await peripheral.discoverServices()
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testSubscribeToCharacteristic() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      let services = try await peripheral.discoverServices()
 
-            var characteristics: [CBCharacteristic] = []
+      var characteristics: [CBCharacteristic] = []
 
-            for service in services {
-                characteristics.append(contentsOf: try await peripheral.discoverCharacteristics(for: service))
-            }
+      for service in services {
+        characteristics.append(
+          contentsOf: try await peripheral.discoverCharacteristics(for: service))
+      }
 
-            let mutableMockCharacteristic = mockCharacteristics.first(where: { $0.properties.contains(.read) &&
-                                                                               $0.properties.contains(.notify) &&
-                                                                               $0.properties.contains(.write) })!
-            let characteristic = characteristics.first(where: { $0.uuid == mutableMockCharacteristic.uuid })
+      let mutableMockCharacteristic = mockCharacteristics.first(where: {
+        $0.properties.contains(.read) && $0.properties.contains(.notify)
+          && $0.properties.contains(.write)
+      })!
+      let characteristic = characteristics.first(where: {
+        $0.uuid == mutableMockCharacteristic.uuid
+      })
 
-            XCTAssertNotNil(characteristic)
+      XCTAssertNotNil(characteristic)
 
-            guard let characteristic = characteristic else { fatalError() }
+      guard let characteristic = characteristic else { fatalError() }
 
-            XCTAssertNil(characteristic.value)
-            XCTAssertFalse(characteristic.isNotifying)
+      XCTAssertNil(characteristic.value)
+      XCTAssertFalse(characteristic.isNotifying)
 
-            var stream: AsyncStream<Data>? = peripheral.readValues(for: characteristic)
+      var stream: AsyncStream<Data>? = peripheral.readValues(for: characteristic)
 
-            // CoreBluetoothMock adds some delays to its ability to simulate
-            // Using our async setNotifyValue we can wait for notifying to actually be true
-            try await peripheral.setNotifyValue(true, for: characteristic)
-            XCTAssertTrue(characteristic.isNotifying)
+      // CoreBluetoothMock adds some delays to its ability to simulate
+      // Using our async setNotifyValue we can wait for notifying to actually be true
+      try await peripheral.setNotifyValue(true, for: characteristic)
+      XCTAssertTrue(characteristic.isNotifying)
 
-            mockPeripheral.simulateValueUpdate(.init([0x10]), for: mutableMockCharacteristic)
-            mockPeripheral.simulateValueUpdate(.init([0x11]), for: mutableMockCharacteristic)
-            mockPeripheral.simulateValueUpdate(.init([0x12]), for: mutableMockCharacteristic)
+      mockPeripheral.simulateValueUpdate(.init([0x10]), for: mutableMockCharacteristic)
+      mockPeripheral.simulateValueUpdate(.init([0x11]), for: mutableMockCharacteristic)
+      mockPeripheral.simulateValueUpdate(.init([0x12]), for: mutableMockCharacteristic)
 
-            var count = 0
-            for await value in stream! {
-                switch (count, value[0]) {
-                case (0, 0x10), (1, 0x11), (2, 0x12): break
-                default: XCTFail("Incorrect arguments returned")
-                }
-
-                count += 1
-
-                if count >= 3 {
-                    break
-                }
-            }
-
-            // Still true because the stream hasn't actually been deallocated
-            XCTAssertTrue(characteristic.isNotifying)
-
-            try await peripheral.setNotifyValue(false, for: characteristic)
-            XCTAssertFalse(characteristic.isNotifying)
-
-            // Set stream to nil to deallocate AsyncStream
-            stream = nil
-
-            try await peripheral.setNotifyValue(false, for: characteristic)
-            XCTAssertFalse(characteristic.isNotifying)
-
-            try await peripheral.setNotifyValue(false, for: characteristic)
-            XCTAssertFalse(characteristic.isNotifying)
+      var count = 0
+      for await value in stream! {
+        switch (count, value[0]) {
+        case (0, 0x10), (1, 0x11), (2, 0x12): break
+        default: XCTFail("Incorrect arguments returned")
         }
-    }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testSubscribeBreakLoop() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            let services = try await peripheral.discoverServices()
+        count += 1
 
-            var characteristics: [CBCharacteristic] = []
-
-            for service in services {
-                characteristics.append(contentsOf: try await peripheral.discoverCharacteristics(for: service))
-            }
-
-            let mutableMockCharacteristic = mockCharacteristics.first(where: { $0.properties.contains(.read) &&
-                                                                               $0.properties.contains(.notify) &&
-                                                                               $0.properties.contains(.write) })!
-            let characteristic = characteristics.first(where: { $0.uuid == mutableMockCharacteristic.uuid })
-
-            XCTAssertNotNil(characteristic)
-
-            guard let characteristic = characteristic else { fatalError() }
-
-            XCTAssertNil(characteristic.value)
-            XCTAssertFalse(characteristic.isNotifying)
-
-            // CoreBluetoothMock adds some delays to its ability to simulate
-            // Using our async setNotifyValue we can wait for notifying to actually be true
-            try await peripheral.setNotifyValue(true, for: characteristic)
-            XCTAssertTrue(characteristic.isNotifying)
-
-            let exp = self.expectation(description: "Should break out of the loop")
-
-            Task {
-                for await _ in peripheral.readValues(for: characteristic) {
-                    // Do nothing in this loop and never cause it to break
-                }
-
-                exp.fulfill()
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [self] in
-                mockPeripheral.simulateValueUpdate(.init([0x10]), for: mutableMockCharacteristic)
-                mockPeripheral.simulateValueUpdate(.init([0x11]), for: mutableMockCharacteristic)
-                mockPeripheral.simulateValueUpdate(.init([0x12]), for: mutableMockCharacteristic)
-
-                peripheral.setNotifyValue(false, for: characteristic)
-            }
-
-            #if swift(>=5.8)
-            await self.fulfillment(of: [exp])
-            #else
-            self.wait(for: [exp], timeout: 5)
-            #endif
+        if count >= 3 {
+          break
         }
+      }
+
+      // Still true because the stream hasn't actually been deallocated
+      XCTAssertTrue(characteristic.isNotifying)
+
+      try await peripheral.setNotifyValue(false, for: characteristic)
+      XCTAssertFalse(characteristic.isNotifying)
+
+      // Set stream to nil to deallocate AsyncStream
+      stream = nil
+
+      try await peripheral.setNotifyValue(false, for: characteristic)
+      XCTAssertFalse(characteristic.isNotifying)
+
+      try await peripheral.setNotifyValue(false, for: characteristic)
+      XCTAssertFalse(characteristic.isNotifying)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testPeripheralDisconnect() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testSubscribeBreakLoop() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      let services = try await peripheral.discoverServices()
 
-            XCTAssertTrue(mockPeripheral.isConnected)
+      var characteristics: [CBCharacteristic] = []
 
-            try await central.cancelPeripheralConnection(peripheral)
+      for service in services {
+        characteristics.append(
+          contentsOf: try await peripheral.discoverCharacteristics(for: service))
+      }
 
-            XCTAssertFalse(mockPeripheral.isConnected)
+      let mutableMockCharacteristic = mockCharacteristics.first(where: {
+        $0.properties.contains(.read) && $0.properties.contains(.notify)
+          && $0.properties.contains(.write)
+      })!
+      let characteristic = characteristics.first(where: {
+        $0.uuid == mutableMockCharacteristic.uuid
+      })
+
+      XCTAssertNotNil(characteristic)
+
+      guard let characteristic = characteristic else { fatalError() }
+
+      XCTAssertNil(characteristic.value)
+      XCTAssertFalse(characteristic.isNotifying)
+
+      // CoreBluetoothMock adds some delays to its ability to simulate
+      // Using our async setNotifyValue we can wait for notifying to actually be true
+      try await peripheral.setNotifyValue(true, for: characteristic)
+      XCTAssertTrue(characteristic.isNotifying)
+
+      let exp = self.expectation(description: "Should break out of the loop")
+
+      Task {
+        for await _ in peripheral.readValues(for: characteristic) {
+          // Do nothing in this loop and never cause it to break
         }
+
+        exp.fulfill()
+      }
+
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [self] in
+        mockPeripheral.simulateValueUpdate(.init([0x10]), for: mutableMockCharacteristic)
+        mockPeripheral.simulateValueUpdate(.init([0x11]), for: mutableMockCharacteristic)
+        mockPeripheral.simulateValueUpdate(.init([0x12]), for: mutableMockCharacteristic)
+
+        peripheral.setNotifyValue(false, for: characteristic)
+      }
+
+      #if swift(>=5.8)
+        await self.fulfillment(of: [exp])
+      #else
+        self.wait(for: [exp], timeout: 5)
+      #endif
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testConnectedPeripheralTimeout() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals(timeout: 1).first
-            try await central.connect(peripheral, timeout: 1)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testPeripheralDisconnect() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
 
-            // Wait LONGER than both timeouts are expected to take (2s total vs ~1s total)
-            // to see if the timeout check causes a second continuation resume
-            try await Task.sleep(nanoseconds: .init(2 * TimeInterval(NSEC_PER_SEC)))
+      XCTAssertTrue(mockPeripheral.isConnected)
 
-            XCTAssert(mockPeripheral.isConnected)
-        }
+      try await central.cancelPeripheralConnection(peripheral)
+
+      XCTAssertFalse(mockPeripheral.isConnected)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testPeripheralDiscoveryInfo() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testConnectedPeripheralTimeout() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals(timeout: 1).first
+      try await central.connect(peripheral, timeout: 1)
 
-            XCTAssertEqual(peripheral.discovery.rssi, mockPeripheral.proximity.RSSI, accuracy: 15) // 15 is what CBM uses for random deviation
+      // Wait LONGER than both timeouts are expected to take (2s total vs ~1s total)
+      // to see if the timeout check causes a second continuation resume
+      try await Task.sleep(nanoseconds: .init(2 * TimeInterval(NSEC_PER_SEC)))
 
-            XCTAssertEqual(peripheral.discovery.advertisementData.isConnectable, true)
-            XCTAssertEqual(peripheral.discovery.advertisementData.localName, mockPeripheral.name)
-            XCTAssertEqual(peripheral.discovery.advertisementData.serviceUUIDs, mockServices.map(\.uuid))
-
-            // Double check that key indexing still works
-            XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataIsConnectable])
-            XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataLocalNameKey])
-            XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataServiceUUIDsKey])
-        }
+      XCTAssert(mockPeripheral.isConnected)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testPeripheralRSSI() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
-            try await central.connect(peripheral, timeout: connectionTimeout)
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testPeripheralDiscoveryInfo() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
 
-            let rssi = try await peripheral.readRSSI()
+      XCTAssertEqual(peripheral.discovery.rssi, mockPeripheral.proximity.RSSI, accuracy: 15)  // 15 is what CBM uses for random deviation
 
-            XCTAssertNotNil(rssi)
-        }
+      XCTAssertEqual(peripheral.discovery.advertisementData.isConnectable, true)
+      XCTAssertEqual(peripheral.discovery.advertisementData.localName, mockPeripheral.name)
+      XCTAssertEqual(peripheral.discovery.advertisementData.serviceUUIDs, mockServices.map(\.uuid))
+
+      // Double check that key indexing still works
+      XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataIsConnectable])
+      XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataLocalNameKey])
+      XCTAssertNotNil(peripheral.discovery.advertisementData[CBAdvertisementDataServiceUUIDsKey])
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testDoubleConnectPeripheral() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testPeripheralRSSI() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+      try await central.connect(peripheral, timeout: connectionTimeout)
 
-            try await central.connect(peripheral, timeout: connectionTimeout)
-            try await central.connect(peripheral, timeout: connectionTimeout)
+      let rssi = try await peripheral.readRSSI()
 
-            XCTAssert(mockPeripheral.isConnected)
-        }
+      XCTAssertNotNil(rssi)
     }
+  }
 
-    @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-    func testPeripheralNotConnectedCancel() async throws {
-        try await withTimeout { [self] in
-            central = CentralManager()
-            try await central.waitUntilReady()
-            peripheral = await central.scanForPeripherals().first!
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testDoubleConnectPeripheral() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first
 
-            try? await central.cancelPeripheralConnection(peripheral)
+      try await central.connect(peripheral, timeout: connectionTimeout)
+      try await central.connect(peripheral, timeout: connectionTimeout)
 
-            let connectResult = try? await central.connect(peripheral, timeout: connectionTimeout)
-
-            XCTAssertNotNil(connectResult)
-            XCTAssertTrue(mockPeripheral.isConnected)
-        }
+      XCTAssert(mockPeripheral.isConnected)
     }
+  }
+
+  @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+  func testPeripheralNotConnectedCancel() async throws {
+    try await withTimeout { [self] in
+      central = CentralManager()
+      try await central.waitUntilReady()
+      peripheral = await central.scanForPeripherals().first!
+
+      try? await central.cancelPeripheralConnection(peripheral)
+
+      let connectResult = try? await central.connect(peripheral, timeout: connectionTimeout)
+
+      XCTAssertNotNil(connectResult)
+      XCTAssertTrue(mockPeripheral.isConnected)
+    }
+  }
 }
