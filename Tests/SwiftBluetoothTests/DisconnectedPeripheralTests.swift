@@ -23,7 +23,7 @@ final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
     try await withTimeout { [self] in
       central = CentralManager()
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
 
       mockPeripheral.simulateProximityChange(.outOfRange)
 
@@ -42,7 +42,7 @@ final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
     try await withTimeout { [self] in
       central = CentralManager()
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
 
       mockPeripheral.simulateProximityChange(.outOfRange)
 
@@ -67,7 +67,7 @@ final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
     try await withTimeout { [self] in
       central = CentralManager()
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
       let services = try await peripheral.discoverServices()
 
@@ -112,7 +112,7 @@ final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
     try await withTimeout { [self] in
       central = CentralManager()
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
 
       XCTAssertTrue(mockPeripheral.isConnected)
@@ -151,7 +151,7 @@ final class DisconnectedPeripheralTests: CentralPeripheralTestCase {
     try await withTimeout { [self] in
       central = CentralManager()
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
 
       // Disconnect to test if the internal reference is dropped (it should not)

@@ -8,7 +8,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testDiscoverServicesDuringDisconnect() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
 
       XCTAssertTrue(mockPeripheral.isConnected)
@@ -30,7 +30,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testReadValueDuringDisconnect() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
       let services = try await peripheral.discoverServices()
 
@@ -71,7 +71,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testWriteValueDuringDisconnect() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
       let services = try await peripheral.discoverServices()
 
@@ -113,7 +113,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testReadStreamDuringDisconnect() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
       let services = try await peripheral.discoverServices()
 
@@ -151,7 +151,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testSetNotifyDuringDisconnect() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
 
       XCTAssertTrue(mockPeripheral.isConnected)
@@ -185,7 +185,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
   func testPeripheralSimultaniousDisconnectAndRead() async throws {
     try await withTimeout { [self] in
       try await central.waitUntilReady()
-      peripheral = await central.scanForPeripherals().first!
+      peripheral = await central.scanForPeripherals().first!.peripheral
       try await central.connect(peripheral, timeout: connectionTimeout)
       let services = try await peripheral.discoverServices()
 
@@ -218,8 +218,9 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
         XCTAssertEqual(0, ran)
         ran += 1
       }
-      peripheral.responseMap.recieve(key: characteristic.uuid, withValue: .success(.init([0xFF])))
-      peripheral.eventSubscriptions.recieve(.didDisconnect(nil))
+      peripheral.responseMap.receive(
+        key: characteristic.uuid,
+        withValue: .success(Data([0xFF])))
 
       #if swift(>=5.8)
         await self.fulfillment(of: [exp])
