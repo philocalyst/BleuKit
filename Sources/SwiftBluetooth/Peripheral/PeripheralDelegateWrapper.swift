@@ -1,126 +1,196 @@
 import CoreBluetooth
 import Foundation
 
+/// Internal wrapper that forwards CBPeripheralDelegate callbacks
+/// into our high-level `Peripheral` events and subscriptions.
 internal final class PeripheralDelegateWrapper: NSObject, CBPeripheralDelegate {
   private weak var parent: Peripheral?
 
+  /// Initialize with the high-level `Peripheral`.
   init(parent: Peripheral) {
     self.parent = parent
   }
 
-  // MARK: - CBPeripheralDelegate conformance
+  // MARK: - CBPeripheralDelegate
 
   func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-    guard let parent = parent else { return }
-    parent.eventSubscriptions.receive(.discoveredServices(parent.services ?? [], error))
-    parent.delegate?.peripheral(parent, didDiscoverServices: error)
+    guard let p = parent else { return }
+    p.eventSubscriptions.receive(.discoveredServices(p.services ?? [], error))
+    p.delegate?.peripheral(p, didDiscoverServices: error)
   }
 
   func peripheral(
-    _ peripheral: CBPeripheral, didDiscoverIncludedServicesFor service: CBService, error: Error?
-  ) {
-    guard let parent = parent else { return }
-    parent.delegate?.peripheral(parent, didDiscoverIncludedServicesFor: service, error: error)
-  }
-
-  func peripheral(
-    _ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?
-  ) {
-    guard let parent = parent else { return }
-
-    // Save known characteristics for later usage by UUID
-    for characteristic in service.characteristics ?? [] {
-      parent.knownCharacteristics[characteristic.uuid] = characteristic
-    }
-
-    parent.eventSubscriptions.receive(
-      .discoveredCharacteristics(service, service.characteristics ?? [], error))
-    parent.delegate?.peripheral(parent, didDiscoverCharacteristicsFor: service, error: error)
-  }
-
-  func peripheral(
-    _ peripheral: CBPeripheral, didDiscoverDescriptorsFor characteristic: CBCharacteristic,
+    _ peripheral: CBPeripheral,
+    didDiscoverIncludedServicesFor service: CBService,
     error: Error?
   ) {
-    guard let parent = parent else { return }
-    parent.eventSubscriptions.receive(
-      .discoveredDescriptors(characteristic, characteristic.descriptors ?? [], error))
-    parent.delegate?.peripheral(parent, didDiscoverDescriptorsFor: characteristic, error: error)
+    guard let p = parent else { return }
+    p.delegate?.peripheral(
+      p,
+      didDiscoverIncludedServicesFor: service,
+      error: error
+    )
   }
 
   func peripheral(
-    _ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?
+    _ peripheral: CBPeripheral,
+    didDiscoverCharacteristicsFor service: CBService,
+    error: Error?
   ) {
-    guard let parent = parent else { return }
-
-    if let error {
-      parent.responseMap.receive(key: characteristic.uuid, withValue: .failure(error))
-    } else if let value = characteristic.value {
-      parent.responseMap.receive(key: characteristic.uuid, withValue: .success(value))
+    guard let p = parent else { return }
+    for ch in service.characteristics ?? [] {
+      p.knownCharacteristics[ch.uuid] = ch
     }
-
-    parent.delegate?.peripheral(parent, didUpdateValueFor: characteristic, error: error)
+    p.eventSubscriptions.receive(
+      .discoveredCharacteristics(
+        service,
+        service.characteristics ?? [],
+        error))
+    p.delegate?.peripheral(
+      p,
+      didDiscoverCharacteristicsFor: service,
+      error: error
+    )
   }
 
   func peripheral(
-    _ peripheral: CBPeripheral, didUpdateValueFor descriptor: CBDescriptor, error: Error?
+    _ peripheral: CBPeripheral,
+    didDiscoverDescriptorsFor characteristic: CBCharacteristic,
+    error: Error?
   ) {
-    guard let parent = parent else { return }
+    guard let p = parent else { return }
+    p.eventSubscriptions.receive(
+      .discoveredDescriptors(
+        characteristic,
+        characteristic.descriptors ?? [],
+        error))
+    p.delegate?.peripheral(
+      p,
+      didDiscoverDescriptorsFor: characteristic,
+      error: error
+    )
+  }
 
-    if let error {
-      parent.descriptorMap.receive(key: descriptor.uuid, withValue: .failure(error))
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didUpdateValueFor characteristic: CBCharacteristic,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    if let e = error {
+      p.responseMap.receive(
+        key: characteristic.uuid,
+        withValue: .failure(e))
+    } else if let v = characteristic.value {
+      p.responseMap.receive(
+        key: characteristic.uuid,
+        withValue: .success(v))
+    }
+    p.delegate?.peripheral(
+      p,
+      didUpdateValueFor: characteristic,
+      error: error
+    )
+  }
+
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didUpdateValueFor descriptor: CBDescriptor,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    if let e = error {
+      p.descriptorMap.receive(
+        key: descriptor.uuid,
+        withValue: .failure(e))
     } else {
-      parent.descriptorMap.receive(key: descriptor.uuid, withValue: .success(descriptor.value))
+      p.descriptorMap.receive(
+        key: descriptor.uuid,
+        withValue: .success(descriptor.value))
     }
-
-    parent.delegate?.peripheral(parent, didUpdateValueFor: descriptor, error: error)
+    p.delegate?.peripheral(
+      p,
+      didUpdateValueFor: descriptor,
+      error: error
+    )
   }
 
   func peripheral(
-    _ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?
-  ) {
-    guard let parent = parent else { return }
-
-    parent.writeMap.receive(key: characteristic.uuid, withValue: error)
-    parent.delegate?.peripheral(parent, didWriteValueFor: characteristic, error: error)
-  }
-
-  func peripheral(
-    _ peripheral: CBPeripheral, didWriteValueFor descriptor: CBDescriptor, error: Error?
-  ) {
-    guard let parent = parent else { return }
-
-    parent.writeMap.receive(key: descriptor.uuid, withValue: error)
-    parent.delegate?.peripheral(parent, didWriteValueFor: descriptor, error: error)
-  }
-
-  func peripheral(
-    _ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
+    _ peripheral: CBPeripheral,
+    didWriteValueFor characteristic: CBCharacteristic,
     error: Error?
   ) {
-    guard let parent = parent else { return }
-    parent.eventSubscriptions.receive(.updateNotificationState(characteristic, error))
-    parent.delegate?.peripheral(parent, didUpdateNotificationStateFor: characteristic, error: error)
+    guard let p = parent else { return }
+    p.writeMap.receive(
+      key: characteristic.uuid,
+      withValue: error)
+    p.delegate?.peripheral(
+      p,
+      didWriteValueFor: characteristic,
+      error: error
+    )
   }
 
-  func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-    guard let parent = parent else { return }
-    parent.eventSubscriptions.receive(.readRSSI(RSSI, error))
-    parent.delegate?.peripheral(parent, didReadRSSI: RSSI, error: error)
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didWriteValueFor descriptor: CBDescriptor,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    p.writeMap.receive(
+      key: descriptor.uuid,
+      withValue: error)
+    p.delegate?.peripheral(
+      p,
+      didWriteValueFor: descriptor,
+      error: error
+    )
+  }
+
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didUpdateNotificationStateFor characteristic: CBCharacteristic,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    p.eventSubscriptions.receive(.updateNotificationState(characteristic, error))
+    p.delegate?.peripheral(
+      p,
+      didUpdateNotificationStateFor: characteristic,
+      error: error
+    )
+  }
+
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didReadRSSI RSSI: NSNumber,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    p.eventSubscriptions.receive(.readRSSI(RSSI, error))
+    p.delegate?.peripheral(
+      p,
+      didReadRSSI: RSSI,
+      error: error
+    )
   }
 
   func peripheral(_ peripheral: CBPeripheral, didModifyServices services: [CBService]) {
-    guard let parent = parent else { return }
-    parent.delegate?.peripheral(parent, didModifyServices: services)
+    guard let p = parent else { return }
+    p.delegate?.peripheral(p, didModifyServices: services)
   }
 
   func peripheralDidUpdateName(_ peripheral: CBPeripheral) {
-    guard let parent = parent else { return }
-    parent.delegate?.peripheralDidUpdateName(parent)
+    guard let p = parent else { return }
+    p.delegate?.peripheralDidUpdateName(p)
   }
 
-  func peripheral(_ peripheral: CBPeripheral, didOpen channel: CBL2CAPChannel?, error: Error?) {
-    guard let parent = parent else { return }
-    parent.delegate?.peripheral(parent, didOpen: channel, error: error)
+  func peripheral(
+    _ peripheral: CBPeripheral,
+    didOpen channel: CBL2CAPChannel?,
+    error: Error?
+  ) {
+    guard let p = parent else { return }
+    p.delegate?.peripheral(p, didOpen: channel, error: error)
   }
 }

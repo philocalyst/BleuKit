@@ -1,13 +1,19 @@
 import Foundation
 
+/// High-level errors for `CentralManager` operations.
 public enum CentralError: Error {
+  /// An unknown error occurred.
   case unknown
+  /// Bluetooth is powered off.
   case poweredOff
+  /// The app is not authorized to use Bluetooth.
   case unauthorized
+  /// Bluetooth is unavailable on this device.
   case unavailable
 }
 
 extension CentralError: LocalizedError {
+  /// A human-readable description of the error.
   public var errorDescription: String? {
     switch self {
     case .unknown:
@@ -21,6 +27,7 @@ extension CentralError: LocalizedError {
     }
   }
 
+  /// Suggestion to recover from this error.
   public var recoverySuggestion: String? {
     switch self {
     case .unknown:
