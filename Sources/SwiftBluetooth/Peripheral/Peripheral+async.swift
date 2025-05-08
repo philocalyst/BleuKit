@@ -213,8 +213,14 @@ extension Peripheral {
   public func setNotifyValue(_ value: Bool, for characteristic: Characteristic) async throws -> Bool
   {
     try await withCheckedThrowingContinuation { cont in
-      try self.setNotifyValue(value, for: characteristic) { result in
-        cont.resume(with: result)
+      do {
+        try self.setNotifyValue(value, for: characteristic) { result in
+          // Resume with the Result<Bool,Error> that the callback gives us
+          cont.resume(with: result)
+        }
+      } catch {
+        // If the initial call itself throws, resume the continuation with that error
+        cont.resume(throwing: error)
       }
     }
   }
