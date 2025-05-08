@@ -2,44 +2,42 @@ import Foundation
 
 internal final class AsyncSubscriptionQueueMap<Key, Value> where Key: Hashable {
   private var items: [Key: AsyncSubscriptionQueue<Value>] = [:]
+  private let lock = NSLock()
+
+  internal init() {}
 
   internal var isEmpty: Bool {
-    items.values.allSatisfy { $0.isEmpty }
-  }
-
-  // TODO: Convert these to just use a lock
-  private let dispatchQueue: DispatchQueue
-
-  init(_ dispatchQueue: DispatchQueue = .init(label: "async-subscription-queue-map")) {
-    self.dispatchQueue = dispatchQueue
+    lock.lock()
+    defer { lock.unlock() }
+    return items.values.allSatisfy { $0.isEmpty }
   }
 
   @discardableResult
-  func queue(
-    key: Key, block: @escaping (Value, () -> Void) -> Void, completion: (() -> Void)? = nil
+  internal func queue(
+    key: Key,
+    block: @escaping (Value, () -> Void) -> Void,
+    completion: (() -> Void)? = nil
   ) -> AsyncSubscription<Value> {
-    var item: AsyncSubscriptionQueue<Value>?
-
-    dispatchQueue.safeSync {
-      item = items[key]
+    // Grab-or-create the queue under lock
+    lock.lock()
+    var queue = items[key]
+    if queue == nil {
+      queue = AsyncSubscriptionQueue<Value>()
+      items[key] = queue!
     }
+    lock.unlock()
 
-    guard let item = item else {
-      dispatchQueue.safeSync {
-        items[key] = .init(self.dispatchQueue)
-      }
-
-      return queue(key: key, block: block, completion: completion)
-    }
-
-    return item.queue(block: block, completion: completion)
+    // Enqueue outside the lock
+    return queue!.queue(block: block, completion: completion)
   }
 
-  func receive(key: Key, withValue value: Value) {
-    dispatchQueue.async {
-      guard let queue = self.items[key] else { return }
+  internal func receive(key: Key, withValue value: Value) {
+    // Snapshot the queue reference under lock
+    lock.lock()
+    let queue = items[key]
+    lock.unlock()
 
-      queue.receive(value)
-    }
+    // Deliver outside the lock
+    queue?.receive(value)
   }
 }
