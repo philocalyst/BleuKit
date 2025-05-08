@@ -8,7 +8,7 @@ import Foundation
 /// mapping between `CBUUID` and `CBCharacteristic`/`CBDescriptor`.
 public class Peripheral: NSObject {
   /// Underlying CoreBluetooth peripheral.
-  private(set) var cbPeripheral: CBPeripheral
+  public var cbPeripheral: CBPeripheral
 
   /// Internal wrapper to forward CBPeripheralDelegate callbacks.
   private lazy var wrappedDelegate: PeripheralDelegateWrapper = .init(parent: self)
