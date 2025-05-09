@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "BlueKit",
+  name: "BleuKit",
   platforms: [
     .iOS(.v14),
     .macOS(.v10_15),
@@ -11,20 +11,20 @@ let package = Package(
     .watchOS(.v7),
   ],
   products: [
-    .library(name: "BlueKit", targets: ["BlueKit"])
+    .library(name: "BleuKit", targets: ["BleuKit"])
   ],
   dependencies: [
     .package(
       url: "https://github.com/NordicSemiconductor/IOS-CoreBluetooth-Mock.git", "0.17.0"..<"0.18.0")
   ],
   targets: [
-    .target(name: "BlueKit"),
+    .target(name: "BleuKit"),
     .target(
-      name: "BlueKitMock",
+      name: "BleuKitMock",
       dependencies: [.product(name: "CoreBluetoothMock", package: "IOS-CoreBluetooth-Mock")],
-      exclude: ["BlueKit/CentralManager/CBCentralManagerFactory.swift"]),
+      exclude: ["BleuKit/CentralManager/CBCentralManagerFactory.swift"]),
     .testTarget(
-      name: "BlueKitTests",
-      dependencies: ["BlueKitMock"]),
+      name: "BleuKitTests",
+      dependencies: ["BleuKitMock"]),
   ]
 )

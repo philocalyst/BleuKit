@@ -3,7 +3,7 @@ import Foundation
 
 /// Factory abstraction for creating `CBCentralManager` instances.
 ///
-/// This allows you to swap in a mock central manager (via `BlueKitMock`)
+/// This allows you to swap in a mock central manager (via `BleuKitMock`)
 /// without changing your business‐logic code.
 enum CBCentralManagerFactory {
 

@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import BlueKitMock
+@testable import BleuKitMock
 @testable import CoreBluetoothMock
 
 private final class CentralManagerDelegateThreadChecker: CentralManagerDelegate {

@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import BlueKitMock
+@testable import BleuKitMock
 @testable import CoreBluetoothMock
 
 final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
@@ -210,7 +210,7 @@ final class LostConnectionPeripheralTests: CentralPeripheralTestCase {
       XCTAssertNil(characteristic.value)
 
       // TODO: Break this out into a seperate AsyncSubscriptionQueue test?
-      // Will also need to test that BlueKit.Peripheral implements a shared DispatchQueue (like this test is doing)
+      // Will also need to test that BleuKit.Peripheral implements a shared DispatchQueue (like this test is doing)
       var ran = 0
       let exp = XCTestExpectation()
       peripheral.readValue(for: characteristic) { result in

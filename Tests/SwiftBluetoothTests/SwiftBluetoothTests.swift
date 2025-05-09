@@ -1,13 +1,13 @@
 import XCTest
 
-@testable import BlueKitMock
+@testable import BleuKitMock
 @testable @preconcurrency import CoreBluetoothMock
 
 extension Characteristic {
   static let firstChar = Self("00000000-0000-0000-0001-000000000001")
 }
 
-final class BlueKitTests: CentralPeripheralTestCase {
+final class BleuKitTests: CentralPeripheralTestCase {
   var exp: XCTestExpectation!
 
   @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)

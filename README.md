@@ -1,9 +1,9 @@
-![BlueKit](.github/assets/logo.jpg)
+![BleuKit](.github/assets/logo.jpg)
 
 Easily interface with Bluetooth peripherals in new or existing projects through modern async Swift API's.
 
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FexPHAT%2FBlueKit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/exPHAT/BlueKit)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FexPHAT%2FBlueKit%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/exPHAT/BlueKit)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FexPHAT%2FBleuKit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/exPHAT/BleuKit)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FexPHAT%2FBleuKit%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/exPHAT/BleuKit)
 
 
 ## Features
@@ -16,18 +16,18 @@ Easily interface with Bluetooth peripherals in new or existing projects through 
 - [x] Staticly typed characteristics
 - [x] Thread safe
 - [x] Zero inherited dependencies
-- [x] Tested with included `BlueKitMock` library
+- [x] Tested with included `BleuKitMock` library
 
 ## Examples
 
-[API Documentation.](https://swiftpackageindex.com/exPHAT/BlueKit/1.0.0/documentation/)
+[API Documentation.](https://swiftpackageindex.com/exPHAT/BleuKit/1.0.0/documentation/)
 
 #### Complete example
 
 Async API's make the entire Bluetooth lifecycle much simpler, using method names you're already familiar with from CoreBluetooth.
 
 ```swift
-import BlueKit
+import BleuKit
 
 let central = CentralManager()
 try await central.waitUntilReady()
@@ -107,13 +107,13 @@ Existing projects that already use `CoreBluetooth` can immediately get started b
 
 ```swift
 import CoreBluetooth
-import BlueKit // Add this
+import BleuKit // Add this
 
-// Override existing CoreBluetooth classes to use BlueKit
-typealias CBCentralManager         = BlueKit.CentralManager
-typealias CBCentralManagerDelegate = BlueKit.CentralManagerDelegate
-typealias CBPeripheral             = BlueKit.Peripheral
-typealias CBPeripheralDelegate     = BlueKit.PeripheralDelegate
+// Override existing CoreBluetooth classes to use BleuKit
+typealias CBCentralManager         = BleuKit.CentralManager
+typealias CBCentralManagerDelegate = BleuKit.CentralManagerDelegate
+typealias CBPeripheral             = BleuKit.Peripheral
+typealias CBPeripheralDelegate     = BleuKit.PeripheralDelegate
 
 // Your existing code should continue to work as normal.
 // But now you have access to all the new API's!
@@ -124,25 +124,25 @@ typealias CBPeripheralDelegate     = BlueKit.PeripheralDelegate
 
 #### Xcode
 
-Add `https://github.com/exPHAT/BlueKit.git` in the ["Swift Package Manager" tab.](https://developer.apple.com/documentation/xcode/adding-package-dependencies-to-your-app)
+Add `https://github.com/exPHAT/BleuKit.git` in the ["Swift Package Manager" tab.](https://developer.apple.com/documentation/xcode/adding-package-dependencies-to-your-app)
 
 
 #### Swift Package Manager
 
-Add BlueKit as a dependency in your `Package.swift` file:
+Add BleuKit as a dependency in your `Package.swift` file:
 
 ```swift
 let package = Package(
   ...
   dependencies: [
     // Add the package to your dependencies
-    .package(url: "https://github.com/exPHAT/BlueKit.git", branch: "master"),
+    .package(url: "https://github.com/exPHAT/BleuKit.git", branch: "master"),
   ],
   ...
   targets: [
-    // Add BlueKit as a dependency on any target you want to use it in
+    // Add BleuKit as a dependency on any target you want to use it in
     .target(name: "MyTarget",
-            dependencies: [.byName(name: "BlueKit")])
+            dependencies: [.byName(name: "BleuKit")])
   ]
   ...
 )

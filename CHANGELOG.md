@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
--   **BREAKING:** Renamed library from `SwiftBluetooth` to `BlueKit`. This affects imports (`import BlueKit`), package dependencies (`github.com/exPHAT/BlueKit.git`), target names (`BlueKit`, `BlueKitMock`, `BlueKitTests`), and potentially typealiases if used for migration.
+-   **BREAKING:** Renamed library from `SwiftBluetooth` to `BleuKit`. This affects imports (`import BleuKit`), package dependencies (`github.com/exPHAT/BleuKit.git`), target names (`BleuKit`, `BleuKitMock`, `BleuKitTests`), and potentially typealiases if used for migration.
 -   Replaced internal dispatch queues with `NSLock` for improved thread safety in subscription queues.
 -   Replaced fatal errors with throwing `PeripheralError` when characteristics or descriptors are not found.
 -   Updated several methods to use `Result` or `throws` for error handling (e.g., `waitUntilReady`, `connect`, discovery methods, read/write methods).
@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 -   Initial release. (NOT BY ME!!) Forked here.
 
-[Unreleased]: https://github.com/exPHAT/BlueKit/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/exPHAT/BlueKit/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/exPHAT/BlueKit/releases/tag/v1.0.0
+[Unreleased]: https://github.com/exPHAT/BleuKit/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/exPHAT/BleuKit/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/exPHAT/BleuKit/releases/tag/v1.0.0
 
