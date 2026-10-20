@@ -1,6 +1,7 @@
 # Review of bleu_dbus
 
-Verdict: not ready for services that rely on name ownership or on blocking calls.
+Verdict (at review time): not ready for services that rely on name ownership or on blocking calls.
+Status after the fixes: every finding is FIXED; see "Resolution" at the end for each one, its test, and the consumer results.
 Two defects are confirmed by running code against a private `dbus-daemon`: a name
 granted at once fires `on_acquired` twice, and a closed connection leaves
 `OwnedName.held == true` with `on_lost` never called. `process()` also aborts the whole
@@ -101,9 +102,24 @@ Suspicions (unproven): not defects, so no change was made. The reviewer retracte
 
 ## Tests after the fixes
 
-* Unit tests (`compile-test libs/bleu_dbus.c3l/tests/unit/*.c3`, run from a private directory): 91 bleu_dbus tests, all pass (81 before, minus the replaced `resolves_runtime_directory`, plus 11 new). Against the original library, 10 of the new or changed tests fail: the runtime address, the failed send, the malformed frame after a reply, incoming calls during a blocking call, descriptor attribution, the read budget, re-entry from a handler, the bad error text, trailing bytes, and NoMemory. The failed-read test is stubbed in that run, because the original aborts the process there.
-* Integration (`tests/integration.sh`, run from a private directory): INTEGRATION OK. The client suite has 56 checks per socket (49 before), including the ownership checks that failed before (H1 and H2).
-* Probes (scratch, against the changed library): probe_own (H1, H2) shows `on_acquired total=1`, `o1.held=no` and `on_lost` run; probe_reply (M2) sends its reply; probe_abort (M1) no longer aborts in the library.
-* `tools/check.sh bleu_core bleu_dbus`: all six targets ok.
-* Consumers: see the section at the end of this file.
+* Unit tests (`compile-test libs/bleu_dbus.c3l/tests/unit/*.c3`, run from a private directory): 92 bleu_dbus tests, all pass. The original library had 79; 14 were added and one was replaced (`resolves_runtime_directory`, which asserted the L3 defect). The whole run, which also links bleu_core, reports 126 passed and 0 failed.
+* Before and after: the new tests were run against the original library (commit `55ac8bf`). 10 of them fail there: the runtime address, the failed send, the malformed frame after a reply, incoming calls during a blocking call, descriptor attribution, the read budget, re-entry from a handler, the bad error text, trailing bytes, and NoMemory. The failed-read test aborts the original process, so it was stubbed for that run. The nested-call test (`a_reply_to_an_outer_call_survives_an_inner_call`) and the bus reply-code tests were added after that run: `bus_test` does not compile on the original (its functions did not exist), and the nested-call test was not run against the original.
+* Integration (`tests/integration.sh`, run from a private directory): `INTEGRATION OK`, exit 0, no failed check. The client suite has 56 checks per socket (49 before), including the ownership checks that failed before (H1 and H2). The object-server suite has 41 per socket and the notifications example 8, as before.
+* Probes (scratch, rebuilt against the changed library): probe_own shows `on_acquired total=1`, `o1.held=no`, and `on_lost` running after the close (H1, H2). probe_reply sends its reply (M2). probe_abort no longer aborts inside the library (M1): the probe's own `process()!!` reports the fault.
+* `tools/check.sh bleu_core bleu_dbus`: all six targets ok. `c3fmt --check` is clean on every changed file.
 
+## Consumers
+
+The live tests of the consumers were run with `tests/run.sh` on the changed `bleu_dbus`, and again with the original (commit `55ac8bf`), with the same consumer code in both runs. Both runs link the consumer from its repo path, so the consumer's current sources are what is tested. To avoid a hang in `bleu_rt`'s own unit test `an_empty_receive_buffer_is_refused` (`recv` on an empty buffer blocks; not in bleu_dbus, and not changed), those runs use copies of the other libraries with their `*_test.c3` unit files removed.
+
+| Consumer | Original bleu_dbus | Changed bleu_dbus | Note |
+| --- | --- | --- | --- |
+| battery | 33 passed, 0 failed | 33 passed, 0 failed | |
+| power | 101 checks passed | 101 checks passed | |
+| session | 8 passed, 0 failed | 8 passed, 0 failed | |
+| tray | all checks passed | all checks passed | |
+| network | 51 passed, 0 failed | 51 passed, 0 failed | |
+| notify | 1 failed: "the centre quits cleanly" | 1 failed: the same check | unchanged by bleu_dbus; pre-existing |
+| bluetooth | ALL CHECKS PASSED | ALL CHECKS PASSED | one run of the changed build lacked one PASS line; a rerun of both builds printed all 56 |
+
+No consumer result differs between the two builds. The bluetooth row is the only one that varied between runs.

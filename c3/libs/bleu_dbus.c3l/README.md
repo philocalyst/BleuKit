@@ -141,7 +141,7 @@ The descriptors of a reply must stay open until the reply is sent (until
 ## Verified how
 
 - **Run** (Linux x86-64, C3 0.8.5_1, dbus-daemon 1.14.10, python-dbus-next 0.2.3):
-  - Unit tests (`tests/unit`, 91 tests, `compile-test`): the client tests, mutation
+  - Unit tests (`tests/unit`, 92 tests, `compile-test`): the client tests, mutation
     fuzzing of the Reader (200 000 inputs) and of whole messages (100 000), golden vectors
     from python-dbus-next and the specification, and the server tests (Introspect XML,
     argument checks, routing errors, Properties Get/Set/GetAll, NO_REPLY_EXPECTED,

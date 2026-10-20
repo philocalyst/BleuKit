@@ -247,7 +247,7 @@
 * In bleu_core, `Observable.close` and `Stream.close` no longer free their lists (`destroy` does); a service whose `Hub.stop` only calls `close` leaks at every stop → the Hub must call `destroy` after the worker has stopped.
 * `Observable.unwatch` returns `void?` (refused from inside its own listener): services that forward it must propagate with `void?`, not `void`.
 * `@export` takes the C name after the declaration: `struct X @export("c_name")`, `fn f(..) @export("c_name")`, `enum E : int @export("c_name")`, `typedef N @export("c_name") = T;`. It is refused on `alias` (the header then names the alias by its mangled C3 name).
-* `@foreign_entry` (`@pool_init`) asserts `!top_temp`: it traps on a thread that already has a temp allocator (C3 worker threads do) and when nested → test `std::core::mem::allocators::top_temp != null` first.
+* `@pool_init` asserts `!top_temp` (traps on a thread that already has a temp allocator, and when nested) → use `bleu::rt::foreign::@foreign_entry`, which reuses an existing temp allocator and nests safely.
 * A struct cannot be declared inside a function (`Unexpected 'struct'`); the size of a type is `Type::size`, not `Type.sizeof` (which works on values only).
 * `c3c dynamic-lib` exports every function, including `Type.method` symbols, so the header's functions must be restricted at link time (`--linker=custom` gets raw `ld` arguments; a `--version-script` works, a `bleu_*` glob does not).
 * c3c's header drops the element type of a slice (`Source[]` → `c3slice_t`): a struct reached only through a slice is not emitted; export accessors that name it.

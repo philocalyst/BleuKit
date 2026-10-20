@@ -14,7 +14,7 @@
  the local time zone.
 *>
 module dmsd::theme_auto_calc;
-import std::math, std::time;
+import std::math, std::time, std::time::datetime;
 
 <* Microseconds in one second, minute, and day. *>
 const long SEC_US = 1000000;
@@ -84,7 +84,7 @@ enum Threshold : char
 *>
 fn long offset_us(long unix_us)
 {
-	TzDateTime local = time::from_time((Time)unix_us).to_local();
+	TzDateTime local = datetime::from_time((Time)unix_us).to_local();
 	return (long)local.gmt_offset * SEC_US;
 }
 
