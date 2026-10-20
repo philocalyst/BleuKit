@@ -1,0 +1,186 @@
+<*
+ One-shot and repeating timers on the monotonic clock, keyed by caller-chosen ids.
+
+ The queue is a binary min-heap ordered by due time. The owning worker asks
+ `next_timeout` for how long its poller may sleep, and calls `pop_expired` after
+ each wake-up. It does no timekeeping of its own: `std::time::clock` is
+ CLOCK_MONOTONIC (clock_gettime(2)), so wall-clock jumps never fire or delay a
+ timer. Cancelling is by id and linear in the number of timers; a shell has a
+ few dozen timers at most, so the simplicity is worth more than an index.
+
+ Not thread-safe: the owning worker uses it.
+*>
+module bleu::rt::timers;
+import std::time, std::time::clock, std::collections::list, bleu::error;
+
+<*
+ One pending timer. `period` is zero for a one-shot timer.
+*>
+struct Timer
+{
+	usz id;
+	Clock due;
+	Duration period;
+}
+
+<*
+ A set of timers. Create with `init`, release with `free`.
+*>
+struct TimerQueue
+{
+	List{Timer} heap;
+}
+
+<* Create an empty queue whose storage comes from `allocator`. *>
+fn void TimerQueue.init(&self, Allocator allocator)
+{
+	self.heap.init(allocator);
+}
+
+<* Release the storage. Pending timers are discarded. *>
+fn void TimerQueue.free(&self)
+{
+	self.heap.free();
+}
+
+<*
+ Fire `id` once, `delay` from now.
+
+ @param delay : "How long from now; zero or less fires at the next `pop_expired`"
+ @return? error::INVALID_ARGUMENT : "A timer with this id is already pending"
+*>
+fn void? TimerQueue.schedule(&self, usz id, Duration delay)
+{
+	return self.add(id, delay, time::DURATION_ZERO);
+}
+
+<*
+ Fire `id` every `period`, starting `period` from now. A missed period (the
+ owner was busy) is not replayed as a burst: the next firing is `period` after
+ the moment it is noticed.
+
+ @require period > time::DURATION_ZERO : "A repeating timer needs a positive period"
+ @return? error::INVALID_ARGUMENT : "A timer with this id is already pending"
+*>
+fn void? TimerQueue.schedule_repeating(&self, usz id, Duration period)
+{
+	return self.add(id, period, period);
+}
+
+<*
+ Remove the pending timer with this id.
+
+ @return? NOT_FOUND : "No pending timer has this id"
+*>
+fn void? TimerQueue.cancel(&self, usz id)
+{
+	sz index = self.find(id);
+	if (index < 0) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no timer with id %d", id)~;
+	self.remove_at((usz)index);
+}
+
+<*
+ How long until the earliest timer fires. Zero when one is already due;
+ `time::FOREVER` when there are no timers at all.
+*>
+fn Duration TimerQueue.next_timeout(&self)
+{
+	if (self.heap.is_empty()) return time::FOREVER;
+	NanoDuration left = self.heap.get(0).due - clock::now();
+	return left <= time::NANO_DURATION_ZERO ? time::DURATION_ZERO : left.to_duration();
+}
+
+<*
+ Write the ids of timers that have fired into `buffer`, earliest first, and
+ return how many. One-shot timers leave the queue; repeating timers are rearmed.
+ Timers that did not fit stay due, so the next call returns them.
+
+ @param [&out] buffer : "Receives the expired ids"
+*>
+fn usz TimerQueue.pop_expired(&self, usz[] buffer)
+{
+	Clock now = clock::now();
+	usz n = 0;
+	while (n < (usz)buffer.len && !self.heap.is_empty() && self.heap.get(0).due <= now)
+	{
+		Timer top = self.heap.get(0);
+		buffer[n++] = top.id;
+		if (top.period == time::DURATION_ZERO)
+		{
+			self.remove_at(0);
+			continue;
+		}
+		Clock next = top.due + top.period;
+		if (next <= now) next = now + top.period;
+		top.due = next;
+		self.heap.set(0, top);
+		self.sift_down(0);
+	}
+	return n;
+}
+
+// Insert a timer. `period` zero means one-shot.
+fn void? TimerQueue.add(&self, usz id, Duration delay, Duration period) @private
+{
+	if (self.find(id) >= 0)
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "timer %d is already pending", id)~;
+	}
+	self.heap.push({ .id = id, .due = clock::now() + delay, .period = period });
+	self.sift_up((usz)self.heap.len() - 1);
+}
+
+// Index of the timer with this id, or -1.
+fn sz TimerQueue.find(&self, usz id) @private
+{
+	for (usz i = 0; i < self.heap.len(); i++)
+	{
+		if (self.heap.get(i).id == id) return (sz)i;
+	}
+	return -1;
+}
+
+// Remove the timer at `index` and restore the heap order.
+fn void TimerQueue.remove_at(&self, usz index) @private
+{
+	usz last = self.heap.len() - 1;
+	if (index != last)
+	{
+		self.heap.set(index, self.heap.get(last));
+	}
+	self.heap.remove_last()!!;
+	if (index < self.heap.len())
+	{
+		self.sift_down(index);
+		self.sift_up(index);
+	}
+}
+
+fn void TimerQueue.sift_up(&self, usz index) @private
+{
+	usz i = index;
+	while (i > 0)
+	{
+		usz parent = (i - 1) / 2;
+		if (self.heap.get(parent).due <= self.heap.get(i).due) return;
+		self.heap.swap(i, parent);
+		i = parent;
+	}
+}
+
+fn void TimerQueue.sift_down(&self, usz index) @private
+{
+	usz i = index;
+	usz count = self.heap.len();
+	while (true)
+	{
+		usz smallest = i;
+		usz left = 2 * i + 1;
+		usz right = left + 1;
+		if (left < count && self.heap.get(left).due < self.heap.get(smallest).due) smallest = left;
+		if (right < count && self.heap.get(right).due < self.heap.get(smallest).due) smallest = right;
+		if (smallest == i) return;
+		self.heap.swap(i, smallest);
+		i = smallest;
+	}
+}

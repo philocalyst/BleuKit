@@ -200,7 +200,7 @@ fn void? Writer.begin_array(&self, String array_sig)
 	claim(self, array_sig)!;
 	put_fixed(self, 0, 4);
 	usz length_at = self.size() - 4;
-	String element = array_sig[1:array_sig.len];
+	String element = array_sig[1:array_sig.len - 1];
 	self.align(signature::alignment_of(element));
 	push(self, ARRAY, element, length_at, self.size())!;
 }
@@ -230,7 +230,7 @@ fn void? Writer.begin_struct(&self)
 	String type = expected_type(self, signature::STRUCT_OPEN)!;
 	claim(self, type)!;
 	self.align(signature::ALIGN_8);
-	push(self, STRUCT, type[1:type.len - 1], 0, 0)!;
+	push(self, STRUCT, type[1:type.len - 2], 0, 0)!;
 }
 
 <* Close the innermost struct; every field must have been written. *>
@@ -252,7 +252,7 @@ fn void? Writer.begin_dict_entry(&self)
 	String type = expected_type(self, signature::DICT_OPEN)!;
 	claim(self, type)!;
 	self.align(signature::ALIGN_8);
-	push(self, DICT_ENTRY, type[1:type.len - 1], 0, 0)!;
+	push(self, DICT_ENTRY, type[1:type.len - 2], 0, 0)!;
 }
 
 <* Close the innermost dict entry; both its key and value must have been written. *>
@@ -352,7 +352,7 @@ fn String? expected_type(Writer* self, char code) @private
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len || f.sig[f.cursor] != code) return error::INVALID_ARGUMENT~;
 	usz end = signature::complete_end(f.sig, f.cursor)!;
-	return f.sig[f.cursor:end];
+	return f.sig[f.cursor:end - f.cursor];
 }
 
 // Consume `type` from the innermost level, which must expect it next. Aligns
@@ -362,10 +362,10 @@ fn void? claim(Writer* w, String type) @private
 	Frame* f = &w.frames[w.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
 	usz end = signature::complete_end(f.sig, f.cursor)!;
-	if (f.sig[f.cursor:end] != type)
+	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,
-			"expected type '%s', got '%s'", f.sig[f.cursor:end], type)~;
+			"expected type '%s', got '%s'", f.sig[f.cursor:end - f.cursor], type)~;
 	}
 	f.cursor = end;
 	if (f.kind == ARRAY && f.cursor == f.sig.len) f.cursor = 0;

@@ -37,11 +37,11 @@ fn void index_defaults_and_types() @test
 	test::eq("Theme A", theme.name);
 	test::eq(1, theme.inherits.len);
 	test::eq(4, theme.directories.len);
-	test::eq(THRESHOLD, theme.directories[0].type);
+	test::eq(DirectoryType.THRESHOLD, theme.directories[0].type);
 	test::eq(2, theme.directories[0].threshold);
 	test::eq(1, theme.directories[0].scale);
-	test::eq(FIXED, theme.directories[1].type);
-	test::eq(SCALABLE, theme.directories[2].type);
+	test::eq(DirectoryType.FIXED, theme.directories[1].type);
+	test::eq(DirectoryType.SCALABLE, theme.directories[2].type);
 	test::eq(8, theme.directories[2].min_size);
 	test::eq(256, theme.directories[2].max_size);
 	test::eq(2, theme.directories[3].scale);
@@ -60,27 +60,28 @@ fn void index_needs_its_group_and_sizes() @test
 
 fn void threshold_matching_and_distance() @test
 {
-	Directory d = dir(THRESHOLD, 48, 1);
+	Directory d = dir(DirectoryType.THRESHOLD, 48, 1);
 	test::@check(d.matches(46, 1) && d.matches(50, 1), "inside the threshold");
 	test::@check(!d.matches(45, 1) && !d.matches(51, 1), "outside the threshold");
 	test::@check(!d.matches(48, 2), "scale must match");
 	test::eq(0, d.distance(48, 1));
 	test::eq(2, d.distance(44, 1));
 	test::eq(2, d.distance(52, 1));
-	test::eq(4, dir(THRESHOLD, 48, 2).distance(48, 1) / 2 + 2);
+	// Scale 2 puts the threshold window at 92..100 scaled pixels; a 48 px request is 44 away.
+	test::eq(44, dir(DirectoryType.THRESHOLD, 48, 2).distance(48, 1));
 }
 
 fn void fixed_and_scalable_rules() @test
 {
-	Directory fixed = dir(FIXED, 32, 1);
+	Directory fixed = dir(DirectoryType.FIXED, 32, 1);
 	test::@check(fixed.matches(32, 1) && !fixed.matches(33, 1), "fixed is exact");
 	test::eq(8, fixed.distance(24, 1));
-	Directory scalable = { .path = "s", .type = SCALABLE, .size = 64, .scale = 1, .min_size = 8, .max_size = 256, .threshold = 2 };
+	Directory scalable = { .path = "s", .type = DirectoryType.SCALABLE, .size = 64, .scale = 1, .min_size = 8, .max_size = 256, .threshold = 2 };
 	test::@check(scalable.matches(100, 1) && !scalable.matches(4, 1), "scalable range");
 	test::eq(4, scalable.distance(4, 1));
 	test::eq(44, scalable.distance(300, 1));
 	test::eq(0, scalable.distance(64, 1));
-	Directory hi_dpi = dir(FIXED, 16, 2);
+	Directory hi_dpi = dir(DirectoryType.FIXED, 16, 2);
 	test::@check(hi_dpi.matches(16, 2) && !hi_dpi.matches(16, 1), "16@2 only matches scale 2");
 }
 
@@ -160,7 +161,7 @@ fn void default_base_directories_follow_the_specification() @test
 		.names = { "HOME", "XDG_DATA_DIRS" },
 		.values = { "/home/ann", "/x:/y" },
 	};
-	String[] bases = default_base_dirs(vars, tmem);
+	String[] bases = default_base_dirs(&vars, tmem);
 	test::eq(4, bases.len);
 	test::eq("/home/ann/.icons", bases[0]);
 	test::eq("/x/icons", bases[1]);

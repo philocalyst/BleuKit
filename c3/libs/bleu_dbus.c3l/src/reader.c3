@@ -82,7 +82,7 @@ fn String? Reader.peek_type(&self)
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
 	usz end = signature::complete_end(f.sig, f.cursor)!;
-	return f.sig[f.cursor:end];
+	return f.sig[f.cursor:end - f.cursor];
 }
 
 <* BYTE (`y`). @return? error::PROTOCOL : "Truncated or misplaced data" *>
@@ -202,7 +202,7 @@ fn void? Reader.begin_array(&self)
 	align(self, signature::ALIGN_4)!;
 	ulong length = take(self, 4)!;
 	if (length > MAX_ARRAY_LENGTH) return malformed(self.pos - 4, "array longer than 2^26")~;
-	String element = type[1:type.len];
+	String element = type[1:type.len - 1];
 	align(self, signature::alignment_of(element))!;
 	if (length > limit(self) - self.pos) return malformed(self.pos, "array runs past its container")~;
 	return push_read(self, ARRAY, element, self.pos + (usz)length);
@@ -231,7 +231,7 @@ fn void? Reader.begin_struct(&self)
 	if (type[0] != signature::STRUCT_OPEN) return error::INVALID_ARGUMENT~;
 	claim_read(self, type)!;
 	align(self, signature::ALIGN_8)!;
-	return push_read(self, STRUCT, type[1:type.len - 1], limit(self));
+	return push_read(self, STRUCT, type[1:type.len - 2], limit(self));
 }
 
 <* Close the innermost struct; every field must have been read. *>
@@ -253,7 +253,7 @@ fn void? Reader.begin_dict_entry(&self)
 	if (type[0] != signature::DICT_OPEN) return error::INVALID_ARGUMENT~;
 	claim_read(self, type)!;
 	align(self, signature::ALIGN_8)!;
-	return push_read(self, DICT_ENTRY, type[1:type.len - 1], limit(self));
+	return push_read(self, DICT_ENTRY, type[1:type.len - 2], limit(self));
 }
 
 <* Close the innermost dict entry; its key and value must have been read. *>
@@ -390,10 +390,10 @@ fn void? claim_read(Reader* self, String type) @private
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
 	usz end = signature::complete_end(f.sig, f.cursor)!;
-	if (f.sig[f.cursor:end] != type)
+	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,
-			"reading type '%s' where '%s' is next", type, f.sig[f.cursor:end])~;
+			"reading type '%s' where '%s' is next", type, f.sig[f.cursor:end - f.cursor])~;
 	}
 	f.cursor = end;
 	if (f.kind == ARRAY && f.cursor == f.sig.len) f.cursor = 0;
@@ -455,7 +455,7 @@ fn String? read_text_body(Reader* self, String type, usz length_bytes) @private
 	usz n = (usz)take(self, length_bytes)!;
 	usz remaining = limit(self) - self.pos;
 	if (n >= remaining) return malformed(self.pos, "text runs past its container")~;
-	String text = self.data[self.pos:self.pos + n];
+	String text = self.data[self.pos:n];
 	if (self.data[self.pos + n] != 0) return malformed(self.pos + n, "text is not NUL-terminated")~;
 	self.pos += n + 1;
 	bool ok;

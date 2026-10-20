@@ -120,7 +120,7 @@ fn bool is_member(String name)
 fn bool is_bus_name(String name)
 {
 	if (name.len == 0 || name.len > MAX_NAME_LENGTH) return false;
-	if (name[0] == ':') return is_dotted(name[1:name.len], true, true, 2);
+	if (name[0] == ':') return is_dotted(name[1:name.len - 1], true, true, 2);
 	return is_dotted(name, true, false, 2);
 }
 

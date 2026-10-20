@@ -240,7 +240,7 @@ fn bool TypeIterator.has_next(&self) @inline => self.pos < self.sig.len;
 fn String? TypeIterator.next(&self)
 {
 	usz end = complete_end(self.sig, self.pos)!;
-	String type = self.sig[self.pos:end];
+	String type = self.sig[self.pos:end - self.pos];
 	self.pos = end;
 	return type;
 }

@@ -127,7 +127,7 @@ fn Theme? parse_index(Allocator allocator, String source) => @pool()
 	String[2] list_keys = { "Directories", "ScaledDirectories" };
 	foreach (list_key : list_keys)
 	{
-		String[] names = list_value(&file, tmem, ICON_THEME_GROUP, list_key)!;
+		String[] names = comma_list(&file, tmem, ICON_THEME_GROUP, list_key)!;
 		foreach (name : names)
 		{
 			// A listed directory without a section is skipped, as GTK does.
@@ -137,7 +137,7 @@ fn Theme? parse_index(Allocator allocator, String source) => @pool()
 	}
 	return {
 		.name = string_value(&file, allocator, ICON_THEME_GROUP, "Name")!,
-		.inherits = list_value(&file, allocator, ICON_THEME_GROUP, "Inherits")!,
+		.inherits = comma_list(&file, allocator, ICON_THEME_GROUP, "Inherits")!,
 		.directories = directories.to_aligned_array(allocator),
 	};
 }
@@ -400,15 +400,19 @@ fn String? string_value(KeyFile* file, Allocator allocator, String group, String
 	return value;
 }
 
-fn String[]? list_value(KeyFile* file, Allocator allocator, String group, String key) @local
+// A comma-separated list, as the Icon Theme specification defines every list.
+// Blank items are dropped and surrounding blanks trimmed.
+fn String[]? comma_list(KeyFile* file, Allocator allocator, String group, String key) @local => @pool()
 {
-	String[]? values = file.get_strings(allocator, group, key);
-	if (catch err = values)
+	String value = string_value(file, tmem, group, key)!;
+	List{String} items;
+	items.tinit();
+	foreach (item : value.tsplit(",", 0, false))
 	{
-		if (err == NOT_FOUND) return {};
-		return err~;
+		String trimmed = item.trim(" \t");
+		if (trimmed.len > 0) items.push(trimmed.copy(allocator));
 	}
-	return values;
+	return items.to_aligned_array(allocator);
 }
 
 fn String[] copy_all(Allocator allocator, String[] values) @local
