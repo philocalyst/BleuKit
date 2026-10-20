@@ -28,19 +28,29 @@ fn void fail_command(Command* command, fault failure)
 {
 	switch (command.kind)
 	{
-		case CommandKind.SET: fail_operation{ulong}(command, failure);
-		case CommandKind.CLEAR: fail_operation{bool}(command, failure);
-		case CommandKind.FETCH: fail_operation{Bytes}(command, failure);
-		case CommandKind.DELETE: fail_operation{bool}(command, failure);
-	}
-}
+		case CommandKind.SET:
 
-// Fail the operation of `command` with `failure`, and release the worker's reference.
-fn void fail_operation{Value}(Command* command, fault failure)
-{
-	Operation{Value}* op = (Operation{Value}*)command.operation;
-	op.fail(failure);
-	op.release();
+			{
+				Operation{ulong}* op = (Operation{ulong}*)command.operation;
+				op.fail(failure);
+				op.release();
+			}
+		case CommandKind.CLEAR:
+		case CommandKind.DELETE:
+
+			{
+				Operation{bool}* op = (Operation{bool}*)command.operation;
+				op.fail(failure);
+				op.release();
+			}
+		case CommandKind.FETCH:
+
+			{
+				Operation{Bytes}* op = (Operation{Bytes}*)command.operation;
+				op.fail(failure);
+				op.release();
+			}
+	}
 }
 
 <* Fail every command still queued for the worker. Call on the worker's way out. *>

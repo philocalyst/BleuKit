@@ -4,7 +4,7 @@
  `changes` on hand-built states.
 *>
 module bleu::windows;
-import std::collections::list, std::collections::enummap, bleu::equal, bleu::observe, bleu::stream, bleu::service;
+import std::collections::list, bleu::equal, bleu::observe, bleu::stream, bleu::service;
 
 <*
  Publish `next` if it differs from the latest state, then emit one event for
@@ -17,13 +17,16 @@ fn void publish_changes(WindowsHub* hub, Snapshot{State}* next)
 {
 	Snapshot{State}* before = null;
 	if (try latest = hub.latest()) before = latest;
-	if (before && equal::deep(before.value, next.value))
+	if (before != null && equal::deep(before.value, next.value))
 	{
 		before.release();
 		next.release();
 		return;
 	}
-	Event[] events = changes(before ? &before.value : &EMPTY_STATE, &next.value, next.allocator());
+	// The first state is compared with nothing: every window and workspace is new.
+	State nothing = { .connection = DISCONNECTED };
+	State* previous = before != null ? &before.value : &nothing;
+	Event[] events = changes(previous, &next.value, next.allocator());
 	hub.publish(next);
 	foreach (event : events)
 	{
@@ -31,11 +34,8 @@ fn void publish_changes(WindowsHub* hub, Snapshot{State}* next)
 		packet.value = { .kind = event.kind, .id = event.id.copy(packet.allocator()) };
 		hub.emit(packet);
 	}
-	if (before) before.release();
+	if (before != null) before.release();
 }
-
-// The state before the first one: nothing listed, nothing connected.
-const State EMPTY_STATE = { .connection = DISCONNECTED };
 
 <*
  The events that turn `before` into `after`, allocated in `allocator`.
