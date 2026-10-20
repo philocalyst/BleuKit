@@ -35,7 +35,8 @@ fn void malformed_dates_are_refused() @test
 	test::@error(parse_date("2013-06-22T10:18:00"), error::PROTOCOL);
 	test::@error(parse_date("2013-0x-22T10:18:00Z"), error::PROTOCOL);
 	test::@error(parse_date("2100-02-29T00:00:00Z"), error::PROTOCOL);
-	test::eq(-86400.0 * 365.0 * 0 + parse_date("2000-02-29T00:00:00Z")!!, parse_date("2000-02-29T00:00:00Z")!!);
+	// 2000 is a leap year (divisible by 400), so its February 29th is valid.
+	test::eq("2000-02-29T00:00:00Z", format_date(tmem, parse_date("2000-02-29T00:00:00Z")!!));
 }
 
 fn void accessors_report_missing_and_mismatched_values() @test
