@@ -39,7 +39,7 @@ struct Cpu
 	String model; // marketing name of the processor, "" when the platform does not say
 	Maybe{Percent} usage; // all logical processors together; empty until two samples exist
 	CpuCore[] cores;
-	LoadAverage[3] load_average; // one, five and fifteen minutes
+	Maybe{LoadAverage}[3] load_average; // one, five and fifteen minutes; empty where the platform has no load average (Windows)
 }
 
 <* Physical and swap memory. `used` is `total - available`, the same rule on every platform. *>

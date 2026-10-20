@@ -50,7 +50,11 @@ fn void? sample_cpu(ProcfsBackend* backend, Allocator allocator, Cpu* cpu, delta
 {
 	String root = backend.root;
 	cpu.model = procfs::cpuinfo_model(read_text(root, "/proc/cpuinfo") ?? "", allocator);
-	cpu.load_average = procfs::parse_loadavg(read_text(root, "/proc/loadavg")!)!;
+	LoadAverage[3] averages = procfs::parse_loadavg(read_text(root, "/proc/loadavg")!)!;
+	foreach (i, &average : averages)
+	{
+		cpu.load_average[i] = maybe::value(average);
+	}
 	sysinfo::fill_cpu(cpu, allocator, lines, backend.previous_cpu.array_view());
 	foreach (i, &core : cpu.cores)
 	{

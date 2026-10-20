@@ -14,7 +14,8 @@ struct Backend
 	Allocator allocator;
 	String root;                 // sysfs prefix, "" for the real system
 	Duration poll;               // periodic read interval
-	Connection bus;              // the D-Bus connection; opened by `create`
+	String bus_address;          // D-Bus address, "" for the system bus
+	Connection bus;              // the D-Bus connection: opened, used and freed on the worker thread only
 	Proxy nm;                    // the NetworkManager root object
 	String wifi_path;            // object path of the first Wi-Fi device, "" when none
 	String wifi_name;            // its interface name
@@ -53,28 +54,43 @@ fn bool probe(Options* options)
 }
 
 <*
- Connect to the bus, check that NetworkManager owns its name, and subscribe to
- its signals. Reports every capability this backend offers.
+ Check on the caller's thread that NetworkManager is on the bus. The real
+ connection is made later on the worker thread, because a `Connection` may only
+ be used by the thread that initialised it.
 
  @return? error::UNAVAILABLE : "NetworkManager is not running on the bus"
 *>
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
+	if (catch err = probe_bus(allocator, options.bus_address)) return err~;
 	Backend* self = alloc::new(allocator, Backend, {
 		.allocator = allocator,
 		.root = own_text(allocator, options.root),
 		.poll = options.poll,
+		.bus_address = own_text(allocator, options.bus_address),
 	});
 	self.transitions.init(allocator);
 	self.pending.init(allocator);
-	self.bus.init(allocator);
-	if (catch err = open_bus(self, options.bus_address))
-	{
-		destroy(allocator, self);
-		return err~;
-	}
 	fill_capabilities(capabilities);
 	return self;
+}
+
+// Connect, ask whether NetworkManager owns its name, and disconnect again.
+fn void? probe_bus(Allocator allocator, String address) @local
+{
+	Connection bus;
+	bus.init(allocator);
+	defer bus.free();
+	if (address.len > 0)
+	{
+		bus.open_address(address)!;
+	}
+	else
+	{
+		bus.open_system()!;
+	}
+	bool running = bus.name_has_owner(NM_SERVICE)!;
+	if (!running) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "NetworkManager is not running on the bus")~;
 }
 
 // Offer what this backend can do. Everything else keeps its "not offered" reason.
@@ -98,19 +114,18 @@ fn void fill_capabilities(Capabilities* capabilities) @local
 	capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the secret agent needs D-Bus object export, which bleu_dbus does not have yet"));
 }
 
-fn void? open_bus(Backend* b, String address)
+// Open the connection on the worker thread and subscribe to what the backend reads.
+fn void? open_bus(Backend* b) @local
 {
-	if (address.len > 0)
+	if (b.bus_address.len > 0)
 	{
-		b.bus.open_address(address)!;
+		b.bus.open_address(b.bus_address)!;
 	}
 	else
 	{
 		b.bus.open_system()!;
 	}
 	b.nm = proxy::for_object(&b.bus, NM_SERVICE, NM_PATH, NM_IFACE)!;
-	bool running = b.bus.name_has_owner(NM_SERVICE)!;
-	if (!running) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "NetworkManager is not running on the bus")~;
 	b.nm.watch_properties(&on_properties, b, true)!;
 	match::Match nm_rule;
 	nm_rule.init(b.allocator);
@@ -130,8 +145,8 @@ fn void? open_bus(Backend* b, String address)
 fn void destroy(Allocator allocator, void* state)
 {
 	Backend* b = (Backend*)state;
-	b.bus.free();
 	drop_text(allocator, b.root);
+	drop_text(allocator, b.bus_address);
 	drop_text(allocator, b.wifi_path);
 	drop_text(allocator, b.wifi_name);
 	b.transitions.free();
@@ -181,6 +196,13 @@ fn void? queue_transition(Backend* b, Message* signal)
 fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 {
 	Backend* b = (Backend*)state;
+	b.bus.init(b.allocator);
+	defer b.bus.free();
+	if (catch err = open_bus(b))
+	{
+		publish_empty(hub);
+		return;
+	}
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 4)) return;
 	defer poller.free();
@@ -218,6 +240,14 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 		if (lost) break;
 	}
 	abandon_pending(b);
+}
+
+<* Publish an empty picture: the backend cannot read anything. *>
+fn void publish_empty(NetworkHub* hub) @local
+{
+	Snapshot{State}* snapshot = hub.begin();
+	snapshot.value = {};
+	hub.publish_if_changed(snapshot);
 }
 
 <*

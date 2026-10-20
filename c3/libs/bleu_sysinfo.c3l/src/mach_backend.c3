@@ -7,7 +7,7 @@
  command lines (KERN_PROCARGS2) are not implemented; their capabilities say so.
 *>
 module bleu::sysinfo::mach @feat(DARWIN);
-import std::collections::list, std::time, bleu::availability, bleu::error, bleu::observe, bleu::rt::worker, bleu::sysinfo, bleu::sysinfo::delta;
+import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::error, bleu::observe, bleu::rt::worker, bleu::sysinfo, bleu::sysinfo::delta;
 
 struct MachBackend
 {
@@ -87,7 +87,11 @@ fn void? sample(void* reader, Snapshot{State}* snapshot, Duration elapsed)
 		uint processors = sysinfo::count_processors(lines);
 		sysinfo::fill_cpu(&state.cpu, allocator, lines, backend.previous_cpu.array_view());
 		state.cpu.model = (sysctl_text("machdep.cpu.brand_string") ?? "").copy(allocator);
-		state.cpu.load_average = load_averages()!;
+		LoadAverage[3] averages = load_averages()!;
+		foreach (i, &average : averages)
+		{
+			state.cpu.load_average[i] = maybe::value(average);
+		}
 		state.memory = memory_figures()!;
 		state.mounts = read_mounts(allocator)!;
 		delta::NetCounters[] counters = read_interfaces()!;

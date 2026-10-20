@@ -119,6 +119,8 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 {
 	Logind* backend = alloc::new(allocator, Logind);
 	backend.allocator = allocator;
+	// A zeroed Fd is descriptor 0, which is open: the barrier starts empty only when it says so.
+	backend.barrier = { .value = unix::FD_NONE };
 	if (options.bus_address.len > 0) backend.bus_address = options.bus_address.copy(allocator);
 	backend.sleep_barrier = options.sleep_barrier;
 	backend.capabilities = capabilities;

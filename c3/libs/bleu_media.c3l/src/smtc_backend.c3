@@ -236,7 +236,9 @@ fn Entry? read_entry(smtc_api::Session* session, Allocator allocator) @local
 		e.loop = maybe::value(smtc_convert::loop_of_repeat(int_of(box.vtbl.value, box)!));
 	}
 
-	e.shuffle = maybe_flag(object_of(info.vtbl.is_shuffle_active, info)!);
+	void* shuffle_raw = object_of(info.vtbl.is_shuffle_active, info)!;
+	defer release_object(shuffle_raw);
+	e.shuffle = maybe_flag(shuffle_raw);
 
 	e.rate = 1.0;
 	void* rate_raw = object_of(info.vtbl.playback_rate, info)!;
@@ -249,7 +251,7 @@ fn Entry? read_entry(smtc_api::Session* session, Allocator allocator) @local
 		if (hr.failed()) return errors::raise_hresult(hr, "PlaybackRate")~;
 		e.rate = rate;
 	}
-	if (e.status == PLAYING && e.rate == 0.0) e.status = PAUSED;
+	if (e.status == Playback.PLAYING && e.rate == 0.0) e.status = Playback.PAUSED;
 
 	void* timeline_raw = object_of(session.vtbl.get_timeline_properties, session)!;
 	defer release_object(timeline_raw);
@@ -270,4 +272,408 @@ fn Entry? read_entry(smtc_api::Session* session, Allocator allocator) @local
 	e.artist = hstring_of(object_of(props.vtbl.artist, props)!, allocator)!;
 	e.album = hstring_of(object_of(props.vtbl.album_title, props)!, allocator)!;
 	return e;
+}
+
+// The backend's state between polls.
+struct Smtc
+{
+	Allocator allocator;
+	smtc_api::Manager* manager;
+	List{Known} known;
+	ulong next_handle;
+}
+
+<* Activate the session manager and prepare the state. *>
+fn void? Smtc.open(&self, Allocator allocator)
+{
+	self.allocator = allocator;
+	self.next_handle = 1;
+	self.known.init(allocator);
+	if (catch err = request_manager())
+	{
+		self.known.free();
+		return err~;
+	}
+	self.manager = request_manager()!;
+}
+
+<* Release the manager and the remembered sessions. *>
+fn void Smtc.close(&self)
+{
+	release_object(self.manager);
+	foreach (k : self.known.array_view())
+	{
+		if (k.id.len > 0) alloc::free(self.allocator, k.id.ptr);
+	}
+	self.known.free();
+}
+
+// The session's `Known` record, or null.
+fn Known* Smtc.find_id(&self, String id)
+{
+	foreach (k : self.known.array_view())
+	{
+		if (k.id == id) return k;
+	}
+	return null;
+}
+
+// The session with `handle`, or null.
+fn Known* Smtc.find_handle(&self, ulong handle)
+{
+	foreach (k : self.known.array_view())
+	{
+		if (k.handle == handle) return k;
+	}
+	return null;
+}
+
+<* The sessions the manager reports now, as an owned view that the caller releases. *>
+fn smtc_api::VectorView*? Smtc.sessions(&self)
+{
+	void* view = null;
+	hresult::Hresult hr = self.manager.vtbl.get_sessions(self.manager, &view);
+	if (hr.failed()) return errors::raise_hresult(hr, "GetSessions")~;
+	return (smtc_api::VectorView*)view;
+}
+
+// Number of sessions in `views`.
+fn uint? view_size(smtc_api::VectorView* views)
+{
+	uint count = 0;
+	hresult::Hresult hr = views.vtbl.size(views, &count);
+	if (hr.failed()) return errors::raise_hresult(hr, "IVectorView.Size")~;
+	return count;
+}
+
+// Session `index` of `views`, as an owned object.
+fn void*? view_at(smtc_api::VectorView* views, uint index)
+{
+	void* item = null;
+	hresult::Hresult hr = views.vtbl.get_at(views, index, &item);
+	if (hr.failed()) return errors::raise_hresult(hr, "IVectorView.GetAt")~;
+	return item;
+}
+
+<* Read every session, sort them by id and drop a second session with an id already seen. *>
+fn void? Smtc.read_all(&self, List{Entry}* out)
+{
+	smtc_api::VectorView* views = self.sessions()!;
+	defer release_object(views);
+	uint count = view_size(views)!;
+	for (uint i = 0; i < count; i++)
+	{
+		void* raw = view_at(views, i)!;
+		smtc_api::Session* session = (smtc_api::Session*)raw;
+		if (try entry = read_entry(session, tmem)) out.push(entry);
+		release_object(raw);
+	}
+}
+
+<*
+ One poll: read the sessions, update the remembered ones, and publish the state
+ if it changed. A failed poll keeps the last state.
+*>
+fn void? Smtc.poll(&self, MediaHub* hub)
+{
+	@pool()
+	{
+		List{Entry} read;
+		read.init(tmem);
+		self.read_all(&read)!;
+		Entry[] sorted = read.array_view();
+		sort_by_id(sorted);
+		Entry[] unique = unique_by_id(sorted);
+		Duration now = monotonic_now();
+		Time wall = time::now();
+		Snapshot{State}* snapshot = hub.begin();
+		snapshot.value = self.adopt(unique, snapshot.allocator(), now, wall);
+		ulong[] none = {};
+		media::publish_built(hub, snapshot, none);
+	};
+}
+
+// Insertion sort by id: a handful of sessions.
+fn void sort_by_id(Entry[] entries) @private
+{
+	for (sz i = 1; i < entries.len; i++)
+	{
+		Entry key = entries[i];
+		sz j = i - 1;
+		while (j >= 0 && entries[j].id.compare_to(key.id) > 0)
+		{
+			entries[j + 1] = entries[j];
+			j--;
+		}
+		entries[j + 1] = key;
+	}
+}
+
+// The sorted entries with every id after its first occurrence removed (the slice shares storage).
+fn Entry[] unique_by_id(Entry[] sorted) @private
+{
+	sz kept = 0;
+	for (sz i = 0; i < sorted.len; i++)
+	{
+		if (kept > 0 && sorted[kept - 1].id == sorted[i].id) continue;
+		sorted[kept] = sorted[i];
+		kept++;
+	}
+	return sorted[0:kept];
+}
+
+<*
+ Make the remembered sessions match this poll: handles stay with their ids,
+ anchors and status times are kept while the reported values are unchanged,
+ and the players are built into `allocator`.
+*>
+fn State Smtc.adopt(&self, Entry[] entries, Allocator allocator, Duration now, Time wall)
+{
+	usz count = (usz)entries.len;
+	if (count == 0)
+	{
+		self.forget();
+		return {};
+	}
+	List{Known} next;
+	next.init(self.allocator);
+	Player[] players = alloc::new_array(allocator, Player, (sz)count);
+	Playback[] statuses = alloc::new_array(tmem, Playback, (sz)count);
+	Duration[] since = alloc::new_array(tmem, Duration, (sz)count);
+	for (sz i = 0; i < entries.len; i++)
+	{
+		Entry* e = &entries[i];
+		Known* old = self.find_id(e.id);
+		Known k = {
+			.id = media::copy_text(e.id, self.allocator),
+			.handle = old != null ? old.handle : self.take_handle(),
+			.status = e.status,
+			.status_since = old != null && old.status == e.status ? old.status_since : now,
+			.position_ticks = e.position_ticks,
+			.updated_ticks = e.updated_ticks,
+			.controls = controls_of(e.reported),
+			.rate = e.rate,
+			.shuffle = e.shuffle,
+			.loop = e.loop,
+			.has_length = e.has_length,
+			.length = smtc_convert::micros_of_ticks(e.length_ticks),
+		};
+		bool same = old != null && old.position_ticks == e.position_ticks && old.updated_ticks == e.updated_ticks;
+		if (same)
+		{
+			k.position = old.position;
+		}
+		else if (e.has_position)
+		{
+			Duration age = smtc_convert::age_of(e.updated_ticks, wall);
+			k.position = maybe::value(Anchor{ .position = smtc_convert::micros_of_ticks(e.position_ticks), .taken_at = now - age });
+		}
+		next.push(k);
+		statuses[i] = e.status;
+		since[i] = k.status_since;
+		players[i] = {
+			.handle = k.handle,
+			.id = media::copy_text(e.id, allocator),
+			.identity = media::copy_text(e.id, allocator),
+			.status = e.status,
+			.track = {
+				.title = media::copy_text(e.title, allocator),
+				.artists = artists_of(e.artist, allocator),
+				.album = media::copy_text(e.album, allocator),
+				.length = e.has_length ? maybe::value(k.length) : {},
+			},
+			.position = k.position,
+			.rate = e.rate,
+			.shuffle = e.shuffle,
+			.loop = e.loop,
+			.controls = k.controls,
+		};
+	}
+	self.forget();
+	self.known = next;
+	sz active = select_active(statuses, since);
+	players[active].is_active = true;
+	return { .players = players };
+}
+
+// The one artist as a list, or none when there is no artist text.
+fn String[] artists_of(String artist, Allocator allocator) @private
+{
+	if (artist.len == 0) return {};
+	String[] list = alloc::new_array(allocator, String, 1);
+	list[0] = artist.copy(allocator);
+	return list;
+}
+
+// A fresh handle. Handles start at 1; zero means no player.
+fn ulong Smtc.take_handle(&self)
+{
+	ulong handle = self.next_handle;
+	self.next_handle++;
+	return handle;
+}
+
+// Free the strings of the remembered sessions (the list itself is replaced by the caller).
+fn void Smtc.forget(&self)
+{
+	foreach (k : self.known.array_view())
+	{
+		if (k.id.len > 0) alloc::free(self.allocator, k.id.ptr);
+	}
+	self.known.free();
+	self.known.init(self.allocator);
+}
+
+<*
+ Open the session with app user model id `id`. The caller releases it.
+
+ @return? error::NOT_FOUND : "No session has this id any more"
+*>
+fn smtc_api::Session*? Smtc.open_session(&self, String id, Allocator allocator)
+{
+	smtc_api::VectorView* views = self.sessions()!;
+	defer release_object(views);
+	uint count = view_size(views)!;
+	for (uint i = 0; i < count; i++)
+	{
+		void* raw = view_at(views, i)!;
+		smtc_api::Session* session = (smtc_api::Session*)raw;
+		String text = hstring_of(object_of(session.vtbl.source_app_user_model_id, session)!, allocator) ?? "";
+		if (text == id) return session;
+		release_object(raw);
+	}
+	return NOT_FOUND~;
+}
+
+<* Carry out `c` and complete its operation, if it has one. *>
+fn void Smtc.execute(&self, Command* c)
+{
+	CommandOp* op = c.op;
+	if (catch err = self.perform(c))
+	{
+		if (op != null)
+		{
+			op.fail(err);
+			op.release();
+		}
+		return;
+	}
+	if (op != null)
+	{
+		op.succeed(true);
+		op.release();
+	}
+}
+
+// The media session call that answers with a Boolean operation: true when the session accepted it.
+fn void? settle(GetObjectFn call, void* self) @private
+{
+	void* operation = object_of(call, self)!;
+	if (!(await_bool(operation)!)) return error::BACKEND_FAILURE~;
+}
+
+fn void? settle_int(SetIntAsyncFn call, void* self, int value) @private
+{
+	void* operation = null;
+	hresult::Hresult hr = call(self, value, &operation);
+	if (hr.failed()) return errors::raise_hresult(hr, "session call")~;
+	if (!(await_bool(operation)!)) return error::BACKEND_FAILURE~;
+}
+
+fn void? settle_double(SetDoubleAsyncFn call, void* self, double value) @private
+{
+	void* operation = null;
+	hresult::Hresult hr = call(self, value, &operation);
+	if (hr.failed()) return errors::raise_hresult(hr, "session call")~;
+	if (!(await_bool(operation)!)) return error::BACKEND_FAILURE~;
+}
+
+fn void? settle_flag(SetBoolAsyncFn call, void* self, bool value) @private
+{
+	void* operation = null;
+	hresult::Hresult hr = call(self, value, &operation);
+	if (hr.failed()) return errors::raise_hresult(hr, "session call")~;
+	if (!(await_bool(operation)!)) return error::BACKEND_FAILURE~;
+}
+
+fn void? settle_ticks(SetTicksAsyncFn call, void* self, long value) @private
+{
+	void* operation = null;
+	hresult::Hresult hr = call(self, value, &operation);
+	if (hr.failed()) return errors::raise_hresult(hr, "session call")~;
+	if (!(await_bool(operation)!)) return error::BACKEND_FAILURE~;
+}
+
+// Dispatch on the command kind, against the session whose id the state remembers.
+fn void? Smtc.perform(&self, Command* c)
+{
+	if (c.kind == REFRESH) return;
+	Known* k = self.find_handle(c.player);
+	if (k == null) return NOT_FOUND~;
+	if (!k.controls.allows(c.kind)) return error::UNSUPPORTED~;
+	@pool()
+	{
+		smtc_api::Session* s = self.open_session(k.id, tmem)!;
+		defer release_object(s);
+		switch (c.kind)
+		{
+			case PLAY: return settle(s.vtbl.try_play_async, s);
+			case PAUSE: return settle(s.vtbl.try_pause_async, s);
+			case PLAY_PAUSE: return settle(s.vtbl.try_toggle_play_pause_async, s);
+			case STOP: return settle(s.vtbl.try_stop_async, s);
+			case NEXT: return settle(s.vtbl.try_skip_next_async, s);
+			case PREVIOUS: return settle(s.vtbl.try_skip_previous_async, s);
+			case SEEK: return settle_ticks(s.vtbl.try_change_playback_position_async, s, smtc_convert::ticks_of_micros(target_of(k, c.amount)));
+			case SET_POSITION: return settle_ticks(s.vtbl.try_change_playback_position_async, s, smtc_convert::ticks_of_micros(c.amount));
+			case SET_RATE: return settle_double(s.vtbl.try_change_playback_rate_async, s, (double)c.rate);
+			case SET_SHUFFLE: return settle_flag(s.vtbl.try_change_shuffle_active_async, s, c.flag);
+			case SET_LOOP: return settle_int(s.vtbl.try_change_auto_repeat_mode_async, s, smtc_convert::repeat_of_loop(c.loop));
+			case SET_VOLUME:
+			case RAISE:
+			case QUIT: return error::UNSUPPORTED~;
+			case REFRESH: return;
+		}
+	};
+}
+
+// Where a relative seek of `offset` from `k` lands: the position now, plus the offset.
+fn Duration target_of(Known* k, Duration offset) @private
+{
+	Duration now = monotonic_now();
+	if (!k.position.has_value) return offset;
+	Maybe{Duration} length = k.has_length ? maybe::value(k.length) : {};
+	return position_at(k.position.value, k.position.value.position < 0 ? Playback.STOPPED : Playback.PLAYING, k.rate, length, now) + offset;
+}
+
+<* The worker's loop: wait for a command or the refresh interval; run the commands; poll. *>
+fn void run(void* state, MediaHub* hub, Host{Command}* host)
+{
+	Backend* backend = (Backend*)state;
+	if (try runtime = winrt::enter(com::Model.MULTI_THREADED))
+	{
+		defer runtime.leave();
+		run_entered(backend, hub, host);
+	}
+}
+
+fn void run_entered(Backend* backend, MediaHub* hub, Host{Command}* host) @private
+{
+	Smtc smtc;
+	if (catch err = smtc.open(backend.allocator)) return;
+	defer smtc.close();
+	Poller poller;
+	if (catch err = poller.init(mem, host.wakeup(), 1)) return;
+	defer poller.free();
+	Command[COMMAND_BATCH] commands;
+	if (catch err = smtc.poll(hub)) {}
+	while (!host.stopping())
+	{
+		if (catch err = poller.wait(backend.refresh))
+		{
+			if (err != TIMEOUT) break;
+		}
+		usz count = host.mailbox().take_all(commands[..]);
+		for (usz i = 0; i < count; i++) smtc.execute(&commands[i]);
+		if (catch err = smtc.poll(hub)) {}
+	}
 }
