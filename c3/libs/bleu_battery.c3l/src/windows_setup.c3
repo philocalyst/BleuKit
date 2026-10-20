@@ -22,17 +22,35 @@ const uint DIGCF_PRESENT         = 0x00000002;
 const uint DIGCF_DEVICEINTERFACE = 0x00000010;
 
 // Win32 error codes (winerror.h; windows-sys: 259 and 122).
-const uint ERROR_NO_MORE_ITEMS          = 259;
-const uint ERROR_INSUFFICIENT_BUFFER    = 122;
+const uint ERROR_NO_MORE_ITEMS       = 259;
+const uint ERROR_INSUFFICIENT_BUFFER = 122;
 
 // SP_DEVICE_INTERFACE_DETAIL_DATA_W with pack(1): a DWORD cbSize and one WCHAR, 6 bytes.
 // The path starts at byte 4 of the detail buffer (windows-sys: `DevicePath: [u16; 1]`).
-const uint DETAIL_CB_SIZE       = 6;
-const sz DETAIL_PATH_OFFSET     = 4;
+const uint DETAIL_CB_SIZE   = 6;
+const sz DETAIL_PATH_OFFSET = 4;
 
-extern fn Win32_HANDLE setup_di_get_class_devs_w(Guid* class_guid, WString enumerator, void* parent, uint flags) @cname("SetupDiGetClassDevsW");
-extern fn Win32_BOOL setup_di_enum_device_interfaces(Win32_HANDLE device_info, void* device_data, Guid* class_guid, uint index, DeviceInterfaceData* data) @cname("SetupDiEnumDeviceInterfaces");
-extern fn Win32_BOOL setup_di_get_device_interface_detail_w(Win32_HANDLE device_info, DeviceInterfaceData* data, void* detail, uint detail_size, uint* required, void* device_data) @cname("SetupDiGetDeviceInterfaceDetailW");
+extern fn Win32_HANDLE setup_di_get_class_devs_w(
+	Guid* class_guid,
+	WString enumerator,
+	void* parent,
+	uint flags
+) @cname("SetupDiGetClassDevsW");
+extern fn Win32_BOOL setup_di_enum_device_interfaces(
+	Win32_HANDLE device_info,
+	void* device_data,
+	Guid* class_guid,
+	uint index,
+	DeviceInterfaceData* data
+) @cname("SetupDiEnumDeviceInterfaces");
+extern fn Win32_BOOL setup_di_get_device_interface_detail_w(
+	Win32_HANDLE device_info,
+	DeviceInterfaceData* data,
+	void* detail,
+	uint detail_size,
+	uint* required,
+	void* device_data
+) @cname("SetupDiGetDeviceInterfaceDetailW");
 extern fn Win32_BOOL setup_di_destroy_device_info_list(Win32_HANDLE device_info) @cname("SetupDiDestroyDeviceInfoList");
 
 <*
@@ -82,7 +100,7 @@ fn void DeviceSet.close(&self)
 *>
 fn String? DeviceSet.path(&self, uint index)
 {
-	DeviceInterfaceData data = { .cb_size = DeviceInterfaceData.sizeof };
+	DeviceInterfaceData data = { .cb_size = DeviceInterfaceData::size };
 	if (!setup_di_enum_device_interfaces(self.handle, null, &BATTERY_CLASS, index, &data))
 	{
 		if (win32::getLastError() == ERROR_NO_MORE_ITEMS) return NO_MORE_ELEMENT~;

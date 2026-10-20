@@ -128,7 +128,7 @@ fn Applied? DdcDisplay.write(&self, Level level)
 	{
 		read_back = maybe::value(unit::from_raw((long)reading.current, 0, max));
 	}
-	return applied_at(DDC, level, raw, 0, max, read_back);
+	return brightness::applied_at(DDC, level, raw, 0, max, read_back);
 }
 
 <*

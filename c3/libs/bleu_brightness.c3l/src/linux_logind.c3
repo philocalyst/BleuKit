@@ -12,7 +12,7 @@
  The `session/auto` object path names the caller's own session.
 *>
 module bleu::brightness::logind @feat(LINUX);
-import bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, std::time;
+import bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::marshal, bleu::error, std::time;
 
 const String SERVICE = "org.freedesktop.login1";
 const String SESSION_PATH = "/org/freedesktop/login1/session/auto";

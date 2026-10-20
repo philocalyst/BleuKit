@@ -179,11 +179,17 @@ fn Message*? signal(Allocator parent, String path, String iface, String member, 
 <*
  A METHOD_RETURN answering `call`. Its body is written with `body_writer`.
 *>
-fn Message*? reply(Allocator parent, Message* call)
+fn Message*? reply(Allocator parent, Message* call) => reply_to(parent, call.sender, call.serial);
+
+<*
+ A METHOD_RETURN to `destination`, answering the call whose serial is
+ `reply_serial`. Used when the call message itself is no longer at hand.
+*>
+fn Message*? reply_to(Allocator parent, String destination, uint reply_serial)
 {
 	Message* m = create(parent, METHOD_RETURN);
-	m.reply_serial = call.serial;
-	m.destination = call.sender.copy(&m.storage);
+	m.reply_serial = reply_serial;
+	m.destination = destination.copy(&m.storage);
 	return m;
 }
 
@@ -193,12 +199,21 @@ fn Message*? reply(Allocator parent, Message* call)
  @return? error::INVALID_ARGUMENT : "The error name is not valid"
 *>
 fn Message*? error_reply(Allocator parent, Message* call, String error_name, String text)
+	=> error_reply_to(parent, call.sender, call.serial, error_name, text);
+
+<*
+ An ERROR to `destination`, answering the call whose serial is `reply_serial`.
+ See `reply_to`.
+
+ @return? error::INVALID_ARGUMENT : "The error name is not valid"
+*>
+fn Message*? error_reply_to(Allocator parent, String destination, uint reply_serial, String error_name, String text)
 {
 	if (!names::is_error_name(error_name)) return error::INVALID_ARGUMENT~;
 	Message* m = create(parent, ERROR);
-	m.reply_serial = call.serial;
+	m.reply_serial = reply_serial;
 	m.error_name = error_name.copy(&m.storage);
-	m.destination = call.sender.copy(&m.storage);
+	m.destination = destination.copy(&m.storage);
 	Writer* w = m.body_writer("s")!;
 	w.append_string(text)!;
 	return m;

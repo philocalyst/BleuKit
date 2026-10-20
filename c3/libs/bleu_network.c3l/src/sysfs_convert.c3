@@ -29,7 +29,7 @@ fn LinkState link_from_operstate(String operstate)
 *>
 fn Maybe{Mbps} speed_from_sysfs(long mbps)
 {
-	if (mbps <= 0) return EMPTY;
+	if (mbps <= 0) return maybe::EMPTY{Mbps};
 	return maybe::value((Mbps)mbps);
 }
 
@@ -39,6 +39,6 @@ fn Maybe{bool} carrier_from_sysfs(long value) @inline => maybe::value(value != 0
 <* A traffic counter is an unsigned 64-bit count of octets; a negative read is not a counter. *>
 fn Maybe{Bytes} counter_from_sysfs(long value)
 {
-	if (value < 0) return EMPTY;
+	if (value < 0) return maybe::EMPTY{Bytes};
 	return maybe::value((Bytes)value);
 }

@@ -36,14 +36,14 @@ const ulong NANOS_PER_MICRO = 1000;
 fn Duration position_at(Anchor anchor, Playback status, PlaybackRate rate, Maybe{Duration} length, Duration now)
 {
 	Duration at = anchor.position;
-	if (status == STOPPED) at = 0;
+	if (status == STOPPED) at = time::DURATION_ZERO;
 	if (status == PLAYING && (double)rate != 0.0)
 	{
 		// A clock that went backwards (the anchor is from after `now`) counts as no time elapsed.
-		Duration elapsed = now > anchor.taken_at ? now - anchor.taken_at : 0;
+		Duration elapsed = now > anchor.taken_at ? now - anchor.taken_at : time::DURATION_ZERO;
 		at = anchor.position + (Duration)((double)elapsed * (double)rate);
 	}
-	if (at < 0) at = 0;
+	if (at < time::DURATION_ZERO) at = time::DURATION_ZERO;
 	if (length.has_value && at > length.value) at = length.value;
 	return at;
 }

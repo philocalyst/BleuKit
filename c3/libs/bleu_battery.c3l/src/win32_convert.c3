@@ -11,22 +11,22 @@
  `Win32::System::Power` (batclass.h), which agree with them.
 *>
 module bleu::battery::win32;
-import std::collections::maybe, bleu::battery, bleu::unit;
+import std::collections::maybe, std::time, bleu::battery, bleu::unit;
 
 // SYSTEM_POWER_STATUS (winbase.h; Learn ns-winbase-system_power_status).
-const uint AC_LINE_ONLINE          = 1;   // ACLineStatus: 0 offline, 1 online, 255 unknown
-const uint SUMMARY_UNKNOWN_BYTE    = 255; // ACLineStatus, BatteryFlag, BatteryLifePercent: unknown
-const uint SUMMARY_FLAG_CHARGING   = 8;   // BatteryFlag bit 8: charging
-const uint SUMMARY_FLAG_NO_BATTERY = 128; // BatteryFlag bit 128: no system battery
+const uint AC_LINE_ONLINE          = 1;          // ACLineStatus: 0 offline, 1 online, 255 unknown
+const uint SUMMARY_UNKNOWN_BYTE    = 255;        // ACLineStatus, BatteryFlag, BatteryLifePercent: unknown
+const uint SUMMARY_FLAG_CHARGING   = 8;          // BatteryFlag bit 8: charging
+const uint SUMMARY_FLAG_NO_BATTERY = 128;        // BatteryFlag bit 128: no system battery
 const uint SUMMARY_UNKNOWN_SECONDS = 0xFFFFFFFF; // BatteryLifeTime: -1 when unknown or on AC (Learn)
 
 // BATTERY_* bits and sentinels (batclass.h; Learn battery-information-str, battery-status-str).
-const uint DEVICE_POWER_ON_LINE    = 1;          // PowerState: BATTERY_POWER_ON_LINE
-const uint DEVICE_DISCHARGING      = 2;          // PowerState: BATTERY_DISCHARGING
-const uint DEVICE_CHARGING         = 4;          // PowerState: BATTERY_CHARGING
+const uint DEVICE_POWER_ON_LINE     = 1;          // PowerState: BATTERY_POWER_ON_LINE
+const uint DEVICE_DISCHARGING       = 2;          // PowerState: BATTERY_DISCHARGING
+const uint DEVICE_CHARGING          = 4;          // PowerState: BATTERY_CHARGING
 const uint DEVICE_CAPACITY_RELATIVE = 0x40000000; // Capabilities: units are not mWh/mW (Learn)
-const uint DEVICE_UNKNOWN_CAPACITY = 0xFFFFFFFF; // Capacity, FullChargedCapacity, DesignedCapacity
-const uint DEVICE_UNKNOWN_RATE     = 0x80000000; // Rate, read as a signed LONG: -2147483648
+const uint DEVICE_UNKNOWN_CAPACITY  = 0xFFFFFFFF; // Capacity, FullChargedCapacity, DesignedCapacity
+const uint DEVICE_UNKNOWN_RATE      = 0x80000000; // Rate, read as a signed LONG: -2147483648
 
 <*
  Charge in [0, 1] from a GetSystemPowerStatus percent byte. 255 is unknown.

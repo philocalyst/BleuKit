@@ -65,7 +65,7 @@ fn bool writable_file(String file)
 fn String[]? entries(Allocator allocator, String root, String directory)
 {
 	PathList names = fs::list_dir(tmem, string::tformat("%s%s", root, directory))!;
-	String[] result = alloc::new_array(allocator, String, (sz)names.len);
+	String[] result = alloc::new_array(allocator, String, names.len());
 	foreach (i, name : names) result[i] = ((String)name).copy(allocator);
 	return result;
 }

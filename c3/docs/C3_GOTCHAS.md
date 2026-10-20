@@ -57,3 +57,11 @@
 * `-D VMEM_TEMP` did not trap a deliberate use-after-scope in a probe on this machine (the pool's pages were not released), so it is not evidence that tmem code is safe.
 * `DString.delete_range` end is inclusive; `keep ? {a,b} : {}` with slice literals dangles; `if (catch)`/`try` need the optional itself.
 * While libraries are being created in parallel, use `--libdir "$(tools/libdir.sh)"` instead of `--libdir libs` (c3c fails on any lib without manifest.json).
+* `Parameters may not be optional` → a `void?` cannot be passed to a function; catch it at the call site (`if (catch err = f()) g(err); else h();`).
+* `Functions from other modules must be prefixed with the module name` → same rule for sibling modules of one library: `appearance::publish(...)`.
+* `if-statements with an 'else' must use '{ }'` → braces around both branches.
+* `Reader is not a generic type` when two imports both export `Reader` (`bleu::dbus::marshal`, `bleu::stream`) → qualify the one you mean: `bleu::stream::Reader{Event}`.
+* `String.replace` (a `@pool` function) crashed a test with a segfault → write the substitution by hand; avoid `@pool` helpers that return into a caller allocator.
+* `process::run` / `run_capture_stdout` without `SpawnOptions.INHERIT_ENV` gives the child an empty environment (no PATH, no HOME) → pass `process::SpawnOptions.INHERIT_ENV` for `gsettings` and similar tools.
+* `c3c compile-run` / `compile-test` write their binaries into the current directory → run them from a scratch directory, never inside the repository.
+* `c3c` refuses a `--libdir` that holds any half-created lib → use `tools/libdir.sh`, and remember every `--lib` dependency named in the manifest must be passed too (`Required library 'x' could not be found`).

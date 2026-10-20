@@ -7,7 +7,7 @@
  are served while waiting, so a kill does not wait for the next sample.
 *>
 module bleu::sysinfo;
-import std::time::clock, bleu::equal, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::deadline;
+import std::time::clock, std::time, bleu::equal, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::deadline;
 
 <*
  Fills `snapshot.value` completely (strings and arrays from `snapshot.allocator()`).
@@ -32,7 +32,7 @@ const usz COMMAND_BATCH = 8;
 
  @param interval : "Nominal period between samples, at least MINIMUM_INTERVAL"
 *>
-fn void run_sampler(Sampler* sampler, SysinfoHub* hub, WorkerHost* host, Duration interval)
+fn void run_sampler(Sampler* sampler, SysinfoHub* hub, Host{Command}* host, Duration interval)
 {
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 0)) return;
@@ -75,7 +75,7 @@ fn void publish_sample(Sampler* sampler, SysinfoHub* hub, Duration elapsed)
 		snapshot.release();
 		return;
 	}
-	StateSnapshot*? earlier = hub.latest();
+	Snapshot{State}*? earlier = hub.latest();
 	if (try before = earlier)
 	{
 		bool unchanged = equal::deep(before.value, snapshot.value);
@@ -86,7 +86,7 @@ fn void publish_sample(Sampler* sampler, SysinfoHub* hub, Duration elapsed)
 			return;
 		}
 	}
-	StateSnapshot* kept = snapshot.retain();
+	Snapshot{State}* kept = snapshot.retain();
 	(void)hub.publish(snapshot);
 	if (try before = earlier)
 	{
@@ -120,7 +120,7 @@ fn String[] mount_points(Mount[] mounts) @local
 fn String[] interface_names(NetInterface[] interfaces) @local
 {
 	String[] names = alloc::new_array(tmem, String, interfaces.len);
-	foreach (i, &interface : interfaces) names[i] = interface.name;
+	foreach (i, &link : interfaces) names[i] = link.name;
 	return names;
 }
 
@@ -147,7 +147,7 @@ fn bool contains(String[] names, String name) @local
 
 fn void emit(SysinfoHub* hub, EventKind kind, String name) @local
 {
-	Packet{Event}* packet = hub.emit_begin();
+	Snapshot{Event}* packet = hub.emit_begin();
 	packet.value = { .kind = kind, .name = name.copy(packet.allocator()) };
 	hub.emit(packet);
 }

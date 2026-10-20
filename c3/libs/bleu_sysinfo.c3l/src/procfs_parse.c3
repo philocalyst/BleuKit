@@ -38,6 +38,33 @@ fn String? next_field(String text, sz* cursor)
 	return text[start : i - start];
 }
 
+<* A decimal integer from text, or PROTOCOL when it is not one. *>
+fn long? parse_integer(String text)
+{
+	long? value = text.to_long();
+	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "'%s' is not an integer", text)~;
+	return value;
+}
+
+<* A decimal number from text, or PROTOCOL when it is not one. *>
+fn double? parse_decimal(String text)
+{
+	double? value = text.to_double();
+	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "'%s' is not a number", text)~;
+	return value;
+}
+
+<*
+ The next field of a line that must have one: a short line is a PROTOCOL error,
+ not the standard library's NO_MORE_ELEMENT.
+*>
+fn String? field_of(String line, sz* cursor)
+{
+	String? field = next_field(line, cursor);
+	if (catch err = field) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "line has too few fields: '%s'", line)~;
+	return field;
+}
+
 <* Parse a decimal count, rejecting anything that is not digits. *>
 fn ulong? parse_count(String text)
 {
@@ -63,13 +90,6 @@ fn bool split_key(String line, String* key, String* value) @inline
 	return false;
 }
 
-<* One `cpu` line of /proc/stat. `index` is -1 for the aggregate line `cpu`. *>
-struct CpuLine
-{
-	int index;
-	Ticks ticks;
-}
-
 <*
  Read every `cpu` line of /proc/stat. The first seven fields after the name are
  user, nice, system, idle, iowait, irq, softirq (proc(5), "/proc/stat"). Guest
@@ -78,13 +98,13 @@ struct CpuLine
 
  @return? error::PROTOCOL : "A cpu line is malformed or there is no aggregate line"
 *>
-fn CpuLine[]? parse_stat(String text, Allocator allocator)
+fn delta::CpuLine[]? parse_stat(String text, Allocator allocator)
 {
-	List{CpuLine} lines;
+	List{delta::CpuLine} lines;
 	lines.init(tmem);
 	bool has_aggregate = false;
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		if (!line.starts_with("cpu")) continue;
 		sz cursor = 0;
@@ -92,7 +112,7 @@ fn CpuLine[]? parse_stat(String text, Allocator allocator)
 		ulong[7] values;
 		foreach (&value : values)
 		{
-			*value = parse_count(next_field(line, &cursor)!)!;
+			*value = parse_count(field_of(line, &cursor)!)!;
 		}
 		int index = -1;
 		if (name != "cpu")
@@ -135,25 +155,25 @@ fn MemInfo? parse_meminfo(String text)
 	MemInfo info;
 	ulong free = 0;
 	bool has_available = false;
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		String key;
 		String value;
 		if (!split_key(line, &key, &value)) continue;
 		if (key == "MemTotal") info.total = kib_value(value)!;
-		else if (key == "MemFree") free = kib_value(value)!;
-		else if (key == "MemAvailable")
+		if (key == "MemFree") free = kib_value(value)!;
+		if (key == "MemAvailable")
 		{
 			info.available = kib_value(value)!;
 			has_available = true;
 		}
-		else if (key == "Buffers") info.buffers = kib_value(value)!;
-		else if (key == "Cached") info.cached = kib_value(value)!;
-		else if (key == "SReclaimable") info.sreclaimable = kib_value(value)!;
-		else if (key == "Shmem") info.shmem = kib_value(value)!;
-		else if (key == "SwapTotal") info.swap_total = kib_value(value)!;
-		else if (key == "SwapFree") info.swap_free = kib_value(value)!;
+		if (key == "Buffers") info.buffers = kib_value(value)!;
+		if (key == "Cached") info.cached = kib_value(value)!;
+		if (key == "SReclaimable") info.sreclaimable = kib_value(value)!;
+		if (key == "Shmem") info.shmem = kib_value(value)!;
+		if (key == "SwapTotal") info.swap_total = kib_value(value)!;
+		if (key == "SwapFree") info.swap_free = kib_value(value)!;
 	}
 	if (info.total == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "MemTotal is missing")~;
 	if (!has_available)
@@ -184,7 +204,7 @@ fn LoadAverage[3]? parse_loadavg(String text)
 	foreach (&average : averages)
 	{
 		String field = next_field(text, &cursor)!;
-		*average = (LoadAverage)field.to_float()!;
+		*average = (LoadAverage)parse_decimal(field)!;
 	}
 	return averages;
 }
@@ -206,7 +226,7 @@ fn Duration? parse_uptime(String text)
 		whole = field[0 : dot];
 		fraction = field[dot + 1 : field.len - dot - 1];
 	}
-	long seconds = whole.to_long()!;
+	long seconds = parse_integer(whole)!;
 	long micro = 0;
 	for (usz i = 0; i < MICROSECOND_DIGITS; i++)
 	{
@@ -221,14 +241,6 @@ fn Duration? parse_uptime(String text)
 	return (Duration)(seconds * 1_000_000 + micro);
 }
 
-<* Cumulative byte counters of one network interface. *>
-struct NetCounters
-{
-	String name;
-	ulong received;
-	ulong sent;
-}
-
 <*
  Read /proc/net/dev (proc(5), "/proc/net/dev"): two header lines, then one line
  per interface whose receive bytes are the first field after the colon and
@@ -237,12 +249,12 @@ struct NetCounters
 
  @return? error::PROTOCOL : "A line does not have the expected fields"
 *>
-fn NetCounters[]? parse_net_dev(String text, Allocator allocator)
+fn delta::NetCounters[]? parse_net_dev(String text, Allocator allocator)
 {
-	List{NetCounters} interfaces;
+	List{delta::NetCounters} interfaces;
 	interfaces.init(tmem);
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		String name;
 		String rest;
@@ -280,8 +292,8 @@ fn RawMount[]? parse_mounts(String text, Allocator allocator)
 {
 	List{RawMount} mounts;
 	mounts.init(tmem);
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		sz cursor = 0;
 		String device = next_field(line, &cursor)!;
@@ -392,8 +404,8 @@ fn StatusFields? parse_status(String text)
 {
 	StatusFields fields;
 	bool has_uid = false;
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		String key;
 		String value;
@@ -404,7 +416,7 @@ fn StatusFields? parse_status(String text)
 			fields.uid = parse_count(next_field(value, &cursor)!)!;
 			has_uid = true;
 		}
-		else if (key == "VmRSS")
+		if (key == "VmRSS")
 		{
 			fields.rss = kib_value(value)!;
 			fields.has_rss = true;
@@ -432,8 +444,8 @@ fn String command_line(String raw, Allocator allocator)
 <* The value of the first "model name" line of /proc/cpuinfo, or "" (ARM kernels print none). *>
 fn String cpuinfo_model(String text, Allocator allocator)
 {
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		String key;
 		String value;
@@ -449,8 +461,8 @@ fn String cpuinfo_model(String text, Allocator allocator)
 *>
 fn String os_release_value(String text, String key, Allocator allocator)
 {
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		if (!line.starts_with(key) || line.len <= key.len || line[key.len] != '=') continue;
 		String value = line[key.len + 1 : line.len - key.len - 1].trim();
@@ -488,8 +500,8 @@ fn String? colon_field(String line, usz index)
 *>
 fn String? passwd_name(String text, ulong uid)
 {
-	Splitter lines = text.tokenize("\n");
-	while (try line = lines.next())
+	Splitter rows = text.tokenize("\n");
+	while (try line = rows.next())
 	{
 		if (try uid_text = colon_field(line, 2))
 		{
@@ -523,6 +535,6 @@ fn int? numbered_name(String name, String prefix, String suffix)
 *>
 fn Celsius? celsius_from_millidegrees(String text)
 {
-	long millidegrees = text.to_long()!;
+	long millidegrees = parse_integer(text)!;
 	return (Celsius)((float)millidegrees / 1000.0f);
 }

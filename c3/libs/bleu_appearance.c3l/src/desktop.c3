@@ -21,7 +21,13 @@ fn void? set_wallpaper(String[] command, String path)
 		int status    = process::run(argv, process::SpawnOptions.INHERIT_ENV)!;
 		if (status != 0)
 		{
-			return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, status, "wallpaper command exited with %d", status)~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.INTERNAL,
+				status,
+				"wallpaper command exited with %d",
+				status
+			)~;
 		}
 	};
 }

@@ -52,7 +52,7 @@ struct Appearance
 fn Appearance*? open(Allocator allocator, Options options = { })
 {
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
-	Driver* driver = select_driver(options)!;
+	Driver* driver   = select_driver(options)!;
 	Appearance* self = alloc::new(allocator, Appearance);
 	self.allocator = allocator;
 	self.driver = driver;

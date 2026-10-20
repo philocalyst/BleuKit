@@ -26,7 +26,12 @@ fn App desktop_app(DesktopEntry* entry, String id, String location, Allocator al
 	AppAction[] actions = alloc::new_array(allocator, AppAction, entry.actions.len);
 	foreach (i, action : entry.actions)
 	{
-		actions[i] = { .id = action.id.copy(allocator), .name = action.name.copy(allocator), .icon = action.icon.copy(allocator), .exec = action.exec.copy(allocator) };
+		actions[i] = {
+			.id = action.id.copy(allocator),
+			.name = action.name.copy(allocator),
+			.icon = action.icon.copy(allocator),
+			.exec = action.exec.copy(allocator)
+		};
 	}
 	return {
 		.id = id.copy(allocator),

@@ -1,22 +1,41 @@
 module bleu::apps;
-import bleu::unit;
+import std::collections::list;
 
 fn State sample_state() @local
 {
 	static App[3] apps = {
-		{ .id = "firefox.desktop", .name = "Firefox", .generic_name = "Web Browser", .comment = "Browse the web",
-		  .keywords = { "internet", "www" }, .launch = EXEC, .target = "/usr/bin/firefox %u" },
-		{ .id = "xterm.desktop", .name = "XTerm", .generic_name = "Terminal Emulator", .comment = "Terminal window",
-		  .launch = EXEC, .target = "xterm" },
-		{ .id = "files.desktop", .name = "Files", .generic_name = "File Manager", .comment = "Open the file browser",
-		  .launch = EXEC, .target = "nautilus --new-window" },
+		{
+			.id = "firefox.desktop",
+			.name = "Firefox",
+			.generic_name = "Web Browser",
+			.comment = "Browse the web",
+			.keywords = { "internet", "www" },
+			.launch = EXEC,
+			.target = "/usr/bin/firefox %u"
+		},
+		{
+			.id = "xterm.desktop",
+			.name = "XTerm",
+			.generic_name = "Terminal Emulator",
+			.comment = "Terminal window",
+			.launch = EXEC,
+			.target = "xterm"
+		},
+		{
+			.id = "files.desktop",
+			.name = "Files",
+			.generic_name = "File Manager",
+			.comment = "Open the file browser",
+			.launch = EXEC,
+			.target = "nautilus --new-window"
+		},
 	};
 	return { .apps = apps[..] };
 }
 
 fn void empty_query_lists_everything() @test
 {
-	State state = sample_state();
+	State state      = sample_state();
 	SearchHit[] hits = rank(&state, "", null, null, mem);
 	defer alloc::free(mem, hits.ptr);
 	assert(hits.len == 3);
@@ -25,16 +44,18 @@ fn void empty_query_lists_everything() @test
 
 fn void name_prefix_outranks_comment_match() @test
 {
-	State state = sample_state();
+	State state      = sample_state();
 	SearchHit[] hits = rank(&state, "fire", null, null, mem);
 	defer alloc::free(mem, hits.ptr);
-	assert(hits.len == 1 && hits[0].index == 0, "only Firefox has fire in its name or program");
-	assert(hits[0].score == SCORE_PREFIX * WEIGHT_NAME / PERCENT + 0 || hits[0].score >= SCORE_PREFIX);
+	// Firefox by name prefix; Files only fuzzily, through "file browser" in its comment.
+	assert(hits.len == 2, "Firefox and the Files comment");
+	assert(hits[0].index == 0 && hits[0].score >= SCORE_PREFIX * WEIGHT_NAME / PERCENT);
+	assert(hits[1].index == 2 && hits[1].score < hits[0].score);
 }
 
 fn void generic_name_and_keywords_are_searched() @test
 {
-	State state = sample_state();
+	State state     = sample_state();
 	SearchHit[] web = rank(&state, "web", null, null, mem);
 	defer alloc::free(mem, web.ptr);
 	assert(web.len == 1 && web[0].index == 0, "generic name 'Web Browser' and comment match");
@@ -45,7 +66,7 @@ fn void generic_name_and_keywords_are_searched() @test
 
 fn void program_name_is_searched() @test
 {
-	State state = sample_state();
+	State state      = sample_state();
 	SearchHit[] hits = rank(&state, "nautilus", null, null, mem);
 	defer alloc::free(mem, hits.ptr);
 	assert(hits.len == 1 && hits[0].index == 2, "basename of the first word of Exec");
@@ -53,7 +74,7 @@ fn void program_name_is_searched() @test
 
 fn void every_word_must_match() @test
 {
-	State state = sample_state();
+	State state      = sample_state();
 	SearchHit[] hits = rank(&state, "web zzz", null, null, mem);
 	defer alloc::free(mem, hits.ptr);
 	assert(hits.len == 0);
@@ -79,7 +100,7 @@ fn int prefer_xterm(void* context, App* app)
 
 fn void ranker_bonus_breaks_ties_and_reorders() @test
 {
-	State state = sample_state();
+	State state       = sample_state();
 	// "t" matches XTerm (name prefix? no: word start) and others by substring; the bonus must decide.
 	SearchHit[] plain = rank(&state, "e", null, null, mem);
 	defer alloc::free(mem, plain.ptr);
@@ -91,8 +112,8 @@ fn void ranker_bonus_breaks_ties_and_reorders() @test
 
 fn void ties_keep_catalogue_order() @test
 {
-	App[2] apps = { { .id = "b.desktop", .name = "Same" }, { .id = "a.desktop", .name = "Same" } };
-	State state = { .apps = apps[..] };
+	App[2] apps      = { { .id = "b.desktop", .name = "Same" }, { .id = "a.desktop", .name = "Same" } };
+	State state      = { .apps = apps[..] };
 	SearchHit[] hits = rank(&state, "same", null, null, mem);
 	defer alloc::free(mem, hits.ptr);
 	assert(hits.len == 2 && hits[0].index == 0 && hits[1].index == 1);
@@ -100,7 +121,11 @@ fn void ties_keep_catalogue_order() @test
 
 fn void catalogue_order_is_name_then_id() @test
 {
-	App[3] apps = { { .id = "z.desktop", .name = "beta" }, { .id = "y.desktop", .name = "Alpha" }, { .id = "a.desktop", .name = "beta" } };
+	App[3] apps = {
+		{ .id = "z.desktop", .name = "beta" },
+		{ .id = "y.desktop", .name = "Alpha" },
+		{ .id = "a.desktop", .name = "beta" }
+	};
 	sort_catalogue(apps[..]);
 	assert(apps[0].id == "y.desktop" && apps[1].id == "a.desktop" && apps[2].id == "z.desktop");
 }

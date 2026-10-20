@@ -87,13 +87,13 @@ struct State
 *>
 enum Cap : char
 {
-	CATALOGUE,      // list the apps
-	LAUNCH,         // start an app
-	LAUNCH_ACTION,  // start one of an app's secondary actions
-	DBUS_ACTIVATE,  // hand D-Bus-activatable apps to their bus name
-	TERMINAL_WRAP,  // run `Terminal=true` apps inside a terminal emulator
-	ICON,           // resolve icon names to files
-	WATCH,          // notice catalogue changes as they happen (otherwise polled)
+	CATALOGUE,     // list the apps
+	LAUNCH,        // start an app
+	LAUNCH_ACTION, // start one of an app's secondary actions
+	DBUS_ACTIVATE, // hand D-Bus-activatable apps to their bus name
+	TERMINAL_WRAP, // run `Terminal=true` apps inside a terminal emulator
+	ICON,          // resolve icon names to files
+	WATCH,         // notice catalogue changes as they happen (otherwise polled)
 }
 
 <* What changed in the catalogue. Re-read the state for the details. *>
@@ -121,11 +121,11 @@ enum CommandKind : char
 <* How a launch was carried out. *>
 enum LaunchRoute : char
 {
-	SPAWN,           // a child process was started directly
-	TERMINAL,        // a child process was started inside a terminal emulator
-	DBUS_ACTIVATE,   // the app's bus name was asked to activate it
-	BUNDLE_OPEN,     // macOS: NSWorkspace opened the bundle
-	SHELL_EXECUTE,   // Windows: the shell opened the shortcut
+	SPAWN,         // a child process was started directly
+	TERMINAL,      // a child process was started inside a terminal emulator
+	DBUS_ACTIVATE, // the app's bus name was asked to activate it
+	BUNDLE_OPEN,   // macOS: NSWorkspace opened the bundle
+	SHELL_EXECUTE, // Windows: the shell opened the shortcut
 }
 
 <*
@@ -147,9 +147,9 @@ struct Launched
 enum Backend : char
 {
 	AUTO,
-	XDG_DESKTOP,  // Linux: Desktop Entry files in the XDG data directories
-	APP_BUNDLES,  // macOS: .app bundles in the Applications folders
-	START_MENU,   // Windows: .lnk files in the Start Menu folders
+	XDG_DESKTOP, // Linux: Desktop Entry files in the XDG data directories
+	APP_BUNDLES, // macOS: .app bundles in the Applications folders
+	START_MENU,  // Windows: .lnk files in the Start Menu folders
 }
 
 <* Operation that a launch completes with. *>

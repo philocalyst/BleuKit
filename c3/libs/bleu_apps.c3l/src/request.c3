@@ -45,7 +45,13 @@ struct LaunchRequest
 
  @param [&inout] allocator : "Allocator for the request; the request's arena draws its pages from it too"
 *>
-fn LaunchRequest* new_request(Allocator allocator, String app_id, String action_id, LaunchOptions options, LaunchOperation* op)
+fn LaunchRequest* new_request(
+	Allocator allocator,
+	String app_id,
+	String action_id,
+	LaunchOptions options,
+	LaunchOperation* op
+)
 {
 	LaunchRequest* request = alloc::new(allocator, LaunchRequest);
 	request.parent = allocator;
@@ -113,8 +119,7 @@ fn void serve(void* state, AppsHub* hub, AppsHost* host, LaunchFn launch, bool* 
 			}
 			run_launch(state, hub, launch, command.request);
 		}
-	}
-	while (count == buffer.len);
+	} while (count == buffer.len);
 }
 
 const usz COMMAND_BATCH = 8;
@@ -137,8 +142,7 @@ fn void refuse_pending(AppsHost* host)
 				command.request.release();
 			}
 		}
-	}
-	while (count == buffer.len);
+	} while (count == buffer.len);
 }
 
 // Look up the app and action of one request, run the launch, complete the operation.
@@ -166,7 +170,9 @@ fn void run_launch(void* state, AppsHub* hub, LaunchFn launch, LaunchRequest* re
 		action = find_action(app, request.action_id);
 		if (!action)
 		{
-			request.op.fail(error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' has no action '%s'", app.id, request.action_id));
+			request.op.fail(
+				error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' has no action '%s'", app.id, request.action_id)
+			);
 			return;
 		}
 	}

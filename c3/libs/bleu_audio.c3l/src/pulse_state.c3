@@ -40,15 +40,15 @@ fn State? build_state(Allocator allocator, Records* records)
 }
 
 // The non-monitor sources: a monitor captures a sink's output and is not a microphone.
-fn DeviceRecord[] monitors_removed(Allocator allocator, DeviceRecord[] sources) @private
+fn DeviceRecord[] non_monitor_sources(Allocator allocator, DeviceRecord[] sources) @private
 {
-	usz count = 0;
+	sz count = 0;
 	foreach (source : sources)
 	{
 		if (source.monitor_index == NO_INDEX) count++;
 	}
 	DeviceRecord[] inputs = alloc::new_array(allocator, DeviceRecord, count);
-	usz at = 0;
+	sz at = 0;
 	foreach (source : sources)
 	{
 		if (source.monitor_index != NO_INDEX) continue;
@@ -69,7 +69,7 @@ fn Device[] devices_of(Allocator allocator, Records* records, DeviceRecord[] lis
 
 fn Device[] inputs_of(Allocator allocator, Records* records) @private
 {
-	DeviceRecord[] inputs = monitors_removed(tmem, records.sources);
+	DeviceRecord[] inputs = non_monitor_sources(tmem, records.sources);
 	return devices_of(allocator, records, inputs, INPUT, records.server.default_source);
 }
 
@@ -84,7 +84,7 @@ fn Device device_of(Allocator allocator, Records* records, DeviceRecord* record,
 	device.is_default = is_default;
 	device.volume = gains_of(allocator, &record.volume);
 	device.level = loudest(device.volume).nominal();
-	device.balance = volume::balance_of(&record.volume, &record.channel_map);
+	device.balance = balance_of(&record.volume, &record.channel_map);
 	device.volume_is_hardware = (record.flags & FLAG_HW_VOLUME_CTRL) != 0;
 	device.muted = record.muted;
 	device.ports = ports_of(allocator, record.ports, record.active_port);
@@ -131,7 +131,7 @@ fn Bus bus_of(Property[] props) @private
 fn Gain[] gains_of(Allocator allocator, CVolume* volume) @private
 {
 	Gain[] gains = alloc::new_array(allocator, Gain, volume.count);
-	for (sz i = 0; i < (sz)volume.count; i++) gains[i] = volume::gain_from_raw(volume.values[i]);
+	for (sz i = 0; i < (sz)volume.count; i++) gains[i] = gain_from_raw(volume.values[i]);
 	return gains;
 }
 
@@ -235,7 +235,7 @@ fn Stream[] streams_of(Allocator allocator, Records* records) @private
 	return streams;
 }
 
-fn Stream stream_of(Allocator allocator, StreamRecord record, Flow flow, String device) @private
+fn Stream stream_of(Allocator allocator, StreamRecord* record, Flow flow, String device) @private
 {
 	String app_name = find_property(record.props, "application.name");
 	if (app_name.len == 0) app_name = record.media_name;

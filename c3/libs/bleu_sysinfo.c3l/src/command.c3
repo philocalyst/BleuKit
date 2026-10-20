@@ -3,7 +3,7 @@
  reference and completes the operation exactly once, whatever the outcome.
 *>
 module bleu::sysinfo;
-import bleu::operation;
+import std::time, bleu::operation;
 
 <* Run one command on the worker thread and complete its operation. *>
 fn void run_command(Command* command)

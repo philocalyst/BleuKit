@@ -23,15 +23,15 @@ fn Changes changes_between(State* before, State* after)
 	return {
 		.color_scheme = before.color_scheme != after.color_scheme,
 		.accent = !equal::deep(before.accent, after.accent),
-		.accessibility = before.contrast != after.contrast
-			|| before.reduced_motion != after.reduced_motion
+		.accessibility = before.contrast != after.contrast || before.reduced_motion != after.reduced_motion
 			|| before.reduced_transparency != after.reduced_transparency,
-		.desktop = before.font_name != after.font_name
-			|| !equal::deep(before.text_scale, after.text_scale)
-			|| before.icon_theme != after.icon_theme
-			|| before.gtk_theme != after.gtk_theme
-			|| before.cursor_theme != after.cursor_theme
-			|| before.clock_format != after.clock_format,
+		.desktop = before.font_name != after.font_name || !equal::deep(
+			before.text_scale,
+			after.text_scale
+		) || before.icon_theme
+			!= after.icon_theme || before.gtk_theme
+				!= after.gtk_theme || before.cursor_theme
+					!= after.cursor_theme || before.clock_format != after.clock_format,
 		.wallpaper = !equal::deep(before.wallpapers, after.wallpapers),
 	};
 }
@@ -109,8 +109,28 @@ fn void cancel_pending(Host{Command}* host)
 <* A copy of `values`, and of every string in it, allocated from `allocator`. *>
 fn String[] copy_strings(Allocator allocator, String[] values)
 {
-	if (values.len == 0) return {};
+	if (values.len == 0) return { };
 	String[] out = alloc::new_array(allocator, String, values.len);
 	foreach (i, value : values) out[i] = value.copy(allocator);
 	return out;
+}
+
+<* Finish a request successfully. Does nothing for a command without a request. *>
+fn void settle_ok(Command* command)
+{
+	if (command.op) succeed_command(command);
+}
+
+<* Finish a request with `failure`. Does nothing for a command without a request. *>
+fn void settle_fault(Command* command, fault failure)
+{
+	if (command.op) fail_command(command, failure);
+}
+
+<* Free strings made by `copy_strings`. *>
+fn void free_strings(Allocator allocator, String[] values)
+{
+	if (values.len == 0) return;
+	foreach (value : values) alloc::free(allocator, value.ptr);
+	alloc::free(allocator, values.ptr);
 }

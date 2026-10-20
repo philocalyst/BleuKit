@@ -14,8 +14,8 @@ fn void busy_percent_from_two_readings() @test
 fn void byte_rate_uses_the_measured_elapsed_time() @test
 {
 	// 1 MB in one second, and in half a second (a late tick must not inflate the rate).
-	test::eq(delta::byte_rate(0, 1_000_000, time::sec(1)).value, 1_000_000UL);
-	test::eq(delta::byte_rate(0, 1_000, time::ms(500)).value, 2_000UL);
+	test::eq((ulong)delta::byte_rate(0, 1_000_000, time::sec(1)).value, 1_000_000UL);
+	test::eq((ulong)delta::byte_rate(0, 1_000, time::ms(500)).value, 2_000UL);
 	test::@check(!delta::byte_rate(10, 5, time::sec(1)).has_value, "a counter that went back is unknown");
 	test::@check(!delta::byte_rate(0, 5, time::DURATION_ZERO).has_value, "no elapsed time is unknown");
 }
@@ -45,8 +45,8 @@ fn void busiest_first_and_unknown_last() @test
 		{ .pid = 7, .cpu = maybe::value((Percent)55.0f) },
 	};
 	busiest::sort_busiest(list);
-	test::eq(list[0].pid, 7);
-	test::eq(list[1].pid, 4);
-	test::eq(list[2].pid, 9);
-	test::eq(list[3].pid, 3);
+	test::eq(list[0].pid, 7U);
+	test::eq(list[1].pid, 4U);
+	test::eq(list[2].pid, 9U);
+	test::eq(list[3].pid, 3U);
 }

@@ -1,10 +1,10 @@
 <*
- The D-Bus side of the MPRIS backend: which players are on the bus, what each
+ The D-Bus side of the Backend.MPRIS backend: which players are on the bus, what each
  one says, and when to read again.
 
  Discovery: `ListNames` at start, then `NameOwnerChanged` for every name with
- the MPRIS prefix. Each player gets `PropertiesChanged` on its Player interface
- and `Seeked` (MPRIS 2.2, "Seeked"). `Position` is never signalled, so every
+ the Backend.MPRIS prefix. Each player gets `PropertiesChanged` on its Player interface
+ and `Seeked` (Backend.MPRIS 2.2, "Seeked"). `Position` is never signalled, so every
  read anchors it and `tick` re-anchors the playing players once per refresh
  interval (see `position.c3`).
 
@@ -21,7 +21,7 @@ const Duration CALL_TIMEOUT = (Duration)2_000_000;
 <* Page size of each record's arena. Pages grow on demand. *>
 const sz RECORD_ARENA_PAGE = 1024;
 
-<* The signal a player sends when its position jumped (MPRIS 2.2, "Seeked"). *>
+<* The signal a player sends when its position jumped (Backend.MPRIS 2.2, "Seeked"). *>
 const String SEEKED_MEMBER = "Seeked";
 
 <* One player on the bus: its proxies, its subscriptions, and what was last read from it. *>
@@ -59,7 +59,7 @@ struct Session
 	SubscriptionId owner_watch;
 	Duration refresh;
 	Duration next_tick;  // monotonic time of the next position re-read
-	bool roster_dirty;   // an MPRIS name appeared or vanished: list the bus again
+	bool roster_dirty;   // an Backend.MPRIS name appeared or vanished: list the bus again
 	bool disconnected;   // the bus went away; the loop stops
 	bool busy;           // calls were made: wait without blocking once, so queued messages are dispatched
 }
@@ -96,7 +96,7 @@ fn void? Session.open(&self, Allocator allocator, String address, Duration refre
 	}
 }
 
-// Every NameOwnerChanged on the bus; the handler keeps only the MPRIS names.
+// Every NameOwnerChanged on the bus; the handler keeps only the Backend.MPRIS names.
 fn void? Session.watch_owners(&self)
 {
 	match::Match rule;
@@ -112,7 +112,7 @@ fn void? Session.watch_owners(&self)
 fn void Session.close(&self)
 {
 	self.forget_all();
-	if (self.owner_watch != 0)
+	if (self.owner_watch != (SubscriptionId)0)
 	{
 		// The bus may be gone already; then there is no rule left to remove.
 		if (catch err = self.connection.unsubscribe(self.owner_watch)) {}
@@ -262,11 +262,11 @@ fn void Session.remove(&self, Record* r)
 		}
 	}
 	// A bus that is gone has no rules left to remove; the error says so and changes nothing.
-	if (r.properties_watch != 0)
+	if (r.properties_watch != (SubscriptionId)0)
 	{
 		if (catch err = self.connection.unsubscribe(r.properties_watch)) {}
 	}
-	if (r.seek_watch != 0)
+	if (r.seek_watch != (SubscriptionId)0)
 	{
 		if (catch err = self.connection.unsubscribe(r.seek_watch)) {}
 	}
@@ -288,18 +288,18 @@ fn void? Session.read(&self, Record* r)
 		Value player = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
 		Maybe{Anchor} position = {};
 		if (try anchor = self.read_position(r)) position = maybe::value(anchor);
-		Duration now = monotonic_now();
+		Duration now = media::monotonic_now();
 		r.arena.reset();
 		Allocator a = &r.arena;
-		r.identity = copy_text(text_of(root, "Identity"), a);
-		r.desktop_entry = copy_text(text_of(root, "DesktopEntry"), a);
-		r.controls = controls_of(player, root);
-		PlaybackRate rate = rate_of(double_of(player, "Rate"));
-		Playback status = effective_status(playback_of(text_of(player, "PlaybackStatus")), rate);
+		r.identity = media::copy_text(mpris_convert::text_of(root, "Identity"), a);
+		r.desktop_entry = media::copy_text(mpris_convert::text_of(root, "DesktopEntry"), a);
+		r.controls = mpris_convert::controls_of(player, root);
+		PlaybackRate rate = mpris_convert::rate_of(mpris_convert::double_of(player, "Rate"));
+		Playback status = mpris_convert::effective_status(mpris_convert::playback_of(mpris_convert::text_of(player, "PlaybackStatus")), rate);
 		if (r.status_since == time::DURATION_ZERO || status != r.status) r.status_since = now;
 		r.status = status;
 		r.rate = rate;
-		r.volume = volume_of(double_of(player, "Volume"));
+		r.volume = mpris_convert::volume_of(mpris_convert::double_of(player, "Volume"));
 		r.shuffle = flag_maybe(player, "Shuffle");
 		r.loop = loop_maybe(player);
 		r.track = {};
@@ -323,7 +323,7 @@ fn Maybe{Loop} loop_maybe(Value player) @private
 {
 	if (try v = player.dict_get("LoopStatus"))
 	{
-		if (try s = v.as_string()) return maybe::value(loop_of(s));
+		if (try s = v.as_string()) return maybe::value(mpris_convert::loop_of(s));
 	}
 	return {};
 }
@@ -339,19 +339,19 @@ fn Anchor? Session.read_position(&self, Record* r)
 	{
 		Value v = r.player.get_property("Position", tmem, CALL_TIMEOUT)!;
 		long us = v.as_i64()!;
-		return { .position = (Duration)us, .taken_at = monotonic_now() };
+		return { .position = (Duration)us, .taken_at = media::monotonic_now() };
 	};
 }
 
 <* Re-read the position of every playing player once per refresh interval, to bound drift. *>
 fn void Session.tick(&self)
 {
-	Duration now = monotonic_now();
+	Duration now = media::monotonic_now();
 	if (now < self.next_tick) return;
 	self.next_tick = now + self.refresh;
 	foreach (r : self.records.array_view())
 	{
-		if (r.status != PLAYING || r.dirty) continue;
+		if (r.status != Playback.PLAYING || r.dirty) continue;
 		if (try anchor = self.read_position(r)) r.position = maybe::value(anchor);
 	}
 }
@@ -383,8 +383,8 @@ fn Duration Session.wait_time(&self)
 	if (self.busy) return time::DURATION_ZERO;
 	foreach (r : self.records.array_view())
 	{
-		if (r.status != PLAYING) continue;
-		Duration now = monotonic_now();
+		if (r.status != Playback.PLAYING) continue;
+		Duration now = media::monotonic_now();
 		return self.next_tick > now ? self.next_tick - now : time::DURATION_ZERO;
 	}
 	return time::FOREVER;
@@ -407,7 +407,7 @@ fn void? Session.send(&self, Message* call)
 <* Build the state as the records are now: sorted by id, copied into `allocator`, with the active player chosen. *>
 fn State Session.build(&self, Allocator allocator)
 {
-	usz count = self.records.size;
+	usz count = (usz)self.records.size;
 	if (count == 0) return {};
 	@pool()
 	{
@@ -424,7 +424,7 @@ fn State Session.build(&self, Allocator allocator)
 			statuses[i] = sorted[i].status;
 			since[i] = sorted[i].status_since;
 		}
-		sz active = select_active(statuses, since);
+		sz active = media::select_active(statuses, since);
 		if (active >= 0) players[active].is_active = true;
 		return { .players = players };
 	};
@@ -452,8 +452,8 @@ fn Player player_of(Record* r, Allocator allocator) @private
 	return {
 		.handle = r.handle,
 		.id = r.name.copy(allocator),
-		.identity = copy_text(r.identity, allocator),
-		.desktop_entry = copy_text(r.desktop_entry, allocator),
+		.identity = media::copy_text(r.identity, allocator),
+		.desktop_entry = media::copy_text(r.desktop_entry, allocator),
 		.status = r.status,
 		.track = mpris_convert::copy_track(&r.track, allocator),
 		.position = r.position,
@@ -466,44 +466,21 @@ fn Player player_of(Record* r, Allocator allocator) @private
 }
 
 <*
- Publish the state if it differs from the last one, and emit the events of the
- change. A state that did not change publishes nothing and emits nothing.
+ Publish the state, if it changed, with the events of the change (see `publish.c3`).
 *>
 fn void Session.publish(&self, MediaHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
 	snapshot.value = self.build(snapshot.allocator());
-	Snapshot{State}* before = null;
-	if (try latest = hub.latest()) before = latest;
-	bool changed = hub.publish_if_changed(snapshot);
-	if (changed) self.emit(hub, before);
-	self.clear_seeks();
-	if (before != null) before.release();
-}
-
-// Emit the events between `before` (null: nothing) and the state just published.
-fn void Session.emit(&self, MediaHub* hub, Snapshot{State}* before)
-{
 	@pool()
 	{
-		State none = {};
-		State* previous = before != null ? &before.value : &none;
-		Snapshot{State}* after = hub.latest()!!;
-		defer after.release();
 		List{ulong} seeks;
 		seeks.init(tmem);
 		foreach (r : self.records.array_view())
 		{
 			if (r.seek_pending) seeks.push(r.handle);
 		}
-		List{Event} events;
-		events.init(tmem);
-		collect_events(previous, &after.value, seeks.array_view(), &events);
-		foreach (e : events.array_view())
-		{
-			Packet{Event}* packet = hub.emit_begin();
-			packet.value = { .kind = e.kind, .player = e.player, .id = copy_text(e.id, packet.allocator()) };
-			hub.emit(packet);
-		}
+		media::publish_built(hub, snapshot, seeks.array_view());
 	};
+	self.clear_seeks();
 }

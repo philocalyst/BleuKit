@@ -4,7 +4,7 @@
  `write` function. Runs on the worker thread.
 *>
 module bleu::brightness;
-import bleu::error;
+import bleu::error, bleu::unit;
 
 <* The device of `state` with this id, or null. *>
 fn Device* find_device(State* state, String device_id)

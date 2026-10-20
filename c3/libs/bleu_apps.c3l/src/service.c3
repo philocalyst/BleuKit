@@ -17,8 +17,8 @@ import std::collections::enummap, std::time, bleu::error, bleu::availability, bl
 
 alias Capabilities = EnumMap{Cap, Availability};
 
-const Duration DEFAULT_SETTLE = (Duration)200_000;   // 200 ms of quiet before a rescan (microseconds)
-const Duration DEFAULT_POLL = (Duration)5_000_000;   // 5 s between directory checks on polled backends
+const Duration DEFAULT_SETTLE = (Duration)200_000; // 200 ms of quiet before a rescan (microseconds)
+const Duration DEFAULT_POLL   = (Duration)5_000_000; // 5 s between directory checks on polled backends
 
 <* How `open` finds and tunes a backend. Zero or empty fields take their defaults. *>
 struct Options
@@ -75,7 +75,7 @@ fn Apps*? open(Allocator allocator, Options options = { })
 	if (options.settle == time::DURATION_ZERO) options.settle = DEFAULT_SETTLE;
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
 	Driver* driver = select_driver(options)!;
-	Apps* self = alloc::new(allocator, Apps);
+	Apps* self     = alloc::new(allocator, Apps);
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
@@ -165,7 +165,7 @@ fn LaunchOperation*? Apps.launch_action(&self, String app_id, String action_id, 
 // Copy the submission, queue it for the worker and return the caller's reference to its operation.
 fn LaunchOperation*? submit(Apps* self, String app_id, String action_id, LaunchOptions options) @local
 {
-	LaunchOperation* op = operation::begin{Launched}(self.allocator);
+	LaunchOperation* op    = operation::begin{Launched}(self.allocator);
 	LaunchRequest* request = new_request(self.allocator, app_id, action_id, options, op.retain());
 	if (catch err = self.hub.post({ .kind = LAUNCH, .request = request }))
 	{
@@ -199,6 +199,6 @@ fn String? Apps.icon_file(&self, String icon, int size, int scale, Allocator all
 fn Ranking? Apps.search(&self, String query, Ranker ranker, void* context, Allocator allocator)
 {
 	CatalogueSnapshot* snapshot = self.hub.latest()!;
-	SearchHit[] hits = rank(&snapshot.value, query, ranker, context, allocator);
+	SearchHit[] hits            = rank(&snapshot.value, query, ranker, context, allocator);
 	return { .allocator = allocator, .snapshot = snapshot, .hits = hits };
 }

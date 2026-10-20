@@ -98,11 +98,11 @@ enum Cap : char
 *>
 enum EventKind : char
 {
-	COLOR_SCHEME, // the colour scheme
-	ACCENT,       // the accent colour
+	COLOR_SCHEME,  // the colour scheme
+	ACCENT,        // the accent colour
 	ACCESSIBILITY, // contrast, reduced motion or reduced transparency
-	DESKTOP,      // font, text scale, theme names or clock format
-	WALLPAPER,    // the wallpapers
+	DESKTOP,       // font, text scale, theme names or clock format
+	WALLPAPER,     // the wallpapers
 }
 
 <* A transient: which part of the appearance changed. *>
@@ -114,9 +114,9 @@ struct Event
 <* What the worker is asked to do. *>
 enum CommandKind : char
 {
-	REFRESH,           // read the desktop now instead of waiting for the next poll
-	SET_COLOR_SCHEME,  // write `scheme`
-	SET_WALLPAPER,     // set the wallpaper to `path`
+	REFRESH,          // read the desktop now instead of waiting for the next poll
+	SET_COLOR_SCHEME, // write `scheme`
+	SET_WALLPAPER,    // set the wallpaper to `path`
 }
 
 <*

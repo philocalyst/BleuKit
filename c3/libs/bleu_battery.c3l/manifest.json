@@ -1,10 +1,22 @@
 {
   "provides": "bleu_battery",
-  "sources": ["src/**"],
-  "dependencies": ["bleu_core", "bleu_rt", "bleu_service"],
+  "sources": [
+    "src/**"
+  ],
+  "dependencies": [
+    "bleu_core",
+    "bleu_rt",
+    "bleu_service",
+    "bleu_objc",
+    "bleu_win",
+    "bleu_dbus"
+  ],
   "targets": {
-    "linux-x64": {}, "linux-aarch64": {},
-    "macos-x64": {}, "macos-aarch64": {},
-    "windows-x64": {}, "windows-aarch64": {}
+    "linux-x64": {},
+    "linux-aarch64": {},
+    "macos-x64": {},
+    "macos-aarch64": {},
+    "windows-x64": {},
+    "windows-aarch64": {}
   }
 }

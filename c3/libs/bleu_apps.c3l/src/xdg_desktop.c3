@@ -18,7 +18,7 @@
  and the Base Directory specification, as cited in `docs/research/apps_sysinfo_secrets_appearance.md`.
 *>
 module bleu::apps::xdg_desktop @feat(LINUX);
-import std::io, std::io::path, std::os::env, std::time, std::collections::list, bleu::apps, bleu::availability, bleu::error, bleu::rt::fs, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::xdg::desktop_entry, bleu::xdg::dirs, bleu::xdg::icon, bleu::xdg::exec;
+import std::io, std::io::path, std::os::env, std::time, std::collections::list, bleu::dbus::connection, bleu::apps, bleu::availability, bleu::error, bleu::rt::fs, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::xdg::desktop_entry, bleu::xdg::dirs, bleu::xdg::icon, bleu::xdg::exec;
 
 const Driver DRIVER = {
 	.info = { "xdg-desktop", "Desktop Entry files in the XDG data directories", 10 },
@@ -30,14 +30,14 @@ const Driver DRIVER = {
 	.icon = &icon_file,
 };
 
-const String FAKE_HOME_DIR = "/home";
-const String DEFAULT_ICON_THEME = "hicolor";
-const String TERMINAL_OPTION = "-e"; // the flag every terminal in the default list takes before its command
+const String FAKE_HOME_DIR         = "/home";
+const String DEFAULT_ICON_THEME    = "hicolor";
+const String TERMINAL_OPTION       = "-e";       // the flag every terminal in the default list takes before its command
 const String ACCESS_PATH_SEPARATOR = ":";
-const int ACCESS_EXECUTE = 1; // X_OK, from unistd.h
-const usz ARENA_PAGE = 1024;
-const Duration CHILD_POLL = (Duration)1_000_000; // reap finished children once a second while any are running
-const int WATCH_TAG = 1;
+const int ACCESS_EXECUTE           = 1;          // X_OK, from unistd.h
+const usz ARENA_PAGE               = 1024;
+const Duration CHILD_POLL          = (Duration)1_000_000; // reap finished children once a second while any are running
+const int WATCH_TAG                = 1;
 
 // The terminal emulators tried for `Terminal=true` when the caller names none.
 const String[4] DEFAULT_TERMINALS = { "x-terminal-emulator", "xterm", "konsole", "gnome-terminal" };
@@ -61,6 +61,8 @@ struct XdgBackend
 	Duration settle;
 	Watcher watcher;
 	List{int} children;
+	connection::Connection bus;
+	bool bus_available;
 }
 
 <* Whether the desktop file probe finds any applications directory under `root`. *>
@@ -68,8 +70,9 @@ fn bool probe(Options* options)
 {
 	@pool()
 	{
-		return path::is_dir((Path)string::tformat("%s/usr/share/applications", options.root))
-			|| path::is_dir((Path)string::tformat("%s/usr/local/share/applications", options.root));
+		return path::is_dir(
+			(Path)string::tformat("%s/usr/share/applications", options.root)
+		) || path::is_dir((Path)string::tformat("%s/usr/local/share/applications", options.root));
 	};
 }
 
@@ -82,15 +85,16 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	XdgBackend* backend = alloc::new(allocator, XdgBackend);
 	backend.arena.init(allocator, ARENA_PAGE);
 	backend.children.init(allocator);
-	Allocator arena = &backend.arena;
+	Allocator arena         = &backend.arena;
 	ProcessEnvironment process_env;
-	Variables fake = fake_environment(options.root, arena);
+	Variables fake          = fake_environment(options.root, arena);
 	Environment environment = options.root.len > 0 ? (Environment)&fake : (Environment)&process_env;
-	backend.data_dirs = dirs::data_dirs(environment, arena);
+	backend.data_dirs = search_directories(environment, arena);
 	backend.icon_dirs = icon::default_base_dirs(environment, arena);
 	backend.desktops = desktop_entry::current_desktops(environment, arena);
 	backend.locale = locale_for(options.locale, environment, arena);
-	backend.terminals = options.terminals.len > 0 ? apps::copy_strings(arena, options.terminals) : apps::copy_strings(arena, DEFAULT_TERMINALS[..]);
+	backend.terminals = options.terminals.len > 0 ? apps::copy_strings(arena, options.terminals)
+		: apps::copy_strings(arena, DEFAULT_TERMINALS[..]);
 	backend.icon_theme = (options.icon_theme.len > 0 ? options.icon_theme : DEFAULT_ICON_THEME).copy(arena);
 	backend.settle = options.settle;
 	backend.watcher = { .fd = -1 };
@@ -98,10 +102,30 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	// A missing inotify only costs live updates: REFRESH and the next launch still see changes.
 	if (catch err = backend.watcher.open())
 	{
-		capabilities.values[Cap.WATCH.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "inotify is unavailable; the catalogue is refreshed on request only");
+		capabilities.values[Cap.WATCH.ordinal] = availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"inotify is unavailable; the catalogue is refreshed on request only"
+		);
 	}
-	capabilities.values[Cap.DBUS_ACTIVATE.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "D-Bus activation is not implemented yet; Exec is used");
+	capabilities.values[Cap.DBUS_ACTIVATE.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"D-Bus activation is not implemented yet; Exec is used"
+	);
 	return backend;
+}
+
+<*
+ The directories to scan, in precedence order: `$XDG_DATA_HOME` (the user's own
+ entries shadow the system's), then `$XDG_DATA_DIRS`.
+*>
+fn String[] search_directories(Environment environment, Allocator allocator) @local
+{
+	List{String} ordered;
+	ordered.tinit();
+	String home = dirs::data_home(environment, allocator) ?? "";
+	if (home.len > 0) ordered.push(home);
+	ordered.push_all(dirs::data_dirs(environment, allocator));
+	return ordered.to_aligned_array(allocator);
 }
 
 <* The environment of a fake tree: every XDG directory lives under `root`. *>
@@ -110,10 +134,9 @@ fn Variables fake_environment(String root, Allocator allocator) @local
 	if (root.len == 0) return { };
 	String[3] names = { "HOME", "XDG_DATA_HOME", "XDG_DATA_DIRS" };
 	String[3] values = {
-		string::tformat("%s%s", root, FAKE_HOME_DIR).copy(allocator),
-		string::tformat("%s%s/.local/share", root, FAKE_HOME_DIR).copy(allocator),
-		string::tformat("%s/usr/share", root).copy(allocator),
-	};
+		string::tformat("%s%s", root, FAKE_HOME_DIR)
+		.copy(allocator), string::tformat("%s%s/.local/share", root, FAKE_HOME_DIR)
+			.copy(allocator), string::tformat("%s/usr/share", root).copy(allocator), };
 	return { .names = apps::copy_strings(allocator, names[..]), .values = apps::copy_strings(allocator, values[..]) };
 }
 
@@ -168,7 +191,9 @@ fn void refresh(XdgBackend* backend, AppsHub* hub)
 	apps.tinit();
 	ScanContext context = { .backend = backend, .allocator = snapshot.allocator(), .apps = &apps };
 	// An unreadable data directory is skipped by the scan itself; nothing here can fail.
-	if (catch desktop_entry::scan(backend.data_dirs, &context, &visit)) {}
+	if (catch desktop_entry::scan(backend.data_dirs, &context, &visit))
+	{
+	}
 	snapshot.value.apps = apps.to_aligned_array(snapshot.allocator());
 	apps::sort_catalogue(snapshot.value.apps);
 	apps::publish_catalogue(hub, snapshot);
@@ -177,7 +202,7 @@ fn void refresh(XdgBackend* backend, AppsHub* hub)
 // The scan visitor: parse one file and keep it if it is a listed application.
 fn void? visit(void* context, DesktopFile file) @private
 {
-	ScanContext* scan = (ScanContext*)context;
+	ScanContext* scan     = (ScanContext*)context;
 	// A broken desktop file is skipped, as a launcher must; the rest of the catalogue stands.
 	DesktopEntry*? loaded = desktop_entry::load(mem, file.path, scan.backend.locale);
 	if (catch err = loaded) return;
@@ -211,7 +236,9 @@ fn void watch_applications(XdgBackend* backend) @local
 	foreach (data : backend.data_dirs)
 	{
 		// A directory that cannot be watched is picked up by the next scan; the watch is an optimisation.
-		if (catch backend.watcher.watch(data)) {}
+		if (catch backend.watcher.watch(data))
+		{
+		}
 		String applications = string::tformat("%s/%s", data.trim_right("/"), desktop_entry::APPLICATIONS_DIRECTORY);
 		if (io::file::is_dir(applications)) watch_below(&backend.watcher, applications, 0);
 	}
@@ -220,7 +247,9 @@ fn void watch_applications(XdgBackend* backend) @local
 fn void watch_below(Watcher* watcher, String directory, int depth) @local
 {
 	if (depth > desktop_entry::MAX_SCAN_DEPTH) return;
-	if (catch watcher.watch(directory)) {}
+	if (catch watcher.watch(directory))
+	{
+	}
 	PathList? names = fs::list_dir(tmem, directory);
 	if (catch err = names) return;
 	foreach (name : names)
@@ -244,6 +273,7 @@ fn void run(void* state, AppsHub* hub, AppsHost* host)
 	{
 		poller.add({ .handle = backend.watcher.fd, .interest = { .readable = true }, .tag = WATCH_TAG })!!;
 	}
+	backend.bus_available = open_bus(backend);
 	refresh(backend, hub);
 	bool dirty = false;
 	while (!host.stopping())

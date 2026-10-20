@@ -74,7 +74,7 @@ fn Availability? availability_from_can(String answer)
 		case "no":
 			return availability::no(availability::Reason.DISABLED_BY_POLICY, "the system configuration does not allow it");
 		case "inhibited":
-			return Availability{ .reason = availability::Reason.DEGRADED, .note = "another program holds an inhibitor lock; it may refuse" };
+			return { .reason = availability::Reason.DEGRADED, .note = "another program holds an inhibitor lock; it may refuse" };
 		case "inhibitor-blocked":
 			return availability::no(availability::Reason.DISABLED_BY_POLICY, "another program's inhibitor lock blocks it now");
 		case "challenge-inhibitor-blocked":

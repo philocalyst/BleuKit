@@ -13,11 +13,11 @@ import std::time, std::collections::maybe, bleu::unit, bleu::operation;
 <* A percentage on the scale people read: 0.0 .. 100.0 per logical processor, so a process may exceed 100. *>
 typedef Percent = float;
 
-<* A count of bytes. *>
-typedef Bytes = ulong;
+<* A count of bytes. An alias, not a distinct type: sizes are summed and subtracted all the time. *>
+alias Bytes = ulong;
 
-<* A throughput in bytes per second. *>
-typedef BytesPerSecond = ulong;
+<* A throughput in bytes per second (an alias, like `Bytes`). *>
+alias BytesPerSecond = ulong;
 
 <* A clock frequency in megahertz. *>
 typedef Mhz = uint;

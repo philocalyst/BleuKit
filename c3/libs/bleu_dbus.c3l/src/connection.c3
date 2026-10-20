@@ -62,6 +62,15 @@ alias SignalHandler = fn void(void* context, Message* signal);
 *>
 alias ReplyHandler = fn void(void* context, Message* reply, error::Status status);
 
+<*
+ Called for each METHOD_CALL that arrives, before the default answer. Return
+ true when the handler has taken the call: it replies now, or later through
+ its own reply token. Return false to leave the call to the default answer
+ (`UnknownMethod`, or the empty reply to Peer.Ping). `bleu::dbus::server` uses
+ this to serve exported objects.
+*>
+alias IncomingCallHandler = fn bool(void* context, Message* call);
+
 <* A call that was sent and has not been answered yet. *>
 struct PendingCall
 {
@@ -123,6 +132,8 @@ struct Connection
 	List{PendingCall} pending;
 	List{Subscription*} subscriptions;
 	List{NameOwner*} names;
+	IncomingCallHandler incoming_handler;
+	void* incoming_context;
 }
 
 <*
@@ -542,7 +553,7 @@ fn void dispatch_one(Connection* c, Message* m) @private
 			observe_owner_change(c, m);
 			deliver_signal(c, m);
 		case METHOD_CALL:
-			answer_unknown(c, m);
+			if (!route_incoming(c, m)) answer_unknown(c, m);
 		case INVALID:
 		case UNKNOWN:
 		// Unknown types are ignored, as the specification requires.
@@ -618,6 +629,25 @@ fn void observe_owner_change(Connection* c, Message* m) @private
 			if (try owner = r.read_string()) set_owner(c, name, owner);
 		}
 	}
+}
+
+<*
+ Route every incoming method call to `handler`, with `context`, from `process()`.
+ Pass null to go back to the default answers. The handler is kept across
+ reconnects, because it serves the objects of the process, not of one bus connection.
+*>
+fn void Connection.set_incoming_handler(&self, IncomingCallHandler handler, void* context)
+{
+	self.check_owner();
+	self.incoming_handler = handler;
+	self.incoming_context = context;
+}
+
+// Offers a method call to the incoming handler. False when there is none, or it declines.
+fn bool route_incoming(Connection* c, Message* m) @private
+{
+	if (!c.incoming_handler) return false;
+	return c.incoming_handler(c.incoming_context, m);
 }
 
 // Answers a method call that no one implements here. Peer.Ping gets its empty

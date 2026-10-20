@@ -21,23 +21,23 @@ const ZString REGISTRY_CLASS = "IOPMPowerSource";
 // IORegistry keys. XNU `iokit/IOKit/pwr_mgt/IOPM.h` gives the name in parentheses; the second
 // name, where present, is the one starship-battery 0.10.0 reads. Where both are listed the
 // reader prefers the first and falls back to the second.
-const ZString KEY_EXTERNAL_CONNECTED   = "ExternalConnected";     // kIOPMPSExternalConnectedKey
-const ZString KEY_IS_CHARGING          = "IsCharging";            // kIOPMPSIsChargingKey
-const ZString KEY_FULLY_CHARGED        = "FullyCharged";          // kIOPMFullyChargedKey
-const ZString KEY_VOLTAGE              = "Voltage";               // kIOPMPSVoltageKey, mV
-const ZString KEY_AMPERAGE             = "Amperage";              // kIOPMPSAmperageKey, mA, signed
-const ZString KEY_DESIGN_CAPACITY      = "DesignCapacity";        // kIOPMPSDesignCapacityKey, mAh
-const ZString KEY_MAX_CAPACITY         = "MaxCapacity";           // kIOPMPSMaxCapacityKey, mAh
-const ZString KEY_CURRENT_CAPACITY     = "CurrentCapacity";       // kIOPMPSCurrentCapacityKey, mAh
-const ZString KEY_RAW_MAX_CAPACITY     = "AppleRawMaxCapacity";   // starship (single source), preferred
+const ZString KEY_EXTERNAL_CONNECTED   = "ExternalConnected";       // kIOPMPSExternalConnectedKey
+const ZString KEY_IS_CHARGING          = "IsCharging";              // kIOPMPSIsChargingKey
+const ZString KEY_FULLY_CHARGED        = "FullyCharged";            // kIOPMFullyChargedKey
+const ZString KEY_VOLTAGE              = "Voltage";                 // kIOPMPSVoltageKey, mV
+const ZString KEY_AMPERAGE             = "Amperage";                // kIOPMPSAmperageKey, mA, signed
+const ZString KEY_DESIGN_CAPACITY      = "DesignCapacity";          // kIOPMPSDesignCapacityKey, mAh
+const ZString KEY_MAX_CAPACITY         = "MaxCapacity";             // kIOPMPSMaxCapacityKey, mAh
+const ZString KEY_CURRENT_CAPACITY     = "CurrentCapacity";         // kIOPMPSCurrentCapacityKey, mAh
+const ZString KEY_RAW_MAX_CAPACITY     = "AppleRawMaxCapacity";     // starship (single source), preferred
 const ZString KEY_RAW_CURRENT_CAPACITY = "AppleRawCurrentCapacity"; // starship (single source), preferred
-const ZString KEY_CYCLE_COUNT          = "CycleCount";            // kIOPMPSCycleCountKey
-const ZString KEY_MANUFACTURER         = "Manufacturer";          // kIOPMPSManufacturerKey
-const ZString KEY_DEVICE_NAME          = "DeviceName";            // starship; XNU has "Model"
-const ZString KEY_MODEL                = "Model";                 // kIOPMPSModelKey
-const ZString KEY_BATTERY_SERIAL       = "BatterySerialNumber";   // starship; XNU has "Serial"
-const ZString KEY_SERIAL               = "Serial";                // kIOPMPSSerialKey
-const ZString KEY_ADAPTER_WATTS        = "Watts";                 // kIOPMPSAdapterDetailsWattsKey
+const ZString KEY_CYCLE_COUNT          = "CycleCount";              // kIOPMPSCycleCountKey
+const ZString KEY_MANUFACTURER         = "Manufacturer";            // kIOPMPSManufacturerKey
+const ZString KEY_DEVICE_NAME          = "DeviceName";              // starship; XNU has "Model"
+const ZString KEY_MODEL                = "Model";                   // kIOPMPSModelKey
+const ZString KEY_BATTERY_SERIAL       = "BatterySerialNumber";     // starship; XNU has "Serial"
+const ZString KEY_SERIAL               = "Serial";                  // kIOPMPSSerialKey
+const ZString KEY_ADAPTER_WATTS        = "Watts";                   // kIOPMPSAdapterDetailsWattsKey
 
 // Source: Apple IOKitUser `ps.subproj/IOPowerSources.c` (function body; fetched from
 // apple-oss-distributions/IOKitUser). Returns seconds, negative when there is no estimate.
@@ -129,7 +129,8 @@ fn State? read_all(Allocator allocator)
 *>
 fn Source source_from_supply(Allocator allocator, power::PowerSource* supply, sz index, CFTypeRef record)
 {
-	String id = supply.name.len > 0 ? supply.name.copy(allocator) : string::tformat("power-source-%d", (int)index).copy(allocator);
+	String id = supply.name.len > 0 ? supply.name.copy(allocator) : string::tformat("power-source-%d", (int)index)
+		.copy(allocator);
 	Kind kind = UNKNOWN;
 	switch (supply.type)
 	{
@@ -140,7 +141,12 @@ fn Source source_from_supply(Allocator allocator, power::PowerSource* supply, sz
 	Source source = { .id = id, .kind = kind, .present = supply.present };
 	if (!supply.present) return source;
 	bool fully_charged = record != null && power::description_bool(record, KEY_FULLY_CHARGED);
-	source.state = battery::charge_state(supply.state == power::PowerSourceState.AC, supply.charging, fully_charged, supply.charge.is_zero());
+	source.state = battery::charge_state(
+		supply.state == power::PowerSourceState.AC,
+		supply.charging,
+		fully_charged,
+		supply.charge.is_zero()
+	);
 	source.charge = maybe::value(supply.charge);
 	return source;
 }

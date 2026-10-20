@@ -109,7 +109,8 @@ enum FailureReason : char
 {
 	NONE,
 	UNKNOWN,
-	NO_SECRETS,         // NM NO_SECRETS (7): a passphrase was needed and not supplied
+	AUTH_REQUIRED,      // a passphrase is needed and none was supplied
+	NO_SECRETS,         // NM NO_SECRETS (7): the device asked for a secret it did not get
 	AUTH_REJECTED,      // a passphrase was supplied and the network asked for it again
 	SUPPLICANT_FAILED,  // NM SUPPLICANT_DISCONNECT (8), SUPPLICANT_CONFIG_FAILED (9), SUPPLICANT_FAILED (10)
 	SUPPLICANT_TIMEOUT, // NM SUPPLICANT_TIMEOUT (11)

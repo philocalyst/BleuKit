@@ -55,7 +55,7 @@ fn Bluetooth*? open(Allocator allocator, Options options = { })
 		alloc::free(allocator, self);
 		return err~;
 	}
-	self.driver_state = state!!;
+	self.driver_state = state;
 	if (catch err = self.hub.start(allocator, "bluetooth", driver.info.name, driver.run, self.driver_state))
 	{
 		driver.destroy(allocator, self.driver_state);

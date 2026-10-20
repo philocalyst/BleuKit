@@ -45,9 +45,9 @@ fn bool probe(Options* options)
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[SET_NATIVE.ordinal] = availability::no(UNSUPPORTED_OS, "the OS's own panel call is macOS only");
-	capabilities.values[SET_GAMMA.ordinal] = availability::no(UNSUPPORTED_BACKEND, "gamma dimming is not built for Linux (needs wlr-gamma-control or RandR)");
-	capabilities.values[SET_OVERLAY.ordinal] = availability::no(UNSUPPORTED_BACKEND, "overlay dimming is not built");
+	capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(UNSUPPORTED_OS, "the OS's own panel call is macOS only");
+	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(UNSUPPORTED_BACKEND, "gamma dimming is not built for Linux (needs wlr-gamma-control or RandR)");
+	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(UNSUPPORTED_BACKEND, "overlay dimming is not built");
 	Linux* self = alloc::new(allocator, Linux, {
 		.allocator = allocator,
 		.root = options.root.copy(allocator),
@@ -83,7 +83,7 @@ fn void run(void* state, BrightnessHub* hub, Host{Command}* host)
 	self.bus.init(self.allocator);
 	defer self.bus.free();
 	self.displays.init(self.allocator);
-	serve(hub, host, &self.platform, self.poll, self.step);
+	brightness::serve(hub, host, &self.platform, self.poll, self.step);
 }
 
 <*
@@ -96,7 +96,7 @@ fn State? read_state(void* context, Allocator allocator)
 	self.ensure_bus();
 	@pool()
 	{
-		sync_displays(&self.displays, self.allocator, self.root, self.open_bus, self.open_bus_context);
+		linux_ddc::sync_displays(&self.displays, self.allocator, self.root, self.open_bus, self.open_bus_context);
 		List{Device} devices;
 		devices.init(tmem);
 		self.read_panel(allocator, &devices);
@@ -106,7 +106,7 @@ fn State? read_state(void* context, Allocator allocator)
 			List{Control} controls;
 			controls.init(tmem);
 			controls.push(display.read());
-			add_device(allocator, &devices, display.connector, display.connector, EXTERNAL, controls.array_view());
+			brightness::add_device(allocator, &devices, display.connector, display.connector, EXTERNAL, controls.array_view());
 		}
 		return { .devices = alloc::clone_slice(allocator, devices.array_view()) };
 	};
@@ -120,7 +120,7 @@ fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices)
 		List{Control} controls;
 		controls.init(tmem);
 		controls.push(sysfs::knob_control(BACKLIGHT, self.root, sysfs::BACKLIGHT_CLASS, name, self.bus.is_open));
-		add_device(allocator, devices, name, "panel backlight", PANEL, controls.array_view());
+		brightness::add_device(allocator, devices, name, "panel backlight", PANEL, controls.array_view());
 	}
 }
 
@@ -135,20 +135,9 @@ fn void Linux.read_leds(&self, Allocator allocator, List{Device}* devices)
 			List{Control} controls;
 			controls.init(tmem);
 			controls.push(sysfs::knob_control(KEYBOARD_LED, self.root, sysfs::LED_CLASS, name, self.bus.is_open));
-			add_device(allocator, devices, name, "keyboard backlight", KEYBOARD, controls.array_view());
+			brightness::add_device(allocator, devices, name, "keyboard backlight", KEYBOARD, controls.array_view());
 		}
 	}
-}
-
-// Append a device whose strings and controls are copied into `allocator`.
-fn void add_device(Allocator allocator, List{Device}* devices, String id, String name, DeviceKind kind, Control[] controls) @private
-{
-	devices.push({
-		.id = id.copy(allocator),
-		.name = name.copy(allocator),
-		.kind = kind,
-		.controls = alloc::clone_slice(allocator, controls),
-	});
 }
 
 <* Carry out one write. Only the mechanisms this backend has reach here. *>
@@ -185,7 +174,7 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 		}
 		String dir = string::tformat("%s%s/%s", self.root, directory, device_id);
 		long max = sysfs::read_number(dir, "max_brightness") ?? 0;
-		if (max <= 0) return error::raise(UNAVAILABLE, error::Domain.INTERNAL, 0, "'%s' has no maximum brightness", device_id)~;
+		if (max <= 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "'%s' has no maximum brightness", device_id)~;
 		long raw = level.to_raw(0, max);
 		bool carried = false;
 		if (self.bus.is_open)
@@ -193,7 +182,7 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 			if (catch err = logind::set_brightness(&self.bus, subsystem, device_id, (uint)raw))
 			{
 				// logind refused or is not reachable: the file is written below instead.
-				if (err == DISCONNECTED) self.bus.close();
+				if (err == error::DISCONNECTED) self.bus.close();
 			}
 			else
 			{
@@ -206,7 +195,7 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 		{
 			read_back = maybe::value(unit::from_raw(actual, 0, max));
 		}
-		return applied_at(mechanism, level, raw, 0, max, read_back);
+		return brightness::applied_at(mechanism, level, raw, 0, max, read_back);
 	};
 }
 

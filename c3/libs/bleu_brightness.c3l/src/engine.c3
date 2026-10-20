@@ -156,7 +156,14 @@ fn void Engine.handle(&self, Command* command)
 	if (command.transition == time::DURATION_ZERO)
 	{
 		Applied? applied = self.apply_now(device_id, command.policy, command.level);
-		complete(command.operation, applied);
+		if (catch err = applied)
+		{
+			finish_op(command.operation, err);
+		}
+		else
+		{
+			succeed_op(command.operation, applied);
+		}
 		self.publish();
 		return;
 	}
@@ -210,12 +217,12 @@ fn void Engine.step_ramp(&self, Ramp* ramp)
 	{
 		ramp.active = false;
 		finish_op(command.operation, err);
-		self.publish();
-		return;
 	}
-	if (!ramp_done(elapsed, command.transition)) return;
-	ramp.active = false;
-	complete(command.operation, applied);
+	else if (ramp_done(elapsed, command.transition))
+	{
+		ramp.active = false;
+		succeed_op(command.operation, applied);
+	}
 	self.publish();
 }
 
@@ -241,15 +248,10 @@ fn Level? Engine.current_level(&self, String device_id)
 	return NOT_FOUND~;
 }
 
-// Finish an operation with the result of its request, and release the worker's reference.
-fn void complete(SetOperation* operation, Applied? result)
+// Succeed an operation with `applied`, and release the worker's reference.
+fn void succeed_op(SetOperation* operation, Applied applied)
 {
-	if (catch err = result)
-	{
-		finish_op(operation, err);
-		return;
-	}
-	operation.succeed(result);
+	operation.succeed(applied);
 	operation.release();
 }
 

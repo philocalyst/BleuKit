@@ -3,6 +3,7 @@
  two states. Everything here runs on the worker thread.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
+import std::io;
 import std::collections::list, std::collections::maybe, bleu::bluetooth, bleu::dbus::connection,
 	bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
 
@@ -29,7 +30,7 @@ fn void publish_changes(BluetoothHub* hub, Snapshot{State}* snapshot)
 {
 	Snapshot{State}* previous = null;
 	if (try latest = hub.latest()) previous = latest;
-	if (previous && equal::deep(previous.value, snapshot.value))
+	if (previous != null && equal::deep(previous.value, snapshot.value))
 	{
 		previous.release();
 		snapshot.release();
@@ -50,22 +51,34 @@ fn void emit_differences(BluetoothHub* hub, State* before, State* after) @privat
 	foreach (&adapter : after.adapters)
 	{
 		sz old = find_adapter(before.adapters, adapter.address);
-		if (old < 0) emit(hub, ADAPTER_ADDED, adapter.address, "");
-		else if (!equal::deep(before.adapters[old], adapter)) emit(hub, ADAPTER_CHANGED, adapter.address, "");
+		if (old < 0)
+		{
+			emit(hub, bluetooth::EventKind.ADAPTER_ADDED, adapter.address, "");
+		}
+		else if (!equal::deep(before.adapters[old], *adapter))
+		{
+			emit(hub, bluetooth::EventKind.ADAPTER_CHANGED, adapter.address, "");
+		}
 	}
 	foreach (&adapter : before.adapters)
 	{
-		if (find_adapter(after.adapters, adapter.address) < 0) emit(hub, ADAPTER_REMOVED, adapter.address, "");
+		if (find_adapter(after.adapters, adapter.address) < 0) emit(hub, bluetooth::EventKind.ADAPTER_REMOVED, adapter.address, "");
 	}
 	foreach (&device : after.devices)
 	{
 		sz old = find_device(before.devices, device.address);
-		if (old < 0) emit(hub, DEVICE_ADDED, device.address, "");
-		else if (!equal::deep(before.devices[old], device)) emit(hub, DEVICE_CHANGED, device.address, "");
+		if (old < 0)
+		{
+			emit(hub, bluetooth::EventKind.DEVICE_ADDED, device.address, "");
+		}
+		else if (!equal::deep(before.devices[old], *device))
+		{
+			emit(hub, bluetooth::EventKind.DEVICE_CHANGED, device.address, "");
+		}
 	}
 	foreach (&device : before.devices)
 	{
-		if (find_device(after.devices, device.address) < 0) emit(hub, DEVICE_REMOVED, device.address, "");
+		if (find_device(after.devices, device.address) < 0) emit(hub, bluetooth::EventKind.DEVICE_REMOVED, device.address, "");
 	}
 }
 
@@ -73,7 +86,7 @@ fn sz find_adapter(Adapter[] adapters, String address) @private
 {
 	foreach (i, &adapter : adapters)
 	{
-		if (adapter.address == address) return i;
+		if (adapter.address == address) return (sz)i;
 	}
 	return -1;
 }
@@ -82,7 +95,7 @@ fn sz find_device(Device[] devices, String address) @private
 {
 	foreach (i, &device : devices)
 	{
-		if (device.address == address) return i;
+		if (device.address == address) return (sz)i;
 	}
 	return -1;
 }
@@ -92,7 +105,7 @@ fn void emit(BluetoothHub* hub, EventKind kind, String address, String text)
 {
 	Snapshot{Event}* packet = hub.emit_begin();
 	Allocator arena = packet.allocator();
-	packet.value = { .kind = kind, .address = copy_text(address, arena), .text = copy_text(text, arena) };
+	packet.value = { .kind = kind, .address = bluetooth::copy_text(address, arena), .text = bluetooth::copy_text(text, arena) };
 	hub.emit(packet);
 }
 
@@ -111,11 +124,15 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 		links.init(tmem);
 		List{Adapter} adapters;
 		adapters.init(tmem);
+		io::printfn("DBG tree items=%d", tree.items.len);
 		foreach (object : tree.items)
 		{
+			io::printfn("DBG object path='%s' ifaces=%d", object.items[0].text, object.items[1].items.len);
+			foreach (iface : object.items[1].items) io::printfn("DBG   iface='%s'", iface.items[0].text);
 			if (try props = interface_props(object, ADAPTER_IFACE))
 			{
-				Adapter adapter = read_adapter(props, object.items[0].text, kill_switch, allocator);
+				if (try rawv = props.dict_get("Address")) io::printfn("DBG raw kind=%d text='%s' unwrapped=%d", rawv.kind.ordinal, rawv.text, rawv.unwrap().kind.ordinal);
+				Adapter adapter = read_adapter(props, kill_switch, allocator);
 				links.push({ .path = object.items[0].text, .address = adapter.address });
 				adapters.push(adapter);
 			}
@@ -139,15 +156,15 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 // The properties of `interface_name` on one object of the tree, or an excuse when it has none.
 fn Value? interface_props(Value object, String interface_name) @inline => object.items[1].dict_get(interface_name);
 
-fn Adapter read_adapter(Value props, String path, bool kill_switch, Allocator allocator) @private
+fn Adapter read_adapter(Value props, bool kill_switch, Allocator allocator) @private
 {
 	String address = text_prop(props, "Address", allocator);
 	String name = text_prop(props, "Name", allocator);
-	String alias = text_prop(props, "Alias", allocator);
+	String nickname = text_prop(props, "Alias", allocator);
 	return {
 		.address = address,
 		.name = name,
-		.display_name = alias.len > 0 ? alias : name,
+		.display_name = nickname.len > 0 ? nickname : name,
 		.powered = bool_prop(props, "Powered"),
 		// BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
 		.blocked = kill_switch || text_prop(props, "PowerState", allocator) == "off-blocked",
@@ -162,8 +179,8 @@ fn Device read_device(Value object, Value props, AdapterLink[] links, Allocator 
 {
 	String address = text_prop(props, "Address", allocator);
 	String name = text_prop(props, "Name", allocator);
-	String alias = text_prop(props, "Alias", allocator);
-	String adapter_path = text_prop(props, "Adapter", tmem);
+	String nickname = text_prop(props, "Alias", allocator);
+	String adapter_path = path_prop(props, "Adapter", tmem);
 	String adapter = "";
 	foreach (link : links)
 	{
@@ -179,20 +196,20 @@ fn Device read_device(Value object, Value props, AdapterLink[] links, Allocator 
 	{
 		if (try pct = battery_props.dict_get("Percentage"))
 		{
-			if (try value = pct.as_byte()) battery = battery_level((uint)value);
+			if (try percent = pct.as_byte()) battery = bluetooth::battery_level((uint)percent);
 		}
 	}
 	Maybe{Dbm} rssi = { };
 	if (try r = props.dict_get("RSSI"))
 	{
-		if (try value = r.as_i16()) rssi = maybe::value((Dbm)value);
+		if (try dbm = r.as_i16()) rssi = maybe::value((Dbm)dbm);
 	}
 	return {
 		.address = address,
-		.adapter = copy_text(adapter, allocator),
+		.adapter = bluetooth::copy_text(adapter, allocator),
 		.name = name,
-		.display_name = alias.len > 0 ? alias : (name.len > 0 ? name : address),
-		.icon = icon_of(class_of_device, appearance),
+		.display_name = nickname.len > 0 ? nickname : (name.len > 0 ? name : address),
+		.icon = bluetooth::icon_of(class_of_device, appearance),
 		.class_of_device = class_of_device,
 		.appearance = appearance,
 		.paired = bool_prop(props, "Paired"),
@@ -203,7 +220,7 @@ fn Device read_device(Value object, Value props, AdapterLink[] links, Allocator 
 		.services_resolved = bool_prop(props, "ServicesResolved"),
 		.rssi = rssi,
 		.battery = battery,
-		.pnp = modalias.len > 0 ? parse_modalias(modalias) : { },
+		.pnp = bluetooth::parse_modalias(modalias),
 		.modalias = modalias,
 		.uuids = uuids,
 		.profiles = profiles,
@@ -219,10 +236,20 @@ fn Profile[] profiles_of(String[] uuids, Allocator allocator) @private
 		found.init(tmem);
 		foreach (uuid : uuids)
 		{
-			if (try profile = profile_from_uuid(uuid)) found.push(profile);
+			if (try profile = bluetooth::profile_from_uuid(uuid)) found.push(profile);
 		}
 		return alloc::clone_slice(allocator, found.array_view());
 	};
+}
+
+// The object path of an object-path property, copied into `allocator`; "" when absent.
+fn String path_prop(Value props, String name, Allocator allocator) @private
+{
+	if (try v = props.dict_get(name))
+	{
+		if (try p = v.as_object_path()) return bluetooth::copy_text(p, allocator);
+	}
+	return "";
 }
 
 // The text of a string property, copied into `allocator`; "" when absent or not a string.
@@ -230,7 +257,7 @@ fn String text_prop(Value props, String name, Allocator allocator) @private
 {
 	if (try v = props.dict_get(name))
 	{
-		if (try s = v.as_string()) return copy_text(s, allocator);
+		if (try s = v.as_string()) return bluetooth::copy_text(s, allocator);
 	}
 	return "";
 }
@@ -239,12 +266,11 @@ fn String[] string_list(Value props, String name, Allocator allocator) @private
 {
 	if (try v = props.dict_get(name))
 	{
-		Value list = v.unwrap();
-		String[] out = alloc::new_array(allocator, String, (sz)list.count());
+		Value array = v.unwrap();
+		String[] out = alloc::new_array(allocator, String, (sz)array.count());
 		for (usz i = 0; i < out.len; i++)
 		{
-			out[i] = list.at(i)!.as_string() ?? "";
-			out[i] = copy_text(out[i], allocator);
+			if (try item = array.at(i)) out[i] = bluetooth::copy_text(item.as_string() ?? "", allocator);
 		}
 		return out;
 	}

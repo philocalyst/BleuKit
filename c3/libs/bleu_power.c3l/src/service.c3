@@ -279,19 +279,12 @@ fn void? ProfileHold.release(&self) => self.owner.hub.post({ .kind = RELEASE_PRO
 fn void? Inhibitor.release(&self) => self.owner.hub.post({ .kind = RELEASE_INHIBITOR, .number = self.id, .owner = self.owner });
 
 <*
- Complete `operation` with `result` (a value, or the fault that ended the
- request) and drop the worker's reference to it. Called by the worker only.
+ Complete `operation` with `value` and drop the worker's reference to it.
+ Called by the worker only; a failed request uses `abort`.
 *>
-fn void finish{T}(Operation{T}* operation, T? result)
+fn void finish(Operation{Value}* operation, Value value) <Value>
 {
-	if (catch err = result)
-	{
-		operation.fail(err);
-	}
-	else
-	{
-		operation.succeed(result);
-	}
+	operation.succeed(value);
 	operation.release();
 }
 
@@ -299,7 +292,7 @@ fn void finish{T}(Operation{T}* operation, T? result)
  End `operation` with `failure` and drop the worker's reference to it. Called by
  the worker when a request cannot be carried out at all.
 *>
-fn void abort{T}(Operation{T}* operation, fault failure)
+fn void abort(Operation{Value}* operation, fault failure) <Value>
 {
 	operation.fail(failure);
 	operation.release();
@@ -326,7 +319,7 @@ fn void abort_command(Command* command, fault failure)
 
 // Give the worker its own reference, then queue the command. On failure the
 // worker's reference is dropped again; the caller still holds its own.
-fn void? post_retained{T}(Power* self, Command command, Operation{T}* operation) @private
+fn void? post_retained(Power* self, Command command, Operation{Value}* operation) <Value> @private
 {
 	operation.retain();
 	if (catch err = self.hub.post(command))
@@ -349,4 +342,15 @@ fn String copy_into(String text, Allocator allocator) @private
 {
 	if (text.len == 0) return "";
 	return text.copy(allocator);
+}
+
+<*
+ Publish a transient event on the worker. `ticket` is non-zero only for a
+ `PREPARE_SLEEP` barrier.
+*>
+fn void publish_event(PowerHub* hub, EventKind kind, uint ticket)
+{
+	Snapshot{Event}* packet = hub.emit_begin();
+	packet.value = { .kind = kind, .ticket = ticket };
+	hub.emit(packet);
 }

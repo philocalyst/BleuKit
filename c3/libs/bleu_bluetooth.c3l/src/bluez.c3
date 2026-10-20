@@ -56,7 +56,7 @@ struct Bluez
 
 const Driver DRIVER = {
 	.info = { "bluez", "BlueZ (org.bluez) over the D-Bus system bus", 10 },
-	.id = BLUEZ,
+	.id = bluetooth::Backend.BLUEZ,
 	.probe = &probe,
 	.create = &create,
 	.destroy = &destroy,
@@ -87,8 +87,9 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	if (!owned) return error::UNAVAILABLE~;
 	fill_capabilities(capabilities);
 	Bluez* self = alloc::new(allocator, Bluez, {
-		.bus_address = copy_text(options.bus_address, allocator),
-		.root = copy_text(options.root, allocator),
+		.allocator = allocator,
+		.bus_address = bluetooth::copy_text(options.bus_address, allocator),
+		.root = bluetooth::copy_text(options.root, allocator),
 	});
 	return self;
 }
@@ -97,15 +98,15 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 fn void fill_capabilities(Capabilities* capabilities) @private
 {
 	capabilities.init(availability::YES);
-	capabilities.values[PAIR.ordinal] = {
+	capabilities.values[bluetooth::Cap.PAIR.ordinal] = {
 		.reason = availability::Reason.DEGRADED,
 		.note = "no pairing agent is registered; BlueZ answers the pairing itself or refuses",
 	};
-	capabilities.values[PAIRING_PROMPTS.ordinal] = availability::no(
+	capabilities.values[bluetooth::Cap.PAIRING_PROMPTS.ordinal] = availability::no(
 		availability::Reason.UNSUPPORTED_BACKEND,
 		"bleu::dbus cannot export the pairing agent object yet"
 	);
-	capabilities.values[RFKILL_STATE.ordinal] = {
+	capabilities.values[bluetooth::Cap.RFKILL_STATE.ordinal] = {
 		.reason = availability::Reason.DEGRADED,
 		.note = "read from /sys/class/rfkill; a kill switch that is not in sysfs is not seen",
 	};
@@ -150,13 +151,13 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	Request[COMMAND_BATCH] commands;
 	while (!host.stopping())
 	{
-		if (!wait_for_bus(self, &poller)) break;
-		if (catch self.bus.process()) break;
 		if (self.dirty)
 		{
 			self.dirty = false;
 			refresh(self, hub);
 		}
+		if (!wait_for_bus(self, &poller)) break;
+		if (catch self.bus.process()) break;
 		usz count = host.mailbox().take_all(commands[..]);
 		while (count > 0)
 		{
@@ -240,8 +241,8 @@ fn void on_disconnected(void* context, dbus::message::Message* signal)
 		{
 			if (try reason = r.read_string())
 			{
-				String address = address_of_device_path(signal.path, tmem) ?? "";
-				emit(self.hub, DEVICE_DISCONNECTED, address, reason);
+				String address = bluetooth::address_of_device_path(signal.path, tmem) ?? "";
+				emit(self.hub, bluetooth::EventKind.DEVICE_DISCONNECTED, address, reason);
 			}
 		}
 	};

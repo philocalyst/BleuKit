@@ -17,4 +17,4 @@ fn Ssid make_ssid(Allocator allocator, char[] bytes)
 }
 
 <* Whether two SSIDs are the same network: the same octets, nothing else. *>
-fn bool same_ssid(char[] a, char[] b) @inline => a.len == b.len && mem::equal(a.ptr, b.ptr, a.len);
+fn bool same_ssid(char[] a, char[] b) @inline => a.len == b.len && mem::equals(a.ptr, b.ptr, a.len);

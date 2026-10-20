@@ -1,11 +1,11 @@
 <*
- The MPRIS backend: Linux players on the D-Bus session bus.
+ The Backend.MPRIS backend: Linux players on the D-Bus session bus.
 
  Opened on a trial connection first, so a missing bus is reported by `open`
  instead of an idle worker. The worker then opens its own connection, because a
  connection belongs to the thread that opened it.
 
- Not available here: MPRIS export (publishing our own session, cut in v1), the
+ Not available here: Backend.MPRIS export (publishing our own session, cut in v1), the
  2.3 `GetArtworkFd` (art bytes), `TrackList` and `Playlists`.
 *>
 module bleu::media::mpris @feat(LINUX);
@@ -26,7 +26,7 @@ struct Backend
 
 const Driver DRIVER = {
 	.info = { "mpris", "MPRIS2 players on the D-Bus session bus", 10 },
-	.id = MPRIS,
+	.id = media::Backend.MPRIS,
 	.probe = &probe,
 	.create = &create,
 	.destroy = &destroy,
@@ -34,7 +34,7 @@ const Driver DRIVER = {
 };
 
 <*
- MPRIS needs a session bus. Its address is in the environment, or the bus
+ Backend.MPRIS needs a session bus. Its address is in the environment, or the bus
  socket sits in XDG_RUNTIME_DIR, where the default address points.
 *>
 fn bool probe(Options* options)
@@ -63,8 +63,8 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	{
 		trial.open_session()!;
 	}
-	Backend* backend = alloc::new(allocator, Backend, { .refresh = options.refresh });
-	backend.address = mpris_convert::copy_text(options.bus_address, allocator);
+	Backend* backend = alloc::new(allocator, Backend, { .allocator = allocator, .refresh = options.refresh });
+	backend.address = media::copy_text(options.bus_address, allocator);
 	return backend;
 }
 
@@ -72,12 +72,12 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 fn void fill_capabilities(Capabilities* capabilities) @private
 {
 	capabilities.init(availability::YES);
-	capabilities.values[PUBLISH_SESSION.ordinal] = availability::no(
-		UNSUPPORTED_BACKEND,
+	capabilities.values[Cap.PUBLISH_SESSION.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
 		"Publishing our own session is not in v1 (MPRIS export is cut)"
 	);
-	capabilities.values[NOW_PLAYING_PRIVATE.ordinal] = availability::no(
-		UNSUPPORTED_OS,
+	capabilities.values[Cap.NOW_PLAYING_PRIVATE.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
 		"MPRIS is the only player interface on Linux"
 	);
 }

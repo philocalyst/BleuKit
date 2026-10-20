@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal enum definitions for the two GNOME schemas fetched in the test. The
+     upstream enums file was 404 when fetched; these values cover every enum the
+     fetched keys reference. -->
+<schemalist>
+  <enum id='org.gnome.desktop.GDesktopAccentColor'>
+    <value nick='blue' value='0'/><value nick='teal' value='1'/><value nick='green' value='2'/>
+    <value nick='yellow' value='3'/><value nick='orange' value='4'/><value nick='red' value='5'/>
+    <value nick='pink' value='6'/><value nick='purple' value='7'/><value nick='slate' value='8'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopBackgroundShading'>
+    <value nick='solid' value='0'/><value nick='horizontal' value='1'/><value nick='vertical' value='2'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopBackgroundStyle'>
+    <value nick='none' value='0'/><value nick='wallpaper' value='1'/><value nick='centered' value='2'/>
+    <value nick='scaled' value='3'/><value nick='stretched' value='4'/><value nick='zoom' value='5'/><value nick='spanned' value='6'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopClockFormat'>
+    <value nick='12h' value='0'/><value nick='24h' value='1'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopColorScheme'>
+    <value nick='default' value='0'/><value nick='prefer-dark' value='1'/><value nick='prefer-light' value='2'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopFontAntialiasingMode'>
+    <value nick='none' value='0'/><value nick='grayscale' value='1'/><value nick='rgba' value='2'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopFontHinting'>
+    <value nick='none' value='0'/><value nick='slight' value='1'/><value nick='medium' value='2'/><value nick='full' value='3'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopFontRendering'>
+    <value nick='automatic' value='0'/><value nick='manual' value='1'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopFontRgbaOrder'>
+    <value nick='rgba' value='0'/><value nick='rgb' value='1'/><value nick='bgr' value='2'/><value nick='vrgb' value='3'/><value nick='vbgr' value='4'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopToolbarIconSize'>
+    <value nick='small' value='0'/><value nick='large' value='1'/>
+  </enum>
+  <enum id='org.gnome.desktop.GDesktopToolbarStyle'>
+    <value nick='text' value='0'/><value nick='icons' value='1'/><value nick='both' value='2'/><value nick='both-horiz' value='3'/>
+  </enum>
+</schemalist>

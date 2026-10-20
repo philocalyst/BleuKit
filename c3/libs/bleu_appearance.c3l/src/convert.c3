@@ -69,7 +69,7 @@ fn bool reduced_from_portal(uint value) => value == 1;
 *>
 fn Maybe{Rgb} accent_from_channels(double red, double green, double blue)
 {
-	if (!in_unit_range(red) || !in_unit_range(green) || !in_unit_range(blue)) return {};
+	if (!in_unit_range(red) || !in_unit_range(green) || !in_unit_range(blue)) return { };
 	Rgb rgb = { .red = (Level)(float)red, .green = (Level)(float)green, .blue = (Level)(float)blue };
 	return maybe::value(rgb);
 }
@@ -106,7 +106,7 @@ fn ClockFormat clock_from_gnome(String value)
 fn Maybe{float} scale_from_gnome(String value)
 {
 	if (try scale = value.to_float()) return maybe::value(scale);
-	return {};
+	return { };
 }
 
 <* A GVariant boolean as `gsettings get` prints it: `true` or `false`. *>
@@ -131,7 +131,7 @@ fn String? unquote(Allocator allocator, String printed)
 {
 	String text = printed.trim();
 	if (text.len < 2 || text[0] != '\'' || text[text.len - 1] != '\'') return error::PROTOCOL~;
-	String inner = text[1 : text.len - 2];
+	String inner = text[1:text.len - 2];
 	char[] out   = alloc::new_array(allocator, char, inner.len);
 	usz n        = 0;
 	for (usz i = 0; i < inner.len; i++)
@@ -144,7 +144,7 @@ fn String? unquote(Allocator allocator, String printed)
 		}
 		out[n++] = c;
 	}
-	return (String)out[0 : n];
+	return (String)out[0:n];
 }
 
 <*
@@ -157,14 +157,14 @@ fn String quote(Allocator allocator, String text)
 {
 	char[] out = alloc::new_array(allocator, char, text.len * 2 + 2);
 	usz n      = 0;
-	out[n++]   = '\'';
+	out[n++] = '\'';
 	foreach (c : text)
 	{
 		if (c == '\\' || c == '\'') out[n++] = '\\';
 		out[n++] = c;
 	}
 	out[n++] = '\'';
-	return (String)out[0 : n];
+	return (String)out[0:n];
 }
 
 const String FILE_SCHEME = "file://";
@@ -192,7 +192,7 @@ fn String file_uri(Allocator allocator, String path)
 		out[n++] = HEX_DIGITS[(usz)c >> 4];
 		out[n++] = HEX_DIGITS[(usz)c & 0xf];
 	}
-	return (String)out[0 : n];
+	return (String)out[0:n];
 }
 
 fn bool is_unreserved(char c) @private
@@ -212,7 +212,7 @@ fn bool is_unreserved(char c) @private
 fn String? path_from_file_uri(Allocator allocator, String uri)
 {
 	if (!uri.starts_with(FILE_SCHEME)) return error::INVALID_ARGUMENT~;
-	String rest = uri[FILE_SCHEME.len : uri.len - FILE_SCHEME.len];
+	String rest = uri[FILE_SCHEME.len:uri.len - FILE_SCHEME.len];
 	char[] out  = alloc::new_array(allocator, char, rest.len);
 	usz n       = 0;
 	for (usz i = 0; i < rest.len; i++)
@@ -230,7 +230,7 @@ fn String? path_from_file_uri(Allocator allocator, String uri)
 		}
 		out[n++] = rest[i];
 	}
-	return (String)out[0 : n];
+	return (String)out[0:n];
 }
 
 // The value of one hexadecimal digit, or -1.
@@ -251,6 +251,31 @@ fn int hex_value(char c) @private
 fn String[] substitute(Allocator allocator, String[] template, String path)
 {
 	String[] argv = alloc::new_array(allocator, String, template.len);
-	foreach (i, arg : template) argv[i] = arg.replace(allocator, "{path}", path);
+	foreach (i, arg : template) argv[i] = replace_placeholder(allocator, arg, path);
 	return argv;
+}
+
+const String PATH_PLACEHOLDER = "{path}";
+
+// `text` with every PATH_PLACEHOLDER replaced by `path`, copied into `allocator`.
+fn String replace_placeholder(Allocator allocator, String text, String path) @private
+{
+	sz count = 0;
+	for (usz i = 0; i + PATH_PLACEHOLDER.len <= text.len; i++)
+	{
+		if (text[i:PATH_PLACEHOLDER.len] == PATH_PLACEHOLDER) count++;
+	}
+	char[] out = alloc::new_array(allocator, char, text.len + count * path.len);
+	usz n      = 0;
+	for (usz i = 0; i < text.len; i++)
+	{
+		if (i + PATH_PLACEHOLDER.len <= text.len && text[i:PATH_PLACEHOLDER.len] == PATH_PLACEHOLDER)
+		{
+			foreach (c : path) out[n++] = c;
+			i += PATH_PLACEHOLDER.len - 1;
+			continue;
+		}
+		out[n++] = text[i];
+	}
+	return (String)out[0:n];
 }

@@ -80,9 +80,9 @@ fn bool? animations_enabled()
 *>
 fn void read_desktop(Allocator allocator, State* state)
 {
-	state.font_name    = read_string(allocator, INTERFACE_SCHEMA, "font-name");
-	state.icon_theme   = read_string(allocator, INTERFACE_SCHEMA, "icon-theme");
-	state.gtk_theme    = read_string(allocator, INTERFACE_SCHEMA, "gtk-theme");
+	state.font_name = read_string(allocator, INTERFACE_SCHEMA, "font-name");
+	state.icon_theme = read_string(allocator, INTERFACE_SCHEMA, "icon-theme");
+	state.gtk_theme = read_string(allocator, INTERFACE_SCHEMA, "gtk-theme");
 	state.cursor_theme = read_string(allocator, INTERFACE_SCHEMA, "cursor-theme");
 	state.clock_format = convert::clock_from_gnome(read_string(allocator, INTERFACE_SCHEMA, "clock-format"));
 	char[VALUE_CAPACITY] buffer;
@@ -97,14 +97,24 @@ fn void read_desktop(Allocator allocator, State* state)
 	}
 }
 
-<* Run `gsettings set` with `printed` as the GVariant value. @return? error::BACKEND_FAILURE : "gsettings refused the value" *>
+<*
+ Run `gsettings set` with `printed` as the GVariant value. @return? error::BACKEND_FAILURE : "gsettings refused the
+ value"
+*>
 fn void? set_text(String schema, String key, String printed)
 {
 	String[5] argv = { "gsettings", "set", schema, key, printed };
 	int status     = process::run(argv[..], process::SpawnOptions.INHERIT_ENV)!;
 	if (status != 0)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, status, "gsettings set %s %s failed", schema, key)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			status,
+			"gsettings set %s %s failed",
+			schema,
+			key
+		)~;
 	}
 }
 

@@ -20,7 +20,7 @@ fn void sort_catalogue(App[] apps)
 	for (usz i = 1; i < apps.len; i++)
 	{
 		App current = apps[i];
-		usz j = i;
+		usz j       = i;
 		while (j > 0 && app_before(&current, &apps[j - 1]))
 		{
 			apps[j] = apps[j - 1];

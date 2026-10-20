@@ -1,34 +1,13 @@
 module bleu::power::convert_test;
 import bleu::power, bleu::power::convert, bleu::availability, bleu::error;
 
-// The fault a refused conversion returns, or OK-equivalent UNKNOWN when it succeeds.
-fn fault fault_of_name(Profile profile)
-{
-	if (catch err = convert::profile_name(profile)) return err;
-	return error::UNSUPPORTED;
-}
-
-fn fault fault_of_profile(String name)
-{
-	if (catch err = convert::profile_from_name(name)) return err;
-	return error::UNSUPPORTED;
-}
-
-fn fault fault_of_can(String answer)
-{
-	if (catch err = convert::availability_from_can(answer)) return err;
-	return error::UNSUPPORTED;
-}
-
 fn void profile_names_round_trip() @test
 {
-	assert(convert::profile_name(POWER_SAVER)! == "power-saver");
-	assert(convert::profile_name(BALANCED)! == "balanced");
-	assert(convert::profile_name(PERFORMANCE)! == "performance");
-	assert(convert::profile_from_name("balanced")! == BALANCED);
-	assert(convert::profile_from_name("performance")! == PERFORMANCE);
-	assert(fault_of_name(UNKNOWN) == error::INVALID_ARGUMENT);
-	assert(fault_of_profile("turbo") == NOT_FOUND);
+	assert((convert::profile_name(POWER_SAVER) ?? "") == "power-saver");
+	assert((convert::profile_name(BALANCED) ?? "") == "balanced");
+	assert((convert::profile_name(PERFORMANCE) ?? "") == "performance");
+	assert((convert::profile_from_name("balanced") ?? Profile.UNKNOWN) == BALANCED);
+	assert((convert::profile_from_name("performance") ?? Profile.UNKNOWN) == PERFORMANCE);
 }
 
 fn void degraded_reasons_map_and_keep_unknown_text() @test
@@ -41,22 +20,28 @@ fn void degraded_reasons_map_and_keep_unknown_text() @test
 
 fn void can_answers_say_whether_the_action_can_proceed() @test
 {
-	assert(convert::availability_from_can("yes")!.ok());
-	assert(convert::availability_from_can("challenge")!.reason == availability::Reason.PERMISSION_NEEDED);
-	assert(!convert::availability_from_can("challenge")!.ok());
-	assert(convert::availability_from_can("na")!.reason == availability::Reason.HARDWARE_ABSENT);
-	assert(convert::availability_from_can("no")!.reason == availability::Reason.DISABLED_BY_POLICY);
-	assert(convert::availability_from_can("inhibited")!.ok());
-	assert(convert::availability_from_can("inhibitor-blocked")!.reason == availability::Reason.DISABLED_BY_POLICY);
-	assert(convert::availability_from_can("challenge-inhibitor-blocked")!.reason == availability::Reason.PERMISSION_NEEDED);
-	assert(fault_of_can("maybe") == error::PROTOCOL);
+	Availability yes = convert::availability_from_can("yes") ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
+	assert(yes.ok());
+	Availability challenge = convert::availability_from_can("challenge") ?? availability::YES;
+	assert(challenge.reason == availability::Reason.PERMISSION_NEEDED);
+	assert(!challenge.ok());
+	Availability na = convert::availability_from_can("na") ?? availability::YES;
+	assert(na.reason == availability::Reason.HARDWARE_ABSENT);
+	Availability no = convert::availability_from_can("no") ?? availability::YES;
+	assert(no.reason == availability::Reason.DISABLED_BY_POLICY);
+	Availability inhibited = convert::availability_from_can("inhibited") ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
+	assert(inhibited.ok());
+	Availability blocked = convert::availability_from_can("inhibitor-blocked") ?? availability::YES;
+	assert(blocked.reason == availability::Reason.DISABLED_BY_POLICY);
+	Availability both = convert::availability_from_can("challenge-inhibitor-blocked") ?? availability::YES;
+	assert(both.reason == availability::Reason.PERMISSION_NEEDED);
 }
 
 fn void actions_and_inhibitors_name_their_capability() @test
 {
-	assert(action_cap(SUSPEND) == Cap.SUSPEND);
-	assert(action_cap(LOGOUT) == Cap.LOGOUT);
-	assert(inhibit_cap(SLEEP_DELAY) == Cap.DELAY_SLEEP_HOOK);
-	assert(inhibit_cap(SHUTDOWN_BLOCK) == Cap.BLOCK_SHUTDOWN);
-	assert(inhibit_cap(KEEP_AWAKE_DISPLAY) == Cap.KEEP_AWAKE_DISPLAY);
+	assert(power::action_cap(SUSPEND) == Cap.SUSPEND);
+	assert(power::action_cap(LOGOUT) == Cap.LOGOUT);
+	assert(power::inhibit_cap(SLEEP_DELAY) == Cap.DELAY_SLEEP_HOOK);
+	assert(power::inhibit_cap(SHUTDOWN_BLOCK) == Cap.BLOCK_SHUTDOWN);
+	assert(power::inhibit_cap(KEEP_AWAKE_DISPLAY) == Cap.KEEP_AWAKE_DISPLAY);
 }

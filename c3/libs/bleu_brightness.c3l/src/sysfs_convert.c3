@@ -39,8 +39,14 @@ fn sz select_best(int[] ranks, String[] names)
 	sz best = -1;
 	for (sz i = 0; i < ranks.len; i++)
 	{
-		if (best < 0 || ranks[i] > ranks[best]) best = i;
-		else if (ranks[i] == ranks[best] && names[i].compare_to(names[best]) < 0) best = i;
+		if (best < 0 || ranks[i] > ranks[best])
+		{
+			best = i;
+		}
+		else if (ranks[i] == ranks[best] && names[i].compare_to(names[best]) < 0)
+		{
+			best = i;
+		}
 	}
 	return best;
 }
@@ -69,7 +75,7 @@ fn bool is_connector_name(String name)
  The I2C adapter number named by a `ddc` link target, such as
  `../../../../bus/i2c/devices/i2c-7`: the last path element must be `i2c-<N>`.
 
- @return? error::NOT_FOUND : "The target does not name an I2C adapter"
+ @return? NOT_FOUND : "The target does not name an I2C adapter"
 *>
 fn int? bus_from_link(String target)
 {

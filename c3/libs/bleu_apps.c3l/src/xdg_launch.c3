@@ -5,7 +5,7 @@
 module bleu::apps::xdg_desktop @feat(LINUX);
 import std::os::process, std::os::posix, std::collections::list, libc, bleu::apps, bleu::error, bleu::xdg::exec;
 
-const String ENV_STARTUP_ID = "DESKTOP_STARTUP_ID";
+const String ENV_STARTUP_ID       = "DESKTOP_STARTUP_ID";
 const String ENV_ACTIVATION_TOKEN = "XDG_ACTIVATION_TOKEN";
 
 <*
@@ -19,7 +19,12 @@ const String ENV_ACTIVATION_TOKEN = "XDG_ACTIVATION_TOKEN";
 fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* request)
 {
 	XdgBackend* backend = (XdgBackend*)state;
+	if (app.dbus_activatable && backend.bus_available)
+	{
+		if (try activated = dbus_launch(backend, app, action, request)) return activated;
+	}
 	String exec = action != null ? action.exec : app.target;
+	if (exec.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "%s could not be activated on the bus and has no Exec line", app.id)~;
 	Context context = {
 		.files = request.files,
 		.urls = request.uris,
@@ -28,12 +33,13 @@ fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* req
 		.location = app.location,
 	};
 	String[][] invocations = exec::expand(tmem, exec, context)!;
-	String[] environment = child_environment(request, tmem);
-	Launched result = { .route = app.terminal ? LaunchRoute.TERMINAL : LaunchRoute.SPAWN, .pid = 0 };
+	String[] environment   = child_environment(request, tmem);
+	Launched result        = { .route = app.terminal ? LaunchRoute.TERMINAL : LaunchRoute.SPAWN, .pid = 0 };
 	foreach (i, invocation : invocations)
 	{
 		String[] argv = append_strings(invocation, request.args);
-		long pid = app.terminal ? spawn_in_terminal(backend, argv, environment)! : spawn_argv(backend, argv, environment)!;
+		long pid      = app.terminal ? spawn_in_terminal(backend, argv, environment)!
+			: spawn_argv(backend, argv, environment)!;
 		if (i == 0) result.pid = pid;
 	}
 	return result;
@@ -56,8 +62,11 @@ fn String[] child_environment(LaunchRequest* request, Allocator allocator) @loca
 		if (entry.starts_with(ENV_STARTUP_ID) || entry.starts_with(ENV_ACTIVATION_TOKEN)) continue;
 		vars.push(entry.copy(allocator));
 	}
-	if (request.startup_id.len > 0) vars.push(string::tformat("%s=%s", ENV_STARTUP_ID, request.startup_id).copy(allocator));
-	if (request.activation_token.len > 0) vars.push(string::tformat("%s=%s", ENV_ACTIVATION_TOKEN, request.activation_token).copy(allocator));
+	if (request.startup_id.len > 0) vars.push(string::tformat("%s=%s", ENV_STARTUP_ID, request.startup_id)
+		.copy(allocator));
+	if (request.activation_token.len > 0) vars.push(
+		string::tformat("%s=%s", ENV_ACTIVATION_TOKEN, request.activation_token)
+		.copy(allocator));
 	return vars.to_aligned_array(allocator);
 }
 
@@ -78,13 +87,20 @@ fn String[] append_strings(String[] invocation, String[] extra) @local
 *>
 fn long? spawn_argv(XdgBackend* backend, String[] argv, String[] environment) @local
 {
-	Process? started = process::spawn(argv, (process::SpawnOptions)0, environment, process::INHERIT, process::INHERIT, process::INHERIT);
+	Process? started = process::spawn(
+		argv,
+		(process::SpawnOptions)0,
+		environment,
+		process::INHERIT,
+		process::INHERIT,
+		process::INHERIT
+	);
 	if (catch err = started)
 	{
 		return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, 0, "cannot start %s", argv[0])~;
 	}
 	Process process = started;
-	long pid = (long)process.child;
+	long pid        = (long)process.child;
 	(void)process.destroy();
 	backend.children.push((int)pid);
 	return pid;

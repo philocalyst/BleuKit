@@ -23,6 +23,24 @@ struct Ticks
 }
 
 <*
+ One processor's cumulative ticks at one reading. `index` is the processor number, -1 for the
+ aggregate of all of them.
+*>
+struct CpuLine
+{
+	int index;
+	Ticks ticks;
+}
+
+<* Cumulative byte counters of one network interface. Names are owned by whoever stores the counters. *>
+struct NetCounters
+{
+	String name;
+	ulong received;
+	ulong sent;
+}
+
+<*
  A process's cumulative CPU time at one reading. `started` identifies the
  process (its start time in the same clock), so a recycled pid never inherits
  another process's history.

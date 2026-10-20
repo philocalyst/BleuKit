@@ -13,17 +13,16 @@ import std::collections::list, bleu::error;
 
  A word matches a text, case-insensitively and byte by byte, in the first of
  these ways that holds, scoring 1000 down to 0:
-   1000 the text is the word;
-    800 the text starts with the word;
-    600 the word starts after a separator (space, dash, dot, slash, ...);
-    400 the word occurs somewhere in the text;
-  1..100 the letters of the word occur in order (fuzzy): 100 * word length / span.
+ 1000 the text is the word;
+ 800 the text starts with the word;
+ 600 the word starts after a separator (space, dash, dot, slash, ...);
+ 400 the word occurs somewhere in the text;
+ 1..100 the letters of the word occur in order (fuzzy): 100 * word length / span.
  The fields have weights in percent: name 100, generic name 60, keywords 60,
  the program name (basename of the first word of `target`) 50, comment 20.
  So "fire" ranks Firefox (name prefix, 800) above an app whose comment mentions
  fire (400 * 20 %), and a query that matches only the comment still finds it.
 *>
-
 alias Ranker = fn int(void* context, App* app);
 
 const int SCORE_EXACT     = 1000;
@@ -32,12 +31,12 @@ const int SCORE_WORD      = 600;
 const int SCORE_SUBSTRING = 400;
 const int SCORE_FUZZY_MAX = 100;
 
-const int WEIGHT_NAME     = 100;
-const int WEIGHT_GENERIC  = 60;
-const int WEIGHT_KEYWORD  = 60;
-const int WEIGHT_PROGRAM  = 50;
-const int WEIGHT_COMMENT  = 20;
-const int PERCENT         = 100;
+const int WEIGHT_NAME    = 100;
+const int WEIGHT_GENERIC = 60;
+const int WEIGHT_KEYWORD = 60;
+const int WEIGHT_PROGRAM = 50;
+const int WEIGHT_COMMENT = 20;
+const int PERCENT        = 100;
 
 <* One matching app: its index in `State.apps`, and its score (higher is better). *>
 struct SearchHit
@@ -63,7 +62,7 @@ fn SearchHit[] rank(State* state, String query, Ranker ranker, void* context, Al
 	hits.tinit();
 	foreach (i, &app : state.apps)
 	{
-		int total = 0;
+		int total        = 0;
 		bool all_matched = true;
 		foreach (word : words)
 		{
@@ -119,7 +118,7 @@ fn int match_score(String text, String word)
 	if (text.len == word.len && same_at(text, 0, word)) return SCORE_EXACT;
 	if (same_at(text, 0, word)) return SCORE_PREFIX;
 	bool word_start = false;
-	bool anywhere = false;
+	bool anywhere   = false;
 	for (usz i = 0; i + word.len <= text.len; i++)
 	{
 		if (!same_at(text, i, word)) continue;
@@ -151,9 +150,9 @@ fn bool fuzzy_possible(String text, String word) @local
 // Fuzzy score: the word's letters in order, scaled by how tightly they sit together.
 fn int fuzzy_score(String text, String word) @local
 {
-	usz at = 0;
+	usz at    = 0;
 	usz first = 0;
-	usz last = 0;
+	usz last  = 0;
 	foreach (i, c : word)
 	{
 		while (at < text.len && fold(text[at]) != fold(c)) at++;
@@ -218,7 +217,7 @@ fn void sort_hits(SearchHit[] hits) @local
 	for (usz i = 1; i < hits.len; i++)
 	{
 		SearchHit current = hits[i];
-		usz j = i;
+		usz j             = i;
 		while (j > 0 && better(current, hits[j - 1]))
 		{
 			hits[j] = hits[j - 1];

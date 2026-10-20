@@ -130,7 +130,7 @@ fn rt::Native[] Writer.descriptors(&self) => self.fds[0 : self.fd_count];
 
  @return? error::INVALID_ARGUMENT : "The message would exceed MAX_MESSAGE_SIZE bytes"
 *>
-fn usz? Writer.reserve(&self, usz n) @private
+fn usz? Writer.reserve(&self, usz n)
 {
 	if (self.len + n > MAX_MESSAGE_SIZE)
 	{
@@ -210,7 +210,7 @@ fn void? Writer.put_array(&self, char[] bytes)
 
 // Shared body of put_string and put_array: a length word, then `count` bytes of `bytes`,
 // a NUL byte when `count` is one more than `bytes` holds, then zero padding.
-fn void? Writer.put_array_with_nul(&self, char[] bytes, usz count) @private
+fn void? Writer.put_array_with_nul(&self, char[] bytes, usz count)
 {
 	self.put_uint((uint)count)!;
 	usz padded = pad_word(count);
@@ -429,7 +429,7 @@ fn void? Reader.expect_end(&self)
 }
 
 // Read `length` bytes padded to a word and return the unpadded bytes.
-fn char[]? Reader.take(&self, uint length) @private
+fn char[]? Reader.take(&self, uint length)
 {
 	usz padded = pad_word(length);
 	if (padded > self.remaining())

@@ -12,5 +12,5 @@ fn Driver*[] platform_drivers()
 			return windows_drivers();
 		$default:
 			return { };
-	$endswitch;
+	$endswitch
 }

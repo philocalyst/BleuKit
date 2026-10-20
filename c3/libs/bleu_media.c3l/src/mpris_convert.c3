@@ -1,9 +1,9 @@
 <*
- MPRIS property values converted to the media model. Pure: no sockets, no
+ Backend.MPRIS property values converted to the media model. Pure: no sockets, no
  clocks. The D-Bus values are read by `mpris_session.c3`; this file decides what
  they mean.
 
- Sources, all MPRIS 2.2 unless noted (`https://specifications.freedesktop.org/mpris-spec/latest/`):
+ Sources, all Backend.MPRIS 2.2 unless noted (`https://specifications.freedesktop.org/mpris-spec/latest/`):
  * bus name prefix and object path, "Bus Name Policy" and "Entry point";
  * `Metadata` keys, "Metadata_Map" (mpris:trackid, mpris:length, mpris:artUrl, xesam:*);
  * `NoTrack` and "/" as no-track values, `TrackId` of `SetPosition` (the spec text);
@@ -13,7 +13,7 @@
 module bleu::media::mpris_convert;
 import std::collections::maybe, std::time, bleu::dbus::value, bleu::dbus::names, bleu::media, bleu::unit;
 
-<* Prefix of every MPRIS bus name, including the trailing dot (2.2 "Bus Name Policy"). *>
+<* Prefix of every Backend.MPRIS bus name, including the trailing dot (2.2 "Bus Name Policy"). *>
 const String BUS_NAME_PREFIX = "org.mpris.MediaPlayer2.";
 <* Object path of the root and Player interfaces (2.2 "Entry point"). *>
 const String OBJECT_PATH = "/org/mpris/MediaPlayer2";
@@ -24,23 +24,23 @@ const String PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player";
 <* Object path a player uses for "no track" (2.2 `TrackId`). *>
 const String NO_TRACK_PATH = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
 
-<* True for a bus name that an MPRIS player may own (prefix plus at least one more character). *>
+<* True for a bus name that an Backend.MPRIS player may own (prefix plus at least one more character). *>
 fn bool is_player_name(String name) => name.len > BUS_NAME_PREFIX.len && name.starts_with(BUS_NAME_PREFIX);
 
 <* `PlaybackStatus` text to a status. Anything unknown is treated as stopped. *>
 fn Playback playback_of(String status)
 {
-	if (status == "Playing") return PLAYING;
-	if (status == "Paused") return PAUSED;
-	return STOPPED;
+	if (status == "Playing") return Playback.PLAYING;
+	if (status == "Paused") return Playback.PAUSED;
+	return Playback.STOPPED;
 }
 
 <* `LoopStatus` text to a loop mode. Anything unknown is treated as no repeat. *>
 fn Loop loop_of(String status)
 {
-	if (status == "Track") return TRACK;
-	if (status == "Playlist") return PLAYLIST;
-	return NONE;
+	if (status == "Track") return Loop.TRACK;
+	if (status == "Playlist") return Loop.PLAYLIST;
+	return Loop.NONE;
 }
 
 <* The `LoopStatus` text for a loop mode. *>
@@ -48,9 +48,9 @@ fn String loop_text(Loop loop)
 {
 	switch (loop)
 	{
-		case NONE: return "None";
-		case TRACK: return "Track";
-		case PLAYLIST: return "Playlist";
+		case Loop.NONE: return "None";
+		case Loop.TRACK: return "Track";
+		case Loop.PLAYLIST: return "Playlist";
 	}
 }
 
@@ -87,18 +87,18 @@ fn PlaybackRate rate_of(double rate)
 
 <*
  The status to show. A player that says "Playing" at rate 0.0 is not moving,
- so it is paused (MPRIS 2.2, `Rate`: the player should act as if Pause was called).
+ so it is paused (Backend.MPRIS 2.2, `Rate`: the player should act as if Pause was called).
 *>
 fn Playback effective_status(Playback reported, PlaybackRate rate)
 {
-	if (reported == PLAYING && (double)rate == 0.0) return PAUSED;
+	if (reported == Playback.PLAYING && (double)rate == 0.0) return Playback.PAUSED;
 	return reported;
 }
 
 <*
  What a player can do, from its `CanControl` and `Can*` answers. Without
  `CanControl` every method and setter is refused by the player (2.2
- `CanControl`), so all of them are false. Stop has no flag in MPRIS; it is
+ `CanControl`), so all of them are false. Stop has no flag in Backend.MPRIS; it is
  offered whenever the player is controllable. Raise and quit come from the root
  interface.
 
@@ -136,10 +136,10 @@ fn Controls controls_of(Value player, Value root)
 fn Track track_of(Value metadata, Allocator allocator)
 {
 	Track track = {
-		.id = track_id_of(object_path_of(metadata, "mpris:trackid")),
-		.title = copy_text(text_of(metadata, "xesam:title"), allocator),
-		.album = copy_text(text_of(metadata, "xesam:album"), allocator),
-		.art_url = copy_text(text_of(metadata, "mpris:artUrl"), allocator),
+		.id = media::copy_text(track_id_of(object_path_of(metadata, "mpris:trackid")), allocator),
+		.title = media::copy_text(text_of(metadata, "xesam:title"), allocator),
+		.album = media::copy_text(text_of(metadata, "xesam:album"), allocator),
+		.art_url = media::copy_text(text_of(metadata, "mpris:artUrl"), allocator),
 		.artists = artists_of(metadata, "xesam:artist", allocator),
 		.length = length_of(int_of(metadata, "mpris:length")),
 	};
@@ -153,20 +153,17 @@ fn Track copy_track(Track* track, Allocator allocator)
 	if (track.artists.len > 0)
 	{
 		artists = alloc::new_array(allocator, String, track.artists.len);
-		foreach (i, artist : track.artists) artists[i] = copy_text(artist, allocator);
+		foreach (i, artist : track.artists) artists[i] = media::copy_text(artist, allocator);
 	}
 	return {
-		.id = copy_text(track.id, allocator),
-		.title = copy_text(track.title, allocator),
+		.id = media::copy_text(track.id, allocator),
+		.title = media::copy_text(track.title, allocator),
 		.artists = artists,
-		.album = copy_text(track.album, allocator),
-		.art_url = copy_text(track.art_url, allocator),
+		.album = media::copy_text(track.album, allocator),
+		.art_url = media::copy_text(track.art_url, allocator),
 		.length = track.length,
 	};
 }
-
-<* `text`, or a copy of it in `allocator`; the empty string is returned as is, without copying. *>
-fn String copy_text(String text, Allocator allocator) => text.len == 0 ? "" : text.copy(allocator);
 
 <* The string under `key` in an `a{sv}`, or "" when absent or not a string. The text is only valid while `dict` is. *>
 fn String text_of(Value dict, String key)

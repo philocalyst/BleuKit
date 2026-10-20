@@ -31,7 +31,7 @@ enum Loop : char
 }
 
 <* Playback speed as a multiplier: 1.0 is normal speed, negative values rewind. *>
-typedef PlaybackRate = double;
+alias PlaybackRate = double;
 
 <*
  A position read from the player and the monotonic time it was read at.

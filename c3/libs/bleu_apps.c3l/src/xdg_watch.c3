@@ -12,21 +12,23 @@
 module bleu::apps::xdg_watch @feat(LINUX);
 import bleu::error, libc;
 
-const int IN_CLOSE_WRITE  = 0x00000008;
-const int IN_ATTRIB       = 0x00000004;
-const int IN_CREATE       = 0x00000100;
-const int IN_DELETE       = 0x00000200;
-const int IN_DELETE_SELF  = 0x00000400;
-const int IN_MOVED_FROM   = 0x00000040;
-const int IN_MOVED_TO     = 0x00000080;
-const int IN_MOVE_SELF    = 0x00000800;
-const int IN_ONLYDIR      = 0x01000000;
-const int IN_NONBLOCK     = 0x00000800;
-const int IN_CLOEXEC      = 0x00080000;
+const int IN_CLOSE_WRITE = 0x00000008;
+const int IN_ATTRIB      = 0x00000004;
+const int IN_CREATE      = 0x00000100;
+const int IN_DELETE      = 0x00000200;
+const int IN_DELETE_SELF = 0x00000400;
+const int IN_MOVED_FROM  = 0x00000040;
+const int IN_MOVED_TO    = 0x00000080;
+const int IN_MOVE_SELF   = 0x00000800;
+const int IN_ONLYDIR     = 0x01000000;
+const int IN_NONBLOCK    = 0x00000800;
+const int IN_CLOEXEC     = 0x00080000;
 
 <* Every event that can change which desktop files exist, or what they say. *>
-const int WATCH_MASK = IN_CLOSE_WRITE | IN_ATTRIB | IN_CREATE | IN_DELETE | IN_DELETE_SELF
-	| IN_MOVED_FROM | IN_MOVED_TO | IN_MOVE_SELF | IN_ONLYDIR;
+const int WATCH_MASK = IN_CLOSE_WRITE | IN_ATTRIB | IN_CREATE | IN_DELETE | IN_DELETE_SELF | IN_MOVED_FROM
+	| IN_MOVED_TO
+	| IN_MOVE_SELF
+	| IN_ONLYDIR;
 
 const usz EVENT_BUFFER = 4096; // enough for many events; each is 16 bytes plus its name
 
@@ -50,7 +52,12 @@ struct Watcher
 fn void? Watcher.open(&self)
 {
 	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-	if (fd < 0) return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, (int)libc::errno(), "inotify_init1 failed")~;
+	if (fd < 0) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.ERRNO,
+		(int)libc::errno(),
+		"inotify_init1 failed"
+	)~;
 	self.fd = fd;
 }
 
@@ -69,7 +76,7 @@ fn void Watcher.close(&self)
  Watch a directory for the events in `WATCH_MASK`. Watching a directory that is
  already watched is harmless: the kernel returns the same watch.
 
-  @return? error::PERMISSION_DENIED : "The directory cannot be read"
+ @return? error::PERMISSION_DENIED : "The directory cannot be read"
  @return? error::BACKEND_FAILURE : "The kernel refused the watch for another reason"
 *>
 fn void? Watcher.watch(&self, String directory)

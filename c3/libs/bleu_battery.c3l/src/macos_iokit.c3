@@ -73,8 +73,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	capabilities.set(Cap.IDENTITY, registry ? availability::YES : no_registry);
 	capabilities.set(
 		Cap.POWER,
-		registry
-			? availability::no(availability::Reason.DEGRADED, "Magnitude from Amperage x Voltage; the direction follows the charge state")
+		registry ? availability::no(
+			availability::Reason.DEGRADED,
+			"Magnitude from Amperage x Voltage; the direction follows the charge state"
+		)
 			: no_registry
 	);
 	capabilities.set(
