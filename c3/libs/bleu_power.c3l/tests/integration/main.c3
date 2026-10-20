@@ -5,8 +5,7 @@
 // daemon mode: modern, legacy or none. Each check prints PASS or FAIL; the exit
 // status is the number of failures.
 module bleu::power::integration_test;
-import std::io, std::thread, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation,
-	bleu::stream, bleu::power, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy;
+import std::io, std::thread, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::power, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy;
 
 <* Failed checks so far. *>
 int failures = 0;
@@ -35,7 +34,9 @@ fn void control_bool(Connection* bus, Proxy* control, String member, bool value)
 	reply.release();
 }
 
-<* Whether the text the mock's `member` returns contains `needle`. The mock's JSON is only ever searched, never parsed. *>
+<*
+ Whether the text the mock's `member` returns contains `needle`. The mock's JSON is only ever searched, never parsed.
+*>
 fn bool control_has(Connection* bus, Proxy* control, String member, String needle)
 {
 	Message* call = control.new_call(mem, member)!!;
@@ -129,8 +130,10 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 {
 	check(svc.backend_name() == "logind", "backend is logind");
 	check(svc.capability(Cap.LOCK).ok(), "lock is available in the session");
-	check(svc.capability(Cap.KEEP_AWAKE_DISPLAY).reason == availability::Reason.UNSUPPORTED_BACKEND, "display inhibitor is unsupported");
-	check(svc.capability(Cap.DELAY_SLEEP_HOOK).reason == availability::Reason.UNSUPPORTED_BACKEND, "delay barrier is off without the option");
+	check(svc.capability(Cap.KEEP_AWAKE_DISPLAY)
+		.reason == availability::Reason.UNSUPPORTED_BACKEND, "display inhibitor is unsupported");
+	check(svc.capability(Cap.DELAY_SLEEP_HOOK)
+		.reason == availability::Reason.UNSUPPORTED_BACKEND, "delay barrier is off without the option");
 	bool holds = svc.capability(Cap.PROFILE_HOLD).ok();
 	check(holds == (mode == "modern"), "holds are offered only by the modern interface");
 
@@ -138,8 +141,21 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 	{
 		defer snapshot.release();
 		State state = snapshot.value;
-		check(state.active_profile.has_value && state.active_profile.value == Profile.BALANCED, "active profile is balanced");
-		check(state.profiles.len == (mode == "none" ? 0 : 3), "profile list has three profiles when a daemon is present");
+		if (mode == "none")
+		{
+			check(!state.active_profile.has_value, "no active profile without a daemon");
+		}
+		else
+		{
+			check(
+				state.active_profile.has_value && state.active_profile.value == Profile.BALANCED,
+				"active profile is balanced"
+			);
+		}
+		check(
+			state.profiles.len == (mode == "none" ? 0 : 3),
+			"profile list has three profiles when a daemon is present"
+		);
 		check(state.lid_closed.has_value && !state.lid_closed.value, "lid reads open");
 		check(state.on_external_power.has_value && state.on_external_power.value, "external power reads connected");
 		check(state.degraded == Degraded.NONE, "profile is not degraded");
@@ -151,8 +167,11 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 
 	if (mode == "none")
 	{
-		check(svc.capability(Cap.PROFILE_SET).reason == availability::Reason.BACKEND_MISSING, "profiles are missing without the daemon");
-		if (catch err = svc.set_profile(Profile.POWER_SAVER)) check(err == error::UNAVAILABLE, "set_profile fails without the daemon");
+		check(svc.capability(Cap.PROFILE_SET)
+			.reason == availability::Reason.BACKEND_MISSING, "profiles are missing without the daemon");
+		if (catch err = svc.set_profile(
+			Profile.POWER_SAVER
+		)) check(err == error::UNAVAILABLE, "set_profile fails without the daemon");
 		return;
 	}
 
@@ -175,9 +194,15 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 			defer op.release();
 			if (try hold = op.wait())
 			{
-				check(control_eventually(bus, control, "Calls", "HoldProfile(performance,test hold,org.bleu.power)"), "HoldProfile reaches the daemon");
+				check(
+					control_eventually(bus, control, "Calls", "HoldProfile(performance,test hold,org.bleu.power)"),
+					"HoldProfile reaches the daemon"
+				);
 				hold.release()!!;
-				check(control_eventually(bus, control, "Calls", "ReleaseProfile(1)"), "releasing the hold calls ReleaseProfile");
+				check(
+					control_eventually(bus, control, "Calls", "ReleaseProfile(1)"),
+					"releasing the hold calls ReleaseProfile"
+				);
 			}
 			else
 			{
@@ -187,7 +212,10 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 	}
 	else
 	{
-		if (catch err = svc.hold_profile(Profile.PERFORMANCE, "x")) check(err == error::UNSUPPORTED, "holds are refused without the modern interface");
+		if (catch err = svc.hold_profile(
+			Profile.PERFORMANCE,
+			"x"
+		)) check(err == error::UNSUPPORTED, "holds are refused without the modern interface");
 	}
 
 	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "testing"))
@@ -195,9 +223,20 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 		defer op.release();
 		if (try inhibitor = op.wait())
 		{
-			check(control_eventually(bus, control, "Locks", "\"what\": \"idle\", \"mode\": \"block\", \"closed\": false"), "idle inhibitor is held by logind");
+			check(
+				control_eventually(
+					bus,
+					control,
+					"Locks",
+					"\"what\": \"idle\", \"mode\": \"block\", \"closed\": false"
+				),
+				"idle inhibitor is held by logind"
+			);
 			inhibitor.release()!!;
-			check(control_eventually(bus, control, "Locks", "\"what\": \"idle\", \"mode\": \"block\", \"closed\": true"), "releasing the inhibitor closes its descriptor");
+			check(
+				control_eventually(bus, control, "Locks", "\"what\": \"idle\", \"mode\": \"block\", \"closed\": true"),
+				"releasing the inhibitor closes its descriptor"
+			);
 		}
 		else
 		{
@@ -213,12 +252,18 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 	if (try op = svc.can(Action.HIBERNATE))
 	{
 		defer op.release();
-		check((op.wait() ?? availability::YES).reason == availability::Reason.PERMISSION_NEEDED, "can(HIBERNATE) is challenge");
+		check(
+			(op.wait() ?? availability::YES).reason == availability::Reason.PERMISSION_NEEDED,
+			"can(HIBERNATE) is challenge"
+		);
 	}
 	if (try op = svc.can(Action.HYBRID_SLEEP))
 	{
 		defer op.release();
-		check((op.wait() ?? availability::YES).reason == availability::Reason.HARDWARE_ABSENT, "can(HYBRID_SLEEP) is na");
+		check(
+			(op.wait() ?? availability::YES).reason == availability::Reason.HARDWARE_ABSENT,
+			"can(HYBRID_SLEEP) is na"
+		);
 	}
 
 	if (try op = svc.perform(Action.SUSPEND))
@@ -259,7 +304,10 @@ fn void run_event_checks(Power* svc, Connection* bus, Proxy* control)
 		if (try snapshot = svc.latest())
 		{
 			defer snapshot.release();
-			check(snapshot.value.lid_closed.has_value && snapshot.value.lid_closed.value, "the state says the lid is closed");
+			check(
+				snapshot.value.lid_closed.has_value && snapshot.value.lid_closed.value,
+				"the state says the lid is closed"
+			);
 		}
 		control_bool(bus, control, "SetLidClosed", false);
 		check(got(reader, EventKind.LID_OPENED, null), "opening the lid is reported");
@@ -281,20 +329,45 @@ fn void run_barrier_checks(Connection* bus, Proxy* control)
 	{
 		defer svc.close();
 		check(svc.capability(Cap.DELAY_SLEEP_HOOK).ok(), "the barrier is available with the option");
-		check(control_eventually(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"), "the delay lock is held at start");
+		check(
+			control_eventually(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"),
+			"the delay lock is held at start"
+		);
 		if (try reader = svc.subscribe())
 		{
 			defer reader.release();
 			control_bool(bus, control, "EmitPrepareForSleep", true);
-				uint ticket = 0;
-			check(got(reader, EventKind.PREPARE_SLEEP, &ticket) && ticket != 0, "PREPARE_SLEEP carries a barrier ticket");
+			uint ticket = 0;
+			check(
+				got(reader, EventKind.PREPARE_SLEEP, &ticket) && ticket != 0,
+				"PREPARE_SLEEP carries a barrier ticket"
+			);
 			pause();
-			check(control_has(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"), "the delay lock stays until acknowledged");
+			check(
+				control_has(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"),
+				"the delay lock stays until acknowledged"
+			);
 			svc.ack(ticket)!!;
-			check(control_eventually(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": true"), "acknowledging closes the delay lock");
+			check(
+				control_eventually(
+					bus,
+					control,
+					"Locks",
+					"\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": true"
+				),
+				"acknowledging closes the delay lock"
+			);
 			control_bool(bus, control, "EmitPrepareForSleep", false);
 			check(got(reader, EventKind.RESUMED, null), "resume is reported");
-			check(control_eventually(bus, control, "Locks", "\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"), "the delay lock is retaken after resume");
+			check(
+				control_eventually(
+					bus,
+					control,
+					"Locks",
+					"\"what\": \"sleep\", \"mode\": \"delay\", \"closed\": false"
+				),
+				"the delay lock is retaken after resume"
+			);
 		}
 	}
 	else
@@ -306,10 +379,15 @@ fn void run_barrier_checks(Connection* bus, Proxy* control)
 // A bus address nobody listens on must fail the open, not hang it.
 fn void run_failure_checks()
 {
-	if (catch err = power::open(mem, { .backend = power::Backend.LOGIND, .bus_address = "unix:path=/nonexistent/bleu-power-bus" }))
+	if (catch err = power::open(
+		mem,
+		{ .backend = power::Backend.LOGIND, .bus_address = "unix:path=/nonexistent/bleu-power-bus" }
+	))
 	{
-		check(err == error::UNAVAILABLE || err == error::DISCONNECTED || err == error::PERMISSION_DENIED,
-			"open fails when no bus listens");
+		check(
+			err == error::UNAVAILABLE || err == error::DISCONNECTED || err == error::PERMISSION_DENIED,
+			"open fails when no bus listens"
+		);
 	}
 	else
 	{

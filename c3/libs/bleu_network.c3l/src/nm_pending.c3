@@ -33,6 +33,7 @@ struct Pending
 	String interface_name;  // CONNECT: reported in the operation's value
 	char[] ssid;            // CONNECT
 	bool supplied;          // CONNECT: a passphrase was sent with the request
+	bool started;           // CONNECT: this activation has been seen to begin
 	bool target;            // RADIO: the wanted value of WirelessEnabled
 	long last_scan;         // SCAN: LastScan when the request was made
 	ulong after;            // only transitions newer than this belong to the request
@@ -202,6 +203,20 @@ fn void apply_transitions(Backend* b)
 			{
 				i++;
 				continue;
+			}
+			if (p.kind == CONNECT && !p.started)
+			{
+				// A terminal state that was already there (the previous attempt's failure, reported late)
+				// says nothing about this request. Only its own activation, or a success, counts.
+				if (nm_convert::is_activation_state(t.state))
+				{
+					p.started = true;
+				}
+				else if (t.state != nm_convert::DEVICE_STATE_ACTIVATED)
+				{
+					i++;
+					continue;
+				}
 			}
 			bool done = false;
 			switch (p.kind)

@@ -30,15 +30,15 @@ struct ReasonContext
 }
 
 <* `POWER_REQUEST_CONTEXT_VERSION` (SystemServices): the only defined version. *>
-const uint POWER_REQUEST_CONTEXT_VERSION = 0;
+const uint POWER_REQUEST_CONTEXT_VERSION       = 0;
 <* `POWER_REQUEST_CONTEXT_SIMPLE_STRING` (Threading): the reason is a plain string. *>
 const uint POWER_REQUEST_CONTEXT_SIMPLE_STRING = 1;
 <* `PowerRequestDisplayRequired` (POWER_REQUEST_TYPE). *>
-const int POWER_REQUEST_DISPLAY_REQUIRED = 0;
+const int POWER_REQUEST_DISPLAY_REQUIRED       = 0;
 <* `PowerRequestSystemRequired` (POWER_REQUEST_TYPE). *>
-const int POWER_REQUEST_SYSTEM_REQUIRED = 1;
+const int POWER_REQUEST_SYSTEM_REQUIRED        = 1;
 <* `INVALID_HANDLE_VALUE`, what PowerCreateRequest returns on failure. *>
-const usz INVALID_HANDLE = ~(usz)0;
+const usz INVALID_HANDLE                       = ~(usz)0;
 
 extern fn Win32_BOOL getSystemPowerStatus(SystemPowerStatus* status) @cname("GetSystemPowerStatus");
 extern fn void* powerCreateRequest(ReasonContext* context) @cname("PowerCreateRequest");

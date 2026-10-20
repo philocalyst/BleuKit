@@ -17,7 +17,7 @@ const usz PROCESS_TEXT_CAPACITY = 8192;
 fn ProcessSample[]? read_processes(ProcfsBackend* backend, Duration elapsed, uint processors, ulong ticks_per_second)
 {
 	PathList entries = fs::list_dir(tmem, string::tformat("%s/proc", backend.root))!;
-	String passwd = read_text(backend.root, "/etc/passwd") ?? "";
+	String passwd    = read_text(backend.root, "/etc/passwd") ?? "";
 	List{ProcessSample} samples;
 	samples.init(tmem);
 	foreach (entry : entries)
@@ -33,23 +33,34 @@ fn ProcessSample[]? read_processes(ProcfsBackend* backend, Duration elapsed, uin
 	return samples.array_view();
 }
 
-fn ProcessSample? read_process(ProcfsBackend* backend, uint pid, String passwd, Duration elapsed, uint processors, ulong ticks_per_second)
+fn ProcessSample? read_process(
+	ProcfsBackend* backend,
+	uint pid,
+	String passwd,
+	Duration elapsed,
+	uint processors,
+	ulong ticks_per_second
+)
 {
 	String root = backend.root;
 	char[PROCESS_TEXT_CAPACITY] stat_buffer;
-	StatFields stat = procfs::parse_pid_stat(fs::read_trimmed(string::tformat("%s/proc/%d/stat", root, pid), stat_buffer[..])!)!;
+	StatFields stat = procfs::parse_pid_stat(
+		fs::read_trimmed(string::tformat("%s/proc/%d/stat", root, pid), stat_buffer[..])!
+	)!;
 	String name = stat.name.copy(tmem);
 	char[PROCESS_TEXT_CAPACITY] status_buffer;
-	StatusFields status = procfs::parse_status(fs::read_trimmed(string::tformat("%s/proc/%d/status", root, pid), status_buffer[..])!)!;
+	StatusFields status = procfs::parse_status(
+		fs::read_trimmed(string::tformat("%s/proc/%d/status", root, pid), status_buffer[..])!
+	)!;
 	char[PROCESS_TEXT_CAPACITY] command_buffer;
 	String raw_command = fs::read_trimmed(string::tformat("%s/proc/%d/cmdline", root, pid), command_buffer[..]) ?? "";
-	ulong ticks = stat.utime + stat.stime;
-	Maybe{Percent} cpu = {};
+	ulong ticks        = stat.utime + stat.stime;
+	Maybe{Percent} cpu = { };
 	if (try earlier = delta::find_process(backend.previous_processes.array_view(), pid, stat.started))
 	{
 		cpu = delta::process_percent(earlier.ticks, ticks, ticks_per_second, elapsed, processors);
 	}
-	Maybe{Bytes} memory = {};
+	Maybe{Bytes} memory = { };
 	if (status.has_rss) memory = maybe::value(status.rss);
 	String user = user_of(passwd, status.uid);
 	return {
@@ -71,4 +82,3 @@ fn String user_of(String passwd, ulong uid)
 	if (try name = procfs::passwd_name(passwd, uid)) return name;
 	return string::tformat("%d", uid);
 }
-

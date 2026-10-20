@@ -444,8 +444,9 @@ fn void object_manager_announces_and_lists_its_objects() @test
 		deliver(&rig.server, "/org/bleu", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects", "", {});
 		assert(rig.cap.type == METHOD_RETURN && rig.cap.signature.str_view() == "a{oa{sa{sv}}}");
 		assert(rig.cap.body.str_view().contains("/org/bleu/test"));
+		rig.cap.messages = 0;
 		rig.server.unexport(TEST_PATH)!!;
-		assert(rig.cap.messages == 2 && rig.cap.signature.str_view() == "oas");
+		assert(rig.cap.messages == 1 && rig.cap.signature.str_view() == "oas");
 		testing::@expect_fault(rig.server.unexport(TEST_PATH), NOT_FOUND);
 	};
 }

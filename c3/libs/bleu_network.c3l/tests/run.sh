@@ -18,7 +18,7 @@ pids=()
 cleanup() {
   for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null; done
   wait 2>/dev/null
-  rm -rf "$work"
+  if [ -n "${BLEU_NETWORK_KEEP:-}" ]; then say "kept: $work"; else rm -rf "$work"; fi
 }
 trap cleanup EXIT
 

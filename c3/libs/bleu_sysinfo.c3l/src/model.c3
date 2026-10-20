@@ -122,13 +122,13 @@ struct State
 *>
 enum Cap : char
 {
-	CPU_USAGE,      // total and per-core usage
-	CPU_FREQUENCY,  // per-core clock
-	TEMPERATURES,   // sensor readings
-	NETWORK_RATES,  // receive and transmit rates
+	CPU_USAGE,       // total and per-core usage
+	CPU_FREQUENCY,   // per-core clock
+	TEMPERATURES,    // sensor readings
+	NETWORK_RATES,   // receive and transmit rates
 	PROCESS_COMMAND, // full command lines of processes
-	PROCESS_USER,   // account of each process
-	PROCESS_KILL,   // ending another process
+	PROCESS_USER,    // account of each process
+	PROCESS_KILL,    // ending another process
 }
 
 <* Transient facts: a volume or an interface came or went. Re-read the state for the details. *>

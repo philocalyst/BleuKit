@@ -11,46 +11,43 @@
  Sources (see docs/research/battery_power.md, L-P1 and L-P3, for the verified
  signatures):
  * login1 manual page, org.freedesktop.login1(5): Manager methods and
-   properties, `Can*` answers, PrepareForSleep.
+ properties, `Can*` answers, PrepareForSleep.
  * systemd docs/INHIBITOR_LOCKS.md: Inhibit returns a descriptor; closing it
-   releases the lock; delay locks are released on PrepareForSleep.
+ releases the lock; delay locks are released on PrepareForSleep.
  * power-profiles-daemon src/power-profiles-daemon.c: HoldProfile, ReleaseProfile,
-   ActiveProfile, PerformanceDegraded, Profiles.
+ ActiveProfile, PerformanceDegraded, Profiles.
 *>
 module bleu::power::logind @feat(LINUX);
-import std::collections::list, std::collections::maybe, std::io::path, std::os::env, std::time, bleu::availability,
-	bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value,
-	bleu::error, bleu::power, bleu::power::convert, bleu::rt::poller, bleu::rt::unix, bleu::observe,
-	bleu::service, bleu::rt::worker;
+import std::collections::list, std::collections::maybe, std::io::path, std::os::env, std::time, bleu::availability, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::power, bleu::power::convert, bleu::rt::poller, bleu::rt::unix, bleu::observe, bleu::service, bleu::rt::worker;
 
 extern fn int getpid() @cname("getpid");
 
-const DRIVER_NAME_TEXT = "systemd-logind over the system bus";
+const DRIVER_NAME_TEXT           = "systemd-logind over the system bus";
 const String SYSTEMD_RUNTIME_DIR = "/run/systemd/system";
 const String SYSTEM_BUS_VARIABLE = "DBUS_SYSTEM_BUS_ADDRESS";
 
-const String LOGIND_BUS = "org.freedesktop.login1";
-const String LOGIND_PATH = "/org/freedesktop/login1";
-const String LOGIND_MANAGER = "org.freedesktop.login1.Manager";
-const String LOGIND_SESSION = "org.freedesktop.login1.Session";
+const String LOGIND_BUS        = "org.freedesktop.login1";
+const String LOGIND_PATH       = "/org/freedesktop/login1";
+const String LOGIND_MANAGER    = "org.freedesktop.login1.Manager";
+const String LOGIND_SESSION    = "org.freedesktop.login1.Session";
 const String PREPARE_FOR_SLEEP = "PrepareForSleep";
 
-const String PPD_MODERN_BUS = "org.freedesktop.UPower.PowerProfiles";
+const String PPD_MODERN_BUS  = "org.freedesktop.UPower.PowerProfiles";
 const String PPD_MODERN_PATH = "/org/freedesktop/UPower/PowerProfiles";
-const String PPD_LEGACY_BUS = "net.hadess.PowerProfiles";
+const String PPD_LEGACY_BUS  = "net.hadess.PowerProfiles";
 const String PPD_LEGACY_PATH = "/net/hadess/PowerProfiles";
 
 <* What this process tells the daemons it is doing, for the inhibitor and profile lists. *>
 const String APPLICATION_ID = "org.bleu.power";
-const String BARRIER_WHO = "bleu";
-const String BARRIER_WHY = "Save state before sleep";
+const String BARRIER_WHO    = "bleu";
+const String BARRIER_WHY    = "Save state before sleep";
 
 <* The poller's tag for the bus connection. *>
-const usz BUS_TAG = 1;
+const usz BUS_TAG            = 1;
 <* Longest the loop sleeps when nothing happens; bounds how late a missed signal is seen. *>
 const Duration WAIT_INTERVAL = (Duration)1_000_000;
 <* Commands taken from the mailbox per batch. *>
-const usz COMMAND_BATCH = 16;
+const usz COMMAND_BATCH      = 16;
 
 const Driver DRIVER = {
 	.info = { "logind", DRIVER_NAME_TEXT, 10 },
@@ -274,31 +271,54 @@ fn bool? daemon_answers(Proxy* proxy)
 // Each capability the Linux mechanism offers, decided by what was found above.
 fn void fill_capabilities(Logind* b)
 {
-	Capabilities* caps = b.capabilities;
-	Availability profiles = b.has_profiles
-		? availability::YES
+	Capabilities* caps    = b.capabilities;
+	Availability profiles = b.has_profiles ? availability::YES
 		: availability::no(availability::Reason.BACKEND_MISSING, "power-profiles-daemon is not on the system bus");
 	caps.set(PROFILE_READ, profiles);
 	caps.set(PROFILE_SET, profiles);
-	caps.set(PROFILE_HOLD, b.has_modern_profiles
-		? availability::YES
-		: availability::no(availability::Reason.UNSUPPORTED_BACKEND, "holds need the modern power-profiles-daemon interface"));
-	caps.set(LOW_POWER_READ, availability::no(availability::Reason.UNSUPPORTED_OS, "Linux has no Low Power Mode flag; use the power-saver profile"));
-	caps.set(BATTERY_SAVER_READ, availability::no(availability::Reason.UNSUPPORTED_OS, "Linux has no battery saver flag"));
+	caps.set(
+		PROFILE_HOLD,
+		b.has_modern_profiles ? availability::YES
+			: availability::no(
+				availability::Reason.UNSUPPORTED_BACKEND,
+				"holds need the modern power-profiles-daemon interface"
+			)
+	);
+	caps.set(
+		LOW_POWER_READ,
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"Linux has no Low Power Mode flag; use the power-saver profile"
+		)
+	);
+	caps.set(
+		BATTERY_SAVER_READ,
+		availability::no(availability::Reason.UNSUPPORTED_OS, "Linux has no battery saver flag")
+	);
 	caps.set(KEEP_AWAKE_IDLE, availability::YES);
-	caps.set(KEEP_AWAKE_DISPLAY, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "logind has no display inhibitor; the screen saver interface would be needed"));
+	caps.set(
+		KEEP_AWAKE_DISPLAY,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"logind has no display inhibitor; the screen saver interface would be needed"
+		)
+	);
 	caps.set(KEEP_AWAKE_SYSTEM, availability::YES);
-	caps.set(DELAY_SLEEP_HOOK, b.sleep_barrier
-		? availability::YES
-		: availability::no(availability::Reason.UNSUPPORTED_BACKEND, "set Options.sleep_barrier to hold the delay lock"));
+	caps.set(
+		DELAY_SLEEP_HOOK,
+		b.sleep_barrier ? availability::YES
+			: availability::no(
+				availability::Reason.UNSUPPORTED_BACKEND,
+				"set Options.sleep_barrier to hold the delay lock"
+			)
+	);
 	caps.set(BLOCK_SHUTDOWN, availability::YES);
 	caps.set(SUSPEND, availability::YES);
 	caps.set(HIBERNATE, availability::YES);
 	caps.set(HYBRID_SLEEP, availability::YES);
 	caps.set(POWER_OFF, availability::YES);
 	caps.set(REBOOT, availability::YES);
-	Availability session = b.has_session
-		? availability::YES
+	Availability session = b.has_session ? availability::YES
 		: availability::no(availability::Reason.BACKEND_MISSING, "this process is not in a logind session");
 	caps.set(LOCK, session);
 	caps.set(LOGOUT, session);
@@ -394,7 +414,7 @@ fn void react(Logind* b)
 // The machine is about to sleep. With a barrier, the delay lock stays until `ack`.
 fn void begin_sleep(Logind* b)
 {
-	uint ticket = ++b.next_ticket;
+	uint ticket  = ++b.next_ticket;
 	uint barrier = 0;
 	if (b.barrier.is_open())
 	{
@@ -410,7 +430,9 @@ fn void end_sleep(Logind* b)
 	if (b.barrier.is_open())
 	{
 		// Fd.close releases the descriptor even when close(2) fails; there is nothing to retry.
-		if (catch err = b.barrier.close()) {}
+		if (catch err = b.barrier.close())
+		{
+		}
 	}
 	b.barrier_ticket = 0;
 	power::publish_event(b.hub, RESUMED, 0);
@@ -441,12 +463,16 @@ fn void shutdown(Logind* b, Host{Command}* host)
 	}
 	if (b.barrier.is_open())
 	{
-		if (catch err = b.barrier.close()) {}
+		if (catch err = b.barrier.close())
+		{
+		}
 	}
 	foreach (&held : b.locks)
 	{
 		// As for the barrier: the descriptor is released either way.
-		if (catch err = held.fd.close()) {}
+		if (catch err = held.fd.close())
+		{
+		}
 	}
 	b.locks.free();
 	b.sleep_signals.free();

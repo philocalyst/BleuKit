@@ -13,27 +13,34 @@
  happened; the loop publishes after the run returns.
 *>
 module bleu::power::macos @feat(DARWIN);
-import std::collections::list, std::collections::maybe, std::os::darwin::objc, bleu::availability, bleu::cf,
-	bleu::error, bleu::iokit, bleu::iokit::power, bleu::mach, bleu::objc, bleu::observe, bleu::power, bleu::service,
-	bleu::rt::worker;
+import std::collections::list, std::collections::maybe, std::os::darwin::objc, bleu::availability, bleu::cf, bleu::error, bleu::iokit, bleu::iokit::power, bleu::mach, bleu::objc, bleu::observe, bleu::power, bleu::service, bleu::rt::worker;
 
 extern fn void* cf_run_loop_get_current() @cname("CFRunLoopGetCurrent");
-extern fn int cf_run_loop_run_in_mode(void* mode, double seconds, bool return_after_source) @cname("CFRunLoopRunInMode");
-extern fn int pm_create_assertion(CFTypeRef type, uint level, CFTypeRef name, uint* id) @cname("IOPMAssertionCreateWithName");
+extern fn int cf_run_loop_run_in_mode(
+	void* mode,
+	double seconds,
+	bool return_after_source
+) @cname("CFRunLoopRunInMode");
+extern fn int pm_create_assertion(
+	CFTypeRef type,
+	uint level,
+	CFTypeRef name,
+	uint* id
+) @cname("IOPMAssertionCreateWithName");
 extern fn int pm_release_assertion(uint id) @cname("IOPMAssertionRelease");
 
 <* How long one run of the loop may wait for notifications before the requests are looked at. *>
-const double POLL_SECONDS = 0.25;
+const double POLL_SECONDS     = 0.25;
 <* Loop passes between state reads: about two seconds, which is what Low Power Mode needs. *>
-const int REFRESH_TICKS = 8;
-const usz COMMAND_BATCH = 16;
+const int REFRESH_TICKS       = 8;
+const usz COMMAND_BATCH       = 16;
 <* `kIOPMAssertionLevelOn` (IOPMLib.h): the assertion is in force. *>
 const uint ASSERTION_LEVEL_ON = 255;
 
 <* IOPMAssertion types (IOPMLib.h, and the strings used by keepawake; see V32). *>
-const String ASSERTION_IDLE = "PreventUserIdleSystemSleep";
+const String ASSERTION_IDLE    = "PreventUserIdleSystemSleep";
 const String ASSERTION_DISPLAY = "PreventUserIdleDisplaySleep";
-const String ASSERTION_SYSTEM = "PreventSystemSleep";
+const String ASSERTION_SYSTEM  = "PreventSystemSleep";
 
 const Driver DRIVER = {
 	.info = { "macos", "IOPowerSources, IOPMAssertion, IORegisterForSystemPower and NSProcessInfo", 10 },
@@ -102,18 +109,36 @@ fn void run(void* state, PowerHub* hub, Host{Command}* host)
 
 fn void fill_capabilities(Capabilities* caps)
 {
-	Availability no_profiles = availability::no(availability::Reason.UNSUPPORTED_OS, "macOS has no power profiles; Low Power Mode is read-only");
+	Availability no_profiles = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
+		"macOS has no power profiles; Low Power Mode is read-only"
+	);
 	caps.set(PROFILE_READ, no_profiles);
 	caps.set(PROFILE_SET, no_profiles);
 	caps.set(PROFILE_HOLD, no_profiles);
 	caps.set(LOW_POWER_READ, availability::YES);
-	caps.set(BATTERY_SAVER_READ, availability::no(availability::Reason.UNSUPPORTED_OS, "macOS reports Low Power Mode, not a battery saver flag"));
+	caps.set(
+		BATTERY_SAVER_READ,
+		availability::no(availability::Reason.UNSUPPORTED_OS, "macOS reports Low Power Mode, not a battery saver flag")
+	);
 	caps.set(KEEP_AWAKE_IDLE, availability::YES);
 	caps.set(KEEP_AWAKE_DISPLAY, availability::YES);
 	caps.set(KEEP_AWAKE_SYSTEM, availability::YES);
-	caps.set(DELAY_SLEEP_HOOK, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "bleu::iokit::power acknowledges the sleep at once; a barrier needs a deferred acknowledgement there"));
-	caps.set(BLOCK_SHUTDOWN, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no verified route in this version"));
-	Availability deferred = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "deferred in this version: no route verified on hardware");
+	caps.set(
+		DELAY_SLEEP_HOOK,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"bleu::iokit::power acknowledges the sleep at once; a barrier needs a deferred acknowledgement there"
+		)
+	);
+	caps.set(
+		BLOCK_SHUTDOWN,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no verified route in this version")
+	);
+	Availability deferred = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"deferred in this version: no route verified on hardware"
+	);
 	caps.set(SUSPEND, deferred);
 	caps.set(HIBERNATE, deferred);
 	caps.set(HYBRID_SLEEP, deferred);
@@ -122,7 +147,10 @@ fn void fill_capabilities(Capabilities* caps)
 	caps.set(LOCK, deferred);
 	caps.set(LOGOUT, deferred);
 	caps.set(IDLE_HINT, availability::no(availability::Reason.UNSUPPORTED_OS, "macOS has no idle hint"));
-	caps.set(LID_EVENTS, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the clamshell state is not read in this version"));
+	caps.set(
+		LID_EVENTS,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the clamshell state is not read in this version")
+	);
 	caps.set(AC_EVENTS, availability::YES);
 }
 
@@ -205,7 +233,7 @@ fn void drain(Mac* mac, Host{Command}* host, Command[] batch)
 fn void refresh(Mac* mac)
 {
 	Snapshot{State}* snapshot = mac.hub.begin();
-	State* state = &snapshot.value;
+	State* state              = &snapshot.value;
 	external_power(state);
 	state.low_power_mode.set(low_power_mode());
 	Maybe{bool} external = state.on_external_power;
@@ -244,7 +272,7 @@ fn bool low_power_mode()
 	bool enabled = false;
 	objc::@autorelease_pool()
 	{
-		ObjId info = objc::class_named("NSProcessInfo").send(ObjId, "processInfo");
+		ObjId info        = objc::class_named("NSProcessInfo").send(ObjId, "processInfo");
 		objc::Obj process = objc::borrow(info);
 		defer process.close();
 		enabled = process.send_bool("isLowPowerModeEnabled");
@@ -308,7 +336,7 @@ fn Inhibitor? take_assertion(Mac* mac, String type, Command* command)
 	cf::Ref name_ref = cf::from_string(command.why);
 	defer name_ref.close();
 	uint assertion = 0;
-	int result = pm_create_assertion(type_ref.ptr, ASSERTION_LEVEL_ON, name_ref.ptr, &assertion);
+	int result     = pm_create_assertion(type_ref.ptr, ASSERTION_LEVEL_ON, name_ref.ptr, &assertion);
 	if (result != 0) return mach::raise_code(result, "IOPMAssertionCreateWithName")~;
 	uint id = ++mac.next_hold;
 	mac.holds.push({ .id = id, .assertion = assertion });

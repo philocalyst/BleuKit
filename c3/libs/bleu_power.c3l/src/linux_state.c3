@@ -6,18 +6,17 @@
  value. Only a lost connection is remembered (`note_failure`).
 *>
 module bleu::power::logind @feat(LINUX);
-import std::collections::list, std::collections::maybe, bleu::dbus::value, bleu::power, bleu::power::convert,
-	bleu::observe;
+import std::collections::list, std::collections::maybe, bleu::dbus::value, bleu::power, bleu::power::convert, bleu::observe;
 
 <* Re-read every property this mechanism reports and publish the result if it changed. *>
 fn void refresh(Logind* b)
 {
 	Snapshot{State}* snapshot = b.hub.begin();
-	State* state = &snapshot.value;
+	State* state              = &snapshot.value;
 	if (catch err = read_profiles(b, state, snapshot.allocator())) b.note_failure(err);
 	if (catch err = read_manager(b, state)) b.note_failure(err);
 	// Copy the readings out before publishing: publishing consumes the snapshot.
-	Maybe{bool} lid = state.lid_closed;
+	Maybe{bool} lid      = state.lid_closed;
 	Maybe{bool} external = state.on_external_power;
 	b.hub.publish_if_changed(snapshot);
 	emit_transitions(b, lid, external);

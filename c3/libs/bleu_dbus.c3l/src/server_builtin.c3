@@ -28,6 +28,7 @@ fn void? peer_call(Call* c) @private
 		if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "GetMachineId takes no arguments");
 		if (try id = machine_id(tmem))
 		{
+			c.out_signature = "s";
 			Value[] out = { value::str(tmem, id)! };
 			return c.reply(out);
 		}
@@ -77,6 +78,7 @@ fn void? get_property(Call* c, Target* target) @private
 		return c.reply_error(ERROR_UNKNOWN_PROPERTY, string::tformat("%s has no readable property %s", interface_name, name));
 	}
 	Value v = p.get(p.context, c.path, tmem)!;
+	c.out_signature = "v";
 	Value[] out = { value::variant(tmem, v) };
 	return c.reply(out);
 }
@@ -111,6 +113,7 @@ fn void? get_all_properties(Call* c, Target* target) @private
 	String interface_name = r.read_string()!;
 	Interface* i = find_interface(target.interfaces, interface_name);
 	if (i == null) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s here", interface_name));
+	c.out_signature = "a{sv}";
 	Value props = readable_properties(tmem, c.path, i)!;
 	Value[] out = { props };
 	return c.reply(out);
@@ -141,6 +144,7 @@ fn void? managed_objects_call(Call* c) @private
 {
 	if (c.member != "GetManagedObjects") return c.reply_error(ERROR_UNKNOWN_METHOD, string::tformat("no method %s here", c.member));
 	if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "GetManagedObjects takes no arguments");
+	c.out_signature = "a{oa{sa{sv}}}";
 	Value objects = managed_objects(c.server, tmem, c.path)!;
 	Value[] out = { objects };
 	return c.reply(out);

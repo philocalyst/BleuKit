@@ -15,22 +15,22 @@ import std::time, std::collections::maybe, bleu::error, bleu::observe, bleu::rt:
 fn void? sample(void* reader, Snapshot{State}* snapshot, Duration elapsed)
 {
 	ProcfsBackend* backend = (ProcfsBackend*)reader;
-	Allocator allocator = snapshot.allocator();
-	State* state = &snapshot.value;
+	Allocator allocator    = snapshot.allocator();
+	State* state           = &snapshot.value;
 	@pool()
 	{
-		String root = backend.root;
+		String root            = backend.root;
 		delta::CpuLine[] lines = procfs::parse_stat(read_text(root, "/proc/stat")!, tmem)!;
-		uint processors = sysinfo::count_processors(lines);
+		uint processors        = sysinfo::count_processors(lines);
 		sample_cpu(backend, allocator, &state.cpu, lines)!;
 		sample_memory(root, &state.memory)!;
 		state.mounts = read_mounts(root, allocator)!;
 		delta::NetCounters[] counters = read_net_counters(root)!;
 		state.interfaces = sysinfo::interface_rates(&backend.previous_net, allocator, counters, elapsed);
 		state.temperatures = read_temperatures(root, allocator);
-		CLong clock_ticks = sys_sysconf(SC_CLK_TCK);
+		CLong clock_ticks      = sys_sysconf(SC_CLK_TCK);
 		ulong ticks_per_second = clock_ticks > 0 ? (ulong)clock_ticks : 0;
-		ProcessSample[] all = read_processes(backend, elapsed, processors, ticks_per_second)!;
+		ProcessSample[] all    = read_processes(backend, elapsed, processors, ticks_per_second)!;
 		state.processes = sysinfo::top_processes(backend.process_count, allocator, all);
 		state.identity = read_identity(root, allocator)!;
 		// Commit the counters only after every file was read, so a failed sample leaves no half-updated history.
@@ -53,7 +53,7 @@ fn void? sample_cpu(ProcfsBackend* backend, Allocator allocator, Cpu* cpu, delta
 	LoadAverage[3] averages = procfs::parse_loadavg(read_text(root, "/proc/loadavg")!)!;
 	foreach (i, &average : averages)
 	{
-		cpu.load_average[i] = maybe::value(average);
+		cpu.load_average[i] = maybe::value(*average);
 	}
 	sysinfo::fill_cpu(cpu, allocator, lines, backend.previous_cpu.array_view());
 	foreach (i, &core : cpu.cores)
@@ -67,7 +67,7 @@ fn Maybe{Mhz} core_frequency(String root, int index)
 {
 	String path = string::tformat("%s/sys/devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq", root, index);
 	if (try khz = fs::read_integer(path)) return maybe::value((Mhz)(khz / 1000));
-	return {};
+	return { };
 }
 
 fn void? sample_memory(String root, Memory* memory)

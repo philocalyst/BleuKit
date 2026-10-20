@@ -49,8 +49,8 @@ fn Media*? open(Allocator allocator, Options options = { })
 	if (options.refresh == time::DURATION_ZERO) options.refresh = DEFAULT_REFRESH;
 	Driver* driver = select_driver(options)!;
 	Capabilities capabilities;
-	void* state = driver.create(allocator, options, &capabilities)!;
-	Media* self = alloc::new(allocator, Media);
+	void* state    = driver.create(allocator, options, &capabilities)!;
+	Media* self    = alloc::new(allocator, Media);
 	*self = { .allocator = allocator, .driver = driver, .driver_state = state, .capabilities = capabilities };
 	if (catch err = self.hub.start(allocator, "media", driver.info.name, driver.run, state))
 	{
@@ -96,7 +96,11 @@ fn Snapshot{State}*? Media.wait_after(&self, ulong seen, Duration timeout = time
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Media.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Media.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Media.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);

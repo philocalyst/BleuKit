@@ -83,6 +83,7 @@ class State:
         self.root = None
         self.active_iface = None
         self.connected_ap_path = '/'
+        self.generation = 0
 
     def set_wifi_state(self, state, reason):
         old = self.wifi_state
@@ -311,6 +312,14 @@ class RootIface(ServiceInterface):
 
     @method()
     def AddAndActivateConnection2(self, connection: 'a{sa{sv}}', device: 'o', specific: 'o', options: 'a{sv}') -> 'ooa{sv}':
+        try:
+            return self._add_and_activate(connection)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            raise
+
+    def _add_and_activate(self, connection):
         self.state.profile_counter += 1
         path = '%s/%d' % (SETTINGS + '/Connection', self.state.profile_counter)
         self.state.profiles[path] = connection
@@ -348,19 +357,30 @@ def settings_value(settings, group, key):
 
 
 def _activate(self, profile_path):
-    """Start an activation of a stored profile; returns the active connection path."""
+    """Start an activation of a stored profile; returns the active connection path.
+
+    Every activation has a generation. Timers of an older activation do nothing,
+    as a real device would not report the failure of an attempt it has left.
+    """
+    self.generation += 1
+    generation = self.generation
+    loop = asyncio.get_running_loop()
+
+    def later(delay, action):
+        loop.call_later(delay, lambda: action() if self.generation == generation else None)
+
     settings = self.profiles[profile_path]
     ssid = settings_value(settings, '802-11-wireless', 'ssid')
     index, ap = ap_for_ssid(bytes(ssid) if ssid is not None else b'')
     if index is None:
         self.set_wifi_state(PREPARE, 0)
-        self.set_wifi_state(FAILED, REASON_SSID_NOT_FOUND)
+        later(0.05, lambda: self.set_wifi_state(FAILED, REASON_SSID_NOT_FOUND))
         return '/'
     self.connected_ap_path = ACCESS_POINTS + '/%d' % (index + 1)
     secured = ap['psk'] is not None
     key_mgmt = settings_value(settings, '802-11-wireless-security', 'key-mgmt')
     psk = settings_value(settings, '802-11-wireless-security', 'psk')
-    loop = asyncio.get_running_loop()
+    print('ACTIVATE', profile_path, ssid, key_mgmt, psk, file=sys.stderr, flush=True)
     active = self.make_active(profile_path)
     self.set_wifi_state(PREPARE, 0)
 
@@ -369,12 +389,12 @@ def _activate(self, profile_path):
         if secured and (key_mgmt is None or psk != ap['psk']):
             # The secret is missing or refused; with no agent to ask, the device fails.
             self.set_wifi_state(NEED_AUTH, REASON_NO_SECRETS)
-            loop.call_later(0.05, lambda: self.set_wifi_state(FAILED, REASON_NO_SECRETS))
+            later(0.05, lambda: self.set_wifi_state(FAILED, REASON_NO_SECRETS))
             return
         self.set_wifi_state(IP_CONFIG, 0)
-        loop.call_later(0.05, lambda: self.set_wifi_state(ACTIVATED, 0))
+        later(0.05, lambda: self.set_wifi_state(ACTIVATED, 0))
 
-    loop.call_later(0.05, configure)
+    later(0.05, configure)
     return active
 
 

@@ -70,24 +70,24 @@ struct Manager
 struct SessionVtbl
 {
 	winrt::IInspectableVtbl base;
-	GetObjectFn source_app_user_model_id;       // 6, HSTRING
+	GetObjectFn source_app_user_model_id; // 6, HSTRING
 	GetObjectFn try_get_media_properties_async; // 7, IAsyncOperation<MediaProperties>
-	GetObjectFn get_timeline_properties;        // 8
-	GetObjectFn get_playback_info;              // 9
-	GetObjectFn try_play_async;                 // 10, IAsyncOperation<Boolean>
-	GetObjectFn try_pause_async;                // 11
-	GetObjectFn try_stop_async;                 // 12
-	void* try_record_async;                // 13
-	void* try_fast_forward_async;          // 14
-	void* try_rewind_async;                // 15
-	GetObjectFn try_skip_next_async;            // 16
-	GetObjectFn try_skip_previous_async;        // 17
-	void* try_change_channel_up_async;     // 18
-	void* try_change_channel_down_async;   // 19
-	GetObjectFn try_toggle_play_pause_async;    // 20
+	GetObjectFn get_timeline_properties; // 8
+	GetObjectFn get_playback_info; // 9
+	GetObjectFn try_play_async; // 10, IAsyncOperation<Boolean>
+	GetObjectFn try_pause_async; // 11
+	GetObjectFn try_stop_async; // 12
+	void* try_record_async; // 13
+	void* try_fast_forward_async; // 14
+	void* try_rewind_async; // 15
+	GetObjectFn try_skip_next_async; // 16
+	GetObjectFn try_skip_previous_async; // 17
+	void* try_change_channel_up_async; // 18
+	void* try_change_channel_down_async; // 19
+	GetObjectFn try_toggle_play_pause_async; // 20
 	SetIntAsyncFn try_change_auto_repeat_mode_async; // 21
 	SetDoubleAsyncFn try_change_playback_rate_async; // 22
-	SetBoolAsyncFn try_change_shuffle_active_async;  // 23
+	SetBoolAsyncFn try_change_shuffle_active_async; // 23
 	SetTicksAsyncFn try_change_playback_position_async; // 24
 }
 
@@ -101,11 +101,11 @@ struct Session
 struct MediaPropertiesVtbl
 {
 	winrt::IInspectableVtbl base;
-	GetObjectFn title;        // 6, HSTRING
-	GetObjectFn subtitle;     // 7
+	GetObjectFn title; // 6, HSTRING
+	GetObjectFn subtitle; // 7
 	GetObjectFn album_artist; // 8
-	GetObjectFn artist;       // 9
-	GetObjectFn album_title;  // 10
+	GetObjectFn artist; // 9
+	GetObjectFn album_title; // 10
 }
 
 <* An object of the media properties interface. *>
@@ -118,12 +118,12 @@ struct MediaProperties
 struct PlaybackInfoVtbl
 {
 	winrt::IInspectableVtbl base;
-	GetObjectFn controls;             // 6, PlaybackControls
-	GetIntFn playback_status;         // 7
-	void* playback_type;         // 8
-	GetObjectFn auto_repeat_mode;     // 9, IReference<MediaPlaybackAutoRepeatMode>
-	GetObjectFn playback_rate;        // 10, IReference<Double>
-	GetObjectFn is_shuffle_active;    // 11, IReference<Boolean>
+	GetObjectFn controls; // 6, PlaybackControls
+	GetIntFn playback_status; // 7
+	void* playback_type; // 8
+	GetObjectFn auto_repeat_mode; // 9, IReference<MediaPlaybackAutoRepeatMode>
+	GetObjectFn playback_rate; // 10, IReference<Double>
+	GetObjectFn is_shuffle_active; // 11, IReference<Boolean>
 }
 
 <* An object of the playback info interface. *>
@@ -136,12 +136,12 @@ struct PlaybackInfo
 struct TimelineVtbl
 {
 	winrt::IInspectableVtbl base;
-	GetTicksFn start_time;      // 6
-	GetTicksFn end_time;        // 7
-	GetTicksFn min_seek_time;   // 8
-	GetTicksFn max_seek_time;   // 9
-	GetTicksFn position;        // 10, TimeSpan
-	GetTicksFn last_updated;    // 11, DateTime
+	GetTicksFn start_time; // 6
+	GetTicksFn end_time; // 7
+	GetTicksFn min_seek_time; // 8
+	GetTicksFn max_seek_time; // 9
+	GetTicksFn position; // 10, TimeSpan
+	GetTicksFn last_updated; // 11, DateTime
 }
 
 <* An object of the timeline interface. *>
@@ -154,21 +154,21 @@ struct Timeline
 struct PlaybackControlsVtbl
 {
 	winrt::IInspectableVtbl base;
-	GetBoolFn is_play_enabled;               // 6
-	GetBoolFn is_pause_enabled;              // 7
-	GetBoolFn is_stop_enabled;               // 8
-	GetBoolFn is_record_enabled;             // 9
-	GetBoolFn is_fast_forward_enabled;       // 10
-	GetBoolFn is_rewind_enabled;             // 11
-	GetBoolFn is_next_enabled;               // 12
-	GetBoolFn is_previous_enabled;           // 13
-	GetBoolFn is_channel_up_enabled;         // 14
-	GetBoolFn is_channel_down_enabled;       // 15
-	GetBoolFn is_play_pause_toggle_enabled;  // 16
-	GetBoolFn is_shuffle_enabled;            // 17
-	GetBoolFn is_repeat_enabled;             // 18
-	GetBoolFn is_playback_rate_enabled;      // 19
-	GetBoolFn is_playback_position_enabled;  // 20
+	GetBoolFn is_play_enabled; // 6
+	GetBoolFn is_pause_enabled; // 7
+	GetBoolFn is_stop_enabled; // 8
+	GetBoolFn is_record_enabled; // 9
+	GetBoolFn is_fast_forward_enabled; // 10
+	GetBoolFn is_rewind_enabled; // 11
+	GetBoolFn is_next_enabled; // 12
+	GetBoolFn is_previous_enabled; // 13
+	GetBoolFn is_channel_up_enabled; // 14
+	GetBoolFn is_channel_down_enabled; // 15
+	GetBoolFn is_play_pause_toggle_enabled; // 16
+	GetBoolFn is_shuffle_enabled; // 17
+	GetBoolFn is_repeat_enabled; // 18
+	GetBoolFn is_playback_rate_enabled; // 19
+	GetBoolFn is_playback_position_enabled; // 20
 }
 
 <* An object of the playback controls interface. *>
@@ -260,7 +260,7 @@ struct AsyncBool
 }
 
 <* Runtime class name and interface identifiers the backend activates or queries. *>
-const String MANAGER_CLASS = "Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager";
+const String MANAGER_CLASS           = "Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager";
 // IGlobalSystemMediaTransportControlsSessionManagerStatics (windows-rs define_interface, 2050c4ee-...).
 const guid::Guid IID_MANAGER_STATICS = guid::guid("2050c4ee-11a0-57de-aed7-c97c70338245");
 

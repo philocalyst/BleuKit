@@ -9,21 +9,21 @@ import std::collections::list, std::collections::maybe, std::time, bleu::error, 
 <* One call to `host_processor_info`: per-processor load, aggregate first (index -1, as in /proc/stat). *>
 fn delta::CpuLine[]? processor_lines()
 {
-	uint count = 0;
+	uint count      = 0;
 	ProcessorLoad* loads;
 	uint info_count = 0;
-	CInt kr = host_processor_info(mach_host_self(), (CInt)PROCESSOR_CPU_LOAD_INFO, &count, &loads, &info_count);
+	CInt kr         = host_processor_info(mach_host_self(), (CInt)PROCESSOR_CPU_LOAD_INFO, &count, &loads, &info_count);
 	if (kr != 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, kr, "host_processor_info failed")~;
 	// The array is ours to release; its size in bytes is info_count integers.
 	defer (void)vm_deallocate(mach_task_self_, (ulong)loads, (ulong)info_count * 4);
 	delta::CpuLine[] lines = alloc::new_array(tmem, delta::CpuLine, (sz)count + 1);
-	delta::Ticks total = { .busy = 0, .total = 0 };
+	delta::Ticks total     = { .busy = 0, .total = 0 };
 	for (uint i = 0; i < count; i++)
 	{
-		ulong user = loads[i].cpu_ticks[CPU_STATE_USER];
-		ulong system = loads[i].cpu_ticks[CPU_STATE_SYSTEM];
-		ulong nice = loads[i].cpu_ticks[CPU_STATE_NICE];
-		ulong idle = loads[i].cpu_ticks[CPU_STATE_IDLE];
+		ulong user         = loads[i].cpu_ticks[CPU_STATE_USER];
+		ulong system       = loads[i].cpu_ticks[CPU_STATE_SYSTEM];
+		ulong nice         = loads[i].cpu_ticks[CPU_STATE_NICE];
+		ulong idle         = loads[i].cpu_ticks[CPU_STATE_IDLE];
 		delta::Ticks ticks = { .busy = user + system + nice, .total = user + system + nice + idle };
 		lines[i + 1] = { .index = (int)i, .ticks = ticks };
 		total.busy += ticks.busy;
@@ -55,9 +55,9 @@ fn Memory? memory_figures()
 	ulong total = 0;
 	sysctl_read("hw.memsize", &total, ulong::size)!;
 	VmStatistics64 vm = vm_statistics()!;
-	ulong page = (ulong)sys_getpagesize();
-	ulong pages = (ulong)vm.free_count + vm.inactive_count + vm.purgeable_count;
-	ulong available = sysinfo::sub_or_zero(pages, vm.compressor_page_count) * page;
+	ulong page        = (ulong)sys_getpagesize();
+	ulong pages       = (ulong)vm.free_count + vm.inactive_count + vm.purgeable_count;
+	ulong available   = sysinfo::sub_or_zero(pages, vm.compressor_page_count) * page;
 	if (available > total) available = total;
 	XswUsage swap;
 	sysctl_read("vm.swapusage", &swap, @sizeof(swap))!;
@@ -75,7 +75,7 @@ fn VmStatistics64? vm_statistics()
 {
 	VmStatistics64 stats;
 	uint count = (uint)(@sizeof(stats) / 4);
-	CInt kr = host_statistics64(mach_host_self(), HOST_VM_INFO64, &stats, &count);
+	CInt kr    = host_statistics64(mach_host_self(), HOST_VM_INFO64, &stats, &count);
 	if (kr != 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, kr, "host_statistics64 failed")~;
 	return stats;
 }
@@ -95,7 +95,12 @@ fn Mount[]? read_mounts(Allocator allocator)
 {
 	Statfs* table;
 	CInt count = mount_table(&table);
-	if (count <= 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "getmntinfo returned no mounts")~;
+	if (count <= 0) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.MACH,
+		0,
+		"getmntinfo returned no mounts"
+	)~;
 	List{Mount} mounts;
 	mounts.init(tmem);
 	for (CInt i = 0; i < count; i++)
@@ -103,17 +108,15 @@ fn Mount[]? read_mounts(Allocator allocator)
 		Statfs* entry = &table[i];
 		String device = ((ZString)&entry.f_mntfromname).str_view();
 		if (!device.starts_with("/dev/") || has_device(&mounts, device)) continue;
-		ulong unit = entry.f_bsize;
+		ulong unit  = entry.f_bsize;
 		Bytes total = entry.f_blocks * unit;
-		Bytes free = entry.f_bfree * unit;
-		mounts.push({
-			.device = device.copy(allocator),
-			.mount_point = ((ZString)&entry.f_mntonname).str_view().copy(allocator),
-			.fs_type = ((ZString)&entry.f_fstypename).str_view().copy(allocator),
-			.total = total,
-			.used = total - free,
-			.available = entry.f_bavail * unit,
-		});
+		Bytes free  = entry.f_bfree * unit;
+		mounts.push(
+			{
+				.device = device.copy(allocator),
+				.mount_point = ((ZString)&entry.f_mntonname).str_view()
+			.copy(allocator), .fs_type = ((ZString)&entry.f_fstypename).str_view()
+				.copy(allocator), .total = total, .used = total - free, .available = entry.f_bavail * unit, });
 	}
 	return alloc::clone_slice(allocator, mounts.array_view());
 }
@@ -143,11 +146,10 @@ fn delta::NetCounters[]? read_interfaces()
 		if (entry.addr == null || (int)entry.addr.family != AF_LINK) continue;
 		if ((entry.flags & IFF_LOOPBACK) != 0 || entry.data == null) continue;
 		IfData* data = (IfData*)entry.data;
-		counters.push({
-			.name = ((ZString)entry.name).str_view().copy(tmem),
-			.received = data.ifi_ibytes,
-			.sent = data.ifi_obytes,
-		});
+		counters.push(
+			{
+				.name = ((ZString)entry.name).str_view()
+			.copy(tmem), .received = data.ifi_ibytes, .sent = data.ifi_obytes, });
 	}
 	return alloc::clone_slice(tmem, counters.array_view());
 }
@@ -159,7 +161,7 @@ fn sysinfo::ProcessSample[]? read_processes(MachBackend* backend, Duration elaps
 	if (needed <= 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "proc_listpids sizing failed")~;
 	// pid_t is a 32-bit integer.
 	CInt[] pids = alloc::new_array(tmem, CInt, (sz)needed / 4);
-	CInt bytes = proc_listpids(PROC_ALL_PIDS, 0, pids.ptr, needed);
+	CInt bytes  = proc_listpids(PROC_ALL_PIDS, 0, pids.ptr, needed);
 	if (bytes <= 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "proc_listpids failed")~;
 	List{sysinfo::ProcessSample} samples;
 	samples.init(tmem);
@@ -183,11 +185,17 @@ fn sysinfo::ProcessSample? read_process(MachBackend* backend, uint pid, Duration
 	}
 	ProcTaskInfo task;
 	// Another account's task info is refused; the process is still listed, without memory and CPU.
-	bool has_task = proc_pidinfo((CInt)pid, PROC_PIDTASKINFO, 0, &task, (CInt)@sizeof(task)) == (CInt)@sizeof(task);
-	ulong started = bsd.pbi_start_tvsec * 1_000_000 + bsd.pbi_start_tvusec;
-	ulong nanoseconds = 0;
-	Maybe{Percent} cpu = {};
-	Maybe{Bytes} memory = {};
+	bool has_task       = proc_pidinfo(
+		(CInt)pid,
+		PROC_PIDTASKINFO,
+		0,
+		&task,
+		(CInt)@sizeof(task)
+	) == (CInt)@sizeof(task);
+	ulong started       = bsd.pbi_start_tvsec * 1_000_000 + bsd.pbi_start_tvusec;
+	ulong nanoseconds   = 0;
+	Maybe{Percent} cpu  = { };
+	Maybe{Bytes} memory = { };
 	if (has_task)
 	{
 		nanoseconds = to_nanoseconds(backend.timebase, task.pti_total_user + task.pti_total_system);
@@ -200,15 +208,17 @@ fn sysinfo::ProcessSample? read_process(MachBackend* backend, uint pid, Duration
 	return {
 		.process = {
 			.pid = pid,
-			.name = ((ZString)&bsd.pbi_comm).str_view().copy(tmem),
-			.command = "",
-			.user = user_of(bsd.pbi_uid),
-			.cpu = cpu,
-			.memory = memory,
-		},
-		// A process without task info keeps start time 0, which no real process has, so its next CPU share stays unknown.
-		.ticks = { .pid = pid, .started = has_task ? started : 0, .ticks = nanoseconds },
-	};
+			.name = ((ZString)&bsd.pbi_comm).str_view()
+		.copy(
+			tmem
+		), .command = "", .user = user_of(
+			bsd.pbi_uid
+		), .cpu = cpu, .memory = memory, }, // A process without task info keeps start time 0, which no real process has, so its next CPU share stays unknown.
+		.ticks = {
+			.pid = pid,
+			.started = has_task ? started : 0,
+			.ticks = nanoseconds
+		}, };
 }
 
 // Mach absolute-time ticks to nanoseconds (mach_timebase_info: ns = ticks * numer / denom).
@@ -245,16 +255,30 @@ fn void? sysctl_read(String name, void* buffer, usz size)
 	{
 		return unix::errno_fault("sysctlbyname", libc::errno())~;
 	}
-	if (length != size) return error::raise(error::PROTOCOL, error::Domain.MACH, 0, "%s has %d bytes, expected %d", name, length, size)~;
+	if (length != size) return error::raise(
+		error::PROTOCOL,
+		error::Domain.MACH,
+		0,
+		"%s has %d bytes, expected %d",
+		name,
+		length,
+		size
+	)~;
 }
 
 <* A string sysctl, copied into tmem. *>
 fn String? sysctl_text(String name)
 {
 	ZString key = name.zstr_tcopy();
-	usz length = 0;
+	usz length  = 0;
 	if (sys_sysctlbyname(key, null, &length, null, 0) != 0) return unix::errno_fault("sysctlbyname", libc::errno())~;
 	char[] buffer = alloc::new_array(tmem, char, (sz)length);
-	if (sys_sysctlbyname(key, buffer.ptr, &length, null, 0) != 0) return unix::errno_fault("sysctlbyname", libc::errno())~;
+	if (sys_sysctlbyname(
+		key,
+		buffer.ptr,
+		&length,
+		null,
+		0
+	) != 0) return unix::errno_fault("sysctlbyname", libc::errno())~;
 	return ((ZString)buffer.ptr).str_view().copy(tmem);
 }

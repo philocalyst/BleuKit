@@ -41,7 +41,7 @@ fn void run_sampler(Sampler* sampler, SysinfoHub* hub, Host{Command}* host, Dura
 	Clock previous_start = clock::now();
 	while (!host.stopping())
 	{
-		Clock started = clock::now();
+		Clock started    = clock::now();
 		Duration elapsed = (started - previous_start).to_duration();
 		previous_start = started;
 		publish_sample(sampler, hub, elapsed);

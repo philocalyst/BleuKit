@@ -37,6 +37,19 @@ fn uint byte_of(Value props, String key)
 	return 0;
 }
 
+<* The reason of a `(uu)` StateReason property (state, reason); 0 when absent. *>
+fn uint reason_of(Value props, String key)
+{
+	if (try v = props.dict_get(key))
+	{
+		if (try reason = v.at(1))
+		{
+			if (try n = reason.as_u32()) return n;
+		}
+	}
+	return 0;
+}
+
 fn long long_of(Value props, String key)
 {
 	if (try v = props.dict_get(key))

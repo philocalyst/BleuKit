@@ -17,8 +17,7 @@
  (`Operation{Value}*`) that the caller releases; the worker completes it once.
 *>
 module bleu::power;
-import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation,
-	bleu::stream, bleu::service;
+import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::service;
 
 alias PowerHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};
@@ -57,7 +56,7 @@ fn Power*? open(Allocator allocator, Options options = { })
 	Driver* driver = select_driver(options)!;
 	Power* self    = alloc::new(allocator, Power);
 	self.allocator = allocator;
-	self.driver    = driver;
+	self.driver = driver;
 	self.capabilities.init(availability::no(availability::Reason.BACKEND_STOPPED, "the mechanism has not started"));
 	self.startup.init();
 	void*? state = driver.create(allocator, options, &self.capabilities, &self.startup);
@@ -147,7 +146,7 @@ fn ProfileOperation*? Power.set_profile(&self, Profile profile)
 	}
 	check_capability(self, PROFILE_SET)!;
 	ProfileOperation* operation = operation::begin{Profile}(self.allocator);
-	Command command = { .kind = SET_PROFILE, .profile = profile, .profile_op = operation };
+	Command command             = { .kind = SET_PROFILE, .profile = profile, .profile_op = operation };
 	if (catch err = post_retained{Profile}(self, command, operation))
 	{
 		operation.release();
@@ -169,7 +168,12 @@ fn HoldOperation*? Power.hold_profile(&self, Profile profile, String reason)
 {
 	if (profile != POWER_SAVER && profile != PERFORMANCE)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "only power-saver and performance can be held")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"only power-saver and performance can be held"
+		)~;
 	}
 	check_capability(self, PROFILE_HOLD)!;
 	HoldOperation* operation = operation::begin{ProfileHold}(self.allocator);
@@ -231,7 +235,7 @@ fn InhibitOperation*? Power.inhibit(&self, InhibitKind kind, String who, String 
 fn AvailabilityOperation*? Power.can(&self, Action action)
 {
 	AvailabilityOperation* operation = operation::begin{Availability}(self.allocator);
-	Command command = { .kind = CAN, .action = action, .can_op = operation };
+	Command command                  = { .kind = CAN, .action = action, .can_op = operation };
 	if (catch err = post_retained{Availability}(self, command, operation))
 	{
 		operation.release();
@@ -255,7 +259,7 @@ fn ActionOperation*? Power.perform(&self, Action action)
 {
 	check_capability(self, action_cap(action))!;
 	ActionOperation* operation = operation::begin{Action}(self.allocator);
-	Command command = { .kind = PERFORM, .action = action, .action_op = operation };
+	Command command            = { .kind = PERFORM, .action = action, .action_op = operation };
 	if (catch err = post_retained{Action}(self, command, operation))
 	{
 		operation.release();
@@ -273,16 +277,20 @@ fn ActionOperation*? Power.perform(&self, Action action)
 fn void? Power.ack(&self, uint ticket) => self.hub.post({ .kind = ACK_SLEEP, .number = ticket });
 
 <* Release the profile hold. The release is queued; a hold that the daemon no longer knows is already gone. *>
-fn void? ProfileHold.release(&self) => self.owner.hub.post({ .kind = RELEASE_PROFILE, .number = self.cookie, .owner = self.owner });
+fn void? ProfileHold.release(
+	&self
+) => self.owner.hub.post({ .kind = RELEASE_PROFILE, .number = self.cookie, .owner = self.owner });
 
 <* Release the inhibitor. The release is queued and cannot fail: closing the descriptor is what releases it. *>
-fn void? Inhibitor.release(&self) => self.owner.hub.post({ .kind = RELEASE_INHIBITOR, .number = self.id, .owner = self.owner });
+fn void? Inhibitor.release(
+	&self
+) => self.owner.hub.post({ .kind = RELEASE_INHIBITOR, .number = self.id, .owner = self.owner });
 
 <*
  Complete `operation` with `value` and drop the worker's reference to it.
  Called by the worker only; a failed request uses `abort`.
 *>
-fn void finish(Operation{Value}* operation, Value value) <Value>
+fn void finish(Operation{Value}* operation, Value value)<Value>
 {
 	operation.succeed(value);
 	operation.release();
@@ -292,7 +300,7 @@ fn void finish(Operation{Value}* operation, Value value) <Value>
  End `operation` with `failure` and drop the worker's reference to it. Called by
  the worker when a request cannot be carried out at all.
 *>
-fn void abort(Operation{Value}* operation, fault failure) <Value>
+fn void abort(Operation{Value}* operation, fault failure)<Value>
 {
 	operation.fail(failure);
 	operation.release();
@@ -319,7 +327,7 @@ fn void abort_command(Command* command, fault failure)
 
 // Give the worker its own reference, then queue the command. On failure the
 // worker's reference is dropped again; the caller still holds its own.
-fn void? post_retained(Power* self, Command command, Operation{Value}* operation) <Value> @private
+fn void? post_retained(Power* self, Command command, Operation{Value}* operation)<Value> @private
 {
 	operation.retain();
 	if (catch err = self.hub.post(command))

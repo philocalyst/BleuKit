@@ -22,7 +22,7 @@ fn void sort_busiest(Process[] processes)
 	for (sz i = 1; i < processes.len; i++)
 	{
 		Process key = processes[i];
-		sz j = i - 1;
+		sz j        = i - 1;
 		while (j >= 0 && precedes(&key, &processes[j]))
 		{
 			processes[j + 1] = processes[j];

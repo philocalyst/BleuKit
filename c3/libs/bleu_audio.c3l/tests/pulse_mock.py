@@ -93,7 +93,7 @@ def enc_s64(v):
 
 def enc_sample_spec():
     # format 3 = S16LE, 2 channels, 44100 Hz (pulse/sample.h order: format, channels, rate)
-    return TAG_SAMPLE_SPEC + struct.pack("BBI", 3, 2, 44100)
+    return TAG_SAMPLE_SPEC + struct.pack(">BBI", 3, 2, 44100)
 
 
 def enc_channel_map(positions):

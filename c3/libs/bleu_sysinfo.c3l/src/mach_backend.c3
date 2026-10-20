@@ -36,16 +36,28 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 {
 	capabilities.init(availability::YES);
 	capabilities.set(CPU_FREQUENCY, availability::no(UNSUPPORTED_BACKEND, "macOS has no public per-core clock API"));
-	capabilities.set(TEMPERATURES, availability::no(UNSUPPORTED_BACKEND, "sensors need the private SMC interface, not implemented"));
-	capabilities.set(PROCESS_COMMAND, availability::no(UNSUPPORTED_BACKEND, "full command lines need KERN_PROCARGS2, not implemented"));
+	capabilities.set(
+		TEMPERATURES,
+		availability::no(UNSUPPORTED_BACKEND, "sensors need the private SMC interface, not implemented")
+	);
+	capabilities.set(
+		PROCESS_COMMAND,
+		availability::no(UNSUPPORTED_BACKEND, "full command lines need KERN_PROCARGS2, not implemented")
+	);
 	TimebaseInfo timebase;
-	if (mach_timebase_info(&timebase) != 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "mach_timebase_info failed")~;
-	MachBackend* backend = alloc::new(allocator, MachBackend, {
-		.allocator = allocator,
-		.interval = options.interval,
-		.process_count = options.process_count,
-		.timebase = timebase,
-	});
+	if (mach_timebase_info(
+		&timebase
+	) != 0) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "mach_timebase_info failed")~;
+	MachBackend* backend = alloc::new(
+		allocator,
+		MachBackend,
+		{
+			.allocator = allocator,
+			.interval = options.interval,
+			.process_count = options.process_count,
+			.timebase = timebase,
+		}
+	);
 	backend.previous_cpu.init(allocator);
 	backend.previous_net.init(allocator);
 	backend.previous_processes.init(allocator);
@@ -67,7 +79,7 @@ fn void destroy(Allocator allocator, void* state)
 
 fn void run(void* state, SysinfoHub* hub, Host{Command}* host)
 {
-	MachBackend* backend = (MachBackend*)state;
+	MachBackend* backend     = (MachBackend*)state;
 	sysinfo::Sampler sampler = { .reader = backend, .sample = &sample };
 	sysinfo::run_sampler(&sampler, hub, host, backend.interval);
 }
@@ -79,18 +91,18 @@ fn void run(void* state, SysinfoHub* hub, Host{Command}* host)
 fn void? sample(void* reader, Snapshot{State}* snapshot, Duration elapsed)
 {
 	MachBackend* backend = (MachBackend*)reader;
-	Allocator allocator = snapshot.allocator();
-	State* state = &snapshot.value;
+	Allocator allocator  = snapshot.allocator();
+	State* state         = &snapshot.value;
 	@pool()
 	{
 		delta::CpuLine[] lines = processor_lines()!;
-		uint processors = sysinfo::count_processors(lines);
+		uint processors        = sysinfo::count_processors(lines);
 		sysinfo::fill_cpu(&state.cpu, allocator, lines, backend.previous_cpu.array_view());
 		state.cpu.model = (sysctl_text("machdep.cpu.brand_string") ?? "").copy(allocator);
 		LoadAverage[3] averages = load_averages()!;
 		foreach (i, &average : averages)
 		{
-			state.cpu.load_average[i] = maybe::value(average);
+			state.cpu.load_average[i] = maybe::value(*average);
 		}
 		state.memory = memory_figures()!;
 		state.mounts = read_mounts(allocator)!;

@@ -62,7 +62,7 @@ struct ProcessTicks
 *>
 fn Maybe{Percent} busy_percent(Ticks before, Ticks now)
 {
-	if (now.total <= before.total || now.busy < before.busy) return {};
+	if (now.total <= before.total || now.busy < before.busy) return { };
 	double share = (double)(now.busy - before.busy) / (double)(now.total - before.total);
 	if (share > 1.0) share = 1.0;
 	return maybe::value((Percent)(share * 100.0));
@@ -76,7 +76,7 @@ fn Maybe{Percent} busy_percent(Ticks before, Ticks now)
 *>
 fn Maybe{BytesPerSecond} byte_rate(ulong before, ulong now, Duration elapsed)
 {
-	if (elapsed <= time::DURATION_ZERO || now < before) return {};
+	if (elapsed <= time::DURATION_ZERO || now < before) return { };
 	double seconds = (double)elapsed / MICROSECONDS_PER_SECOND;
 	return maybe::value((BytesPerSecond)((double)(now - before) / seconds + 0.5));
 }
@@ -89,12 +89,18 @@ fn Maybe{BytesPerSecond} byte_rate(ulong before, ulong now, Duration elapsed)
  @param ticks_per_second : "Ticks of the process clock per second (USER_HZ on Linux, 10^7 for Windows 100 ns units)"
  @param processors : "Logical processors the system has"
 *>
-fn Maybe{Percent} process_percent(ulong ticks_before, ulong ticks_now, ulong ticks_per_second, Duration elapsed, uint processors)
+fn Maybe{Percent} process_percent(
+	ulong ticks_before,
+	ulong ticks_now,
+	ulong ticks_per_second,
+	Duration elapsed,
+	uint processors
+)
 {
-	if (elapsed <= time::DURATION_ZERO || ticks_per_second == 0 || ticks_now < ticks_before) return {};
+	if (elapsed <= time::DURATION_ZERO || ticks_per_second == 0 || ticks_now < ticks_before) return { };
 	double cpu_seconds = (double)(ticks_now - ticks_before) / (double)ticks_per_second;
-	double share = cpu_seconds / ((double)elapsed / MICROSECONDS_PER_SECOND) * 100.0;
-	double ceiling = (double)processors * 100.0;
+	double share       = cpu_seconds / ((double)elapsed / MICROSECONDS_PER_SECOND) * 100.0;
+	double ceiling     = (double)processors * 100.0;
 	if (share > ceiling) share = ceiling;
 	return maybe::value((Percent)share);
 }

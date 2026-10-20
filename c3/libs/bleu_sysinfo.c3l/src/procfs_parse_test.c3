@@ -52,7 +52,10 @@ fn void meminfo_matches_the_sample() @test
 		test::eq(info.available, 15472216UL * 1024);
 		test::eq(info.swap_total, 0UL);
 		test::eq(info.shmem, 14968UL * 1024);
-		test::eq(info.buffers + info.cached + info.sreclaimable - info.shmem, (103580UL + 1469600 + 119360 - 14968) * 1024);
+		test::eq(
+			info.buffers + info.cached + info.sreclaimable - info.shmem,
+			(103580UL + 1469600 + 119360 - 14968) * 1024
+		);
 	};
 }
 
@@ -62,7 +65,7 @@ fn void meminfo_without_available_is_estimated() @test
 {
 	@pool()
 	{
-		String text = "MemTotal: 1000 kB\nMemFree: 100 kB\nBuffers: 50 kB\nCached: 200 kB\nSReclaimable: 30 kB\nShmem: 20 kB\nSwapTotal: 8 kB\nSwapFree: 2 kB\n";
+		String text  = "MemTotal: 1000 kB\nMemFree: 100 kB\nBuffers: 50 kB\nCached: 200 kB\nSReclaimable: 30 kB\nShmem: 20 kB\nSwapTotal: 8 kB\nSwapFree: 2 kB\n";
 		MemInfo info = procfs::parse_meminfo(text)!!;
 		test::eq(info.available, 360UL * 1024);
 		test::eq(info.swap_total - info.swap_free, 6UL * 1024);
@@ -149,7 +152,7 @@ fn void pid_stat_with_a_hostile_name() @test
 {
 	@pool()
 	{
-		String text = "42 (my (odd) name) S 1 42 42 0 -1 0 0 0 0 0 5 7 0 0 20 0 1 0 999\n";
+		String text       = "42 (my (odd) name) S 1 42 42 0 -1 0 0 0 0 0 5 7 0 0 20 0 1 0 999\n";
 		StatFields fields = procfs::parse_pid_stat(text)!!;
 		test::@check(fields.name == "my (odd) name", "name is everything between the first ( and the last )");
 		test::eq(fields.utime, 5UL);
@@ -217,4 +220,3 @@ fn void sysfs_names_and_millidegrees() @test
 		test::@error(procfs::celsius_from_millidegrees("warm"), error::PROTOCOL);
 	};
 }
-

@@ -5,8 +5,7 @@
  operation it was given.
 *>
 module bleu::power::logind @feat(LINUX);
-import bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::value, bleu::dbus::proxy, bleu::availability, bleu::error, bleu::power, bleu::power::convert,
-	bleu::rt::unix, bleu::service;
+import bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::value, bleu::dbus::proxy, bleu::availability, bleu::error, bleu::power, bleu::power::convert, bleu::rt::unix, bleu::service;
 
 <* One request dispatched by the worker. Requests with no operation report nothing. *>
 fn void dispatch(Logind* b, Command* command)
@@ -99,7 +98,12 @@ fn ProfileHold? hold_profile(Logind* b, Command* command)
 {
 	if (!b.has_modern_profiles)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "the legacy interface cannot hold profiles")~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"the legacy interface cannot hold profiles"
+		)~;
 	}
 	String name = convert::profile_name(command.profile)!;
 	uint cookie = hold_call(b, name, command.why)!;
@@ -153,8 +157,8 @@ fn InhibitRequest? inhibit_request(InhibitKind kind)
 fn Inhibitor? inhibit(Logind* b, Command* command)
 {
 	InhibitRequest request = inhibit_request(command.inhibit)!;
-	unix::Fd fd = inhibit_fd(b, request.what, command.who, command.why, request.mode)!;
-	uint id = ++b.next_lock;
+	unix::Fd fd            = inhibit_fd(b, request.what, command.who, command.why, request.mode)!;
+	uint id                = ++b.next_lock;
 	b.locks.push({ .id = id, .fd = fd });
 	return { .id = id, .owner = command.owner };
 }
@@ -171,8 +175,8 @@ fn unix::Fd? inhibit_fd(Logind* b, String what, String who, String why, String m
 	writer.append_string(mode)!;
 	Message* reply = b.bus.call(call)!;
 	defer reply.release();
-	uint index = reply.reader()!.read_unix_fd()!;
-	int raw = reply.unix_fd(index)!;
+	uint index        = reply.reader()!.read_unix_fd()!;
+	int raw           = reply.unix_fd(index)!;
 	unix::Fd received = { .value = raw };
 	return received.dup_cloexec();
 }
@@ -184,7 +188,9 @@ fn void release_inhibitor(Logind* b, uint id)
 	{
 		if (held.id != id) continue;
 		// Fd.close releases the descriptor even when close(2) fails; there is nothing to retry.
-		if (catch err = held.fd.close()) {}
+		if (catch err = held.fd.close())
+		{
+		}
 		b.locks.remove_at(i);
 		return;
 	}
@@ -251,5 +257,7 @@ fn void acknowledge(Logind* b, uint ticket)
 	if (b.barrier_ticket == 0 || b.barrier_ticket != ticket) return;
 	b.barrier_ticket = 0;
 	// Fd.close releases the descriptor even when close(2) fails; there is nothing to retry.
-	if (catch err = b.barrier.close()) {}
+	if (catch err = b.barrier.close())
+	{
+	}
 }

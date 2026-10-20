@@ -112,49 +112,46 @@ def dict_entry_for(index):
     return device_props(index, name, cls, icon, uuids, rssi, modalias)
 
 
-class Properties(ServiceInterface):
-    """org.freedesktop.DBus.Properties for one object path, backed by OBJECTS."""
+def set_property(path, interface, name, value):
+    """Properties.Set, with the writable check and BlueZ's PowerState kept in step with Powered."""
+    props = OBJECTS[path][interface]
+    if name not in props:
+        raise DBusError('org.freedesktop.DBus.Error.UnknownProperty', name)
+    if name not in WRITABLE.get(interface, set()):
+        raise DBusError('org.freedesktop.DBus.Error.PropertyReadOnly', name)
+    sig = props[name][0]
+    if name == 'Alias' and value == '':
+        value = props.get('Name', (None, ''))[1]
+    props[name] = (sig, value)
+    emit_properties_changed(path, interface, {name: Variant(sig, value)})
+    if interface == ADAPTER_IFACE and name == 'Powered':
+        props['PowerState'] = ('s', 'on' if value else 'off')
+        emit_properties_changed(path, interface, {'PowerState': Variant('s', props['PowerState'][1])})
 
-    def __init__(self, path):
-        super().__init__(PROPERTIES_IFACE)
-        self.path = path
 
-    def _props(self, iface):
-        ifaces = OBJECTS.get(self.path, {})
-        if iface not in ifaces:
-            raise DBusError('org.freedesktop.DBus.Error.UnknownInterface', f'no {iface} on {self.path}')
-        return ifaces[iface]
-
-    @method()
-    def Get(self, interface: 's', name: 's') -> 'v':
-        props = self._props(interface)
-        if name not in props:
-            raise DBusError('org.freedesktop.DBus.Error.UnknownProperty', name)
-        sig, value = props[name]
-        return Variant(sig, value)
-
-    @method()
-    def GetAll(self, interface: 's') -> 'a{sv}':
-        return {k: Variant(sig, v) for k, (sig, v) in self._props(interface).items()}
-
-    @method()
-    def Set(self, interface: 's', name: 's', value: 'v'):
-        props = self._props(interface)
-        if name not in props:
-            raise DBusError('org.freedesktop.DBus.Error.UnknownProperty', name)
-        if name not in WRITABLE.get(interface, set()):
-            raise DBusError('org.freedesktop.DBus.Error.PropertyReadOnly', name)
-        sig = props[name][0]
-        new = value.value
-        if name == 'Alias' and new == '':
-            new = props.get('Name', (None, ''))[1]
-        props[name] = (sig, new)
-        changed = {name: Variant(sig, new)}
-        emit_properties_changed(self.path, interface, changed)
-        if interface == ADAPTER_IFACE and name == 'Powered':
-            props_pw = OBJECTS[self.path][ADAPTER_IFACE]
-            props_pw['PowerState'] = ('s', 'on' if new else 'off')
-            emit_properties_changed(self.path, interface, {'PowerState': Variant('s', props_pw['PowerState'][1])})
+def answer_properties(msg):
+    """Serves org.freedesktop.DBus.Properties (Get, GetAll, Set) for every exported object by hand."""
+    if msg.message_type != MessageType.METHOD_CALL or msg.interface != PROPERTIES_IFACE or msg.path not in OBJECTS:
+        return None
+    try:
+        if msg.member == 'Get':
+            interface, name = msg.body
+            props = OBJECTS[msg.path].get(interface)
+            if props is None or name not in props:
+                raise DBusError('org.freedesktop.DBus.Error.UnknownProperty', name)
+            sig, value = props[name]
+            return Message.new_method_return(msg, 'v', [Variant(sig, value)])
+        if msg.member == 'GetAll':
+            interface = msg.body[0]
+            props = OBJECTS[msg.path].get(interface, {})
+            return Message.new_method_return(msg, 'a{sv}', [{k: Variant(sig, v) for k, (sig, v) in props.items()}])
+        if msg.member == 'Set':
+            interface, name, variant = msg.body
+            set_property(msg.path, interface, name, variant.value)
+            return Message.new_method_return(msg, '', [])
+    except DBusError as error:
+        return Message.new_error(msg, error.type, error.text)
+    return None
 
 
 def emit_properties_changed(path, interface, changed):
@@ -282,37 +279,41 @@ class Device(ServiceInterface):
         self._set('Connected', False)
 
 
-class ObjectManager(ServiceInterface):
-    def __init__(self):
-        super().__init__(OBJECT_MANAGER_IFACE)
+def managed_objects():
+    """The GetManagedObjects reply: every object with its interfaces and their properties."""
+    return {path: {name: {k: Variant(sig, v) for k, (sig, v) in props.items()}
+                   for name, props in ifaces.items()}
+            for path, ifaces in OBJECTS.items()}
 
-    @method()
-    def GetManagedObjects(self) -> 'a{oa{sa{sv}}}':
-        out = {}
-        for path, ifaces in OBJECTS.items():
-            out[path] = {name: {k: Variant(sig, v) for k, (sig, v) in props.items()}
-                         for name, props in ifaces.items()}
-        return out
+
+def answer_object_manager(msg):
+    """Serves GetManagedObjects at / by hand: dbus-next's own ObjectManager ignores undecorated properties."""
+    if (msg.message_type == MessageType.METHOD_CALL and msg.path == '/'
+            and msg.interface == OBJECT_MANAGER_IFACE and msg.member == 'GetManagedObjects'):
+        return Message.new_method_return(msg, 'a{oa{sa{sv}}}', [managed_objects()])
+    return None
+
+
+def answer_standard(msg):
+    return answer_properties(msg) or answer_object_manager(msg)
 
 
 async def main():
     global BUS
     BUS = await MessageBus().connect()
     OBJECTS[ADAPTER_PATH] = adapter_objects()
-    SERVICES[ADAPTER_PATH] = [Properties(ADAPTER_PATH), Adapter()]
+    SERVICES[ADAPTER_PATH] = [Adapter()]
     for service in SERVICES[ADAPTER_PATH]:
         BUS.export(ADAPTER_PATH, service)
     first = device_props(1, 'Bleu Headset', 0x418, 'audio-headset', [A2DP_SINK, HFP_HANDSFREE],
                          None, 'usb:v1D6Bp0246d0533')
     first[BATTERY_IFACE] = {'Percentage': ('y', 75)}
     OBJECTS[device_path(1)] = first
-    SERVICES[device_path(1)] = [Properties(device_path(1)), Device(1)]
+    SERVICES[device_path(1)] = [Device(1)]
     for service in SERVICES[device_path(1)]:
         BUS.export(device_path(1), service)
     # Devices 2-4 are created by StartDiscovery, through the scan, not at start.
-    root = ObjectManager()
-    SERVICES['/'] = [root]
-    BUS.export('/', root)
+    BUS.add_message_handler(answer_standard)
     await BUS.request_name('org.bluez')
     print('READY', flush=True)
     await asyncio.Future()
@@ -322,7 +323,7 @@ def export(path, props):
     """Exports a scanned device with its Properties and Device1 methods, and announces it."""
     OBJECTS[path] = props
     index = int(path[-2:], 16)
-    SERVICES[path] = [Properties(path), Device(index)]
+    SERVICES[path] = [Device(index)]
     for service in SERVICES[path]:
         BUS.export(path, service)
     emit_interfaces_added(path)

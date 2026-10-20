@@ -51,8 +51,8 @@ struct State
 }
 
 <*
- A capability of the service. Each one is answered by `Battery.capability`-style
- queries with an `Availability`, so a shell can grey out what cannot work here.
+ A capability of the service. The service answers each one with an `Availability` through
+ `Power.capability`, so a shell can grey out what cannot work here, and say why.
 *>
 enum Cap : char
 {

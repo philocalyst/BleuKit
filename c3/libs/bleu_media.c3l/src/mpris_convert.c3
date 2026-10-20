@@ -14,15 +14,15 @@ module bleu::media::mpris_convert;
 import std::collections::maybe, std::time, bleu::dbus::value, bleu::dbus::names, bleu::media, bleu::unit;
 
 <* Prefix of every Backend.MPRIS bus name, including the trailing dot (2.2 "Bus Name Policy"). *>
-const String BUS_NAME_PREFIX = "org.mpris.MediaPlayer2.";
+const String BUS_NAME_PREFIX  = "org.mpris.MediaPlayer2.";
 <* Object path of the root and Player interfaces (2.2 "Entry point"). *>
-const String OBJECT_PATH = "/org/mpris/MediaPlayer2";
+const String OBJECT_PATH      = "/org/mpris/MediaPlayer2";
 <* The root interface: Raise, Quit, Identity, DesktopEntry, CanRaise, CanQuit. *>
-const String ROOT_INTERFACE = "org.mpris.MediaPlayer2";
+const String ROOT_INTERFACE   = "org.mpris.MediaPlayer2";
 <* The Player interface: transport, position, metadata, volume. *>
 const String PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player";
 <* Object path a player uses for "no track" (2.2 `TrackId`). *>
-const String NO_TRACK_PATH = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
+const String NO_TRACK_PATH    = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
 
 <* True for a bus name that an Backend.MPRIS player may own (prefix plus at least one more character). *>
 fn bool is_player_name(String name) => name.len > BUS_NAME_PREFIX.len && name.starts_with(BUS_NAME_PREFIX);
@@ -67,14 +67,14 @@ fn String track_id_of(String path)
 <* A length in microseconds as a track length. Zero or negative is unknown. *>
 fn Maybe{Duration} length_of(long microseconds)
 {
-	if (microseconds <= 0) return {};
+	if (microseconds <= 0) return { };
 	return maybe::value((Duration)microseconds);
 }
 
 <* A volume as a `Level`. NaN is unknown; above 1.0 is clamped, because `Level` cannot hold it. *>
 fn Maybe{Level} volume_of(double volume)
 {
-	if (volume != volume) return {};
+	if (volume != volume) return { };
 	return maybe::value(unit::level((float)volume));
 }
 
@@ -107,10 +107,10 @@ fn Playback effective_status(Playback reported, PlaybackRate rate)
 *>
 fn Controls controls_of(Value player, Value root)
 {
-	bool control = flag_of(player, "CanControl");
-	bool can_play = control && flag_of(player, "CanPlay");
+	bool control   = flag_of(player, "CanControl");
+	bool can_play  = control && flag_of(player, "CanPlay");
 	bool can_pause = control && flag_of(player, "CanPause");
-	bool can_seek = control && flag_of(player, "CanSeek");
+	bool can_seek  = control && flag_of(player, "CanSeek");
 	return {
 		.play = can_play,
 		.pause = can_pause,
@@ -149,7 +149,7 @@ fn Track track_of(Value metadata, Allocator allocator)
 <* A copy of `track` whose strings live in `allocator`. *>
 fn Track copy_track(Track* track, Allocator allocator)
 {
-	String[] artists = {};
+	String[] artists = { };
 	if (track.artists.len > 0)
 	{
 		artists = alloc::new_array(allocator, String, track.artists.len);
@@ -222,9 +222,9 @@ fn String[] artists_of(Value dict, String key, Allocator allocator)
 	if (try list = dict.dict_get(key))
 	{
 		usz count = list.count();
-		if (count == 0) return {};
+		if (count == 0) return { };
 		String[] artists = alloc::new_array(allocator, String, (sz)count);
-		usz kept = 0;
+		usz kept         = 0;
 		for (usz i = 0; i < count; i++)
 		{
 			if (try item = list.at(i))
@@ -237,5 +237,5 @@ fn String[] artists_of(Value dict, String key, Allocator allocator)
 		}
 		return artists[0:(sz)kept];
 	}
-	return {};
+	return { };
 }

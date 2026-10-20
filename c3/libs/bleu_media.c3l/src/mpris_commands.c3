@@ -96,15 +96,25 @@ fn void? Session.set_position(&self, Record* r, Command* c)
 	{
 		if (!r.position.has_value)
 		{
-			return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the player has not reported a position")~;
+			return error::raise(
+				error::UNAVAILABLE,
+				error::Domain.INTERNAL,
+				0,
+				"the player has not reported a position"
+			)~;
 		}
 		Duration now = media::monotonic_now();
-		Duration at = media::position_at(r.position.value, r.status, r.rate, r.track.length, now);
+		Duration at  = media::position_at(r.position.value, r.status, r.rate, r.track.length, now);
 		return self.call_offset(&r.player, c.amount - at);
 	}
 	if (c.track_id() != r.track.id)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "the track changed before the request arrived")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"the track changed before the request arrived"
+		)~;
 	}
 	Message* call = r.player.new_call(self.allocator, "SetPosition")!;
 	defer call.release();

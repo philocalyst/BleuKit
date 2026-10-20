@@ -4,13 +4,13 @@
 module bleu::media::live_test;
 import std::io, std::time, std::os::env, std::collections::maybe, bleu::observe, bleu::availability, bleu::error, bleu::media, bleu::operation, bleu::stream, bleu::unit, bleu::dbus::connection, bleu::dbus::proxy, bleu::dbus::message, bleu::dbus::marshal;
 
-const String ADDRESS_VAR = "DBUS_SESSION_BUS_ADDRESS";
-const String CONTROL_NAME = "org.bleu.MediaTest";
-const String CONTROL_PATH = "/org/bleu/MediaTest";
-const String ID_A = "org.mpris.MediaPlayer2.fake_a";
-const String ID_B = "org.mpris.MediaPlayer2.fake_b";
-const String ID_C = "org.mpris.MediaPlayer2.fake_c";
-const Duration OP_TIMEOUT = (Duration)2_000_000;
+const String ADDRESS_VAR          = "DBUS_SESSION_BUS_ADDRESS";
+const String CONTROL_NAME         = "org.bleu.MediaTest";
+const String CONTROL_PATH         = "/org/bleu/MediaTest";
+const String ID_A                 = "org.mpris.MediaPlayer2.fake_a";
+const String ID_B                 = "org.mpris.MediaPlayer2.fake_b";
+const String ID_C                 = "org.mpris.MediaPlayer2.fake_c";
+const Duration OP_TIMEOUT         = (Duration)2_000_000;
 const Duration POSITION_TOLERANCE = (Duration)1_500_000;
 
 int failures = 0;
@@ -194,19 +194,25 @@ fn String? ctl_calls(Connection* bus, String name)
 fn void? run_scenario(Media* media, Connection* bus)
 {
 	Want first = { .id = ID_A, .title = "Alpha", .has_status = true, .status = Playback.PLAYING, .active = true };
-	bool first_ok = wait_for(media, &first);
+	bool first_ok         = wait_for(media, &first);
 	Snapshot{State}* snap = media.latest()!;
 	defer snap.release();
 	State* state = &snap.value;
 	check(first_ok, "alpha plays and is the active player");
 	Maybe{Duration} first_at = find(state, ID_A).position_now(media::monotonic_now());
-	check(first_at.has_value && first_at.value >= (Duration)10_000_000, "alpha's position is at least its starting ten seconds");
+	check(
+		first_at.has_value && first_at.value >= (Duration)10_000_000,
+		"alpha's position is at least its starting ten seconds"
+	);
 	check(state.players.len == 3, "three players: a, b, c");
 	Player* a = find(state, ID_A);
 	Player* b = find(state, ID_B);
 	Player* c = find(state, ID_C);
 	check(a.identity == "Fake Alpha" && a.desktop_entry == "fake-a", "identity and desktop entry");
-	check(a.track.id == "/org/fake/track/1" && a.track.artists.len == 2 && a.track.artists[1] == "Bo", "track id and artists");
+	check(
+		a.track.id == "/org/fake/track/1" && a.track.artists.len == 2 && a.track.artists[1] == "Bo",
+		"track id and artists"
+	);
 	check(a.track.length.has_value && a.track.length.value == (Duration)180_000_000, "track length");
 	check(a.track.art_url == "file:///tmp/fake-alpha.png", "art url");
 	check(a.controls.next && a.controls.set_position && !b.controls.next, "controls follow CanGoNext and CanSeek");
@@ -214,7 +220,8 @@ fn void? run_scenario(Media* media, Connection* bus)
 	ulong handle_a = a.handle;
 	ulong handle_b = b.handle;
 	ulong handle_c = c.handle;
-	check(media.capability(Cap.PUBLISH_SESSION).reason == availability::Reason.UNSUPPORTED_BACKEND, "publishing our session is refused");
+	check(media.capability(Cap.PUBLISH_SESSION)
+		.reason == availability::Reason.UNSUPPORTED_BACKEND, "publishing our session is refused");
 
 	stream::Reader{Event}* events = media.subscribe()!;
 	defer events.release();
@@ -232,7 +239,13 @@ fn void? run_scenario(Media* media, Connection* bus)
 	ctl_status(bus, ID_A, "Paused")!;
 	Want paused = { .id = ID_A, .has_status = true, .status = Playback.PAUSED, .active = true };
 	check(wait_for(media, &paused), "a paused, and as the most recent change it is the active player");
-	Want held = { .id = ID_A, .has_status = true, .status = Playback.PAUSED, .has_position = true, .position = (Duration)60_000_000 };
+	Want held = {
+		.id = ID_A,
+		.has_status = true,
+		.status = Playback.PAUSED,
+		.has_position = true,
+		.position = (Duration)60_000_000
+	};
 	check(wait_for(media, &held), "the paused position stays where it was");
 
 	check(succeeded(media.play(handle_a)!!), "play completes");
@@ -242,13 +255,22 @@ fn void? run_scenario(Media* media, Connection* bus)
 
 	check(failed_with(media.next(handle_b)!!, error::UNSUPPORTED), "next on b is refused: its CanGoNext is false");
 
-	check(succeeded(media.set_position(handle_a, "/org/fake/track/2", (Duration)90_000_000)!!), "absolute seek completes");
+	check(
+		succeeded(media.set_position(handle_a, "/org/fake/track/2", (Duration)90_000_000)!!),
+		"absolute seek completes"
+	);
 	Want sought = { .id = ID_A, .has_position = true, .position = (Duration)90_000_000 };
 	check(wait_for(media, &sought), "the player is at ninety seconds");
 
-	check(failed_with(media.set_position(handle_a, "/org/fake/track/1", (Duration)30_000_000)!!, error::INVALID_STATE), "a stale track id is refused before it is sent");
+	check(
+		failed_with(media.set_position(handle_a, "/org/fake/track/1", (Duration)30_000_000)!!, error::INVALID_STATE),
+		"a stale track id is refused before it is sent"
+	);
 	String calls = ctl_calls(bus, ID_A)!;
-	check(calls.contains("SetPosition /org/fake/track/2 90000000"), "the mock got the SetPosition for the current track");
+	check(
+		calls.contains("SetPosition /org/fake/track/2 90000000"),
+		"the mock got the SetPosition for the current track"
+	);
 	check(!calls.contains("SetPosition /org/fake/track/1"), "the stale SetPosition was not sent");
 	check(!calls.contains("IGNORED"), "the player never saw a SetPosition it would have ignored");
 
@@ -261,7 +283,10 @@ fn void? run_scenario(Media* media, Connection* bus)
 	check(wait_for(media, &shuffled), "shuffle reads back as on");
 
 	// c has no track id, so an absolute target becomes a relative seek from its anchor (20 s, paused).
-	check(succeeded(media.set_position(handle_c, "", (Duration)10_000_000)!!), "position on a trackless player completes");
+	check(
+		succeeded(media.set_position(handle_c, "", (Duration)10_000_000)!!),
+		"position on a trackless player completes"
+	);
 	Want relative = { .id = ID_C, .has_position = true, .position = (Duration)10_000_000 };
 	check(wait_for(media, &relative), "the trackless player moved to ten seconds");
 	String c_calls = ctl_calls(bus, ID_C)!;

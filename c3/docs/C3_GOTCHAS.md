@@ -89,3 +89,4 @@
 * `Duration` globals need a cast from integer literals: `(Duration)200_000`.
 * `libc::Pid_t` needs `import libc`; `std::os::posix` does not re-export it.
 * Platform externs: names must start lower-case (`shell_execute_w` with `@cname("ShellExecuteW")`), and a `WIN32`-only module with `@link` still parses on every target, so keep its syntax clean.
+* A zero-initialised `unix::Fd` holds fd 0, not nothing: use `unix::no_fd()`.

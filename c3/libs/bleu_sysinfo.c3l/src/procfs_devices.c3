@@ -39,9 +39,9 @@ fn Mount? statvfs_mount(String root, RawMount* entry, Allocator allocator)
 	Statvfs vfs;
 	ZString path = string::tformat("%s%s", root, entry.mount_point).zstr_tcopy();
 	if (sys_statvfs(path, &vfs) != 0) return unix::errno_fault("statvfs", libc::errno())~;
-	ulong unit = vfs.f_frsize != 0 ? vfs.f_frsize : vfs.f_bsize;
+	ulong unit  = vfs.f_frsize != 0 ? vfs.f_frsize : vfs.f_bsize;
 	Bytes total = vfs.f_blocks * unit;
-	Bytes free = vfs.f_bfree * unit;
+	Bytes free  = vfs.f_bfree * unit;
 	return {
 		.device = entry.device.copy(allocator),
 		.mount_point = entry.mount_point.copy(allocator),
@@ -81,14 +81,14 @@ fn Temperature[] read_temperatures(String root, Allocator allocator)
 
 fn void add_hwmon_sensors(String root, List{Temperature}* sensors)
 {
-	String base = string::tformat("%s/sys/class/hwmon", root);
+	String base     = string::tformat("%s/sys/class/hwmon", root);
 	PathList? chips = fs::list_dir(tmem, base);
 	if (catch err = chips) return; // no hwmon class: no sensors, which is not a failure
 	foreach (chip : chips)
 	{
-		String dir = string::tformat("%s/%s", base, (String)chip);
+		String dir       = string::tformat("%s/%s", base, (String)chip);
 		String chip_name = read_attribute(string::tformat("%s/name", dir)) ?? (String)chip;
-		PathList? files = fs::list_dir(tmem, dir);
+		PathList? files  = fs::list_dir(tmem, dir);
 		if (catch err = files) continue;
 		foreach (file : files)
 		{
@@ -114,13 +114,13 @@ fn void add_hwmon_sensor(List{Temperature}* sensors, String dir, String chip, in
 
 fn void add_thermal_sensors(String root, List{Temperature}* sensors)
 {
-	String base = string::tformat("%s/sys/class/thermal", root);
+	String base     = string::tformat("%s/sys/class/thermal", root);
 	PathList? zones = fs::list_dir(tmem, base);
 	if (catch err = zones) return;
 	foreach (zone : zones)
 	{
 		if (catch procfs::numbered_name((String)zone, "thermal_zone", "")) continue;
-		String dir = string::tformat("%s/%s", base, (String)zone);
+		String dir  = string::tformat("%s/%s", base, (String)zone);
 		String kind = read_attribute(string::tformat("%s/type", dir)) ?? (String)zone;
 		if (try text = read_attribute(string::tformat("%s/temp", dir)))
 		{
@@ -138,7 +138,7 @@ fn void sort_by_name(Temperature[] sensors)
 	for (sz i = 1; i < sensors.len; i++)
 	{
 		Temperature key = sensors[i];
-		sz j = i - 1;
+		sz j            = i - 1;
 		while (j >= 0 && sensors[j].name.compare_to(key.name) > 0)
 		{
 			sensors[j + 1] = sensors[j];

@@ -3,11 +3,12 @@
  returns for an object, generated from the interface tables and the exported
  paths.
 
- The XML lists the object's interfaces, its child nodes, and for an ObjectManager
- root the ObjectManager interface. The standard interfaces every object has
- (Peer, Introspectable, Properties) are implied, as the common libraries do,
- and are not listed. Descriptions follow the DTD in the specification, "Introspection
- Data Format"; python-dbus-next 0.2.3 parses the output in the integration test.
+ The XML lists the object's interfaces, the three standard interfaces every
+ object has (Peer, Introspectable, Properties: as sd-bus lists them, which
+ python-dbus-next needs to build a proxy), the ObjectManager interface for a root,
+ and its child nodes. Descriptions follow the DTD in the specification,
+ "Introspection Data Format"; python-dbus-next 0.2.3 parses the output in the
+ integration test.
 *>
 module bleu::dbus::server;
 import bleu::error, bleu::dbus::signature, bleu::dbus::value;
@@ -37,6 +38,7 @@ fn String ObjectServer.introspection(&self, String path, Allocator allocator)
 	Target target = self.find_target(path);
 	if (target.found)
 	{
+		write_default_interfaces(&out);
 		for (sz k = 0; k < target.interfaces.len; k++) write_interface(&out, &target.interfaces[k]);
 		if (target.manager) write_object_manager(&out);
 	}
@@ -64,6 +66,7 @@ fn void? introspect_call(Call* c) @private
 {
 	if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "Introspect takes no arguments");
 	if (!c.server.has_node(c.path)) return c.reply_error(ERROR_UNKNOWN_OBJECT, string::tformat("no object at %s", c.path));
+	c.out_signature = "s";
 	String xml = c.server.introspection(c.path, tmem);
 	Value[] out = { value::str(tmem, xml)! };
 	return c.reply(out);
@@ -201,6 +204,43 @@ fn String changes_text(ChangeSignal changes) @private
 		case CONST: return "const";
 		case NEVER: return "false";
 	}
+}
+
+// Writes Peer, Introspectable and Properties, as the specification describes them.
+fn void write_default_interfaces(DString* out) @private
+{
+	out.append_string("  <interface name=\"org.freedesktop.DBus.Peer\">\n");
+	out.append_string("    <method name=\"Ping\"/>\n");
+	out.append_string("    <method name=\"GetMachineId\">\n");
+	out.append_string("      <arg name=\"machine_uuid\" type=\"s\" direction=\"out\"/>\n");
+	out.append_string("    </method>\n");
+	out.append_string("  </interface>\n");
+	out.append_string("  <interface name=\"org.freedesktop.DBus.Introspectable\">\n");
+	out.append_string("    <method name=\"Introspect\">\n");
+	out.append_string("      <arg name=\"xml_data\" type=\"s\" direction=\"out\"/>\n");
+	out.append_string("    </method>\n");
+	out.append_string("  </interface>\n");
+	out.append_string("  <interface name=\"org.freedesktop.DBus.Properties\">\n");
+	out.append_string("    <method name=\"Get\">\n");
+	out.append_string("      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n");
+	out.append_string("      <arg name=\"property_name\" type=\"s\" direction=\"in\"/>\n");
+	out.append_string("      <arg name=\"value\" type=\"v\" direction=\"out\"/>\n");
+	out.append_string("    </method>\n");
+	out.append_string("    <method name=\"Set\">\n");
+	out.append_string("      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n");
+	out.append_string("      <arg name=\"property_name\" type=\"s\" direction=\"in\"/>\n");
+	out.append_string("      <arg name=\"value\" type=\"v\" direction=\"in\"/>\n");
+	out.append_string("    </method>\n");
+	out.append_string("    <method name=\"GetAll\">\n");
+	out.append_string("      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n");
+	out.append_string("      <arg name=\"props\" type=\"a{sv}\" direction=\"out\"/>\n");
+	out.append_string("    </method>\n");
+	out.append_string("    <signal name=\"PropertiesChanged\">\n");
+	out.append_string("      <arg name=\"interface_name\" type=\"s\"/>\n");
+	out.append_string("      <arg name=\"changed_properties\" type=\"a{sv}\"/>\n");
+	out.append_string("      <arg name=\"invalidated_properties\" type=\"as\"/>\n");
+	out.append_string("    </signal>\n");
+	out.append_string("  </interface>\n");
 }
 
 // Writes the ObjectManager interface, as an ObjectManager root describes it.

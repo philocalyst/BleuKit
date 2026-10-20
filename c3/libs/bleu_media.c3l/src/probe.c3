@@ -12,5 +12,5 @@ fn Driver*[] platform_drivers()
 			return macos_drivers();
 		$default:
 			return { };
-	$endswitch;
+	$endswitch
 }

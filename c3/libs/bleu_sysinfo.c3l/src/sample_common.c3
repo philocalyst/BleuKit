@@ -41,9 +41,8 @@ fn void fill_cpu(Cpu* cpu, Allocator allocator, delta::CpuLine[] lines, delta::C
 			continue;
 		}
 		cpu.cores[next] = {
-			.name = string::tformat("cpu%d", line.index).copy(allocator),
-			.usage = usage_of(earlier, line.index, line.ticks),
-		};
+			.name = string::tformat("cpu%d", line.index)
+			.copy(allocator), .usage = usage_of(earlier, line.index, line.ticks), };
 		next++;
 	}
 }
@@ -55,7 +54,7 @@ fn Maybe{Percent} usage_of(delta::CpuLine[] earlier, int index, delta::Ticks now
 	{
 		if (line.index == index) return delta::busy_percent(line.ticks, now);
 	}
-	return {};
+	return { };
 }
 
 <* Subtraction for counters that may be out of order: never wraps below zero. *>
@@ -65,7 +64,12 @@ fn ulong sub_or_zero(ulong a, ulong b) @inline => a > b ? a - b : 0;
  Rates since the previous sample, copied into `allocator`. An interface that is
  new in this sample has empty rates.
 *>
-fn NetInterface[] interface_rates(List{delta::NetCounters}* earlier, Allocator allocator, delta::NetCounters[] now, Duration elapsed)
+fn NetInterface[] interface_rates(
+	List{delta::NetCounters}* earlier,
+	Allocator allocator,
+	delta::NetCounters[] now,
+	Duration elapsed
+)
 {
 	NetInterface[] links = alloc::new_array(allocator, NetInterface, now.len);
 	foreach (i, &counters : now)
@@ -116,7 +120,7 @@ fn Process[] top_processes(uint count, Allocator allocator, ProcessSample[] all)
 		ordered[i] = sampled.process;
 	}
 	busiest::sort_busiest(ordered);
-	sz kept = all.len < count ? all.len : (sz)count;
+	sz kept       = all.len < count ? all.len : (sz)count;
 	Process[] top = alloc::new_array(allocator, Process, kept);
 	for (sz i = 0; i < kept; i++)
 	{

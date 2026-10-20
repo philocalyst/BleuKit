@@ -38,6 +38,8 @@ struct Operation
 	ConditionVariable finished;
 	Phase state;
 	fault failure;
+	Detail failure_detail;  // error::last() of the completing thread at the moment of failure
+	bool has_detail;
 	Value value;
 	Atomic{bool} cancel_flag;
 	Completion completion;
@@ -123,6 +125,13 @@ fn bool Operation.fail(&self, fault failure)
 		return false;
 	}
 	self.failure = failure;
+	// The reason a worker failed lives in its thread-local detail; keep it for the waiting caller.
+	Detail* last = error::last();
+	if (last.status == error::status_of(failure))
+	{
+		self.failure_detail = *last;
+		self.has_detail = true;
+	}
 	self.state = failure == error::CANCELLED ? CANCELLED : FAILED;
 	self.conclude();
 	return true;
@@ -162,6 +171,12 @@ fn Phase Operation.phase(&self)
 	defer self.mutex.unlock();
 	return self.state;
 }
+
+<*
+ The native code and message behind a failed operation, when the worker recorded
+ them with `error::raise`. Valid after `wait` returned a fault.
+*>
+fn Detail* Operation.detail(&self) => self.has_detail ? &self.failure_detail : error::last();
 
 <*
  Wait for the operation to finish and return its value.

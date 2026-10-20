@@ -100,14 +100,21 @@ fn int registry_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		// Second roundtrip: the gamma global goes away, and the client reuses the freed sync id.
+		uint registry = advertise_registry(s);
+		testing::Message first = expect_request(s, display::DISPLAY_ID, 0);
+		uint first_callback = s.reader(first).get_new_id()!!;
+		answer_sync(s, first_callback);
+		// Second roundtrip: the client reuses the freed callback id, and the gamma global goes away
+		// before the answer. The removal must follow the second sync, or the first roundtrip would
+		// deliver it along with its own `done`.
+		testing::Message second = expect_request(s, display::DISPLAY_ID, 0);
+		uint second_callback = s.reader(second).get_new_id()!!;
+		expect(second_callback == first_callback, "the freed callback id was not reused");
 		wire::Writer removed;
 		removed.begin(registry, 1);
 		removed.put_uint(2)!!;
 		s.send(&removed)!!;
-		testing::Message sync = expect_request(s, display::DISPLAY_ID, 0);
-		answer_sync(s, s.reader(sync).get_new_id()!!);
+		answer_sync(s, second_callback);
 	};
 	return 0;
 }

@@ -72,8 +72,8 @@ struct Controls
 	bool stop;
 	bool next;
 	bool previous;
-	bool seek;          // relative seek
-	bool set_position;  // absolute seek
+	bool seek; // relative seek
+	bool set_position; // absolute seek
 	bool set_rate;
 	bool set_volume;
 	bool set_shuffle;
@@ -90,19 +90,19 @@ struct Controls
 *>
 struct Player
 {
-	ulong handle;         // never 0
+	ulong handle; // never 0
 	String id;
-	String identity;      // human name: "Spotify", "VLC media player"
+	String identity; // human name: "Spotify", "VLC media player"
 	String desktop_entry; // Linux desktop file name without ".desktop"; "" elsewhere
 	Playback status;
 	Track track;
 	Maybe{Anchor} position;
-	PlaybackRate rate;    // 1.0 when the player reports none
+	PlaybackRate rate; // 1.0 when the player reports none
 	Maybe{Level} volume;
 	Maybe{bool} shuffle;
 	Maybe{Loop} loop;
 	Controls controls;
-	bool is_active;       // the player the shell should show (see `policy.c3`)
+	bool is_active; // the player the shell should show (see `policy.c3`)
 }
 
 <* The whole picture: every player, sorted by `id`. *>
@@ -117,16 +117,16 @@ struct State
 *>
 enum Cap : char
 {
-	OBSERVE,           // players and their state can be read
-	TRANSPORT,         // play, pause, next, previous, stop
-	SEEK,              // relative and absolute seeking
-	RATE,              // playback speed
-	VOLUME,            // player volume
+	OBSERVE,             // players and their state can be read
+	TRANSPORT,           // play, pause, next, previous, stop
+	SEEK,                // relative and absolute seeking
+	RATE,                // playback speed
+	VOLUME,              // player volume
 	SHUFFLE,
 	LOOP,
-	RAISE,             // bring the player's window forward
-	QUIT,              // ask the player to exit
-	PUBLISH_SESSION,   // make our own session appear to the OS (cut in v1)
+	RAISE,               // bring the player's window forward
+	QUIT,                // ask the player to exit
+	PUBLISH_SESSION,     // make our own session appear to the OS (cut in v1)
 	NOW_PLAYING_PRIVATE, // players without a public API (macOS MediaRemote; see README)
 }
 
@@ -139,15 +139,15 @@ enum CommandKind : char
 	STOP,
 	NEXT,
 	PREVIOUS,
-	SEEK,          // relative: `amount` is the offset in microseconds, negative backwards
-	SET_POSITION,  // absolute: `amount` is the target in microseconds, `track` the track it refers to
-	SET_RATE,      // `rate`
-	SET_VOLUME,    // `volume`
-	SET_SHUFFLE,   // `flag`
-	SET_LOOP,      // `loop`
+	SEEK,         // relative: `amount` is the offset in microseconds, negative backwards
+	SET_POSITION, // absolute: `amount` is the target in microseconds, `track` the track it refers to
+	SET_RATE,     // `rate`
+	SET_VOLUME,   // `volume`
+	SET_SHUFFLE,  // `flag`
+	SET_LOOP,     // `loop`
 	RAISE,
 	QUIT,
-	REFRESH,       // read the players now; not an operation, no `op`
+	REFRESH,      // read the players now; not an operation, no `op`
 }
 
 <* Longest track id a command can carry, in bytes. Longer ids are refused. *>
@@ -218,6 +218,6 @@ enum Backend : char
 struct Options
 {
 	Backend backend;
-	Duration refresh;   // while a player plays, re-read its position this often; 0 means one second
+	Duration refresh; // while a player plays, re-read its position this often; 0 means one second
 	String bus_address;
 }

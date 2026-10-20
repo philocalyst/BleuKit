@@ -13,11 +13,17 @@ const CInt FD_NONE = -1;
 
 <*
  An owned file descriptor. `value` is `FD_NONE` once closed or released.
+
+ Beware: a zero-initialised `Fd` holds descriptor 0 (stdin), not "nothing".
+ Create empty ones with `unix::no_fd()` and never rely on `{}`.
 *>
 struct Fd
 {
 	CInt value;
 }
+
+<* An `Fd` that owns nothing. Use this, not `{}`, for "not open yet". *>
+fn Fd no_fd() @inline => { .value = FD_NONE };
 
 <* True while the value holds an open descriptor. *>
 fn bool Fd.is_open(self) @inline => self.value >= 0;

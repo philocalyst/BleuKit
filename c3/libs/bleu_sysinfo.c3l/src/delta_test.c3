@@ -5,7 +5,7 @@ import std::core::test, std::collections::maybe, std::time, bleu::sysinfo, bleu:
 fn void busy_percent_from_two_readings() @test
 {
 	Ticks before = { .busy = 100, .total = 1000 };
-	Ticks now = { .busy = 150, .total = 1100 };
+	Ticks now    = { .busy = 150, .total = 1100 };
 	test::eq_approx((double)delta::busy_percent(before, now).value, 50.0, 4);
 	test::@check(!delta::busy_percent(now, now).has_value, "no time passed: unknown, not zero");
 	test::@check(!delta::busy_percent(now, before).has_value, "counters went backwards: unknown");

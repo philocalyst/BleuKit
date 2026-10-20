@@ -32,12 +32,12 @@ struct Record
 	Proxy root;
 	Proxy player;
 	SubscriptionId properties_watch; // 0 when not subscribed
-	SubscriptionId seek_watch;       // 0 when not subscribed
-	DynamicArenaAllocator arena;     // every string below; reset on each full read
+	SubscriptionId seek_watch; // 0 when not subscribed
+	DynamicArenaAllocator arena; // every string below; reset on each full read
 	String identity;
 	String desktop_entry;
 	Playback status;
-	Duration status_since;           // monotonic time the status last changed
+	Duration status_since; // monotonic time the status last changed
 	Track track;
 	Controls controls;
 	Maybe{Anchor} position;
@@ -45,7 +45,7 @@ struct Record
 	Maybe{Level} volume;
 	Maybe{bool} shuffle;
 	Maybe{Loop} loop;
-	bool dirty;        // a PropertiesChanged arrived: read everything again
+	bool dirty; // a PropertiesChanged arrived: read everything again
 	bool seek_pending; // a Seeked arrived: the next publication reports it
 }
 
@@ -58,10 +58,10 @@ struct Session
 	ulong next_handle;
 	SubscriptionId owner_watch;
 	Duration refresh;
-	Duration next_tick;  // monotonic time of the next position re-read
-	bool roster_dirty;   // an Backend.MPRIS name appeared or vanished: list the bus again
-	bool disconnected;   // the bus went away; the loop stops
-	bool busy;           // calls were made: wait without blocking once, so queued messages are dispatched
+	Duration next_tick; // monotonic time of the next position re-read
+	bool roster_dirty; // an Backend.MPRIS name appeared or vanished: list the bus again
+	bool disconnected; // the bus went away; the loop stops
+	bool busy; // calls were made: wait without blocking once, so queued messages are dispatched
 }
 
 <* Open a bus connection: the address given, or the session bus. *>
@@ -115,7 +115,9 @@ fn void Session.close(&self)
 	if (self.owner_watch != (SubscriptionId)0)
 	{
 		// The bus may be gone already; then there is no rule left to remove.
-		if (catch err = self.connection.unsubscribe(self.owner_watch)) {}
+		if (catch err = self.connection.unsubscribe(self.owner_watch))
+		{
+		}
 	}
 	self.connection.free();
 	self.records.free();
@@ -238,7 +240,12 @@ fn void? Session.add(&self, String name)
 fn void? Session.watch(&self, Record* r)
 {
 	r.root = proxy::for_object(&self.connection, r.name, mpris_convert::OBJECT_PATH, mpris_convert::ROOT_INTERFACE)!;
-	r.player = proxy::for_object(&self.connection, r.name, mpris_convert::OBJECT_PATH, mpris_convert::PLAYER_INTERFACE)!;
+	r.player = proxy::for_object(
+		&self.connection,
+		r.name,
+		mpris_convert::OBJECT_PATH,
+		mpris_convert::PLAYER_INTERFACE
+	)!;
 	r.properties_watch = r.player.watch_properties(&on_properties, r)!;
 	match::Match rule;
 	rule.init(self.allocator);
@@ -264,11 +271,15 @@ fn void Session.remove(&self, Record* r)
 	// A bus that is gone has no rules left to remove; the error says so and changes nothing.
 	if (r.properties_watch != (SubscriptionId)0)
 	{
-		if (catch err = self.connection.unsubscribe(r.properties_watch)) {}
+		if (catch err = self.connection.unsubscribe(r.properties_watch))
+		{
+		}
 	}
 	if (r.seek_watch != (SubscriptionId)0)
 	{
-		if (catch err = self.connection.unsubscribe(r.seek_watch)) {}
+		if (catch err = self.connection.unsubscribe(r.seek_watch))
+		{
+		}
 	}
 	r.arena.free();
 	alloc::free(self.allocator, r.name.ptr);
@@ -284,9 +295,9 @@ fn void? Session.read(&self, Record* r)
 {
 	@pool()
 	{
-		Value root   = r.root.get_all_properties(tmem, CALL_TIMEOUT)!;
-		Value player = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
-		Maybe{Anchor} position = {};
+		Value root             = r.root.get_all_properties(tmem, CALL_TIMEOUT)!;
+		Value player           = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
+		Maybe{Anchor} position = { };
 		if (try anchor = self.read_position(r)) position = maybe::value(anchor);
 		Duration now = media::monotonic_now();
 		r.arena.reset();
@@ -295,14 +306,17 @@ fn void? Session.read(&self, Record* r)
 		r.desktop_entry = media::copy_text(mpris_convert::text_of(root, "DesktopEntry"), a);
 		r.controls = mpris_convert::controls_of(player, root);
 		PlaybackRate rate = mpris_convert::rate_of(mpris_convert::double_of(player, "Rate"));
-		Playback status = mpris_convert::effective_status(mpris_convert::playback_of(mpris_convert::text_of(player, "PlaybackStatus")), rate);
+		Playback status = mpris_convert::effective_status(
+			mpris_convert::playback_of(mpris_convert::text_of(player, "PlaybackStatus")),
+			rate
+		);
 		if (r.status_since == time::DURATION_ZERO || status != r.status) r.status_since = now;
 		r.status = status;
 		r.rate = rate;
 		r.volume = mpris_convert::volume_of(mpris_convert::double_of(player, "Volume"));
 		r.shuffle = flag_maybe(player, "Shuffle");
 		r.loop = loop_maybe(player);
-		r.track = {};
+		r.track = { };
 		if (try metadata = player.dict_get("Metadata")) r.track = mpris_convert::track_of(metadata, a);
 		r.position = position;
 	};
@@ -315,7 +329,7 @@ fn Maybe{bool} flag_maybe(Value dict, String key) @private
 	{
 		if (try b = v.as_bool()) return maybe::value(b);
 	}
-	return {};
+	return { };
 }
 
 // Maybe-valued loop mode from `LoopStatus`, empty when the player does not have it.
@@ -325,7 +339,7 @@ fn Maybe{Loop} loop_maybe(Value player) @private
 	{
 		if (try s = v.as_string()) return maybe::value(mpris_convert::loop_of(s));
 	}
-	return {};
+	return { };
 }
 
 <*
@@ -408,16 +422,16 @@ fn void? Session.send(&self, Message* call)
 fn State Session.build(&self, Allocator allocator)
 {
 	usz count = (usz)self.records.size;
-	if (count == 0) return {};
+	if (count == 0) return { };
 	@pool()
 	{
 		Record*[] sorted = alloc::new_array(tmem, Record*, (sz)count);
-		Record*[] live = self.records.array_view();
+		Record*[] live   = self.records.array_view();
 		for (usz i = 0; i < count; i++) sorted[i] = live[i];
 		sort_by_name(sorted);
-		Player[] players = alloc::new_array(allocator, Player, (sz)count);
+		Player[] players    = alloc::new_array(allocator, Player, (sz)count);
 		Playback[] statuses = alloc::new_array(tmem, Playback, (sz)count);
-		Duration[] since = alloc::new_array(tmem, Duration, (sz)count);
+		Duration[] since    = alloc::new_array(tmem, Duration, (sz)count);
 		for (usz i = 0; i < count; i++)
 		{
 			players[i] = player_of(sorted[i], allocator);
@@ -436,7 +450,7 @@ fn void sort_by_name(Record*[] records) @private
 	for (sz i = 1; i < records.len; i++)
 	{
 		Record* key = records[i];
-		sz j = i - 1;
+		sz j        = i - 1;
 		while (j >= 0 && records[j].name.compare_to(key.name) > 0)
 		{
 			records[j + 1] = records[j];

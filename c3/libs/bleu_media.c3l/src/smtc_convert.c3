@@ -6,22 +6,22 @@
  Sources (windows-rs 0.62.2, the bindings of the Windows Runtime types; the
  numbers are the metadata values):
  * `GlobalSystemMediaTransportControlsSessionPlaybackStatus`: Closed 0, Opened 1,
-   Changing 2, Stopped 3, Playing 4, Paused 5 (`src/Windows/Media/Control/mod.rs`).
+ Changing 2, Stopped 3, Playing 4, Paused 5 (`src/Windows/Media/Control/mod.rs`).
  * `MediaPlaybackAutoRepeatMode`: None 0, Track 1, List 2 (`src/Windows/Media/mod.rs`).
  * `TimeSpan` is a count of 100-nanosecond ticks; `DateTime.UniversalTime` counts
-   100-nanosecond ticks from 1601-01-01 UTC (Microsoft Learn, "DateTime structure"
-   for the Windows Runtime `Windows.Foundation.DateTime`).
+ 100-nanosecond ticks from 1601-01-01 UTC (Microsoft Learn, "DateTime structure"
+ for the Windows Runtime `Windows.Foundation.DateTime`).
  * The 1601 to 1970 offset is 11644473600 seconds (Microsoft Learn, "FILETIME").
 *>
 module bleu::media::smtc_convert;
 import std::time, bleu::media;
 
-const int STATUS_STOPPED = 3;
-const int STATUS_PLAYING = 4;
-const int STATUS_PAUSED = 5;
-const int REPEAT_TRACK = 1;
-const int REPEAT_LIST = 2;
-const long TICKS_PER_MICRO = 10;
+const int STATUS_STOPPED                 = 3;
+const int STATUS_PLAYING                 = 4;
+const int STATUS_PAUSED                  = 5;
+const int REPEAT_TRACK                   = 1;
+const int REPEAT_LIST                    = 2;
+const long TICKS_PER_MICRO               = 10;
 const long UNIX_EPOCH_IN_MICRO_FROM_1601 = 11644473600000000;
 
 <* The `SessionPlaybackStatus` value as a status. Anything but playing or paused is stopped. *>
@@ -71,7 +71,7 @@ fn long ticks_of_micros(Duration micros) => (long)micros * TICKS_PER_MICRO;
 fn Duration age_of(long last_updated_ticks, Time now_unix_us)
 {
 	Duration stamped_unix_us = micros_of_ticks(last_updated_ticks) - UNIX_EPOCH_IN_MICRO_FROM_1601;
-	Duration age = (Duration)now_unix_us - stamped_unix_us;
+	Duration age             = (Duration)now_unix_us - stamped_unix_us;
 	return age < time::DURATION_ZERO ? time::DURATION_ZERO : age;
 }
 

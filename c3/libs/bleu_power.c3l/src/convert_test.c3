@@ -20,7 +20,9 @@ fn void degraded_reasons_map_and_keep_unknown_text() @test
 
 fn void can_answers_say_whether_the_action_can_proceed() @test
 {
-	Availability yes = convert::availability_from_can("yes") ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
+	Availability yes = convert::availability_from_can(
+		"yes"
+	) ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
 	assert(yes.ok());
 	Availability challenge = convert::availability_from_can("challenge") ?? availability::YES;
 	assert(challenge.reason == availability::Reason.PERMISSION_NEEDED);
@@ -29,7 +31,9 @@ fn void can_answers_say_whether_the_action_can_proceed() @test
 	assert(na.reason == availability::Reason.HARDWARE_ABSENT);
 	Availability no = convert::availability_from_can("no") ?? availability::YES;
 	assert(no.reason == availability::Reason.DISABLED_BY_POLICY);
-	Availability inhibited = convert::availability_from_can("inhibited") ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
+	Availability inhibited = convert::availability_from_can(
+		"inhibited"
+	) ?? availability::no(availability::Reason.BACKEND_STOPPED, "");
 	assert(inhibited.ok());
 	Availability blocked = convert::availability_from_can("inhibitor-blocked") ?? availability::YES;
 	assert(blocked.reason == availability::Reason.DISABLED_BY_POLICY);

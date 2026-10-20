@@ -5,9 +5,9 @@
  it) and on Windows they push it only with a timestamp. So every read is an
  anchor, and the position at any later moment is computed from it:
 
-   playing, rate != 0 : anchor.position + (now - anchor.taken_at) * rate
-   paused, or rate 0  : anchor.position
-   stopped            : 0
+ playing, rate != 0 : anchor.position + (now - anchor.taken_at) * rate
+ paused, or rate 0  : anchor.position
+ stopped            : 0
 
  The result is clamped to [0, length] when the length is known. Quickshell and
  the Rust `mpris` crate do not clamp; this one does, because a position past
@@ -56,6 +56,6 @@ fn Duration position_at(Anchor anchor, Playback status, PlaybackRate rate, Maybe
 *>
 fn Maybe{Duration} Player.position_now(&self, Duration now)
 {
-	if (!self.position.has_value) return {};
+	if (!self.position.has_value) return { };
 	return maybe::value(position_at(self.position.value, self.status, self.rate, self.track.length, now));
 }

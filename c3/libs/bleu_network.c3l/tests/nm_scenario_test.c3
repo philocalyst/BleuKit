@@ -101,7 +101,9 @@ fn void reads_the_picture() @test
 
 	// A wrong passphrase: the device asks again, and the operation says so.
 	ConnectOp* wrong = net.connect({ .ssid = (char[])"Office", .passphrase = "wrong words", .autoconnect = true })!!;
-	assert(@catch(wrong.wait(time::sec(10))) == error::AUTH_REQUIRED, "a refused passphrase fails with AUTH_REQUIRED");
+	fault wrong_fault = @catch(wrong.wait(time::sec(10)));
+	io::printfn("DEBUG wrong passphrase fault: %s status=%d detail=%s", wrong_fault, error::last().status.ordinal, error::last().message());
+	assert(wrong_fault == error::AUTH_REQUIRED, "a refused passphrase fails with AUTH_REQUIRED");
 	wrong.release();
 	Snapshot{State}* rejected = await(net, first.generation, &phase_failed);
 	assert(rejected.value.wifi.failure == AUTH_REJECTED, "the failure says the passphrase was rejected");

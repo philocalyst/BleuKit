@@ -1,13 +1,13 @@
 module bleu::media;
-import std::collections::list, std::collections::maybe, std::time, bleu::dbus::value, bleu::media::mpris_convert, bleu::media::smtc_convert, bleu::unit;
+import std::collections::list, std::collections::maybe, std::time, bleu::dbus::value, bleu::error, bleu::media::mpris_convert, bleu::media::smtc_convert, bleu::media::scripting_convert, bleu::unit;
 
 <* Seconds as a Duration, for test arithmetic. *>
 fn Duration secs(long n) => (Duration)(n * 1_000_000);
 
 fn void extrapolates_while_playing() @test
 {
-	Anchor a = { .position = secs(10), .taken_at = secs(100) };
-	Maybe{Duration} none = {};
+	Anchor a             = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Duration} none = { };
 	assert(position_at(a, PLAYING, 1.0, none, secs(102)) == secs(12), "two seconds at rate 1");
 	assert(position_at(a, PLAYING, 2.0, none, secs(102)) == secs(14), "rate 2 doubles the elapsed time");
 	assert(position_at(a, PLAYING, -1.0, none, secs(102)) == secs(8), "negative rate rewinds");
@@ -15,8 +15,8 @@ fn void extrapolates_while_playing() @test
 
 fn void holds_while_paused_and_stopped() @test
 {
-	Anchor a = { .position = secs(10), .taken_at = secs(100) };
-	Maybe{Duration} none = {};
+	Anchor a             = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Duration} none = { };
 	assert(position_at(a, PAUSED, 1.0, none, secs(500)) == secs(10), "paused stays at the anchor");
 	assert(position_at(a, PLAYING, 0.0, none, secs(500)) == secs(10), "rate 0 is paused");
 	assert(position_at(a, STOPPED, 1.0, none, secs(500)) == time::DURATION_ZERO, "stopped is at zero");
@@ -24,7 +24,7 @@ fn void holds_while_paused_and_stopped() @test
 
 fn void clamps_to_track_bounds() @test
 {
-	Anchor a = { .position = secs(58), .taken_at = secs(100) };
+	Anchor a               = { .position = secs(58), .taken_at = secs(100) };
 	Maybe{Duration} length = maybe::value(secs(60));
 	assert(position_at(a, PLAYING, 1.0, length, secs(110)) == secs(60), "never past the end");
 	Anchor before = { .position = secs(1), .taken_at = secs(100) };
@@ -37,7 +37,7 @@ fn void a_clock_that_went_backwards_counts_no_time() @test
 	assert(position_at(a, PLAYING, 1.0, none_length(), secs(90)) == secs(10), "now before the anchor adds nothing");
 }
 
-fn Maybe{Duration} none_length() @local => {};
+fn Maybe{Duration} none_length() @local => { };
 
 fn void player_without_position_reports_none() @test
 {
@@ -63,8 +63,8 @@ fn void active_prefers_the_most_recent_among_equals() @test
 	Playback[3] s = { PLAYING, PLAYING, PAUSED };
 	Duration[3] t = { secs(4), secs(8), secs(9) };
 	assert(select_active(s[..], t[..]) == 1, "the playing one that changed last");
-	Playback[] none_s = {};
-	Duration[] none_t = {};
+	Playback[] none_s = { };
+	Duration[] none_t = { };
 	assert(select_active(none_s, none_t) == -1, "no players, no active player");
 }
 
@@ -94,18 +94,18 @@ fn void events_for_added_changed_and_removed_players() @test
 		{ .handle = 3, .id = "c", .status = PLAYING, .is_active = true },
 	};
 	State before = { .players = before_players[..] };
-	State after = { .players = after_players[..] };
+	State after  = { .players = after_players[..] };
 	List{Event} out;
 	out.init(mem);
 	defer out.free();
 	ulong[1] seeks = { 1 };
 	collect_events(&before, &after, seeks[..], &out);
-	usz status = 0;
-	usz track = 0;
-	usz seeked = 0;
-	usz added = 0;
+	usz status  = 0;
+	usz track   = 0;
+	usz seeked  = 0;
+	usz added   = 0;
 	usz removed = 0;
-	usz active = 0;
+	usz active  = 0;
 	foreach (e : out.array_view())
 	{
 		switch (e.kind)
@@ -126,11 +126,11 @@ fn void events_for_added_changed_and_removed_players() @test
 fn void unchanged_state_emits_nothing() @test
 {
 	Player[1] players = { { .handle = 1, .id = "a", .status = PLAYING, .is_active = true } };
-	State s = { .players = players[..] };
+	State s           = { .players = players[..] };
 	List{Event} out;
 	out.init(mem);
 	defer out.free();
-	ulong[] no_seeks = {};
+	ulong[] no_seeks = { };
 	collect_events(&s, &s, no_seeks, &out);
 	assert(out.size == 0, "no change, no events");
 }
@@ -170,14 +170,18 @@ fn void track_from_metadata() @test
 {
 	@pool()
 	{
-		Allocator a = tmem;
+		Allocator a   = tmem;
 		Value artists = value::array(a, "s", { value::str(a, "Ann")!!, value::str(a, "Bo")!! })!!;
-		Value meta = value::array(a, "{sv}", {
-			value::dict_entry(a, value::str(a, "mpris:trackid")!!, value::variant(a, value::path(a, "/t/9")!!))!!,
-			value::dict_entry(a, value::str(a, "xesam:title")!!, value::variant(a, value::str(a, "Song")!!))!!,
-			value::dict_entry(a, value::str(a, "xesam:artist")!!, value::variant(a, artists))!!,
-			value::dict_entry(a, value::str(a, "mpris:length")!!, value::variant(a, value::i64(3_000_000)))!!,
-		})!!;
+		Value meta = value::array(
+			a,
+			"{sv}",
+			{
+				value::dict_entry(a, value::str(a, "mpris:trackid")!!, value::variant(a, value::path(a, "/t/9")!!))!!,
+				value::dict_entry(a, value::str(a, "xesam:title")!!, value::variant(a, value::str(a, "Song")!!))!!,
+				value::dict_entry(a, value::str(a, "xesam:artist")!!, value::variant(a, artists))!!,
+				value::dict_entry(a, value::str(a, "mpris:length")!!, value::variant(a, value::i64(3_000_000)))!!,
+			}
+		)!!;
 		DynamicArenaAllocator arena;
 		arena.init(mem, 1024);
 		defer arena.free();
@@ -210,7 +214,44 @@ fn void smtc_ticks_and_age() @test
 fn void smtc_controls_follow_what_is_reported() @test
 {
 	ReportedControls r = { .toggle = true, .position = true };
-	Controls c = smtc_convert::controls_of(r);
+	Controls c         = smtc_convert::controls_of(r);
 	assert(c.play_pause && c.seek && c.set_position && !c.next && !c.raise && !c.quit, "toggle gives play-pause");
 	assert(!c.set_volume, "SMTC has no volume");
+}
+
+fn void scripting_reading_lines() @test
+{
+	Reading r = scripting_convert::parse_reading("playing\t12345\t70\t180000\tSong\tAnn\tAlbum")!!;
+	assert(r.status == Playback.PLAYING && r.position_ms == 12345 && r.volume == 70, "state, position, volume");
+	assert(r.length_ms == 180000 && r.title == "Song" && r.artist == "Ann" && r.album == "Album", "length and text");
+	Reading p = scripting_convert::parse_reading("paused\t0\t100\t0\t\t\t")!!;
+	assert(p.status == Playback.PAUSED && p.title == "", "a paused player with no track text");
+}
+
+fn void scripting_rejects_malformed_lines() @test
+{
+	if (catch err = scripting_convert::parse_reading("playing\t1\t2"))
+	{
+		assert(err == error::PROTOCOL, "too few fields");
+	}
+	else
+	{
+		assert(false, "too few fields must fail");
+	}
+	if (catch err = scripting_convert::parse_reading("playing\tx\t2\t3\ta\tb\tc"))
+	{
+		assert(err == error::PROTOCOL, "a non-number");
+	}
+	else
+	{
+		assert(false, "a non-number must fail");
+	}
+	if (catch err = scripting_convert::parse_reading(""))
+	{
+		assert(err == error::PROTOCOL, "an empty line is no reading");
+	}
+	else
+	{
+		assert(false, "an empty line must fail");
+	}
 }

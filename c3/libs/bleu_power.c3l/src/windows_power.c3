@@ -12,20 +12,17 @@
  Threading: the worker polls GetSystemPowerStatus; a request wakes it at once.
 *>
 module bleu::power::windows @feat(WIN32);
-import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::error,
-	bleu::observe, bleu::power, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::win::errors,
-	bleu::win::text, bleu::power::windows_api, bleu::power::windows_suspend, bleu::power::windows_shutdown,
-	bleu::power::windows_lock;
+import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::error, bleu::observe, bleu::power, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::win::errors, bleu::win::text, bleu::power::windows_api, bleu::power::windows_suspend, bleu::power::windows_shutdown, bleu::power::windows_lock;
 
 <* How often the worker reads the power status when nothing else wakes it. *>
 const Duration POLL_INTERVAL = (Duration)2_000_000;
-const usz COMMAND_BATCH = 16;
+const usz COMMAND_BATCH      = 16;
 <* `SHTDN_REASON_FLAG_PLANNED` with `SHTDN_REASON_MAJOR_OTHER` (0): a planned shutdown with no specific cause. *>
-const uint SHUTDOWN_REASON = 0x80000000;
+const uint SHUTDOWN_REASON   = 0x80000000;
 <* `AC_LINE_ONLINE` and `AC_LINE_OFFLINE` (SYSTEM_POWER_STATUS.ACLineStatus); 255 is unknown. *>
-const char AC_LINE_OFFLINE = 0;
-const char AC_LINE_ONLINE = 1;
-const char BATTERY_SAVER_ON = 1;
+const char AC_LINE_OFFLINE   = 0;
+const char AC_LINE_ONLINE    = 1;
+const char BATTERY_SAVER_ON  = 1;
 const char BATTERY_SAVER_OFF = 0;
 
 const Driver DRIVER = {
@@ -86,26 +83,53 @@ fn void run(void* state, PowerHub* hub, Host{Command}* host)
 
 fn void fill_capabilities(Capabilities* caps)
 {
-	Availability no_profiles = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "power modes are not read in this version: the overlay scheme calls are unverified");
+	Availability no_profiles = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"power modes are not read in this version: the overlay scheme calls are unverified"
+	);
 	caps.set(PROFILE_READ, no_profiles);
 	caps.set(PROFILE_SET, no_profiles);
 	caps.set(PROFILE_HOLD, availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has no profile holds"));
-	caps.set(LOW_POWER_READ, availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has a battery saver, not Low Power Mode"));
+	caps.set(
+		LOW_POWER_READ,
+		availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has a battery saver, not Low Power Mode")
+	);
 	caps.set(BATTERY_SAVER_READ, availability::YES);
 	caps.set(KEEP_AWAKE_IDLE, availability::YES);
 	caps.set(KEEP_AWAKE_DISPLAY, availability::YES);
 	caps.set(KEEP_AWAKE_SYSTEM, availability::YES);
-	caps.set(DELAY_SLEEP_HOOK, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no verified delay lock on Windows in this version"));
-	caps.set(BLOCK_SHUTDOWN, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no verified shutdown block on Windows in this version"));
+	caps.set(
+		DELAY_SLEEP_HOOK,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no verified delay lock on Windows in this version")
+	);
+	caps.set(
+		BLOCK_SHUTDOWN,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"no verified shutdown block on Windows in this version"
+		)
+	);
 	caps.set(SUSPEND, availability::YES);
-	caps.set(HIBERNATE, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "hibernation state is not probed in this version"));
-	caps.set(HYBRID_SLEEP, availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has no hybrid sleep action in this version"));
+	caps.set(
+		HIBERNATE,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "hibernation state is not probed in this version")
+	);
+	caps.set(
+		HYBRID_SLEEP,
+		availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has no hybrid sleep action in this version")
+	);
 	caps.set(POWER_OFF, availability::YES);
 	caps.set(REBOOT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "deferred in this version"));
 	caps.set(LOCK, availability::YES);
 	caps.set(LOGOUT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "deferred in this version"));
 	caps.set(IDLE_HINT, availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has no idle hint"));
-	caps.set(LID_EVENTS, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the lid switch payload is not verified in this version"));
+	caps.set(
+		LID_EVENTS,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"the lid switch payload is not verified in this version"
+		)
+	);
 	caps.set(AC_EVENTS, availability::YES);
 }
 
@@ -118,7 +142,9 @@ fn void serve(Win* win, Host{Command}* host)
 	while (!host.stopping())
 	{
 		// Sleeps until the poll is due or a request wakes the worker; TIMEOUT is the normal tick.
-		if (catch err = poller.wait(POLL_INTERVAL)) {}
+		if (catch err = poller.wait(POLL_INTERVAL))
+		{
+		}
 		drain(win, host, batch[..]);
 		refresh(win);
 	}
@@ -140,7 +166,7 @@ fn void refresh(Win* win)
 	windows_api::SystemPowerStatus status;
 	if (catch err = read_status(&status)) return;
 	Snapshot{State}* snapshot = win.hub.begin();
-	State* state = &snapshot.value;
+	State* state              = &snapshot.value;
 	if (status.ac_line_status == AC_LINE_ONLINE) state.on_external_power.set(true);
 	if (status.ac_line_status == AC_LINE_OFFLINE) state.on_external_power.set(false);
 	if (status.system_status_flag == BATTERY_SAVER_ON) state.battery_saver.set(true);
@@ -211,7 +237,11 @@ fn Inhibitor? take_request(Win* win, Command* command)
 	@pool()
 	{
 		WideZ reason = text::to_wide(tmem, command.why)!;
-		windows_api::ReasonContext context = { .version = windows_api::POWER_REQUEST_CONTEXT_VERSION, .flags = windows_api::POWER_REQUEST_CONTEXT_SIMPLE_STRING, .simple_reason = reason.as_wstring() };
+		windows_api::ReasonContext context = {
+			.version = windows_api::POWER_REQUEST_CONTEXT_VERSION,
+			.flags = windows_api::POWER_REQUEST_CONTEXT_SIMPLE_STRING,
+			.simple_reason = reason.as_wstring()
+		};
 		void* request = windows_api::powerCreateRequest(&context);
 		if ((usz)request == windows_api::INVALID_HANDLE) return errors::raise_last("PowerCreateRequest")~;
 		if (windows_api::powerSetRequest(request, type) == 0)

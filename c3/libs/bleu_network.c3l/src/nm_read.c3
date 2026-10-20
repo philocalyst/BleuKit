@@ -8,8 +8,8 @@ import std::collections::list, std::collections::maybe, bleu::error, bleu::netwo
 struct Reading
 {
 	bool wifi_found;
-	String wifi_path;    // object path of the first Wi-Fi device (lives in the read's pool)
-	String wifi_name;    // its interface name (lives in the read's pool)
+	String wifi_path;    // object path of the first Wi-Fi device (lives in the snapshot's arena)
+	String wifi_name;    // its interface name (lives in the snapshot's arena)
 	uint device_state;   // Wi-Fi device State (nm_convert.DEVICE_STATE_*)
 	uint device_reason;  // Wi-Fi device StateReason
 	long last_scan;      // Wireless.LastScan: changes when a scan finishes
@@ -64,10 +64,11 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 			if (kind == WIFI && !r.wifi_found)
 			{
 				r.wifi_found = true;
-				r.wifi_path = path;
-				r.wifi_name = name;
+				// The read's pool ends when this function returns: keep the names in the snapshot's arena.
+				r.wifi_path = path.copy(out);
+				r.wifi_name = name.copy(out);
 				r.device_state = uint_of(props, "State");
-				r.device_reason = uint_of(props, "StateReason");
+				r.device_reason = reason_of(props, "StateReason");
 				wifi_scan = read_networks(b, path, out, r)!;
 			}
 		}

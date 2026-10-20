@@ -150,6 +150,24 @@ fn ConnectionPhase phase_from_device_state(uint state)
 	}
 }
 
+<*
+ Whether a device state is one the device passes through while activating
+ (PREPARE to SECONDARIES). Terminal states are the other kinds.
+*>
+fn bool is_activation_state(uint state)
+{
+	switch (state)
+	{
+		case DEVICE_STATE_PREPARE:
+		case DEVICE_STATE_CONFIG:
+		case DEVICE_STATE_NEED_AUTH:
+		case DEVICE_STATE_IP_CONFIG:
+		case DEVICE_STATE_IP_CHECK:
+		case DEVICE_STATE_SECONDARIES: return true;
+		default: return false;
+	}
+}
+
 <* NMConnectivityState (nm-dbus-types). *>
 fn Connectivity connectivity_from(uint nm_value)
 {

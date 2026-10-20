@@ -35,14 +35,20 @@ fn String? next_field(String text, sz* cursor)
 	sz start = i;
 	while (i < text.len && !is_space(text[i])) i++;
 	*cursor = i;
-	return text[start : i - start];
+	return text[start:i - start];
 }
 
 <* A decimal integer from text, or PROTOCOL when it is not one. *>
 fn long? parse_integer(String text)
 {
 	long? value = text.to_long();
-	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "'%s' is not an integer", text)~;
+	if (catch err = value) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"'%s' is not an integer",
+		text
+	)~;
 	return value;
 }
 
@@ -50,7 +56,13 @@ fn long? parse_integer(String text)
 fn double? parse_decimal(String text)
 {
 	double? value = text.to_double();
-	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "'%s' is not a number", text)~;
+	if (catch err = value) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"'%s' is not a number",
+		text
+	)~;
 	return value;
 }
 
@@ -61,7 +73,13 @@ fn double? parse_decimal(String text)
 fn String? field_of(String line, sz* cursor)
 {
 	String? field = next_field(line, cursor);
-	if (catch err = field) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "line has too few fields: '%s'", line)~;
+	if (catch err = field) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"line has too few fields: '%s'",
+		line
+	)~;
 	return field;
 }
 
@@ -72,7 +90,13 @@ fn ulong? parse_count(String text)
 	ulong value = 0;
 	foreach (c : text)
 	{
-		if (c < '0' || c > '9') return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "'%s' is not a count", text)~;
+		if (c < '0' || c > '9') return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"'%s' is not a count",
+			text
+		)~;
 		value = value * 10 + (ulong)(c - '0');
 	}
 	return value;
@@ -83,8 +107,8 @@ fn bool split_key(String line, String* key, String* value) @inline
 {
 	if (try colon = line.index_of_char(':'))
 	{
-		*key = line[0 : colon].trim();
-		*value = line[colon + 1 : line.len - colon - 1].trim();
+		*key = line[0:colon].trim();
+		*value = line[colon + 1:line.len - colon - 1].trim();
 		return true;
 	}
 	return false;
@@ -103,11 +127,11 @@ fn delta::CpuLine[]? parse_stat(String text, Allocator allocator)
 	List{delta::CpuLine} lines;
 	lines.init(tmem);
 	bool has_aggregate = false;
-	Splitter rows = text.tokenize("\n");
+	Splitter rows      = text.tokenize("\n");
 	while (try line = rows.next())
 	{
 		if (!line.starts_with("cpu")) continue;
-		sz cursor = 0;
+		sz cursor   = 0;
 		String name = next_field(line, &cursor)!;
 		ulong[7] values;
 		foreach (&value : values)
@@ -117,7 +141,7 @@ fn delta::CpuLine[]? parse_stat(String text, Allocator allocator)
 		int index = -1;
 		if (name != "cpu")
 		{
-			index = (int)parse_count(name[3 : name.len - 3])!;
+			index = (int)parse_count(name[3:name.len - 3])!;
 		}
 		else
 		{
@@ -153,9 +177,9 @@ struct MemInfo
 fn MemInfo? parse_meminfo(String text)
 {
 	MemInfo info;
-	ulong free = 0;
+	ulong free         = 0;
 	bool has_available = false;
-	Splitter rows = text.tokenize("\n");
+	Splitter rows      = text.tokenize("\n");
 	while (try line = rows.next())
 	{
 		String key;
@@ -217,23 +241,23 @@ fn LoadAverage[3]? parse_loadavg(String text)
 *>
 fn Duration? parse_uptime(String text)
 {
-	sz cursor = 0;
-	String field = next_field(text, &cursor)!;
-	String whole = field;
+	sz cursor       = 0;
+	String field    = next_field(text, &cursor)!;
+	String whole    = field;
 	String fraction = "";
 	if (try dot = field.index_of_char('.'))
 	{
-		whole = field[0 : dot];
-		fraction = field[dot + 1 : field.len - dot - 1];
+		whole = field[0:dot];
+		fraction = field[dot + 1:field.len - dot - 1];
 	}
 	long seconds = parse_integer(whole)!;
-	long micro = 0;
+	long micro   = 0;
 	for (usz i = 0; i < MICROSECOND_DIGITS; i++)
 	{
 		long digit = 0;
 		if (i < fraction.len)
 		{
-			ulong value = parse_count(fraction[i : 1])!;
+			ulong value = parse_count(fraction[i:1])!;
 			digit = (long)value;
 		}
 		micro = micro * 10 + digit;
@@ -260,7 +284,7 @@ fn delta::NetCounters[]? parse_net_dev(String text, Allocator allocator)
 		String rest;
 		if (!split_key(line, &name, &rest)) continue; // the two header lines have no colon-separated name
 		if (name == "lo") continue;
-		sz cursor = 0;
+		sz cursor      = 0;
 		ulong received = parse_count(next_field(rest, &cursor)!)!;
 		for (usz skip = 0; skip < 7; skip++)
 		{
@@ -295,15 +319,17 @@ fn RawMount[]? parse_mounts(String text, Allocator allocator)
 	Splitter rows = text.tokenize("\n");
 	while (try line = rows.next())
 	{
-		sz cursor = 0;
-		String device = next_field(line, &cursor)!;
+		sz cursor          = 0;
+		String device      = next_field(line, &cursor)!;
 		String mount_point = next_field(line, &cursor)!;
-		String fs_type = next_field(line, &cursor)!;
-		mounts.push({
-			.device = unescape_octal(device, allocator)!,
-			.mount_point = unescape_octal(mount_point, allocator)!,
-			.fs_type = fs_type.copy(allocator),
-		});
+		String fs_type     = next_field(line, &cursor)!;
+		mounts.push(
+			{
+				.device = unescape_octal(device, allocator)!,
+				.mount_point = unescape_octal(mount_point, allocator)!,
+				.fs_type = fs_type.copy(allocator),
+			}
+		);
 	}
 	return alloc::clone_slice(allocator, mounts.array_view());
 }
@@ -312,13 +338,13 @@ fn RawMount[]? parse_mounts(String text, Allocator allocator)
 fn String? unescape_octal(String text, Allocator allocator)
 {
 	char[] out = alloc::new_array(tmem, char, text.len);
-	usz n = 0;
-	usz i = 0;
+	usz n      = 0;
+	usz i      = 0;
 	while (i < text.len)
 	{
 		if (text[i] == '\\' && text.len - i >= 4)
 		{
-			out[n] = (char)parse_octal(text[i + 1 : 3])!;
+			out[n] = (char)parse_octal(text[i + 1:3])!;
 			i += 4;
 		}
 		else
@@ -366,11 +392,11 @@ struct StatFields
 *>
 fn StatFields? parse_pid_stat(String text)
 {
-	sz open = text.index_of_char('(')!;
+	sz open  = text.index_of_char('(')!;
 	sz close = text.rindex_of_char(')')!;
 	if (close <= open) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no command name")~;
-	StatFields fields = { .name = text[open + 1 : close - open - 1] };
-	sz cursor = close + 1;
+	StatFields fields = { .name = text[open + 1:close - open - 1] };
+	sz cursor         = close + 1;
 	// Field 3 (state) is the first after the name; utime is field 14, stime 15, starttime 22.
 	for (usz field = 3; field <= 22; field++)
 	{
@@ -386,7 +412,9 @@ fn StatFields? parse_pid_stat(String text)
 	return fields;
 }
 
-<* Fields of /proc/<pid>/status that the service uses. `has_rss` is false for kernel threads, which have no resident set. *>
+<*
+ Fields of /proc/<pid>/status that the service uses. `has_rss` is false for kernel threads, which have no resident set.
+*>
 struct StatusFields
 {
 	ulong uid;
@@ -403,7 +431,7 @@ struct StatusFields
 fn StatusFields? parse_status(String text)
 {
 	StatusFields fields;
-	bool has_uid = false;
+	bool has_uid  = false;
 	Splitter rows = text.tokenize("\n");
 	while (try line = rows.next())
 	{
@@ -465,10 +493,10 @@ fn String os_release_value(String text, String key, Allocator allocator)
 	while (try line = rows.next())
 	{
 		if (!line.starts_with(key) || line.len <= key.len || line[key.len] != '=') continue;
-		String value = line[key.len + 1 : line.len - key.len - 1].trim();
+		String value = line[key.len + 1:line.len - key.len - 1].trim();
 		if (value.len >= 2 && value[0] == '"' && value[value.len - 1] == '"')
 		{
-			value = value[1 : value.len - 2];
+			value = value[1:value.len - 2];
 		}
 		return value.copy(allocator);
 	}
@@ -479,12 +507,12 @@ fn String os_release_value(String text, String key, Allocator allocator)
 fn String? colon_field(String line, usz index)
 {
 	usz field = 0;
-	sz start = 0;
+	sz start  = 0;
 	for (sz i = 0; i <= line.len; i++)
 	{
 		if (i == line.len || line[i] == ':')
 		{
-			if (field == index) return line[start : i - start];
+			if (field == index) return line[start:i - start];
 			field++;
 			start = i + 1;
 		}
@@ -523,7 +551,7 @@ fn String? passwd_name(String text, ulong uid)
 fn int? numbered_name(String name, String prefix, String suffix)
 {
 	if (name.len <= prefix.len + suffix.len || !name.starts_with(prefix) || !name.ends_with(suffix)) return NOT_FOUND~;
-	ulong number = parse_count(name[prefix.len : name.len - prefix.len - suffix.len])!;
+	ulong number = parse_count(name[prefix.len:name.len - prefix.len - suffix.len])!;
 	return (int)number;
 }
 

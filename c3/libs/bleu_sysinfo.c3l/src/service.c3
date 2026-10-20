@@ -68,7 +68,12 @@ fn Sysinfo*? open(Allocator allocator, Options options = { })
 	if (options.interval == time::DURATION_ZERO) options.interval = DEFAULT_INTERVAL;
 	if (options.interval < MINIMUM_INTERVAL)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "interval is below the 200 ms minimum")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"interval is below the 200 ms minimum"
+		)~;
 	}
 	if (options.process_count == 0) options.process_count = DEFAULT_PROCESS_COUNT;
 	Driver* driver = select_driver(options)!;

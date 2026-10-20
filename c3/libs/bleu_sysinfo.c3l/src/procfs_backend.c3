@@ -39,12 +39,16 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 {
 	capabilities.init(availability::YES);
 	String root = options.root.copy(allocator);
-	ProcfsBackend* backend = alloc::new(allocator, ProcfsBackend, {
-		.allocator = allocator,
-		.root = root,
-		.interval = options.interval,
-		.process_count = options.process_count,
-	});
+	ProcfsBackend* backend = alloc::new(
+		allocator,
+		ProcfsBackend,
+		{
+			.allocator = allocator,
+			.root = root,
+			.interval = options.interval,
+			.process_count = options.process_count,
+		}
+	);
 	backend.previous_cpu.init(allocator);
 	backend.previous_net.init(allocator);
 	backend.previous_processes.init(allocator);
@@ -52,9 +56,14 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	{
 		if (!exists(string::tformat("%s/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", root)))
 		{
-			capabilities.set(CPU_FREQUENCY, availability::no(HARDWARE_ABSENT, "no cpufreq driver exposes scaling_cur_freq"));
+			capabilities.set(
+				CPU_FREQUENCY,
+				availability::no(HARDWARE_ABSENT, "no cpufreq driver exposes scaling_cur_freq")
+			);
 		}
-		if (!exists(string::tformat("%s/sys/class/hwmon", root)) && !exists(string::tformat("%s/sys/class/thermal", root)))
+		if (!exists(
+			string::tformat("%s/sys/class/hwmon", root)
+		) && !exists(string::tformat("%s/sys/class/thermal", root)))
 		{
 			capabilities.set(TEMPERATURES, availability::no(HARDWARE_ABSENT, "no hwmon or thermal sensors"));
 		}
@@ -78,7 +87,7 @@ fn void destroy(Allocator allocator, void* state)
 
 fn void run(void* state, SysinfoHub* hub, Host{Command}* host)
 {
-	ProcfsBackend* backend = (ProcfsBackend*)state;
+	ProcfsBackend* backend   = (ProcfsBackend*)state;
 	sysinfo::Sampler sampler = { .reader = backend, .sample = &sample };
 	sysinfo::run_sampler(&sampler, hub, host, backend.interval);
 }

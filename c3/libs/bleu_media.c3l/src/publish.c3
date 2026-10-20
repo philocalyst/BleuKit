@@ -32,8 +32,8 @@ fn void emit_changes(MediaHub* hub, Snapshot{State}* before, ulong[] seeked) @pr
 {
 	@pool()
 	{
-		State none = {};
-		State* previous = before != null ? &before.value : &none;
+		State none             = { };
+		State* previous        = before != null ? &before.value : &none;
 		Snapshot{State}* after = hub.latest()!!;
 		defer after.release();
 		List{Event} events;

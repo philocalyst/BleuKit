@@ -165,6 +165,8 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 			self.dirty = true;
 			count = host.mailbox().take_all(commands[..]);
 		}
+		// Replies that arrived during a synchronous call are queued; deliver them now, since no socket event may follow.
+		if (catch self.bus.process()) break;
 	}
 	// Finish what the bus still owes (pending replies fail as the bus closes), then say the service is gone.
 	fail_queued(host);

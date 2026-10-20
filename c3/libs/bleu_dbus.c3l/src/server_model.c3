@@ -138,7 +138,7 @@ fn void? validate_interface(Interface* i)
 		}
 		if (find_method_index(i, m.name, k) >= 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method '%s' is declared twice", m.name)~;
 	}
-	for (sz k = 0; k < i.properties.len; k++) validate_property(i, &i.properties[k])!;
+	for (sz k = 0; k < i.properties.len; k++) validate_property(i, k)!;
 	for (sz k = 0; k < i.signals.len; k++)
 	{
 		Signal* s = &i.signals[k];
@@ -152,8 +152,9 @@ fn void? validate_interface(Interface* i)
 }
 
 // Checks one property of `i`: its name and type, the handlers its access needs, and its announcement rule.
-fn void? validate_property(Interface* i, Property* p) @private
+fn void? validate_property(Interface* i, sz index) @private
 {
+	Property* p = &i.properties[index];
 	if (!names::is_member(p.name) || !signature::is_single(p.signature)) {
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' has no valid single type", p.name)~;
 	}
@@ -163,7 +164,7 @@ fn void? validate_property(Interface* i, Property* p) @private
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "write-only property '%s' cannot announce its value", p.name)~;
 	}
 	if (p.changes == CONST && p.access != READ) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "constant property '%s' must be read-only", p.name)~;
-	if (find_property_index(i, p.name, -1) >= 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' is declared twice", p.name)~;
+	if (find_property_index(i, p.name, index) >= 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' is declared twice", p.name)~;
 }
 
 // True when `names` is empty, or has one name for each complete type of `sig`.
