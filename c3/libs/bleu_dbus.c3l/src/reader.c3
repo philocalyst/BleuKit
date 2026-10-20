@@ -348,10 +348,7 @@ fn Value? decode(Reader* self, bool keep, Allocator allocator) @private
 	if (keep)
 	{
 		v.sig = type.copy(allocator);
-		if (v.text.len > 0 || v.kind == STRING || v.kind == OBJECT_PATH || v.kind == SIGNATURE)
-		{
-			v.text = v.text.copy(allocator);
-		}
+		if (v.kind == STRING || v.kind == OBJECT_PATH || v.kind == SIGNATURE) v.text = v.text.copy(allocator);
 	}
 	return v;
 }

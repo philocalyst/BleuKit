@@ -25,4 +25,4 @@ alias Native = CInt;
  standard library binds it only for some systems. Returns -1 on error, with
  errno set.
 *>
-extern fn CInt fcntl(CInt fd, CInt cmd, CInt arg) @cname("fcntl");
+extern fn CInt fcntl(CInt fd, CInt cmd, ...) @cname("fcntl");
