@@ -47,11 +47,12 @@ Run = executed on Linux x86-64 here. Compiled = type-checked for all six targets
 
 | Capability | Linux (`xdg-desktop`) | macOS (`app-bundles`) | Windows (`start-menu`) |
 | --- | --- | --- | --- |
-| Catalogue (scan, precedence, Hidden/NoDisplay/Show­In/TryExec) | Run | Compiled | Compiled |
+| Catalogue (scan, precedence, Hidden, NoDisplay, OnlyShowIn/NotShowIn, TryExec) | Run | Compiled | Compiled |
 | Sort, diff, events | Run | Compiled | Compiled |
 | Search and ranking (`rank`) | Run (pure, all OS) | Run (pure) | Run (pure) |
 | Change detection | Run (inotify, debounced) | Compiled (poll of folder names) | Compiled (poll) |
-| Launch: spawn `Exec`, `%f %F %u %U %i %c %k`, args, env tokens | Run | n/a | n/a |
+| Launch: spawn `Exec` with `%U` and args, env tokens | Run | n/a | n/a |
+| Launch: `%f %F %i %c %k` expansion | Compiled (expansion is unit-tested in `bleu_xdg`, not here) | n/a | n/a |
 | Launch: `Terminal=true` | Compiled (not run: no terminal in the test host) | n/a | n/a |
 | Launch: D-Bus `Activate` / `Open` / `ActivateAction` | Run (private dbus-daemon + dbus-next mock) | n/a | n/a |
 | Launch: fallback to `Exec` when the bus refuses | Run | n/a | n/a |
@@ -60,7 +61,7 @@ Run = executed on Linux x86-64 here. Compiled = type-checked for all six targets
 | Secondary actions (`launch_action`) | Run (Exec and D-Bus) | Not done (UNSUPPORTED) | Not done (UNSUPPORTED) |
 | `icon_file` for absolute paths and missing names | Run | Not done | Not done |
 | `icon_file` theme lookup | Compiled (uses `bleu_xdg` icon finder; not exercised here) | Not done | Not done |
-| Child reaping (zombies) | Run (indirectly) | Compiled | n/a |
+| Child reaping (zombies) | Compiled (not observed) | n/a | n/a |
 
 Run scripts: `tests/run.sh` (D-Bus; needs `dbus-daemon` and python3 with `dbus-next`,
 set `BLEU_APPS_PYTHON`). Unit tests: `c3c compile-test libs/bleu_apps.c3l/src/*.c3`

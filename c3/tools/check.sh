@@ -13,6 +13,7 @@ targets="${TARGETS:-linux-x64 linux-aarch64 macos-aarch64 macos-x64 windows-x64 
 if [ "$#" -gt 0 ]; then libs=("$@"); else libs=($(cd "$here/libs" && for d in *.c3l; do [ -f "$d/manifest.json" ] && echo "${d%.c3l}"; done)); fi
 args=(); for l in "${libs[@]}"; do args+=(--lib "$l"); done
 status=0
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT; cd "$work"   # c3c writes out/ and obj/ into the cwd: never share one between concurrent runs
 for t in $targets; do
   out="$(c3c --libdir "$here/libs" "${args[@]}" --target "$t" --no-entry --no-obj \
           --warn-deprecation=error --warn-deadcode=no compile-only "$here/tools/empty.c3" 2>&1)"

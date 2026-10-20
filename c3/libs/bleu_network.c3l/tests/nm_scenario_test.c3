@@ -49,7 +49,7 @@ fn AccessPoint* find(State* state, char[] ssid)
 {
 	foreach (&network : state.wifi.networks)
 	{
-		if (network.ssid.bytes.len == ssid.len && network.ssid.bytes == ssid) return &network;
+		if (network::same_ssid(network.ssid.bytes, ssid)) return network;
 	}
 	return null;
 }
@@ -58,7 +58,7 @@ fn Interface* interface_named(State* state, String name)
 {
 	foreach (&iface : state.interfaces)
 	{
-		if (iface.name == name) return &iface;
+		if (iface.name == name) return iface;
 	}
 	return null;
 }
@@ -146,7 +146,7 @@ fn void reads_the_picture() @test
 
 	// Connecting without a passphrase to a network with no saved profile.
 	ConnectOp* needs = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
-	assert(@catch(needs.wait(time::sec(10))) == AUTH_REQUIRED, "a passphrase is needed and none was given");
+	assert(@catch(needs.wait(time::sec(10))) == error::AUTH_REQUIRED, "a passphrase is needed and none was given");
 	needs.release();
 
 	// SAE with its password, and the non-UTF-8 network by its bytes.

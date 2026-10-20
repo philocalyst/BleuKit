@@ -73,7 +73,7 @@ printf '12345\n' >"$root/sys/class/net/eth0/statistics/rx_bytes"
 printf '678\n' >"$root/sys/class/net/eth0/statistics/tx_bytes"
 printf 'up\n' >"$root/sys/class/net/wlan0/operstate"
 printf '1\n' >"$root/sys/class/net/wlan0/carrier"
-printf '-1\n' >"$root/sys/class/net/wlan0/speed"
+printf '%s\n' -1 >"$root/sys/class/net/wlan0/speed"
 printf '1000\n' >"$root/sys/class/net/wlan0/statistics/rx_bytes"
 printf '2000\n' >"$root/sys/class/net/wlan0/statistics/tx_bytes"
 

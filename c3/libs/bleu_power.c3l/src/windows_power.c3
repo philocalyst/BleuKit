@@ -15,7 +15,7 @@ module bleu::power::windows @feat(WIN32);
 import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::error,
 	bleu::observe, bleu::power, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::win::errors,
 	bleu::win::text, bleu::power::windows_api, bleu::power::windows_suspend, bleu::power::windows_shutdown,
-	bleu::power::windows_lock, bleu::power::convert;
+	bleu::power::windows_lock;
 
 <* How often the worker reads the power status when nothing else wakes it. *>
 const Duration POLL_INTERVAL = (Duration)2_000_000;
@@ -137,7 +137,7 @@ fn void drain(Win* win, Host{Command}* host, Command[] batch)
 // Read the power status and publish it. A failed read leaves the fields it feeds unknown.
 fn void refresh(Win* win)
 {
-	SystemPowerStatus status;
+	windows_api::SystemPowerStatus status;
 	if (catch err = read_status(&status)) return;
 	Snapshot{State}* snapshot = win.hub.begin();
 	State* state = &snapshot.value;
@@ -157,9 +157,9 @@ fn void refresh(Win* win)
 	}
 }
 
-fn SystemPowerStatus? read_status(SystemPowerStatus* status)
+fn windows_api::SystemPowerStatus? read_status(windows_api::SystemPowerStatus* status)
 {
-	if (getSystemPowerStatus(status) == 0) return errors::raise_last("GetSystemPowerStatus")~;
+	if (windows_api::getSystemPowerStatus(status) == 0) return errors::raise_last("GetSystemPowerStatus")~;
 	return *status;
 }
 
@@ -183,9 +183,9 @@ fn int? request_type(InhibitKind kind)
 {
 	switch (kind)
 	{
-		case KEEP_AWAKE_DISPLAY: return POWER_REQUEST_DISPLAY_REQUIRED;
+		case KEEP_AWAKE_DISPLAY: return windows_api::POWER_REQUEST_DISPLAY_REQUIRED;
 		case KEEP_AWAKE_IDLE:
-		case KEEP_AWAKE_SYSTEM: return POWER_REQUEST_SYSTEM_REQUIRED;
+		case KEEP_AWAKE_SYSTEM: return windows_api::POWER_REQUEST_SYSTEM_REQUIRED;
 		case SLEEP_DELAY:
 		case SHUTDOWN_BLOCK: return error::UNSUPPORTED~;
 	}
@@ -211,13 +211,13 @@ fn Inhibitor? take_request(Win* win, Command* command)
 	@pool()
 	{
 		WideZ reason = text::to_wide(tmem, command.why)!;
-		ReasonContext context = { .version = POWER_REQUEST_CONTEXT_VERSION, .flags = POWER_REQUEST_CONTEXT_SIMPLE_STRING, .simple_reason = reason.as_wstring() };
-		void* request = powerCreateRequest(&context);
-		if ((usz)request == INVALID_HANDLE) return errors::raise_last("PowerCreateRequest")~;
-		if (powerSetRequest(request, type) == 0)
+		windows_api::ReasonContext context = { .version = windows_api::POWER_REQUEST_CONTEXT_VERSION, .flags = windows_api::POWER_REQUEST_CONTEXT_SIMPLE_STRING, .simple_reason = reason.as_wstring() };
+		void* request = windows_api::powerCreateRequest(&context);
+		if ((usz)request == windows_api::INVALID_HANDLE) return errors::raise_last("PowerCreateRequest")~;
+		if (windows_api::powerSetRequest(request, type) == 0)
 		{
 			fault failure = errors::raise_last("PowerSetRequest");
-			closeHandle(request);
+			windows_api::closeHandle(request);
 			return failure~;
 		}
 		uint id = ++win.next_hold;
@@ -232,8 +232,8 @@ fn void release_hold(Win* win, uint id)
 	foreach (i, &hold : win.holds)
 	{
 		if (hold.id != id) continue;
-		powerClearRequest(hold.request, hold.type);
-		closeHandle(hold.request);
+		windows_api::powerClearRequest(hold.request, hold.type);
+		windows_api::closeHandle(hold.request);
 		win.holds.remove_at(i);
 		return;
 	}
@@ -245,7 +245,7 @@ fn void perform(Win* win, Command* command)
 	switch (command.action)
 	{
 		case SUSPEND:
-			if (setSuspendState(0, 0, 0) == 0)
+			if (windows_suspend::setSuspendState(0, 0, 0) == 0)
 			{
 				power::abort{Action}(command.action_op, errors::raise_last("SetSuspendState"));
 			}
@@ -254,7 +254,7 @@ fn void perform(Win* win, Command* command)
 				power::finish{Action}(command.action_op, SUSPEND);
 			}
 		case POWER_OFF:
-			if (initiateSystemShutdownExW(null, null, 0, 0, 0, SHUTDOWN_REASON) == 0)
+			if (windows_shutdown::initiateSystemShutdownExW(null, null, 0, 0, 0, SHUTDOWN_REASON) == 0)
 			{
 				power::abort{Action}(command.action_op, errors::raise_last("InitiateSystemShutdownExW"));
 			}
@@ -263,7 +263,7 @@ fn void perform(Win* win, Command* command)
 				power::finish{Action}(command.action_op, POWER_OFF);
 			}
 		case LOCK:
-			if (lockWorkStation() == 0)
+			if (windows_lock::lockWorkStation() == 0)
 			{
 				power::abort{Action}(command.action_op, errors::raise_last("LockWorkStation"));
 			}
@@ -289,8 +289,8 @@ fn void shutdown(Win* win, Host{Command}* host)
 	}
 	foreach (&hold : win.holds)
 	{
-		powerClearRequest(hold.request, hold.type);
-		closeHandle(hold.request);
+		windows_api::powerClearRequest(hold.request, hold.type);
+		windows_api::closeHandle(hold.request);
 	}
 	win.holds.free();
 }

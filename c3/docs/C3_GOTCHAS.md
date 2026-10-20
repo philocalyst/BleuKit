@@ -81,3 +81,11 @@
 * `c3c compile-test` runs `@test`s of every linked library, not only the named file.
 * `c3c` writes `out/` and `build/` into the current directory: run it from a scratch directory when the lib tree must stay clean.
 * `Type.sizeof` is not the idiom here: use `Type::size` (as `Guid::size` in bleu_win).
+* Functions and enum members from another module of the same library need the prefix (`apps::copy_strings(...)`, `Cap.WATCH`), even inside a sibling module that imports it → qualify them.
+* `@local` hides a helper from the other files of its module; a helper called from two files must not be `@local`.
+* `String[4] X = {...}` as a global needs `const` ("looks like a constant variable").
+* `std::os::process::spawn` defaults every stdio to CAPTURE (a pipe nobody reads, so the child blocks) → pass `process::INHERIT` (or bind a fd).
+* Generic aliases need their arguments at use site: `Packet{Event}*`, `WorkerHost` → define `alias AppsHost = Host{Command};` in the module.
+* `Duration` globals need a cast from integer literals: `(Duration)200_000`.
+* `libc::Pid_t` needs `import libc`; `std::os::posix` does not re-export it.
+* Platform externs: names must start lower-case (`shell_execute_w` with `@cname("ShellExecuteW")`), and a `WIN32`-only module with `@link` still parses on every target, so keep its syntax clean.

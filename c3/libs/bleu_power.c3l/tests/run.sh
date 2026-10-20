@@ -9,6 +9,7 @@
 #
 #   libs/bleu_power.c3l/tests/run.sh
 #
+# BLEU_LIBDIR overrides the library directory (default: tools/libdir.sh).
 # Needs dbus-daemon, c3c and python3. Set BLEU_POWER_PYTHON to a python that has
 # dbus-next; otherwise a virtual environment is created in the work directory
 # and dbus-next is installed into it (network access to pypi.org needed).
@@ -82,7 +83,7 @@ start_mock() {
 
 PYTHON="$(python_with_dbus_next)"
 sources=("$here"/../src/*.c3)
-libdir="$(bash "$repo/tools/libdir.sh")"
+libdir="${BLEU_LIBDIR:-$(bash "$repo/tools/libdir.sh")}"
 c3c --libdir "$libdir" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus \
   --lib bleu_objc --lib bleu_win --lib bleu_power compile "$here/integration/main.c3" \
   --sources "${sources[@]}" -o "$work/integration" >"$work/compile.log" 2>&1 || {

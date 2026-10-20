@@ -61,4 +61,4 @@ for the named target by `c3c compile-only`; never executed. Not done = not built
 - `libs/bleu_brightness.c3l/tests/run.sh`: runs the above, then the logind route twice (stand-in implementing `SetBrightness`, and one that does not). Output: `ALL PASSED`.
 - `c3c compile-only` for `linux-x64`, `linux-aarch64`, `macos-x64`, `macos-aarch64`, `windows-x64`, `windows-aarch64`: clean.
 - `c3fmt --check` clean.
-- Note: `bleu_dbus` is listed as a dependency and is needed for every target. Its README was absent in the working copy when this was written, and its server sources were mid-edit; the checks above used the committed `bleu_dbus`.
+- Note: `bleu_dbus` is a dependency for every target. Its README is now present; during this work its server sources were mid-edit by another agent, so the Windows and macOS checks were also run against the committed `bleu_dbus` (both pass).

@@ -108,7 +108,7 @@ fn void destroy(Allocator allocator, void* state)
 }
 
 // Activate the session manager (`RequestAsync`). The caller releases it.
-fn smtc_api::Manager*? request_manager() @local
+fn smtc_api::Manager*? request_manager()
 {
 	com_ptr::Com{smtc_api::ManagerStatics} factory = winrt::activation_factory{smtc_api::ManagerStatics}(smtc_api::MANAGER_CLASS, smtc_api::IID_MANAGER_STATICS)!;
 	defer factory.release();
@@ -123,7 +123,7 @@ fn smtc_api::Manager*? request_manager() @local
  Wait for an `IAsyncOperation<T>` whose result is an object, and return that
  object (owned by the caller). The operation itself is released here.
 *>
-fn void*? await_object(void* operation) @local
+fn void*? await_object(void* operation)
 {
 	com_ptr::Com{com::IUnknown} owned = { .ptr = (com::IUnknown*)operation };
 	defer owned.release();
@@ -137,7 +137,7 @@ fn void*? await_object(void* operation) @local
 }
 
 // As `await_object`, for an `IAsyncOperation<Boolean>`: the value the session returned.
-fn bool? await_bool(void* operation) @local
+fn bool? await_bool(void* operation)
 {
 	com_ptr::Com{com::IUnknown} owned = { .ptr = (com::IUnknown*)operation };
 	defer owned.release();
@@ -151,18 +151,123 @@ fn bool? await_bool(void* operation) @local
 }
 
 <* An HSTRING returned as an owned object, copied into `allocator`. A null handle is "". *>
-fn String? hstring_of(void* handle, Allocator allocator) @local
+fn String? hstring_of(void* handle, Allocator allocator)
 {
 	hstring::Hstring text = { .handle = handle };
 	defer text.close();
 	return text.to_string(allocator);
 }
 
-// The sessions as the manager reports them now. The caller releases the view.
-fn smtc_api::VectorView*? Backend.sessions(&self, smtc_api::Manager* manager) @local
+
+// One call that returns an object through an out pointer. The object is the caller's.
+fn void*? object_of(GetObjectFn getter, void* self)
 {
-	void* view = null;
-	hresult::Hresult hr = manager.vtbl.get_sessions(manager, &view);
-	if (hr.failed()) return errors::raise_hresult(hr, "GetSessions")~;
-	return (smtc_api::VectorView*)view;
+	void* out = null;
+	hresult::Hresult hr = getter(self, &out);
+	if (hr.failed()) return errors::raise_hresult(hr, "IInspectable call")~;
+	return out;
+}
+
+fn bool? flag_of(GetBoolFn getter, void* self)
+{
+	bool value = false;
+	hresult::Hresult hr = getter(self, &value);
+	if (hr.failed()) return errors::raise_hresult(hr, "IInspectable flag")~;
+	return value;
+}
+
+fn int? int_of(GetIntFn getter, void* self)
+{
+	int value = 0;
+	hresult::Hresult hr = getter(self, &value);
+	if (hr.failed()) return errors::raise_hresult(hr, "IInspectable enumeration")~;
+	return value;
+}
+
+fn long? ticks_of(GetTicksFn getter, void* self)
+{
+	long value = 0;
+	hresult::Hresult hr = getter(self, &value);
+	if (hr.failed()) return errors::raise_hresult(hr, "IInspectable ticks")~;
+	return value;
+}
+
+// A nullable `IReference<Boolean>` read: unknown when the reference is null.
+fn Maybe{bool} maybe_flag(void* reference) @local
+{
+	if (reference == null) return {};
+	smtc_api::ReferenceBool* box = (smtc_api::ReferenceBool*)reference;
+	if (try value = flag_of(box.vtbl.value, box)) return maybe::value(value);
+	return {};
+}
+
+// The state of one session, read through its interfaces. Strings go to `allocator`.
+fn Entry? read_entry(smtc_api::Session* session, Allocator allocator) @local
+{
+	Entry e;
+	e.id = hstring_of(object_of(session.vtbl.source_app_user_model_id, session)!, allocator)!;
+
+	void* info_raw = object_of(session.vtbl.get_playback_info, session)!;
+	defer release_object(info_raw);
+	smtc_api::PlaybackInfo* info = (smtc_api::PlaybackInfo*)info_raw;
+	e.status = smtc_convert::playback_of_status(int_of(info.vtbl.playback_status, info)!);
+
+	void* controls_raw = object_of(info.vtbl.controls, info)!;
+	defer release_object(controls_raw);
+	smtc_api::PlaybackControls* controls = (smtc_api::PlaybackControls*)controls_raw;
+	e.reported = {
+		.play = flag_of(controls.vtbl.is_play_enabled, controls)!,
+		.pause = flag_of(controls.vtbl.is_pause_enabled, controls)!,
+		.stop = flag_of(controls.vtbl.is_stop_enabled, controls)!,
+		.next = flag_of(controls.vtbl.is_next_enabled, controls)!,
+		.previous = flag_of(controls.vtbl.is_previous_enabled, controls)!,
+		.toggle = flag_of(controls.vtbl.is_play_pause_toggle_enabled, controls)!,
+		.position = flag_of(controls.vtbl.is_playback_position_enabled, controls)!,
+		.rate = flag_of(controls.vtbl.is_playback_rate_enabled, controls)!,
+		.shuffle = flag_of(controls.vtbl.is_shuffle_enabled, controls)!,
+		.repeat = flag_of(controls.vtbl.is_repeat_enabled, controls)!,
+	};
+
+	void* repeat_raw = object_of(info.vtbl.auto_repeat_mode, info)!;
+	defer release_object(repeat_raw);
+	if (repeat_raw != null)
+	{
+		smtc_api::ReferenceInt* box = (smtc_api::ReferenceInt*)repeat_raw;
+		e.loop = maybe::value(smtc_convert::loop_of_repeat(int_of(box.vtbl.value, box)!));
+	}
+
+	e.shuffle = maybe_flag(object_of(info.vtbl.is_shuffle_active, info)!);
+
+	e.rate = 1.0;
+	void* rate_raw = object_of(info.vtbl.playback_rate, info)!;
+	defer release_object(rate_raw);
+	if (rate_raw != null)
+	{
+		smtc_api::ReferenceDouble* box = (smtc_api::ReferenceDouble*)rate_raw;
+		double rate = 1.0;
+		hresult::Hresult hr = box.vtbl.value(box, &rate);
+		if (hr.failed()) return errors::raise_hresult(hr, "PlaybackRate")~;
+		e.rate = rate;
+	}
+	if (e.status == PLAYING && e.rate == 0.0) e.status = PAUSED;
+
+	void* timeline_raw = object_of(session.vtbl.get_timeline_properties, session)!;
+	defer release_object(timeline_raw);
+	smtc_api::Timeline* timeline = (smtc_api::Timeline*)timeline_raw;
+	e.position_ticks = ticks_of(timeline.vtbl.position, timeline)!;
+	e.updated_ticks = ticks_of(timeline.vtbl.last_updated, timeline)!;
+	e.has_position = true;
+	long start = ticks_of(timeline.vtbl.start_time, timeline)!;
+	long end = ticks_of(timeline.vtbl.end_time, timeline)!;
+	e.has_length = end > start;
+	e.length_ticks = end - start;
+
+	void* props_operation = object_of(session.vtbl.try_get_media_properties_async, session)!;
+	void* props_raw = await_object(props_operation)!;
+	defer release_object(props_raw);
+	smtc_api::MediaProperties* props = (smtc_api::MediaProperties*)props_raw;
+	e.title = hstring_of(object_of(props.vtbl.title, props)!, allocator)!;
+	e.artist = hstring_of(object_of(props.vtbl.artist, props)!, allocator)!;
+	e.album = hstring_of(object_of(props.vtbl.album_title, props)!, allocator)!;
+	return e;
 }

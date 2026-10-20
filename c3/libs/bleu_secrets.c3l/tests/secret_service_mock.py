@@ -82,10 +82,11 @@ def decrypt(key: bytes, iv: bytes, cipher: bytes) -> bytes:
 
 def secret_struct(session_path: str, session_key, plain: bytes):
     """A (oayays) value for `plain`, encrypted when the session is encrypted."""
+    # dbus-next marshals a STRUCT from a list, not a tuple.
     if session_key is None:
-        return (session_path, b"", plain, "text/plain; charset=utf8")
+        return [session_path, b"", plain, "text/plain; charset=utf8"]
     iv = os.urandom(16)
-    return (session_path, iv, encrypt(session_key, iv, plain), "text/plain; charset=utf8")
+    return [session_path, iv, encrypt(session_key, iv, plain), "text/plain; charset=utf8"]
 
 
 def read_secret_struct(session_key, struct):

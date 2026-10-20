@@ -495,7 +495,7 @@ fn void bind_negotiates_the_lower_version() @test
 	test::eq(seat.version, 7u);
 	OutputState state;
 	((wayland::WlOutput*)output).set_listener(&OUTPUT_LISTENER, &state);
-	while (!state.done) client.flush()!!;
+	client.flush()!!;
 	while (!state.done) client.dispatch()!!;
 	test::eq(state.geometry_seen, true);
 	test::eq(state.make_is_acme, true);

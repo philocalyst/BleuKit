@@ -13,8 +13,9 @@
  happened; the loop publishes after the run returns.
 *>
 module bleu::power::macos @feat(DARWIN);
-import std::collections::list, std::collections::maybe, bleu::availability, bleu::cf, bleu::error, bleu::iokit,
-	bleu::iokit::power, bleu::mach, bleu::objc, bleu::observe, bleu::power, bleu::service, bleu::rt::worker;
+import std::collections::list, std::collections::maybe, std::os::darwin::objc, bleu::availability, bleu::cf,
+	bleu::error, bleu::iokit, bleu::iokit::power, bleu::mach, bleu::objc, bleu::observe, bleu::power, bleu::service,
+	bleu::rt::worker;
 
 extern fn void* cf_run_loop_get_current() @cname("CFRunLoopGetCurrent");
 extern fn int cf_run_loop_run_in_mode(void* mode, double seconds, bool return_after_source) @cname("CFRunLoopRunInMode");
@@ -129,10 +130,10 @@ fn void? start(Mac* mac)
 {
 	fill_capabilities(mac.capabilities);
 	void* loop = cf_run_loop_get_current();
-	mac.system = register_system_power(&on_power_event, mac)!;
-	attach_source(loop, mac.system.port.source());
-	mac.source = power_source_change_source(&on_power_source_change, mac)!;
-	attach_source(loop, mac.source.ptr);
+	mac.system = iokit::power::register_system_power(&on_power_event, mac)!;
+	iokit::power::attach_source(loop, mac.system.port.source());
+	mac.source = iokit::power::power_source_change_source(&on_power_source_change, mac)!;
+	iokit::power::attach_source(loop, mac.source.ptr);
 	refresh(mac);
 }
 
@@ -157,7 +158,7 @@ fn void serve(Mac* mac, Host{Command}* host)
 	while (!host.stopping())
 	{
 		// Notifications are delivered inside this call; the requests follow.
-		cf_run_loop_run_in_mode(KCF_RUNLOOP_DEFAULT_MODE, POLL_SECONDS, false);
+		cf_run_loop_run_in_mode(iokit::power::KCF_RUNLOOP_DEFAULT_MODE, POLL_SECONDS, false);
 		deliver_sleep(mac);
 		drain(mac, host, batch[..]);
 		ticks++;
@@ -224,7 +225,7 @@ fn void external_power(State* state)
 {
 	@pool()
 	{
-		if (try sources = read_power_sources(tmem))
+		if (try sources = iokit::power::read_power_sources(tmem))
 		{
 			if (sources.len == 0) return;
 			bool on_ac = false;
@@ -320,8 +321,8 @@ fn void release_hold(Mac* mac, uint id)
 	foreach (i, &hold : mac.holds)
 	{
 		if (hold.id != id) continue;
-		// A failed release leaves nothing for the caller to retry: the assertion dies with the process.
-		if (catch err = pm_release_assertion(hold.assertion)) {}
+		// A failed release is not retried: the kernel drops the assertion when the process ends.
+		(void)pm_release_assertion(hold.assertion);
 		mac.holds.remove_at(i);
 		return;
 	}
@@ -338,7 +339,7 @@ fn void shutdown(Mac* mac, Host{Command}* host)
 	}
 	foreach (&hold : mac.holds)
 	{
-		pm_release_assertion(hold.assertion);
+		(void)pm_release_assertion(hold.assertion);
 	}
 	mac.holds.free();
 	mac.sleep_events.free();
