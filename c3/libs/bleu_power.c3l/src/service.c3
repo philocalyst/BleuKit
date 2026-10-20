@@ -295,6 +295,35 @@ fn void finish{T}(Operation{T}* operation, T? result)
 	operation.release();
 }
 
+<*
+ End `operation` with `failure` and drop the worker's reference to it. Called by
+ the worker when a request cannot be carried out at all.
+*>
+fn void abort{T}(Operation{T}* operation, fault failure)
+{
+	operation.fail(failure);
+	operation.release();
+}
+
+<*
+ End the request in `command` with `failure`, if it has an operation. Commands
+ that carry no operation (releases, acknowledgements) have nothing to report to.
+*>
+fn void abort_command(Command* command, fault failure)
+{
+	switch (command.kind)
+	{
+		case SET_PROFILE: abort{Profile}(command.profile_op, failure);
+		case HOLD_PROFILE: abort{ProfileHold}(command.hold_op, failure);
+		case INHIBIT: abort{Inhibitor}(command.inhibit_op, failure);
+		case CAN: abort{Availability}(command.can_op, failure);
+		case PERFORM: abort{Action}(command.action_op, failure);
+		case RELEASE_PROFILE:
+		case RELEASE_INHIBITOR:
+		case ACK_SLEEP: return;
+	}
+}
+
 // Give the worker its own reference, then queue the command. On failure the
 // worker's reference is dropped again; the caller still holds its own.
 fn void? post_retained{T}(Power* self, Command command, Operation{T}* operation) @private

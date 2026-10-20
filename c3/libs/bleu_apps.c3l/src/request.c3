@@ -1,5 +1,5 @@
 module bleu::apps;
-import bleu::error, bleu::operation, bleu::service, bleu::rt::worker;
+import bleu::error, bleu::operation, bleu::rt::worker;
 
 <*
  Arguments for a launch. Everything is copied when the launch is submitted, so the
@@ -45,7 +45,7 @@ struct LaunchRequest
 
  @param [&inout] allocator : "Allocator for the request; the request's arena draws its pages from it too"
 *>
-fn LaunchRequest* LaunchRequest.create(Allocator allocator, String app_id, String action_id, LaunchOptions options, LaunchOperation* op)
+fn LaunchRequest* new_request(Allocator allocator, String app_id, String action_id, LaunchOptions options, LaunchOperation* op)
 {
 	LaunchRequest* request = alloc::new(allocator, LaunchRequest);
 	request.parent = allocator;
@@ -82,6 +82,9 @@ fn String[] copy_strings(Allocator allocator, String[] values)
 	return copies;
 }
 
+<* The worker's view of the service: its mailbox and stop flag. *>
+alias AppsHost = Host{Command};
+
 <* A command for the worker: rescan, or run a launch. *>
 struct Command
 {
@@ -94,7 +97,7 @@ struct Command
  `refresh`; each `LAUNCH` is looked up in the latest catalogue and handed to
  `launch`, and its operation is completed with the result.
 *>
-fn void serve(void* state, AppsHub* hub, WorkerHost* host, LaunchFn launch, bool* refresh)
+fn void serve(void* state, AppsHub* hub, AppsHost* host, LaunchFn launch, bool* refresh)
 {
 	Command[COMMAND_BATCH] buffer;
 	usz count;
@@ -119,7 +122,7 @@ const usz COMMAND_BATCH = 8;
 <*
  Fail every command still queued when the worker stops, so no caller waits forever.
 *>
-fn void refuse_pending(WorkerHost* host)
+fn void refuse_pending(AppsHost* host)
 {
 	Command[COMMAND_BATCH] buffer;
 	usz count;

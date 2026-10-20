@@ -22,7 +22,7 @@ struct Driver
 alias DriverProbeFn = fn bool(Options* options);
 alias DriverCreateFn = fn void*?(Allocator allocator, Options options, Capabilities* capabilities);
 alias DriverDestroyFn = fn void(Allocator allocator, void* state);
-alias AppsRunFn = fn void(void* state, AppsHub* hub, WorkerHost* host);
+alias AppsRunFn = fn void(void* state, AppsHub* hub, AppsHost* host);
 alias DriverIconFn = fn String?(void* state, String icon, int size, int scale, Allocator allocator);
 
 <*

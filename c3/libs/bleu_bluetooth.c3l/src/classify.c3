@@ -208,7 +208,7 @@ fn PnpSource pnp_source(String name) @private
 }
 
 // The value of one hex digit, or -1 when the character is not one.
-fn int hex_digit(char c) @private
+fn int hex_digit(char c)
 {
 	if (c >= '0' && c <= '9') return (int)c - (int)'0';
 	if (c >= 'a' && c <= 'f') return (int)c - (int)'a' + 10;
@@ -228,4 +228,61 @@ fn ushort? hex_number(String digits) @private
 		value = value * 16 + (uint)nibble;
 	}
 	return (ushort)value;
+}
+
+// Service class UUIDs of the profiles, in the order of `Profile`. Source: Bluetooth Assigned Numbers
+// (Service Discovery Protocol service classes; values in docs/research/bluetooth.md C19).
+const String[6] PROFILE_UUIDS = {
+	"0000110a-0000-1000-8000-00805f9b34fb", // A2DP_SOURCE
+	"0000110b-0000-1000-8000-00805f9b34fb", // A2DP_SINK
+	"00001108-0000-1000-8000-00805f9b34fb", // HSP_HEADSET
+	"00001112-0000-1000-8000-00805f9b34fb", // HSP_GATEWAY
+	"0000111e-0000-1000-8000-00805f9b34fb", // HFP_HANDSFREE
+	"0000111f-0000-1000-8000-00805f9b34fb", // HFP_GATEWAY
+};
+
+<* The UUID text of a profile, in the lower case BlueZ uses. *>
+fn String profile_uuid(Profile profile) => PROFILE_UUIDS[profile.ordinal];
+
+<* The profile a UUID names, or an excuse when it is not one this library knows. Compares lower-case text. *>
+fn Profile? profile_from_uuid(String uuid)
+{
+	foreach (i, candidate : PROFILE_UUIDS)
+	{
+		if (candidate == uuid) return (Profile)i;
+	}
+	return NOT_FOUND~;
+}
+
+// "dev_" before the address, and the address in its 17 characters.
+const sz DEVICE_PATH_PREFIX = 4;
+const sz ADDRESS_TEXT_LENGTH = 17;
+
+<*
+ The device address named by a BlueZ device object path, such as
+ "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF" gives "AA:BB:CC:DD:EE:FF".
+
+ @param allocator : "Allocator for the returned address"
+ @return? NOT_FOUND : "The path does not end in a device address"
+*>
+fn String? address_of_device_path(String path, Allocator allocator)
+{
+	sz tail_len = DEVICE_PATH_PREFIX + ADDRESS_TEXT_LENGTH;
+	if (path.len < tail_len) return NOT_FOUND~;
+	String tail = path[path.len - tail_len : tail_len];
+	if (!tail.starts_with("dev_")) return NOT_FOUND~;
+	char[ADDRESS_TEXT_LENGTH] text;
+	for (sz i = 0; i < ADDRESS_TEXT_LENGTH; i++)
+	{
+		char c = tail[DEVICE_PATH_PREFIX + i];
+		if (i % 3 == 2)
+		{
+			if (c != '_') return NOT_FOUND~;
+			text[i] = ':';
+			continue;
+		}
+		if (hex_digit(c) < 0) return NOT_FOUND~;
+		text[i] = (c >= 'a' && c <= 'f') ? (char)(c - 32) : c;
+	}
+	return ((String)text[..]).copy(allocator);
 }

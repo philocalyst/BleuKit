@@ -17,8 +17,8 @@ import std::collections::enummap, std::time, bleu::error, bleu::availability, bl
 
 alias Capabilities = EnumMap{Cap, Availability};
 
-const Duration DEFAULT_SETTLE = 200_000;   // 200 ms of quiet before a rescan (microseconds)
-const Duration DEFAULT_POLL = 5_000_000;   // 5 s between directory checks on polled backends
+const Duration DEFAULT_SETTLE = (Duration)200_000;   // 200 ms of quiet before a rescan (microseconds)
+const Duration DEFAULT_POLL = (Duration)5_000_000;   // 5 s between directory checks on polled backends
 
 <* How `open` finds and tunes a backend. Zero or empty fields take their defaults. *>
 struct Options
@@ -166,7 +166,7 @@ fn LaunchOperation*? Apps.launch_action(&self, String app_id, String action_id, 
 fn LaunchOperation*? submit(Apps* self, String app_id, String action_id, LaunchOptions options) @local
 {
 	LaunchOperation* op = operation::begin{Launched}(self.allocator);
-	LaunchRequest* request = LaunchRequest.create(self.allocator, app_id, action_id, options, op.retain());
+	LaunchRequest* request = new_request(self.allocator, app_id, action_id, options, op.retain());
 	if (catch err = self.hub.post({ .kind = LAUNCH, .request = request }))
 	{
 		request.release();

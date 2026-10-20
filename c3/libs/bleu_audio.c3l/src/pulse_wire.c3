@@ -200,13 +200,13 @@ fn void append_raw_u64(DString* out, ulong value)
 
  @param allocator : "Allocator for the packet buffer; free it with `DString.free`"
 *>
-fn DString begin_command(Allocator allocator, uint command, uint tag)
+fn DString begin_command(Allocator allocator, PulseCommand command, uint tag)
 {
 	DString packet;
 	packet.init(allocator, 128);
 	char[FRAME_HEADER_SIZE] reserved;
 	packet.append_bytes(reserved[..]);
-	put_u32(&packet, command);
+	put_u32(&packet, (uint)command);
 	put_u32(&packet, tag);
 	return packet;
 }
@@ -294,7 +294,7 @@ fn void put_proplist(DString* out, Property[] props)
 }
 
 // A bare u32 with its tag, as used inside proplists (tagstruct.c:318-335).
-fn void append_u32_tag(DString* out, uint value) @private
+fn void append_u32_tag(DString* out, uint value)
 {
 	out.append_char(TAG_U32);
 	append_raw_u32(out, value);
@@ -339,7 +339,7 @@ struct TagReader
 fn bool TagReader.at_end(&self) @inline => self.pos >= self.data.len;
 
 // Read `count` raw bytes. Fails when the packet is shorter than the layout says.
-fn char[]? TagReader.raw(&self, sz count) @private
+fn char[]? TagReader.raw(&self, sz count)
 {
 	if (self.data.len - self.pos < count) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "packet ends at %d, %d bytes needed", self.data.len, count)~;
 	char[] bytes = self.data[self.pos : count];
@@ -348,7 +348,7 @@ fn char[]? TagReader.raw(&self, sz count) @private
 }
 
 // Consume the next tag byte, which must be `tag`.
-fn void? TagReader.expect(&self, char tag) @private
+fn void? TagReader.expect(&self, char tag)
 {
 	if (self.pos >= self.data.len) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "packet ends where tag '%d' belongs", (int)tag)~;
 	char found = self.data[self.pos];
@@ -386,7 +386,7 @@ fn ulong? TagReader.usec(&self)
 }
 
 <* A tagged boolean: '1' is true, '0' is false. *>
-fn bool? TagReader.bool(&self)
+fn bool? TagReader.flag(&self)
 {
 	char tag = self.peek();
 	if (tag == TAG_BOOLEAN_TRUE)

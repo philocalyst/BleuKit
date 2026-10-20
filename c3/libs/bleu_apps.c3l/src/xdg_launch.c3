@@ -3,7 +3,7 @@
  reaping. Same module as `xdg_desktop.c3`, which owns the backend state.
 *>
 module bleu::apps::xdg_desktop @feat(LINUX);
-import std::os::process, std::os::posix, std::collections::list, bleu::apps, bleu::error, bleu::xdg::exec;
+import std::os::process, std::os::posix, std::collections::list, libc, bleu::apps, bleu::error, bleu::xdg::exec;
 
 const String ENV_STARTUP_ID = "DESKTOP_STARTUP_ID";
 const String ENV_ACTIVATION_TOKEN = "XDG_ACTIVATION_TOKEN";
@@ -18,7 +18,7 @@ const String ENV_ACTIVATION_TOKEN = "XDG_ACTIVATION_TOKEN";
 *>
 fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* request)
 {
-	XdgXdgBackend* backend = (XdgBackend*)state;
+	XdgBackend* backend = (XdgBackend*)state;
 	String exec = action != null ? action.exec : app.target;
 	Context context = {
 		.files = request.files,
@@ -76,7 +76,7 @@ fn String[] append_strings(String[] invocation, String[] extra) @local
 
  @return? error::BACKEND_FAILURE : "The program could not be started"
 *>
-fn long? spawn_argv(XdgXdgBackend* backend, String[] argv, String[] environment) @local
+fn long? spawn_argv(XdgBackend* backend, String[] argv, String[] environment) @local
 {
 	Process? started = process::spawn(argv, (process::SpawnOptions)0, environment, process::INHERIT, process::INHERIT, process::INHERIT);
 	if (catch err = started)
@@ -94,7 +94,7 @@ fn long? spawn_argv(XdgXdgBackend* backend, String[] argv, String[] environment)
  Start `argv` inside the first terminal of the configured list that starts.
  Each terminal is given the command after `-e`.
 *>
-fn long? spawn_in_terminal(XdgXdgBackend* backend, String[] argv, String[] environment) @local
+fn long? spawn_in_terminal(XdgBackend* backend, String[] argv, String[] environment) @local
 {
 	foreach (terminal : backend.terminals)
 	{
@@ -112,13 +112,13 @@ fn long? spawn_in_terminal(XdgXdgBackend* backend, String[] argv, String[] envir
  Collect the children that have exited, so that they do not stay zombies. A
  child still running is kept for the next pass.
 *>
-fn void reap(XdgXdgBackend* backend)
+fn void reap(XdgBackend* backend)
 {
 	int[] pids = backend.children.to_tarray();
 	backend.children.clear();
 	foreach (pid : pids)
 	{
 		int status;
-		if (posix::waitpid((Pid_t)pid, &status, posix::WNOHANG) == 0) backend.children.push(pid);
+		if (posix::waitpid((libc::Pid_t)pid, &status, posix::WNOHANG) == 0) backend.children.push(pid);
 	}
 }

@@ -16,6 +16,7 @@ fn char nibble(char c) @local
 {
 	if (c >= '0' && c <= '9') return (char)(c - '0');
 	if (c >= 'a' && c <= 'f') return (char)(c - 'a' + 10);
+	if (c >= 'A' && c <= 'F') return (char)(c - 'A' + 10);
 	unreachable("not a hex digit");
 }
 
@@ -47,7 +48,8 @@ fn void bytes_round_trip() @test
 	n.to_be(full[..]);
 	assert(full[0] == 0 && full[127] == 0xFF && full[1] == 0);
 	char[] shortest = n.to_be_minimal(tmem);
-	assert(shortest.len == input.len && shortest[0] == 0x00 && shortest[1] == 0x80);
+	// The input has one leading zero byte; the shortest form drops it.
+	assert(shortest.len == input.len - 1 && shortest[0] == 0x80 && shortest[1] == 0x00);
 	assert(bignum::from_be(unhex(tmem, "00")!!)!!.is_zero());
 	Num zero_num = {};
 	char[] zero = zero_num.to_be_minimal(tmem);

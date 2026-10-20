@@ -86,12 +86,12 @@ fn void? Watcher.watch(&self, String directory)
 fn bool Watcher.drain(&self)
 {
 	if (!self.is_open()) return false;
-	char[EVENT_BUFFER] buffer;
-	bool any = false;
+	char[EVENT_BUFFER] events;
+	bool seen = false;
 	while (true)
 	{
-		long n = read(self.fd, &buffer, buffer.len);
-		if (n <= 0) return any;
-		any = true;
+		long n = read(self.fd, &events, events.len);
+		if (n <= 0) return seen;
+		seen = true;
 	}
 }

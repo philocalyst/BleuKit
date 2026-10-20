@@ -117,7 +117,7 @@ fn DeviceRecord? read_device(TagReader* r, uint version, bool is_source, Allocat
 	d.channel_map = r.channel_map()!;
 	r.u32()!; // owning module
 	d.volume = r.cvolume()!;
-	d.muted = r.bool()!;
+	d.muted = r.flag()!;
 	d.monitor_index = r.u32()!;
 	d.monitor_name = r.string()!;
 	r.usec()!;     // latency
@@ -151,7 +151,7 @@ fn DeviceRecord? read_device(TagReader* r, uint version, bool is_source, Allocat
 }
 
 // The port list of a device or card record; the count is a u32 (pulsecore/protocol-native.c:3203-3222).
-fn PortRecord[]? read_ports(TagReader* r, uint version, Allocator allocator) @private
+fn PortRecord[]? read_ports(TagReader* r, uint version, Allocator allocator)
 {
 	uint count = r.u32()!;
 	PortRecord[] ports = alloc::new_array(allocator, PortRecord, (sz)count);
@@ -225,7 +225,7 @@ fn CardRecord? read_card(TagReader* r, uint version, Allocator allocator)
 }
 
 // Card ports: read to keep the packet aligned, not kept (protocol-native.c:3354-3383).
-fn void? skip_card_ports(TagReader* r, uint version) @private
+fn void? skip_card_ports(TagReader* r, uint version)
 {
 	uint count = r.u32()!;
 	for (uint i = 0; i < count; i++)
@@ -287,13 +287,13 @@ fn StreamRecord? read_sink_input(TagReader* r, uint version, Allocator allocator
 	r.usec()!;     // sink latency
 	r.string()!;   // resample method
 	r.string()!;   // driver
-	if (version >= V_SINK_INPUT_MUTE) s.muted = r.bool()!;
+	if (version >= V_SINK_INPUT_MUTE) s.muted = r.flag()!;
 	if (version >= V_PROPLIST) s.props = r.proplist(allocator)!;
-	if (version >= V_CORKED) s.corked = r.bool()!;
+	if (version >= V_CORKED) s.corked = r.flag()!;
 	if (version >= V_STREAM_VOLUME_FLAGS)
 	{
-		s.has_volume = r.bool()!;
-		s.volume_writable = r.bool()!;
+		s.has_volume = r.flag()!;
+		s.volume_writable = r.flag()!;
 	}
 	if (version >= V_SINK_FORMATS) r.skip_format_info()!;
 	return s;
@@ -315,13 +315,13 @@ fn StreamRecord? read_source_output(TagReader* r, uint version, Allocator alloca
 	r.string()!;   // resample method
 	r.string()!;   // driver
 	if (version >= V_PROPLIST) s.props = r.proplist(allocator)!;
-	if (version >= V_CORKED) s.corked = r.bool()!;
+	if (version >= V_CORKED) s.corked = r.flag()!;
 	if (version >= V_SOURCE_OUTPUT_VOLUME)
 	{
 		s.volume = r.cvolume()!;
-		s.muted = r.bool()!;
-		s.has_volume = r.bool()!;
-		s.volume_writable = r.bool()!;
+		s.muted = r.flag()!;
+		s.has_volume = r.flag()!;
+		s.volume_writable = r.flag()!;
 		r.skip_format_info()!;
 	}
 	return s;

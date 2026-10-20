@@ -56,3 +56,4 @@
 * `c3fmt -i` changes doc-comment indentation as well as code; run it before `--check`.
 * `-D VMEM_TEMP` did not trap a deliberate use-after-scope in a probe on this machine (the pool's pages were not released), so it is not evidence that tmem code is safe.
 * `DString.delete_range` end is inclusive; `keep ? {a,b} : {}` with slice literals dangles; `if (catch)`/`try` need the optional itself.
+* While libraries are being created in parallel, use `--libdir "$(tools/libdir.sh)"` instead of `--libdir libs` (c3c fails on any lib without manifest.json).

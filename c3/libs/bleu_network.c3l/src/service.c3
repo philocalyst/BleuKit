@@ -133,7 +133,7 @@ fn void? Network.refresh(&self) => self.hub.post({ .kind = REFRESH });
  Scan for networks. Completes when the platform reports a finished scan.
 
  @return? error::UNSUPPORTED : "This backend cannot scan"
- @return? TIMEOUT (on the operation) : "The scan did not finish in time"
+ The operation fails with TIMEOUT when the scan does not finish in time.
 *>
 fn SettleOp*? Network.scan(&self)
 {

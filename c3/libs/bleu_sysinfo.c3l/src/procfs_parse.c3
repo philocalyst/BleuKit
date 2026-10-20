@@ -83,7 +83,8 @@ fn CpuLine[]? parse_stat(String text, Allocator allocator)
 	List{CpuLine} lines;
 	lines.init(tmem);
 	bool has_aggregate = false;
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		if (!line.starts_with("cpu")) continue;
 		sz cursor = 0;
@@ -134,7 +135,8 @@ fn MemInfo? parse_meminfo(String text)
 	MemInfo info;
 	ulong free = 0;
 	bool has_available = false;
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		String key;
 		String value;
@@ -182,7 +184,7 @@ fn LoadAverage[3]? parse_loadavg(String text)
 	foreach (&average : averages)
 	{
 		String field = next_field(text, &cursor)!;
-		*average = field.to_float()!;
+		*average = (LoadAverage)field.to_float()!;
 	}
 	return averages;
 }
@@ -239,7 +241,8 @@ fn NetCounters[]? parse_net_dev(String text, Allocator allocator)
 {
 	List{NetCounters} interfaces;
 	interfaces.init(tmem);
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		String name;
 		String rest;
@@ -277,7 +280,8 @@ fn RawMount[]? parse_mounts(String text, Allocator allocator)
 {
 	List{RawMount} mounts;
 	mounts.init(tmem);
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		sz cursor = 0;
 		String device = next_field(line, &cursor)!;
@@ -388,7 +392,8 @@ fn StatusFields? parse_status(String text)
 {
 	StatusFields fields;
 	bool has_uid = false;
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		String key;
 		String value;
@@ -427,7 +432,8 @@ fn String command_line(String raw, Allocator allocator)
 <* The value of the first "model name" line of /proc/cpuinfo, or "" (ARM kernels print none). *>
 fn String cpuinfo_model(String text, Allocator allocator)
 {
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		String key;
 		String value;
@@ -443,7 +449,8 @@ fn String cpuinfo_model(String text, Allocator allocator)
 *>
 fn String os_release_value(String text, String key, Allocator allocator)
 {
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		if (!line.starts_with(key) || line.len <= key.len || line[key.len] != '=') continue;
 		String value = line[key.len + 1 : line.len - key.len - 1].trim();
@@ -481,7 +488,8 @@ fn String? colon_field(String line, usz index)
 *>
 fn String? passwd_name(String text, ulong uid)
 {
-	foreach (line : text.tokenize("\n"))
+	Splitter lines = text.tokenize("\n");
+	while (try line = lines.next())
 	{
 		if (try uid_text = colon_field(line, 2))
 		{

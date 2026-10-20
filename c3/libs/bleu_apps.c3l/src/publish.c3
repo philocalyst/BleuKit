@@ -1,5 +1,5 @@
 module bleu::apps;
-import std::collections::list, bleu::observe;
+import std::collections::list, bleu::observe, bleu::stream;
 
 <*
  Publish a freshly built catalogue and announce what changed.
@@ -29,7 +29,7 @@ fn void publish_catalogue(AppsHub* hub, CatalogueSnapshot* snapshot)
 	hub.publish_if_changed(snapshot);
 	foreach (change : changes)
 	{
-		Packet* packet = hub.emit_begin();
+		Packet{Event}* packet = hub.emit_begin();
 		packet.value = { .kind = change.kind, .app_id = change.app_id.copy(packet.allocator()) };
 		hub.emit(packet);
 	}

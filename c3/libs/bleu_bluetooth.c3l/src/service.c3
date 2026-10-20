@@ -295,10 +295,3 @@ fn Task*? submit(Bluetooth* self, Request request) @private
 	}
 	return task;
 }
-
-// A copy in `allocator`; the empty string needs no storage.
-fn String copy_text(String text, Allocator allocator) @private
-{
-	if (text.len == 0) return "";
-	return text.copy(allocator);
-}

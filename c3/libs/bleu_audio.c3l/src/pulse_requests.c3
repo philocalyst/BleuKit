@@ -50,7 +50,7 @@ fn DString request_set_client_name(Allocator allocator, uint tag, Property[] pro
 }
 
 <* A request with no arguments: GET_SERVER_INFO and the GET_*_INFO_LIST commands. *>
-fn DString request_empty(Allocator allocator, uint command, uint tag)
+fn DString request_empty(Allocator allocator, PulseCommand command, uint tag)
 {
 	return begin_command(allocator, command, tag);
 }

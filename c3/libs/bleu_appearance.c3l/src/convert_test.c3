@@ -40,7 +40,7 @@ fn void accent_channels_must_be_unit_numbers() @test
 	assert((float)accent.value.green == 0.5f);
 	assert(!convert::accent_from_channels(1.5, 0.0, 0.0).has_value, "above 1 is unset");
 	assert(!convert::accent_from_channels(-0.1, 0.0, 0.0).has_value, "below 0 is unset");
-	assert(!convert::accent_from_channels(0.0, 0.0, double.nan).has_value, "NaN is unset");
+	assert(!convert::accent_from_channels(0.0, 0.0, bitcast((ulong)0x7FF8000000000000, double)).has_value, "NaN is unset");
 }
 
 fn void abgr_accent_is_read_red_first() @test
@@ -57,10 +57,10 @@ fn void gvariant_strings_round_trip() @test
 {
 	assert(convert::unquote(mem, "'prefer-dark'\n")! == "prefer-dark");
 	String quoted = convert::quote(mem, "it's a \\ test");
-	defer mem::free(quoted.ptr);
+	defer alloc::free(mem, quoted.ptr);
 	assert(quoted == "'it\\'s a \\\\ test'");
 	String back = convert::unquote(mem, quoted)!;
-	defer mem::free(back.ptr);
+	defer alloc::free(mem, back.ptr);
 	assert(back == "it's a \\ test");
 	assert(@catch(convert::unquote(mem, "prefer-dark")) == error::PROTOCOL, "unquoted text is refused");
 }
@@ -76,10 +76,10 @@ fn void gnome_numbers_and_booleans_parse() @test
 fn void file_uri_escapes_and_decodes() @test
 {
 	String uri = convert::file_uri(mem, "/home/a b/pic%1.png");
-	defer mem::free(uri.ptr);
+	defer alloc::free(mem, uri.ptr);
 	assert(uri == "file:///home/a%20b/pic%251.png", "space and percent are escaped, slashes kept");
 	String path = convert::path_from_file_uri(mem, uri)!;
-	defer mem::free(path.ptr);
+	defer alloc::free(mem, path.ptr);
 	assert(path == "/home/a b/pic%1.png");
 	assert(@catch(convert::path_from_file_uri(mem, "https://x/y")) == error::INVALID_ARGUMENT);
 }
@@ -89,15 +89,15 @@ fn void template_arguments_get_the_path() @test
 	String[3] template = { "swww", "img", "{path}" };
 	String[] argv = convert::substitute(mem, template[..], "/x/y.png");
 	defer {
-		foreach (arg : argv) mem::free(arg.ptr);
-		mem::free(argv.ptr);
+		foreach (arg : argv) alloc::free(mem, arg.ptr);
+		alloc::free(mem, argv.ptr);
 	}
 	assert(argv.len == 3 && argv[0] == "swww" && argv[2] == "/x/y.png");
 	String[1] inline_path = { "--file={path}" };
 	String[] joined = convert::substitute(mem, inline_path[..], "/a");
 	defer {
-		mem::free(joined[0].ptr);
-		mem::free(joined.ptr);
+		alloc::free(mem, joined[0].ptr);
+		alloc::free(mem, joined.ptr);
 	}
 	assert(joined[0] == "--file=/a");
 }

@@ -61,8 +61,14 @@ fn void diff_catalogue(State* old, State* new, List{Event}* out)
 	foreach (app : new.apps)
 	{
 		App* before = find_by_id(old, app.id);
-		if (!before) out.push({ .kind = APP_ADDED, .app_id = app.id });
-		else if (!equal::deep(*before, app)) out.push({ .kind = APP_CHANGED, .app_id = app.id });
+		if (!before)
+		{
+			out.push({ .kind = APP_ADDED, .app_id = app.id });
+		}
+		else if (!equal::deep(*before, app))
+		{
+			out.push({ .kind = APP_CHANGED, .app_id = app.id });
+		}
 	}
 }
 

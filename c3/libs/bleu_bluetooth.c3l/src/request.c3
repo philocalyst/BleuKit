@@ -22,3 +22,10 @@ struct Request
 	DiscoveryFilter filter;
 	Operation{Done}* op;
 }
+
+<* A copy of `text` in `allocator`; the empty string needs no storage, and a zero-length copy is not made. *>
+fn String copy_text(String text, Allocator allocator)
+{
+	if (text.len == 0) return "";
+	return text.copy(allocator);
+}

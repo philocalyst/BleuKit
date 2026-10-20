@@ -1,20 +1,29 @@
 module bleu::secrets::wipe_test;
 import bleu::secrets::wipe;
 
-// Stands in for the backing allocator and checks the payload just before it is freed.
+// Stands in for the backing allocator. It remembers every block it hands out, and
+// before each release it checks that the payload of that block is all zeros.
+const sz TRACKED = 32;
+
 struct Recorder (Allocator)
 {
 	Allocator inner;
-	void* base;
-	sz size;
-	bool was_zero_at_release;
+	void*[TRACKED] blocks;
+	sz[TRACKED] sizes;
+	sz count;
+	sz payloads_checked;
+	sz nonzero_payloads;
 }
 
 fn void*? Recorder.acquire(&self, sz size, AllocInitType init_type, sz alignment) @dynamic
 {
 	void* p = self.inner.acquire(size, init_type, alignment)!;
-	self.base = p;
-	self.size = size;
+	if (self.count < TRACKED)
+	{
+		self.blocks[self.count] = p;
+		self.sizes[self.count] = size;
+		self.count++;
+	}
 	return p;
 }
 
@@ -25,14 +34,17 @@ fn void*? Recorder.resize(&self, void* ptr, sz new_size, sz alignment) @dynamic
 
 fn void Recorder.release(&self, void* ptr, bool aligned) @dynamic
 {
-	if (ptr == self.base)
+	for (sz i = 0; i < self.count; i++)
 	{
+		if (self.blocks[i] != ptr) continue;
+		// The inner block is the header followed by the payload.
 		char* bytes = (char*)ptr;
-		self.was_zero_at_release = true;
-		for (sz i = 0; i < self.size; i++)
+		self.payloads_checked++;
+		for (sz j = wipe::HEADER_SIZE; j < self.sizes[i]; j++)
 		{
-			if (bytes[i] != 0) self.was_zero_at_release = false;
+			if (bytes[j] != 0) self.nonzero_payloads++;
 		}
+		break;
 	}
 	self.inner.release(ptr, aligned);
 }
@@ -44,7 +56,8 @@ fn void payload_is_zero_when_released() @test
 	char* payload = (char*)wiping.acquire(40, ZERO, 0)!!;
 	for (int i = 0; i < 40; i++) payload[i] = (char)(0xA5 ^ i);
 	wiping.release(payload, false);
-	assert(recorder.was_zero_at_release, "the payload must be zeroed before the inner release");
+	assert(recorder.payloads_checked == 1, "the released block was seen");
+	assert(recorder.nonzero_payloads == 0, "the payload must be zeroed before the inner release");
 }
 
 fn void arena_pages_are_wiped_on_free() @test
@@ -57,7 +70,8 @@ fn void arena_pages_are_wiped_on_free() @test
 	first[0] = 0x7E;
 	first[99] = 0x7E;
 	arena.free();
-	assert(recorder.was_zero_at_release, "the arena's page must be zeroed when the arena is freed");
+	assert(recorder.payloads_checked >= 2, "the arena's blocks were released through the wrapper");
+	assert(recorder.nonzero_payloads == 0, "no arena block keeps its bytes after the free");
 }
 
 fn void resize_keeps_the_prefix() @test

@@ -77,7 +77,7 @@ fn SearchHit[] rank(State* state, String query, Ranker ranker, void* context, Al
 		}
 		if (!all_matched) continue;
 		if (ranker) total += ranker(context, app);
-		hits.push({ .index = i, .score = total });
+		hits.push({ .index = (usz)i, .score = total });
 	}
 	sort_hits(hits.array_view());
 	return hits.to_aligned_array(allocator);

@@ -2,7 +2,7 @@
 // sandbox's kernel (proc_*.txt, os_release.txt, ...), see fixtures/README in the
 // library. Synthetic inputs are marked as such.
 module bleu::sysinfo::procfs_test;
-import std::core::test, bleu::error, bleu::sysinfo, bleu::sysinfo::procfs;
+import std::core::test, std::time, bleu::error, bleu::sysinfo, bleu::sysinfo::procfs;
 
 fn String fixture_stat() @local => (String)$embed("../fixtures/proc_stat.txt");
 fn String fixture_meminfo() @local => (String)$embed("../fixtures/proc_meminfo.txt");

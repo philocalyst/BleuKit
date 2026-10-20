@@ -36,11 +36,11 @@ const String TERMINAL_OPTION = "-e"; // the flag every terminal in the default l
 const String ACCESS_PATH_SEPARATOR = ":";
 const int ACCESS_EXECUTE = 1; // X_OK, from unistd.h
 const usz ARENA_PAGE = 1024;
-const Duration CHILD_POLL = 1_000_000; // reap finished children once a second while any are running
+const Duration CHILD_POLL = (Duration)1_000_000; // reap finished children once a second while any are running
 const int WATCH_TAG = 1;
 
 // The terminal emulators tried for `Terminal=true` when the caller names none.
-String[4] DEFAULT_TERMINALS = { "x-terminal-emulator", "xterm", "konsole", "gnome-terminal" };
+const String[4] DEFAULT_TERMINALS = { "x-terminal-emulator", "xterm", "konsole", "gnome-terminal" };
 
 extern fn int access(ZString path, int mode);
 
@@ -90,7 +90,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	backend.icon_dirs = icon::default_base_dirs(environment, arena);
 	backend.desktops = desktop_entry::current_desktops(environment, arena);
 	backend.locale = locale_for(options.locale, environment, arena);
-	backend.terminals = options.terminals.len > 0 ? copy_strings(arena, options.terminals) : copy_strings(arena, DEFAULT_TERMINALS[..]);
+	backend.terminals = options.terminals.len > 0 ? apps::copy_strings(arena, options.terminals) : apps::copy_strings(arena, DEFAULT_TERMINALS[..]);
 	backend.icon_theme = (options.icon_theme.len > 0 ? options.icon_theme : DEFAULT_ICON_THEME).copy(arena);
 	backend.settle = options.settle;
 	backend.watcher = { .fd = -1 };
@@ -114,7 +114,7 @@ fn Variables fake_environment(String root, Allocator allocator) @local
 		string::tformat("%s%s/.local/share", root, FAKE_HOME_DIR).copy(allocator),
 		string::tformat("%s/usr/share", root).copy(allocator),
 	};
-	return { .names = copy_strings(allocator, names[..]), .values = copy_strings(allocator, values[..]) };
+	return { .names = apps::copy_strings(allocator, names[..]), .values = apps::copy_strings(allocator, values[..]) };
 }
 
 // The language for localized names: the first of LC_ALL, LC_MESSAGES, LANG that is set, without encoding or modifier.
@@ -137,7 +137,7 @@ fn String locale_for(String requested, Environment env, Allocator allocator) @lo
 	return "".copy(allocator);
 }
 
-String[3] LOCALE_VARIABLES = { "LC_ALL", "LC_MESSAGES", "LANG" };
+const String[3] LOCALE_VARIABLES = { "LC_ALL", "LC_MESSAGES", "LANG" };
 
 fn void destroy(Allocator allocator, void* state)
 {
@@ -170,8 +170,8 @@ fn void refresh(XdgBackend* backend, AppsHub* hub)
 	// An unreadable data directory is skipped by the scan itself; nothing here can fail.
 	if (catch desktop_entry::scan(backend.data_dirs, &context, &visit)) {}
 	snapshot.value.apps = apps.to_aligned_array(snapshot.allocator());
-	sort_catalogue(snapshot.value.apps);
-	publish_catalogue(hub, snapshot);
+	apps::sort_catalogue(snapshot.value.apps);
+	apps::publish_catalogue(hub, snapshot);
 }
 
 // The scan visitor: parse one file and keep it if it is a listed application.
@@ -183,9 +183,9 @@ fn void? visit(void* context, DesktopFile file) @private
 	if (catch err = loaded) return;
 	DesktopEntry* entry = loaded;
 	defer entry.release();
-	if (!lists_entry(entry, scan.backend.desktops)) return;
+	if (!apps::lists_entry(entry, scan.backend.desktops)) return;
 	if (!try_exec_found(entry.try_exec)) return;
-	scan.apps.push(desktop_app(entry, file.id, file.path, scan.allocator));
+	scan.apps.push(apps::desktop_app(entry, file.id, file.path, scan.allocator));
 }
 
 <*
@@ -234,7 +234,7 @@ fn void watch_below(Watcher* watcher, String directory, int depth) @local
  The worker loop. Waits on the mailbox and on inotify; rescans after a quiet
  period and on REFRESH; serves launches; reaps children.
 *>
-fn void run(void* state, AppsHub* hub, WorkerHost* host)
+fn void run(void* state, AppsHub* hub, AppsHost* host)
 {
 	XdgBackend* backend = (XdgBackend*)state;
 	Poller poller;
@@ -249,8 +249,14 @@ fn void run(void* state, AppsHub* hub, WorkerHost* host)
 	while (!host.stopping())
 	{
 		Duration timeout = time::FOREVER;
-		if (dirty) timeout = backend.settle;
-		else if (backend.children.size > 0) timeout = CHILD_POLL;
+		if (dirty)
+		{
+			timeout = backend.settle;
+		}
+		else if (backend.children.size > 0)
+		{
+			timeout = CHILD_POLL;
+		}
 		bool timed_out = false;
 		if (catch err = poller.wait(timeout))
 		{
@@ -261,7 +267,7 @@ fn void run(void* state, AppsHub* hub, WorkerHost* host)
 		}
 		if (backend.watcher.drain()) dirty = true;
 		bool refresh_now = false;
-		serve(backend, hub, host, &launch, &refresh_now);
+		apps::serve(backend, hub, host, &launch, &refresh_now);
 		reap(backend);
 		if (refresh_now || (dirty && timed_out))
 		{
@@ -269,7 +275,7 @@ fn void run(void* state, AppsHub* hub, WorkerHost* host)
 			dirty = false;
 		}
 	}
-	refuse_pending(host);
+	apps::refuse_pending(host);
 }
 
 <*
