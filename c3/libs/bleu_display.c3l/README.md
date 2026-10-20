@@ -65,7 +65,7 @@ type-checked for the target (`tools/check.sh`-equivalent over the six targets), 
 
 ## Verified how
 
-* Unit: `src/pure_test.c3` (17 `@test`s: transform, layout, origin, refresh tolerance, mode matching,
+* Unit: `src/pure_test.c3` (14 `@test`s: transform, layout, origin, refresh tolerance, mode matching,
   config validation, diff, revert guard, conversions) and `src/win_convert_test.c3` (2). All pass
   (`compile-test`, Linux x86-64, c3c 0.8.5).
 * Mock compositor: `src/linux_test.c3` (3 `@test`s) drives `attach`, `begin_apply`, `advance` and the

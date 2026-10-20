@@ -43,17 +43,18 @@ fn void send_global(testing::MockServer* s, uint registry, uint name, String int
 	s.send(&w)!!;
 }
 
-// Answer a sync request with `done`, then release its id.
+// Answer a sync request with `done`, then release its id. Both go out in one write: the client's
+// roundtrip returns at `done`, and a `delete_id` sent as a separate write could still be unread
+// then, so the callback's id would not be free for the next sync.
 fn void answer_sync(testing::MockServer* s, uint callback)
 {
 	wire::Writer done;
 	done.begin(callback, 0);
 	done.put_uint(1)!!;
-	s.send(&done)!!;
 	wire::Writer released;
 	released.begin(display::DISPLAY_ID, 1);
 	released.put_uint(callback)!!;
-	s.send(&released)!!;
+	s.send_pair(&done, &released)!!;
 }
 
 // Get the registry and advertise the five globals every scenario binds to. Returns the registry id.

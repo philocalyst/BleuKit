@@ -378,8 +378,14 @@ fn win_native::PathInfo? change_path(
 	display::OutputChange change
 )
 {
-	if (change.scale.has_value) {
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Windows cannot set an output's scale in this version")~;
+	if (change.scale.has_value)
+	{
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"Windows cannot set an output's scale in this version"
+		)~;
 	}
 	if (!change.enabled)
 	{

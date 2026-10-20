@@ -90,6 +90,22 @@ fn void? MockServer.send(&self, wire::Writer* writer)
 	self.peer.send_all(writer.finish(), wrapped[0:fds.len])!;
 }
 
+<*
+ Send two messages in one write, so they reach the client in one read and are handled by the
+ same dispatch. Messages with no descriptors only.
+
+ @return? error::DISCONNECTED, error::BACKEND_FAILURE : "The client end is gone"
+*>
+fn void? MockServer.send_pair(&self, wire::Writer* first, wire::Writer* second)
+{
+	char[] a = first.finish();
+	char[] b = second.finish();
+	char[2 * wire::MAX_MESSAGE_SIZE] both;
+	mem::copy(&both[0], a.ptr, a.len);
+	mem::copy(&both[a.len], b.ptr, b.len);
+	self.peer.send_all(both[0:a.len + b.len])!;
+}
+
 // Read whatever the client has sent so far and queue its descriptors.
 fn void? MockServer.fill(&self)
 {

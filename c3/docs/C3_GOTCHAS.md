@@ -196,3 +196,14 @@
 * `macro expect_fault(#result, ...)` → "Expression parameters are not allowed in function-like macros" → name it `macro @expect_fault(...)`.
 * `Obj item = { .ptr = sender };` borrows a foreign object without retaining it (the struct literal of `objc::Obj`); `borrow` retains.
 * A string `case` value in `switch` was avoided; the tray code uses `if (text == "...")` chains for string enums (not verified that `switch` on `String` is rejected).
+* `any` is a keyword: a method named `any` is "Expected a function name" → use a name such as `differs`.
+* `catch`/`try` apply to optionals (`T?`), not to a `Maybe{T}` struct: test `.has_value`.
+* `List.len()` and slice `.len` are `sz`: index with `sz` (or cast); `usz` loop counters fail "cannot be narrowed". `Mailbox.take_all` returns `usz`: keep that count `usz`.
+* `std::io::path` entries (`PathList`) are string-backed: `(String)entry` gives the name; there is no `str_view()`.
+* A bare `TIMEOUT` is a fault value; pass it to `Operation.fail` / `error::raise`-style parameters without `~` (`~` raises).
+* A function returning `void` cannot return the value of another `void` call: `return reject(...)` → call, then `return;`.
+* A module-level `alias` (e.g. `alias Mode = display::Mode`) in one file of a module leaks into the module's tests and collides with the imported type: qualify instead.
+* `compile-test` runs every linked library's `@test`s and exits non-zero when any aborts, so a clean build can still report `exit=1`: read the summary line.
+* A mock-compositor scenario that expects requests hangs forever when the code under test sends none (an unchanged config completes locally); also `Operation.wait()` without a timeout blocks until the op completes. Kill test processes by PID: `pkill -f <pattern>` matches the shell that runs it.
+* `string::tformat` results live in temporary memory: copy before the `@pool()` ends, and never return them from a function (dangling).
+* `Maybe{T}` cannot take an array literal: copy the value through `.set(...)`.
