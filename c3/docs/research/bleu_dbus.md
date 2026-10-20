@@ -255,20 +255,41 @@ These were not appended to `docs/C3_GOTCHAS.md`, which this task does not own.
 * `Message` uses `DynamicArenaAllocator` inside a heap struct: pass `&self.storage` as an
   `Allocator` at the call, never store the pointer.
 
-## Server-side export: what is already in place
+## Server-side export: decisions and sources
 
-The design leaves room for exporting objects later without changing the wire layer:
+Recorded when `bleu::dbus::server` and `bleu::dbus::ownership` were added. Every row
+says what was taken from where. Specification line numbers are in the local copy of
+`https://dbus.freedesktop.org/doc/dbus-specification.html` (fetched 2026-10-20).
 
-* `Writer` and `Reader` are signature-directed and work for any body, so a service can
-  build replies with `message::reply` and `message::error_reply`.
-* `Message` can be built and encoded independently of a connection
-  (`message::signal`, `message::reply`, `message::error_reply`).
-* `Connection.dispatch_one` routes METHOD_CALL to `answer_unknown`. The export layer will
-  replace that single call with a lookup in an object table keyed by path and interface.
-* `Match` already matches method calls (`type='method_call'`), so the same subscription
-  machinery can route incoming calls.
-* Descriptor passing in both directions is implemented, so exported methods can take and
-  return `h` arguments.
+| Decision | Primary source | Cross-check |
+| --- | --- | --- |
+| ObjectManager signatures: GetManagedObjects `a{oa{sa{sv}}}`, InterfacesAdded `oa{sa{sv}}`, InterfacesRemoved `oas` | spec "ObjectManager" (InterfacesRemoved `OBJPATH object_path, ARRAY<STRING> interfaces`; InterfacesAdded and GetManagedObjects as in the same section) | sd-bus `bus-objects.c:1206` (`oa{sa{sv}}` for InterfacesAdded), `:1377` (`{oa{sa{sv}}}`) |
+| GetManagedObjects is answered by roots only | spec "ObjectManager" | sd-bus `bus-objects.c:1360` ("GetManagedObjects() is only implemented on the root") |
+| PropertiesChanged `sa{sv}as` (changed, invalidated) and the EmitsChangedSignal rule (`true`, `invalidates`, `const`, `false`) | spec "Properties" (EmitsChangedSignal, lines near 133359 and 4892 in the revision history) | sd-bus `bus-objects.c:2243` (PropertiesChanged on `org.freedesktop.DBus.Properties`) |
+| Standard interfaces (Peer, Introspectable, Properties) are listed in Introspect XML | none in the spec: the spec does not say which interfaces an XML must list | sd-bus `bus-introspect.c:20-35` (`introspect_write_default_interfaces`); followed. ObjectManager is listed on roots |
+| Peer.Ping on any path; GetMachineId returns the machine id as a string | spec "Peer" (line ~127509: `Ping ()`, `GetMachineId (out STRING machine_uuid)`) | sd-bus answers Peer on every object (`bus-objects.c`, the Peer handler) |
+| Error names: AccessDenied, UnknownProperty, PropertyReadOnly, UnknownObject, UnknownInterface | AccessDenied and the bus errors: spec "Standard Interfaces" and the bus daemon. UnknownProperty and PropertyReadOnly are not in the spec | GLib `gio/gdbuserror.c:47, 81, 82` (https://raw.githubusercontent.com/GNOME/glib/main/gio/gdbuserror.c); python-dbus-next 0.2.3 `dbus_next/constants.py:99-113` |
+| Get on a write-only property is UnknownProperty; Set on a read-only property is PropertyReadOnly; GetAll on an unknown interface is UnknownInterface (not an empty dict) | python-dbus-next 0.2.3 `dbus_next/message_bus.py` property handler (~860-930): Get/Set of a missing or non-readable property raise UnknownProperty; Set of a read-only one raises PropertyReadOnly | GLib `gdbuserror.c:81-82`. Where dbus-next differs (empty dict for GetAll on the standard interfaces, InvalidSignature for a wrong Set type) this library answers UnknownInterface and InvalidArgs, as its client's `set_property` already documents |
+| Server error names for a handler's fault: UNAVAILABLE to ServiceUnknown, PERMISSION_DENIED to AccessDenied, AUTH_REQUIRED to InteractiveAuthorizationRequired, NOT_FOUND to UnknownObject, INVALID_ARGUMENT to InvalidArgs, TIMEOUT to Timeout, DISCONNECTED to Disconnected | the reverse of `errors.c3` (the client's table, which cites the spec) | round trip checked by the unit test `faults_round_trip_through_the_error_names` |
+| The introspection XML validates against the DTD | DTD `https://dbus.freedesktop.org/doc/introspect.dtd` (1226 bytes, fetched 2026-10-20: `node (node|interface)*`, `interface (method|signal|property|annotation)*`, `arg direction (in|out) "in"`, `property access (read|write|readwrite)`) | `xmllint --dtdvalid` on the live XML of the C3 server and of the notification example: no errors; a deliberately wrong document (bogus element, direction="sideways") is rejected by the same DTD |
+| Method args carry `direction`; signal args do not | the DTD comment ("Method arguments SHOULD include direction, while signal and error arguments SHOULD not") | `write_args` in `server_introspect.c3` |
+| RequestName flags, queueing and replacement: ALLOW_REPLACEMENT, REPLACE_EXISTING, DO_NOT_QUEUE; NameAcquired and NameLost are sent to the new and the old owner | spec "Message Bus Specification", RequestName and "Name Acquired / Lost" (lines near 187869 and 198287) | dbus-daemon behaviour checked live: the C3 client queues (IN_QUEUE), is granted at the owner's exit (NameAcquired), and is told NameLost when a REPLACE_EXISTING request takes the name |
+| A method call with NO_REPLY_EXPECTED gets no reply, even an error | spec "Message Format" (flag 0x1) | unit test `no_reply_expected_sends_nothing` |
+| A deferred call is answered later with the caller's serial and destination | spec "Method Calls" (a call must be answered; the reply carries REPLY_SERIAL and DESTINATION) | integration: dbus-next's deferred call completes after `Complete` |
 
-Not built: the object table, `Introspect` for exported objects, `Properties.Set` on
-exported objects, `ObjectManager` export, and Peer.GetMachineId.
+Decisions taken without a specification to cite (documented in the README):
+
+* GetManagedObjects lists each object's own interfaces only. sd-bus also lists Peer,
+  Introspectable and Properties for every object in it (`bus-objects.c:1218-1226`); the
+  specification does not say which, so this library keeps the smaller form.
+* Handlers are not authorised by the server; `call.sender` is passed on.
+* A fault returned by a handler becomes the class's name; a named error is `call.reply_error`.
+* A reply whose body does not match the out-signature is replaced by Failed (the mismatch
+  is not sent, and the handler sees the mismatch).
+* A successful Set announces the property when its rule says so, so setters must not emit
+  for changes that came from D-Bus.
+* Fallback paths are served by a table keyed by prefix, with the longest prefix winning;
+  they are not listed by Introspect or GetManagedObjects.
+
+Verification of this part: see the README, "Verified how" (81 unit tests, the object-server
+and notifications suites in `tests/integration.sh`, the DTD check, six-target type check).

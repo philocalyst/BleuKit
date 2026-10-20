@@ -11,7 +11,7 @@
  integration test.
 *>
 module bleu::dbus::server;
-import bleu::error, bleu::dbus::signature, bleu::dbus::value;
+import bleu::dbus::signature, bleu::dbus::value;
 import std::collections::list;
 
 <* The DOCTYPE line of every introspection document. *>

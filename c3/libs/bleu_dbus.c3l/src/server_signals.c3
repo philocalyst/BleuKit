@@ -7,7 +7,7 @@
  (InterfacesAdded, InterfacesRemoved).
 *>
 module bleu::dbus::server;
-import bleu::error, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::value;
+import bleu::error, bleu::dbus::message, bleu::dbus::value;
 import std::collections::list;
 
 <* Member name of the signal that announces changed properties. *>

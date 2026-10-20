@@ -1,7 +1,7 @@
 {
   "provides": "bleu_audio",
   "sources": ["src/**"],
-  "dependencies": ["bleu_core", "bleu_rt", "bleu_service", "bleu_win"],
+  "dependencies": ["bleu_core", "bleu_rt", "bleu_service", "bleu_win", "bleu_objc"],
   "targets": {
     "linux-x64": {}, "linux-aarch64": {},
     "macos-x64": {}, "macos-aarch64": {},

@@ -8,7 +8,11 @@ import bleu::wl::proto::wayland;
  zwlr_gamma_control_manager_v1 version 1.
  This interface is a manager that allows creating per-output gamma controls.
 *>
-const display::Interface ZWLR_GAMMA_CONTROL_MANAGER_V1 = { .name = "zwlr_gamma_control_manager_v1", .version = 1, .dispatch = &zwlr_gamma_control_manager_v1_dispatch };
+const display::Interface ZWLR_GAMMA_CONTROL_MANAGER_V1 = {
+	.name = "zwlr_gamma_control_manager_v1",
+	.version = 1,
+	.dispatch = &zwlr_gamma_control_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_gamma_control_manager_v1 object. The proxy is the first field, so a
@@ -48,12 +52,23 @@ fn void? ZwlrGammaControlManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_gamma_control_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_gamma_control_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_gamma_control_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_gamma_control_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -66,7 +81,11 @@ fn void? zwlr_gamma_control_manager_v1_dispatch(display::Display* conn, display:
  particular output. When the gamma control object is destroyed, the gamma table is restored
  to its original value.
 *>
-const display::Interface ZWLR_GAMMA_CONTROL_V1 = { .name = "zwlr_gamma_control_v1", .version = 1, .dispatch = &zwlr_gamma_control_v1_dispatch };
+const display::Interface ZWLR_GAMMA_CONTROL_V1 = {
+	.name = "zwlr_gamma_control_v1",
+	.version = 1,
+	.dispatch = &zwlr_gamma_control_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_gamma_control_v1 object. The proxy is the first field, so a pointer to
@@ -149,29 +168,42 @@ fn void? ZwlrGammaControlV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_gamma_control_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_gamma_control_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrGammaControlV1Listener* listener = (ZwlrGammaControlV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint size = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.gamma_size != null)
+
 			{
-				listener.gamma_size(proxy.context, (ZwlrGammaControlV1*)proxy, size);
+				uint size = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.gamma_size != null)
+				{
+					listener.gamma_size(proxy.context, (ZwlrGammaControlV1*)proxy, size);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.failed != null)
+
 			{
-				listener.failed(proxy.context, (ZwlrGammaControlV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.failed != null)
+				{
+					listener.failed(proxy.context, (ZwlrGammaControlV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_gamma_control_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_gamma_control_v1",
+				opcode
+			)~;
 	}
 }

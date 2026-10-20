@@ -87,10 +87,3 @@ fn void? Session.refresh(&self, AudioHub* hub)
 		audio::publish_snapshot(hub, snapshot);
 	};
 }
-
-<* Publish an empty state: what a client sees while no server is reachable. *>
-fn void publish_empty(AudioHub* hub)
-{
-	Snapshot{State}* snapshot = hub.begin();
-	audio::publish_snapshot(hub, snapshot);
-}

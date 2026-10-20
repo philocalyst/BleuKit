@@ -107,6 +107,53 @@ fn void write_file(String path, String text)
 	fs::write_text(path, text)!!;
 }
 
+// What the test saw of one pairing prompt.
+struct PromptSeen
+{
+	bool found;
+	ulong id;
+	bool has_passkey;
+	uint passkey;
+}
+
+// The first pairing request of `kind` for `device`, within the event budget.
+fn PromptSeen wait_for_prompt(stream::Reader{Event}* events, bluetooth::PromptKind kind, String device)
+{
+	PromptSeen seen;
+	if (events == null) return seen;
+	for (int i = 0; i < EVENT_ROUNDS && !seen.found; i++)
+	{
+		if (try packet = events.next(time::ms(WAIT_MS)))
+		{
+			defer packet.release();
+			Event* event = &packet.value;
+			if (event.kind == bluetooth::EventKind.PAIRING_REQUEST && event.request.kind == kind
+				&& event.request.device == device)
+			{
+				seen = { .found = true, .id = event.request.id, .has_passkey = event.request.passkey.has_value,
+					.passkey = event.request.passkey.value };
+			}
+		}
+	}
+	return seen;
+}
+
+// Answers a prompt and says whether the answer itself was accepted.
+fn bool answer(Bluetooth* bt, ulong id, bool accept, String secret)
+{
+	Task* reply = bt.reply_pairing(id, accept, secret) ?? null;
+	if (reply == null) return false;
+	defer reply.release();
+	return succeeded(reply);
+}
+
+// True when the task is still pending after a short wait.
+fn bool catch_timeout(Task* task)
+{
+	if (catch err = task.wait(time::ms(WAIT_MS))) return err == TIMEOUT;
+	return false;
+}
+
 fn int main(String[] args)
 {
 	if (args.len < 3)
@@ -171,24 +218,52 @@ fn int main(String[] args)
 	expect(settle(bt, &keyboard_seen), "scan adds the keyboard");
 	expect(settle(bt, &mouse_seen), "scan adds the mouse");
 
-	// Pairing: success, a refused pairing, and a pairing cancelled by the caller.
+	// Pairing through the agent: the user confirms a number, types a PIN, and refuses a passkey.
+	// A keyboard pairing is cancelled by the caller instead.
 	Task* pair_ok = bt.pair(HEADSET) ?? null;
-	expect(pair_ok != null && succeeded(pair_ok), "pair with the headset succeeds");
+	PromptSeen confirm = wait_for_prompt(events, bluetooth::PromptKind.CONFIRM, HEADSET);
+	expect(confirm.found && confirm.has_passkey && confirm.passkey == 123456, "headset asks to confirm 123456");
+	expect(answer(bt, confirm.id, true, ""), "confirming the number is accepted");
+	expect(pair_ok != null && succeeded(pair_ok), "pair with the headset succeeds once confirmed");
 	if (pair_ok) pair_ok.release();
 	expect(settle(bt, &headset_paired), "headset is paired and bonded in the state");
 
-	Task* pair_refused = bt.pair(MOUSE) ?? null;
-	if (pair_refused)
+	Task* pair_pin = bt.pair(MOUSE) ?? null;
+	PromptSeen pin = wait_for_prompt(events, bluetooth::PromptKind.PIN, MOUSE);
+	expect(pin.found, "mouse asks for a PIN");
+	Task* empty_pin = bt.reply_pairing(pin.id, true, "") ?? null;
+	if (empty_pin != null)
 	{
-		expect(
-			!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE,
-			"refused pairing fails as BACKEND_FAILURE"
-		);
+		expect(!succeeded(empty_pin) && empty_pin.failure == error::INVALID_ARGUMENT, "an empty PIN is refused, not sent");
+		empty_pin.release();
+	}
+	if (pair_pin != null)
+	{
+		expect(catch_timeout(pair_pin), "pairing waits for the user's PIN");
+	}
+	expect(answer(bt, pin.id, true, "4321"), "typing the PIN is accepted");
+	expect(pair_pin != null && succeeded(pair_pin), "pair with the mouse succeeds with the typed PIN");
+	if (pair_pin) pair_pin.release();
+
+	Task* pair_refused = bt.pair(PHONE) ?? null;
+	PromptSeen passkey = wait_for_prompt(events, bluetooth::PromptKind.PASSKEY_ENTRY, PHONE);
+	expect(passkey.found, "phone asks for a passkey");
+	expect(answer(bt, passkey.id, false, ""), "refusing the passkey is accepted");
+	if (pair_refused != null)
+	{
+		expect(!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE, "refused pairing fails as BACKEND_FAILURE");
 		pair_refused.release();
 	}
 
+	Task* unknown = bt.reply_pairing(999999, true, "") ?? null;
+	if (unknown != null)
+	{
+		expect(!succeeded(unknown) && unknown.failure == error::INVALID_STATE, "an answer to no waiting prompt is INVALID_STATE");
+		unknown.release();
+	}
+
 	Task* pair_cancel = bt.pair(KEYBOARD) ?? null;
-	Task* cancel      = bt.cancel_pairing(KEYBOARD) ?? null;
+	Task* cancel = bt.cancel_pairing(KEYBOARD) ?? null;
 	if (cancel)
 	{
 		expect(succeeded(cancel), "cancel_pairing completes");

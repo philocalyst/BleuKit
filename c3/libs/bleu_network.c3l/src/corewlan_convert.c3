@@ -83,7 +83,7 @@ fn Security security_from_cw(long security)
  The CWSecurity values to probe with `supportsSecurity:`, strongest first. A
  network is classed by the first value it supports.
 *>
-long[15] PROBE_ORDER = {
+const long[15] PROBE_ORDER = {
 	CW_SECURITY_WPA3_PERSONAL,
 	CW_SECURITY_WPA3_TRANSITION,
 	CW_SECURITY_WPA2_PERSONAL,
@@ -101,7 +101,6 @@ long[15] PROBE_ORDER = {
 	CW_SECURITY_WPA_ENTERPRISE_MIXED,
 };
 
-fn long[] probe_order() => PROBE_ORDER[..];
 
 <* Band of a CWChannelBand value. *>
 fn Band band_from_cw(long band)

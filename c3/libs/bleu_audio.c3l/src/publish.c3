@@ -40,3 +40,10 @@ fn void emit_event(void* context, Event event)
 	packet.value = { event.kind, event.flow, event.id.copy(packet.allocator()) };
 	hub.emit(packet);
 }
+
+<* Publish an empty state: what a client sees while no audio server is reachable. *>
+fn void publish_empty(AudioHub* hub)
+{
+	Snapshot{State}* snapshot = hub.begin();
+	publish_snapshot(hub, snapshot);
+}

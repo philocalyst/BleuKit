@@ -14,12 +14,18 @@ It owns org.bluez on the bus given by DBUS_SESSION_BUS_ADDRESS and serves:
 * org.freedesktop.DBus.ObjectManager at / (GetManagedObjects).
 
 Scripted behaviour, so the C3 test can check each path:
-  device 01 (headset):   Pair succeeds after 0.2 s; Connect succeeds after 0.3 s;
-                         Disconnect emits Disconnected("org.bluez.Reason.Local", ...).
-  device 02 (mouse):     Pair fails with org.bluez.Error.Failed.
+  device 01 (headset):   Pair asks the agent RequestConfirmation(123456); succeeds when
+                         the agent accepts. Connect succeeds after 0.3 s; Disconnect
+                         emits Disconnected("org.bluez.Reason.Local", ...).
+  device 02 (mouse):     Pair asks the agent RequestPinCode; succeeds only with the
+                         PIN "4321" (the agent's answer), otherwise fails.
   device 03 (keyboard):  Pair waits until CancelPairing, then fails with
                          org.bluez.Error.Canceled.
-  device 04 (phone):     Connect fails with org.bluez.Error.Failed.
+  device 04 (phone):     Pair asks the agent RequestPasskey; a refusal from the agent
+                         fails the Pair. Connect fails with org.bluez.Error.Failed.
+
+BlueZ's AgentManager1 (RegisterAgent, RequestDefaultAgent, UnregisterAgent) is
+served at /org/bluez; the agent's sender and path are kept for the callbacks.
 
 Prints READY on stdout once it owns the name.
 """
@@ -42,6 +48,10 @@ HFP_HANDSFREE = '0000111e-0000-1000-8000-00805f9b34fb'
 HSP_HEADSET = '00001108-0000-1000-8000-00805f9b34fb'
 
 BUS = None
+AGENT = {}  # the registered agent: 'sender' (its bus name) and 'path'
+MANAGER_IFACE = 'org.bluez.AgentManager1'
+AGENT_IFACE = 'org.bluez.Agent1'
+PIN_ACCEPTED = '4321'
 OBJECTS = {}  # path -> {interface name: {property: (signature, value)}}
 SERVICES = {}  # path -> the exported ServiceInterface objects of that path
 WRITABLE = {
@@ -209,6 +219,17 @@ class Adapter(ServiceInterface):
             raise DBusError('org.bluez.Error.DoesNotExist', 'Does Not Exist')
 
 
+async def agent_call(member, signature, body):
+    """Calls the registered agent and returns its reply body; an agent refusal raises its error."""
+    if not AGENT:
+        raise DBusError('org.bluez.Error.Failed', 'no agent is registered')
+    reply = await BUS.call(Message(destination=AGENT['sender'], path=AGENT['path'], interface=AGENT_IFACE,
+                                   member=member, signature=signature, body=body))
+    if reply.message_type == MessageType.ERROR:
+        raise DBusError('org.bluez.Error.Rejected', reply.error_name)
+    return reply.body
+
+
 class Device(ServiceInterface):
     def __init__(self, index):
         super().__init__(DEVICE_IFACE)
@@ -223,9 +244,6 @@ class Device(ServiceInterface):
     @method()
     async def Pair(self):
         index = self.index
-        if index == 2:
-            await asyncio.sleep(0.1)
-            raise DBusError('org.bluez.Error.Failed', 'pairing refused by mock')
         if index == 3:
             event = CANCEL_EVENTS.setdefault(self.path, asyncio.Event())
             event.clear()
@@ -236,6 +254,14 @@ class Device(ServiceInterface):
             raise DBusError('org.bluez.Error.Canceled', 'Canceled')
         if OBJECTS[self.path][DEVICE_IFACE]['Paired'][1]:
             raise DBusError('org.bluez.Error.AlreadyExists', 'Already Exists')
+        if index == 1:
+            await agent_call('RequestConfirmation', 'ou', [self.path, 123456])
+        elif index == 2:
+            pin = (await agent_call('RequestPinCode', 'o', [self.path]))[0]
+            if pin != PIN_ACCEPTED:
+                raise DBusError('org.bluez.Error.Failed', f'PIN {pin!r} is not the one expected')
+        elif index == 4:
+            await agent_call('RequestPasskey', 'o', [self.path])
         await asyncio.sleep(0.2)
         self._set('Paired', True)
         self._set('Bonded', True)
@@ -294,8 +320,23 @@ def answer_object_manager(msg):
     return None
 
 
+def answer_agent_manager(msg):
+    """AgentManager1 at /org/bluez: records the agent and its bus name (the sender of RegisterAgent)."""
+    if msg.message_type != MessageType.METHOD_CALL or msg.interface != MANAGER_IFACE or msg.path != '/org/bluez':
+        return None
+    if msg.member == 'RegisterAgent':
+        AGENT.update({'sender': msg.sender, 'path': msg.body[0]})
+        return Message.new_method_return(msg, '', [])
+    if msg.member == 'RequestDefaultAgent':
+        return Message.new_method_return(msg, '', [])
+    if msg.member == 'UnregisterAgent':
+        AGENT.clear()
+        return Message.new_method_return(msg, '', [])
+    return None
+
+
 def answer_standard(msg):
-    return answer_properties(msg) or answer_object_manager(msg)
+    return answer_properties(msg) or answer_object_manager(msg) or answer_agent_manager(msg)
 
 
 async def main():

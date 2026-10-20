@@ -73,14 +73,14 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 		Session*? opened = connect(mem, backend);
 		if (catch err = opened)
 		{
-			publish_empty(hub);
+			audio::publish_empty(hub);
 			wait_before_retry(host, &delay);
 			continue;
 		}
 		Session* session = opened;
 		serve(session, hub, host);
 		session.close();
-		publish_empty(hub);
+		audio::publish_empty(hub);
 		wait_before_retry(host, &delay);
 	}
 }

@@ -11,7 +11,11 @@ import bleu::wl::proto::wayland;
  like maximizing, etc. After a client binds the zwlr_foreign_toplevel_manager_v1, each opened
  toplevel window will be sent via the toplevel event
 *>
-const display::Interface ZWLR_FOREIGN_TOPLEVEL_MANAGER_V1 = { .name = "zwlr_foreign_toplevel_manager_v1", .version = 3, .dispatch = &zwlr_foreign_toplevel_manager_v1_dispatch };
+const display::Interface ZWLR_FOREIGN_TOPLEVEL_MANAGER_V1 = {
+	.name = "zwlr_foreign_toplevel_manager_v1",
+	.version = 3,
+	.dispatch = &zwlr_foreign_toplevel_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_foreign_toplevel_manager_v1 object. The proxy is the first field, so a
@@ -29,7 +33,11 @@ struct ZwlrForeignToplevelManagerV1
  immediately after this event via the corresponding events in
  zwlr_foreign_toplevel_handle_v1.
 *>
-alias ZwlrForeignToplevelManagerV1ToplevelFn = fn void(void* context, ZwlrForeignToplevelManagerV1* target, ZwlrForeignToplevelHandleV1* toplevel);
+alias ZwlrForeignToplevelManagerV1ToplevelFn = fn void(
+	void* context,
+	ZwlrForeignToplevelManagerV1* target,
+	ZwlrForeignToplevelHandleV1* toplevel
+);
 
 <*
  Event zwlr_foreign_toplevel_manager_v1.finished: This event indicates that the compositor is
@@ -81,32 +89,49 @@ fn void ZwlrForeignToplevelManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_foreign_toplevel_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_foreign_toplevel_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrForeignToplevelManagerV1Listener* listener = (ZwlrForeignToplevelManagerV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint toplevel_id = args.get_new_id()!;
-			ZwlrForeignToplevelHandleV1* toplevel = (ZwlrForeignToplevelHandleV1*)(conn.server_object(toplevel_id, ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.toplevel != null)
+
 			{
-				listener.toplevel(proxy.context, (ZwlrForeignToplevelManagerV1*)proxy, toplevel);
+				uint toplevel_id = args.get_new_id()!;
+				ZwlrForeignToplevelHandleV1* toplevel = (ZwlrForeignToplevelHandleV1*)(conn.server_object(
+					toplevel_id,
+					ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.toplevel != null)
+				{
+					listener.toplevel(proxy.context, (ZwlrForeignToplevelManagerV1*)proxy, toplevel);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ZwlrForeignToplevelManagerV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ZwlrForeignToplevelManagerV1*)proxy);
+				}
+				conn.retire(proxy);
+				return;
 			}
-			conn.retire(proxy);
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_foreign_toplevel_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_foreign_toplevel_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -116,7 +141,11 @@ fn void? zwlr_foreign_toplevel_manager_v1_dispatch(display::Display* conn, displ
  have multiple opened toplevels. Each toplevel has a list of outputs it is visible on,
  conveyed to the client with the output_enter and output_leave events.
 *>
-const display::Interface ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1 = { .name = "zwlr_foreign_toplevel_handle_v1", .version = 3, .dispatch = &zwlr_foreign_toplevel_handle_v1_dispatch };
+const display::Interface ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1 = {
+	.name = "zwlr_foreign_toplevel_handle_v1",
+	.version = 3,
+	.dispatch = &zwlr_foreign_toplevel_handle_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_foreign_toplevel_handle_v1 object. The proxy is the first field, so a
@@ -133,9 +162,9 @@ struct ZwlrForeignToplevelHandleV1
 *>
 constset ZwlrForeignToplevelHandleV1State : uint
 {
-	MAXIMIZED = 0,
-	MINIMIZED = 1,
-	ACTIVATED = 2,
+	MAXIMIZED  = 0,
+	MINIMIZED  = 1,
+	ACTIVATED  = 2,
 	FULLSCREEN = 3,
 }
 
@@ -163,14 +192,22 @@ alias ZwlrForeignToplevelHandleV1AppIdFn = fn void(void* context, ZwlrForeignTop
  Event zwlr_foreign_toplevel_handle_v1.output_enter: This event is emitted whenever the
  toplevel becomes visible on the given output. A toplevel may be visible on multiple outputs.
 *>
-alias ZwlrForeignToplevelHandleV1OutputEnterFn = fn void(void* context, ZwlrForeignToplevelHandleV1* target, wayland::WlOutput* output);
+alias ZwlrForeignToplevelHandleV1OutputEnterFn = fn void(
+	void* context,
+	ZwlrForeignToplevelHandleV1* target,
+	wayland::WlOutput* output
+);
 
 <*
  Event zwlr_foreign_toplevel_handle_v1.output_leave: This event is emitted whenever the
  toplevel stops being visible on the given output. It is guaranteed that an entered-output
  event with the same output has been emitted before this event.
 *>
-alias ZwlrForeignToplevelHandleV1OutputLeaveFn = fn void(void* context, ZwlrForeignToplevelHandleV1* target, wayland::WlOutput* output);
+alias ZwlrForeignToplevelHandleV1OutputLeaveFn = fn void(
+	void* context,
+	ZwlrForeignToplevelHandleV1* target,
+	wayland::WlOutput* output
+);
 
 <*
  Event zwlr_foreign_toplevel_handle_v1.state: This event is emitted immediately after the
@@ -198,7 +235,11 @@ alias ZwlrForeignToplevelHandleV1ClosedFn = fn void(void* context, ZwlrForeignTo
  Event zwlr_foreign_toplevel_handle_v1.parent: This event is emitted whenever the parent of
  the toplevel changes. No event is emitted when the parent handle is destroyed by the client.
 *>
-alias ZwlrForeignToplevelHandleV1ParentFn = fn void(void* context, ZwlrForeignToplevelHandleV1* target, ZwlrForeignToplevelHandleV1* parent);
+alias ZwlrForeignToplevelHandleV1ParentFn = fn void(
+	void* context,
+	ZwlrForeignToplevelHandleV1* target,
+	ZwlrForeignToplevelHandleV1* parent
+);
 
 <*
  Event handlers of zwlr_foreign_toplevel_handle_v1. A null field ignores its event. Strings
@@ -310,7 +351,14 @@ fn void? ZwlrForeignToplevelHandleV1.close(&self)
  than one rectangle, only the last one is considered. The dimensions are given in surface-
  local coordinates. Setting width=height=0 removes the already-set rectangle.
 *>
-fn void? ZwlrForeignToplevelHandleV1.set_rectangle(&self, wayland::WlSurface* surface, int x, int y, int width, int height)
+fn void? ZwlrForeignToplevelHandleV1.set_rectangle(
+	&self,
+	wayland::WlSurface* surface,
+	int x,
+	int y,
+	int width,
+	int height
+)
 {
 	wire::Writer w;
 	w.begin(self.base.id, 6);
@@ -352,7 +400,13 @@ fn void? ZwlrForeignToplevelHandleV1.set_fullscreen(&self, wayland::WlOutput* ou
 	w.begin(self.base.id, 8);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_foreign_toplevel_handle_v1.set_fullscreen needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_foreign_toplevel_handle_v1.set_fullscreen needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_object(output == null ? 0 : output.base.id)!;
 	self.base.conn.send(&w)!;
@@ -370,90 +424,127 @@ fn void? ZwlrForeignToplevelHandleV1.unset_fullscreen(&self)
 	w.begin(self.base.id, 9);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_foreign_toplevel_handle_v1.unset_fullscreen needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_foreign_toplevel_handle_v1.unset_fullscreen needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 }
 
-fn void? zwlr_foreign_toplevel_handle_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_foreign_toplevel_handle_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrForeignToplevelHandleV1Listener* listener = (ZwlrForeignToplevelHandleV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			String title = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.title != null)
+
 			{
-				listener.title(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, title);
+				String title = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.title != null)
+				{
+					listener.title(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, title);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			String app_id = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.app_id != null)
+
 			{
-				listener.app_id(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, app_id);
+				String app_id = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.app_id != null)
+				{
+					listener.app_id(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, app_id);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			uint output = args.get_object()!;
-			display::Proxy* output_obj = conn.find(output);
-			if (!proxy.zombie && listener != null && listener.output_enter != null)
+
 			{
-				listener.output_enter(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, (wayland::WlOutput*)output_obj);
+				uint output                = args.get_object()!;
+				display::Proxy* output_obj = conn.find(output);
+				if (!proxy.zombie && listener != null && listener.output_enter != null)
+				{
+					listener.output_enter(
+						proxy.context,
+						(ZwlrForeignToplevelHandleV1*)proxy,
+						(wayland::WlOutput*)output_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint output = args.get_object()!;
-			display::Proxy* output_obj = conn.find(output);
-			if (!proxy.zombie && listener != null && listener.output_leave != null)
+
 			{
-				listener.output_leave(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, (wayland::WlOutput*)output_obj);
+				uint output                = args.get_object()!;
+				display::Proxy* output_obj = conn.find(output);
+				if (!proxy.zombie && listener != null && listener.output_leave != null)
+				{
+					listener.output_leave(
+						proxy.context,
+						(ZwlrForeignToplevelHandleV1*)proxy,
+						(wayland::WlOutput*)output_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			char[] state = args.get_array()!;
-			if (!proxy.zombie && listener != null && listener.state != null)
+
 			{
-				listener.state(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, state);
+				char[] state = args.get_array()!;
+				if (!proxy.zombie && listener != null && listener.state != null)
+				{
+					listener.state(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, state);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			if (!proxy.zombie && listener != null && listener.done != null)
+
 			{
-				listener.done(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.done != null)
+				{
+					listener.done(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 6:
-		{
-			if (!proxy.zombie && listener != null && listener.closed != null)
+
 			{
-				listener.closed(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.closed != null)
+				{
+					listener.closed(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 7:
-		{
-			uint parent = args.get_object()!;
-			display::Proxy* parent_obj = conn.find(parent);
-			if (!proxy.zombie && listener != null && listener.parent != null)
+
 			{
-				listener.parent(proxy.context, (ZwlrForeignToplevelHandleV1*)proxy, (ZwlrForeignToplevelHandleV1*)parent_obj);
+				uint parent                = args.get_object()!;
+				display::Proxy* parent_obj = conn.find(parent);
+				if (!proxy.zombie && listener != null && listener.parent != null)
+				{
+					listener.parent(
+						proxy.context,
+						(ZwlrForeignToplevelHandleV1*)proxy,
+						(ZwlrForeignToplevelHandleV1*)parent_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_foreign_toplevel_handle_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_foreign_toplevel_handle_v1",
+				opcode
+			)~;
 	}
 }

@@ -13,16 +13,16 @@
  to take a CancelPairing while a Pair is waiting, and the reply completes the
  task.
 
- Pairing prompts are not available: the agent that BlueZ would call back needs
- a D-Bus object exported by this process, and `bleu::dbus` has no server-side
- export yet (see docs/research/bluetooth_impl.md). Pairing therefore runs
- without an agent.
+ Pairing: this process exports the org.bluez.Agent1 object (bluez_agent.c3) and
+ registers it with BlueZ. BlueZ's requests for a PIN, passkey or confirmation
+ become PAIRING_REQUEST events; the user's answer is sent back as the reply to the
+ parked call. The library never answers those requests itself.
 
  Sources: BlueZ D-Bus API documentation (org.bluez.Adapter, Device, Battery
  at the master revision; docs/research/bluetooth.md, section 2.1).
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 <* The well-known name of BlueZ on the system bus. *>
 const BLUEZ_NAME               = "org.bluez";
@@ -50,6 +50,12 @@ struct Bluez
 	Connection bus;
 	bool dirty; // the object tree may have changed since it was last read
 	BluetoothHub* hub; // where states and events go, valid while the worker runs
+	ObjectServer server; // exports the pairing agent on `bus`
+	Method[AGENT_METHOD_COUNT] agent_methods;
+	Interface[1] agent_interfaces;
+	bool agent_ready; // BlueZ accepted the registration, so prompts will arrive
+	ulong next_prompt; // the id of the most recent prompt
+	Prompt[MAX_PROMPTS] prompts;
 }
 
 const Driver DRIVER = {
@@ -100,14 +106,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 fn void fill_capabilities(Capabilities* capabilities) @private
 {
 	capabilities.init(availability::YES);
-	capabilities.values[bluetooth::Cap.PAIR.ordinal] = {
+	capabilities.values[bluetooth::Cap.PAIRING_PROMPTS.ordinal] = {
 		.reason = availability::Reason.DEGRADED,
-		.note = "no pairing agent is registered; BlueZ answers the pairing itself or refuses",
+		.note = "the agent is registered when the service starts; if BlueZ refuses it, no prompt arrives",
 	};
-	capabilities.values[bluetooth::Cap.PAIRING_PROMPTS.ordinal] = availability::no(
-		availability::Reason.UNSUPPORTED_BACKEND,
-		"bleu::dbus cannot export the pairing agent object yet"
-	);
 	capabilities.values[bluetooth::Cap.RFKILL_STATE.ordinal] = {
 		.reason = availability::Reason.DEGRADED,
 		.note = "read from /sys/class/rfkill; a kill switch that is not in sysfs is not seen",
@@ -150,6 +152,11 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 		bluetooth::publish_empty(hub);
 		return;
 	}
+	self.server.init(self.allocator);
+	defer self.server.free();
+	self.server.attach(&self.bus);
+	// Without the agent BlueZ still pairs what needs no answer; prompts are then not offered.
+	if (catch register_agent(self)) {} else { self.agent_ready = true; }
 	Request[COMMAND_BATCH] commands;
 	while (!host.stopping())
 	{
@@ -173,6 +180,10 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	}
 	// Finish what the bus still owes (pending replies fail as the bus closes), then say the service is gone.
 	fail_queued(host);
+	if (self.agent_ready)
+	{
+		if (catch unregister_agent(self)) {}
+	}
 	self.bus.close();
 	bluetooth::publish_empty(hub);
 }

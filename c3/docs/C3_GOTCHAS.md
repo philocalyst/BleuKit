@@ -121,3 +121,19 @@
 * `c3fmt -i` can oscillate on long aligned struct literals (`Entry key = {...}` split and joined); bind the parts to named variables first.
 * `Connection.init` (bleu_dbus) called twice on the same struct leaks its lists; guard the init with the "initialised" flag, and set it in struct literals that skip the guard.
 * dbus-next marshals a D-Bus STRUCT from a Python list; a tuple raises `SignatureBodyMismatchError`.
+* `Parameters may not be optional` for `void? r` as a parameter → pass the value, or test the result with a macro such as `testing::@expect_fault(expr, NOT_FOUND)`.
+* `The format string cannot be a vaarg parameter` when a helper `fn fault f(String fmt, args...)` forwards `fmt` to `error::raise` → call `error::raise(...)` directly at each site.
+* `Fallthrough cases with empty rows or comments have unclear meaning` in a `switch` → give each case a statement, or `return` in it; a comment-only case body is an error.
+* `Did you mean the struct 'List' in module std::collections::list?` → every file that uses `List{T}` needs its own `import std::collections::list` (imports are per file, not per module).
+* `Implicitly casting 'int' to 'ReplyToken'` for a `typedef ReplyToken = uint;` → cast literals and `ReplyToken` results explicitly, e.g. `(ReplyToken)0`.
+* `Expected '('` for a global declared `fn Service service;` → a global variable is declared without `fn`: `Service service;`.
+* `c3c compile-only` and `compile-test` write `./obj` and `./out` into the working directory → run them from a scratch directory when a checkout must stay clean.
+* `@private` on a method declaration (`fn T Type.name(&self) @private`) is an error in this compiler → drop it, or make the helper a free function with `@private`.
+* A protocol type or constant of another module written bare (`WlSeat`, `ZWLR_OUTPUT_MANAGER_V1`) → `Globals/types from other modules must be prefixed`; write `module::NAME` everywhere, including test code.
+* `(void)unix::Fd{ .value = fd }.close()` → methods cannot be called on a struct literal; use a helper that takes the raw descriptor (`display::native_close(fd)`).
+* No labelled blocks in C3 0.8.5 (`label: { ... break label; }` does not parse) → split the body into a helper that returns early.
+* `char[N]` struct fields have no `.ptr`; take `&arr[0]` for `mem::copy`/`mem::move`, and cast `usz` lengths to `sz`.
+* A local named `error` shadows the `bleu::error` module and fails with "An expression was expected" → name it `failure`.
+* `List`/`HashMap` need an explicit `import std::collections::list;` even when `List{T}` is only used in a struct field.
+* Generated protocol code: a constset conversion from `int` needs `(T)(uint)value`; a method name equal to a struct field (`Display.fd` vs `fd`) is rejected → rename the field.
+* `c3c compile-test` writes `./out/testrun` by default, which another engineer's build may also use → pass `-o <scratch path>` and run the binary under `timeout`, since a deadlocked scenario thread hangs the run without a message.

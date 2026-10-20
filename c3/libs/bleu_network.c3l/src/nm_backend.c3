@@ -6,7 +6,7 @@
 // thread. Signal handlers only record what happened (a flag, a transition);
 // the loop acts on it after `process()` returns, so no handler calls the bus.
 module bleu::network::networkmanager @feat(LINUX);
-import std::io::path, std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value;
+import std::io::path, std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value;
 
 <* The backend's state. Allocated by `create`, released by `destroy`. *>
 struct Backend
@@ -200,7 +200,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	defer b.bus.free();
 	if (catch err = open_bus(b))
 	{
-		publish_empty(hub);
+		network::publish_empty(hub);
 		return;
 	}
 	Poller poller;
@@ -263,7 +263,7 @@ fn void refresh(Backend* b, NetworkHub* hub)
 	}
 	remember(b, &reading);
 	settle(b, &reading);
-	publish_snapshot(hub, snapshot);
+	network::publish_snapshot(hub, snapshot);
 }
 
 // Keep what the commands need from this read.

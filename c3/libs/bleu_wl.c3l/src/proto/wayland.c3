@@ -27,7 +27,7 @@ constset WlDisplayError : uint
 {
 	INVALID_OBJECT = 0,
 	INVALID_METHOD = 1,
-	NO_MEMORY = 2,
+	NO_MEMORY      = 2,
 	IMPLEMENTATION = 3,
 }
 
@@ -38,7 +38,13 @@ constset WlDisplayError : uint
  object interface. As such, each interface defines its own set of error codes. The message is
  a brief description of the error, for (debugging) convenience.
 *>
-alias WlDisplayErrorFn = fn void(void* context, WlDisplay* target, display::Proxy* object_id, uint code, String message);
+alias WlDisplayErrorFn = fn void(
+	void* context,
+	WlDisplay* target,
+	display::Proxy* object_id,
+	uint code,
+	String message
+);
 
 <*
  Event wl_display.delete_id: This event is used internally by the object ID management logic.
@@ -120,30 +126,38 @@ fn void? wl_display_dispatch(display::Display* conn, display::Proxy* proxy, usho
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint object_id = args.get_object()!;
-			display::Proxy* object_id_obj = conn.find(object_id);
-			uint code = args.get_uint()!;
-			String message = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.error_ != null)
+
 			{
-				listener.error_(proxy.context, (WlDisplay*)proxy, (display::Proxy*)object_id_obj, code, message);
+				uint object_id                = args.get_object()!;
+				display::Proxy* object_id_obj = conn.find(object_id);
+				uint code                     = args.get_uint()!;
+				String message                = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.error_ != null)
+				{
+					listener.error_(proxy.context, (WlDisplay*)proxy, (display::Proxy*)object_id_obj, code, message);
+				}
+				conn.protocol_error(object_id, code, message)!;
+				return;
 			}
-			conn.protocol_error(object_id, code, message)!;
-			return;
-		}
 		case 1:
-		{
-			uint id = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.delete_id != null)
+
 			{
-				listener.delete_id(proxy.context, (WlDisplay*)proxy, id);
+				uint id = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.delete_id != null)
+				{
+					listener.delete_id(proxy.context, (WlDisplay*)proxy, id);
+				}
+				conn.release_id(id);
+				return;
 			}
-			conn.release_id(id);
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_display", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_display",
+				opcode
+			)~;
 	}
 }
 
@@ -237,27 +251,35 @@ fn void? wl_registry_dispatch(display::Display* conn, display::Proxy* proxy, ush
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint name = args.get_uint()!;
-			String interface_ = args.get_string()!;
-			uint version = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.global != null)
+
 			{
-				listener.global(proxy.context, (WlRegistry*)proxy, name, interface_, version);
+				uint name         = args.get_uint()!;
+				String interface_ = args.get_string()!;
+				uint version      = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.global != null)
+				{
+					listener.global(proxy.context, (WlRegistry*)proxy, name, interface_, version);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint name = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.global_remove != null)
+
 			{
-				listener.global_remove(proxy.context, (WlRegistry*)proxy, name);
+				uint name = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.global_remove != null)
+				{
+					listener.global_remove(proxy.context, (WlRegistry*)proxy, name);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_registry", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_registry",
+				opcode
+			)~;
 	}
 }
 
@@ -316,17 +338,24 @@ fn void? wl_callback_dispatch(display::Display* conn, display::Proxy* proxy, ush
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint callback_data = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.done != null)
+
 			{
-				listener.done(proxy.context, (WlCallback*)proxy, callback_data);
+				uint callback_data = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.done != null)
+				{
+					listener.done(proxy.context, (WlCallback*)proxy, callback_data);
+				}
+				conn.retire(proxy);
+				return;
 			}
-			conn.retire(proxy);
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_callback", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_callback",
+				opcode
+			)~;
 	}
 }
 
@@ -386,7 +415,13 @@ fn void? WlCompositor.release(&self)
 	w.begin(self.base.id, 2);
 	if (self.base.version < 7)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_compositor.release needs version 7, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_compositor.release needs version 7, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -397,7 +432,13 @@ fn void? wl_compositor_dispatch(display::Display* conn, display::Proxy* proxy, u
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_compositor", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_compositor",
+				opcode
+			)~;
 	}
 }
 
@@ -489,7 +530,13 @@ fn void? wl_shm_pool_dispatch(display::Display* conn, display::Proxy* proxy, ush
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_shm_pool", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_shm_pool",
+				opcode
+			)~;
 	}
 }
 
@@ -518,7 +565,7 @@ constset WlShmError : uint
 {
 	INVALID_FORMAT = 0,
 	INVALID_STRIDE = 1,
-	INVALID_FD = 2,
+	INVALID_FD     = 2,
 }
 
 <*
@@ -532,154 +579,154 @@ constset WlShmError : uint
 *>
 constset WlShmFormat : uint
 {
-	ARGB8888 = 0,
-	XRGB8888 = 1,
-	C8 = 538982467,
-	RGB332 = 943867730,
-	BGR233 = 944916290,
-	XRGB4444 = 842093144,
-	XBGR4444 = 842089048,
-	RGBX4444 = 842094674,
-	BGRX4444 = 842094658,
-	ARGB4444 = 842093121,
-	ABGR4444 = 842089025,
-	RGBA4444 = 842088786,
-	BGRA4444 = 842088770,
-	XRGB1555 = 892424792,
-	XBGR1555 = 892420696,
-	RGBX5551 = 892426322,
-	BGRX5551 = 892426306,
-	ARGB1555 = 892424769,
-	ABGR1555 = 892420673,
-	RGBA5551 = 892420434,
-	BGRA5551 = 892420418,
-	RGB565 = 909199186,
-	BGR565 = 909199170,
-	RGB888 = 875710290,
-	BGR888 = 875710274,
-	XBGR8888 = 875709016,
-	RGBX8888 = 875714642,
-	BGRX8888 = 875714626,
-	ABGR8888 = 875708993,
-	RGBA8888 = 875708754,
-	BGRA8888 = 875708738,
-	XRGB2101010 = 808669784,
-	XBGR2101010 = 808665688,
-	RGBX1010102 = 808671314,
-	BGRX1010102 = 808671298,
-	ARGB2101010 = 808669761,
-	ABGR2101010 = 808665665,
-	RGBA1010102 = 808665426,
-	BGRA1010102 = 808665410,
-	YUYV = 1448695129,
-	YVYU = 1431918169,
-	UYVY = 1498831189,
-	VYUY = 1498765654,
-	AYUV = 1448433985,
-	NV12 = 842094158,
-	NV21 = 825382478,
-	NV16 = 909203022,
-	NV61 = 825644622,
-	YUV410 = 961959257,
-	YVU410 = 961893977,
-	YUV411 = 825316697,
-	YVU411 = 825316953,
-	YUV420 = 842093913,
-	YVU420 = 842094169,
-	YUV422 = 909202777,
-	YVU422 = 909203033,
-	YUV444 = 875713881,
-	YVU444 = 875714137,
-	R8 = 538982482,
-	R16 = 540422482,
-	RG88 = 943212370,
-	GR88 = 943215175,
-	RG1616 = 842221394,
-	GR1616 = 842224199,
-	XRGB16161616F = 1211388504,
-	XBGR16161616F = 1211384408,
-	ARGB16161616F = 1211388481,
-	ABGR16161616F = 1211384385,
-	XYUV8888 = 1448434008,
-	VUY888 = 875713878,
-	VUY101010 = 808670550,
-	Y210 = 808530521,
-	Y212 = 842084953,
-	Y216 = 909193817,
-	Y410 = 808531033,
-	Y412 = 842085465,
-	Y416 = 909194329,
-	XVYU2101010 = 808670808,
-	XVYU12_16161616 = 909334104,
-	XVYU16161616 = 942954072,
-	Y0L0 = 810299481,
-	X0L0 = 810299480,
-	Y0L2 = 843853913,
-	X0L2 = 843853912,
-	YUV420_8BIT = 942691673,
-	YUV420_10BIT = 808539481,
-	XRGB8888_A8 = 943805016,
-	XBGR8888_A8 = 943800920,
-	RGBX8888_A8 = 943806546,
-	BGRX8888_A8 = 943806530,
-	RGB888_A8 = 943798354,
-	BGR888_A8 = 943798338,
-	RGB565_A8 = 943797586,
-	BGR565_A8 = 943797570,
-	NV24 = 875714126,
-	NV42 = 842290766,
-	P210 = 808530512,
-	P010 = 808530000,
-	P012 = 842084432,
-	P016 = 909193296,
+	ARGB8888             = 0,
+	XRGB8888             = 1,
+	C8                   = 538982467,
+	RGB332               = 943867730,
+	BGR233               = 944916290,
+	XRGB4444             = 842093144,
+	XBGR4444             = 842089048,
+	RGBX4444             = 842094674,
+	BGRX4444             = 842094658,
+	ARGB4444             = 842093121,
+	ABGR4444             = 842089025,
+	RGBA4444             = 842088786,
+	BGRA4444             = 842088770,
+	XRGB1555             = 892424792,
+	XBGR1555             = 892420696,
+	RGBX5551             = 892426322,
+	BGRX5551             = 892426306,
+	ARGB1555             = 892424769,
+	ABGR1555             = 892420673,
+	RGBA5551             = 892420434,
+	BGRA5551             = 892420418,
+	RGB565               = 909199186,
+	BGR565               = 909199170,
+	RGB888               = 875710290,
+	BGR888               = 875710274,
+	XBGR8888             = 875709016,
+	RGBX8888             = 875714642,
+	BGRX8888             = 875714626,
+	ABGR8888             = 875708993,
+	RGBA8888             = 875708754,
+	BGRA8888             = 875708738,
+	XRGB2101010          = 808669784,
+	XBGR2101010          = 808665688,
+	RGBX1010102          = 808671314,
+	BGRX1010102          = 808671298,
+	ARGB2101010          = 808669761,
+	ABGR2101010          = 808665665,
+	RGBA1010102          = 808665426,
+	BGRA1010102          = 808665410,
+	YUYV                 = 1448695129,
+	YVYU                 = 1431918169,
+	UYVY                 = 1498831189,
+	VYUY                 = 1498765654,
+	AYUV                 = 1448433985,
+	NV12                 = 842094158,
+	NV21                 = 825382478,
+	NV16                 = 909203022,
+	NV61                 = 825644622,
+	YUV410               = 961959257,
+	YVU410               = 961893977,
+	YUV411               = 825316697,
+	YVU411               = 825316953,
+	YUV420               = 842093913,
+	YVU420               = 842094169,
+	YUV422               = 909202777,
+	YVU422               = 909203033,
+	YUV444               = 875713881,
+	YVU444               = 875714137,
+	R8                   = 538982482,
+	R16                  = 540422482,
+	RG88                 = 943212370,
+	GR88                 = 943215175,
+	RG1616               = 842221394,
+	GR1616               = 842224199,
+	XRGB16161616F        = 1211388504,
+	XBGR16161616F        = 1211384408,
+	ARGB16161616F        = 1211388481,
+	ABGR16161616F        = 1211384385,
+	XYUV8888             = 1448434008,
+	VUY888               = 875713878,
+	VUY101010            = 808670550,
+	Y210                 = 808530521,
+	Y212                 = 842084953,
+	Y216                 = 909193817,
+	Y410                 = 808531033,
+	Y412                 = 842085465,
+	Y416                 = 909194329,
+	XVYU2101010          = 808670808,
+	XVYU12_16161616      = 909334104,
+	XVYU16161616         = 942954072,
+	Y0L0                 = 810299481,
+	X0L0                 = 810299480,
+	Y0L2                 = 843853913,
+	X0L2                 = 843853912,
+	YUV420_8BIT          = 942691673,
+	YUV420_10BIT         = 808539481,
+	XRGB8888_A8          = 943805016,
+	XBGR8888_A8          = 943800920,
+	RGBX8888_A8          = 943806546,
+	BGRX8888_A8          = 943806530,
+	RGB888_A8            = 943798354,
+	BGR888_A8            = 943798338,
+	RGB565_A8            = 943797586,
+	BGR565_A8            = 943797570,
+	NV24                 = 875714126,
+	NV42                 = 842290766,
+	P210                 = 808530512,
+	P010                 = 808530000,
+	P012                 = 842084432,
+	P016                 = 909193296,
 	AXBXGXRX106106106106 = 808534593,
-	NV15 = 892425806,
-	Q410 = 808531025,
-	Q401 = 825242705,
-	XRGB16161616 = 942953048,
-	XBGR16161616 = 942948952,
-	ARGB16161616 = 942953025,
-	ABGR16161616 = 942948929,
-	C1 = 538980675,
-	C2 = 538980931,
-	C4 = 538981443,
-	D1 = 538980676,
-	D2 = 538980932,
-	D4 = 538981444,
-	D8 = 538982468,
-	R1 = 538980690,
-	R2 = 538980946,
-	R4 = 538981458,
-	R10 = 540029266,
-	R12 = 540160338,
-	AVUY8888 = 1498764865,
-	XVUY8888 = 1498764888,
-	P030 = 808661072,
-	RGB161616 = 942950226,
-	BGR161616 = 942950210,
-	R16F = 1210064978,
-	GR1616F = 1210077767,
-	BGR161616F = 1213351746,
-	R32F = 1176510546,
-	GR3232F = 1176523335,
-	BGR323232F = 1179797314,
-	ABGR32323232F = 1178092097,
-	NV20 = 808605262,
-	NV30 = 808670798,
-	S010 = 808530003,
-	S210 = 808530515,
-	S410 = 808531027,
-	S012 = 842084435,
-	S212 = 842084947,
-	S412 = 842085459,
-	S016 = 909193299,
-	S216 = 909193811,
-	S416 = 909194323,
-	XVUY2101010 = 808671576,
-	P230 = 808661584,
-	T430 = 808662100,
-	Y8 = 1497715271,
-	XYYY2101010 = 876695641,
+	NV15                 = 892425806,
+	Q410                 = 808531025,
+	Q401                 = 825242705,
+	XRGB16161616         = 942953048,
+	XBGR16161616         = 942948952,
+	ARGB16161616         = 942953025,
+	ABGR16161616         = 942948929,
+	C1                   = 538980675,
+	C2                   = 538980931,
+	C4                   = 538981443,
+	D1                   = 538980676,
+	D2                   = 538980932,
+	D4                   = 538981444,
+	D8                   = 538982468,
+	R1                   = 538980690,
+	R2                   = 538980946,
+	R4                   = 538981458,
+	R10                  = 540029266,
+	R12                  = 540160338,
+	AVUY8888             = 1498764865,
+	XVUY8888             = 1498764888,
+	P030                 = 808661072,
+	RGB161616            = 942950226,
+	BGR161616            = 942950210,
+	R16F                 = 1210064978,
+	GR1616F              = 1210077767,
+	BGR161616F           = 1213351746,
+	R32F                 = 1176510546,
+	GR3232F              = 1176523335,
+	BGR323232F           = 1179797314,
+	ABGR32323232F        = 1178092097,
+	NV20                 = 808605262,
+	NV30                 = 808670798,
+	S010                 = 808530003,
+	S210                 = 808530515,
+	S410                 = 808531027,
+	S012                 = 842084435,
+	S212                 = 842084947,
+	S412                 = 842085459,
+	S016                 = 909193299,
+	S216                 = 909193811,
+	S416                 = 909194323,
+	XVUY2101010          = 808671576,
+	P230                 = 808661584,
+	T430                 = 808662100,
+	Y8                   = 1497715271,
+	XYYY2101010          = 876695641,
 }
 
 <*
@@ -739,7 +786,13 @@ fn void? WlShm.release(&self)
 	w.begin(self.base.id, 1);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_shm.release needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_shm.release needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -751,16 +804,23 @@ fn void? wl_shm_dispatch(display::Display* conn, display::Proxy* proxy, ushort o
 	switch (opcode)
 	{
 		case 0:
-		{
-			WlShmFormat format = (WlShmFormat)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.format != null)
+
 			{
-				listener.format(proxy.context, (WlShm*)proxy, format);
+				WlShmFormat format = (WlShmFormat)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.format != null)
+				{
+					listener.format(proxy.context, (WlShm*)proxy, format);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_shm", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_shm",
+				opcode
+			)~;
 	}
 }
 
@@ -839,15 +899,22 @@ fn void? wl_buffer_dispatch(display::Display* conn, display::Proxy* proxy, ushor
 	switch (opcode)
 	{
 		case 0:
-		{
-			if (!proxy.zombie && listener != null && listener.release != null)
+
 			{
-				listener.release(proxy.context, (WlBuffer*)proxy);
+				if (!proxy.zombie && listener != null && listener.release != null)
+				{
+					listener.release(proxy.context, (WlBuffer*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_buffer", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_buffer",
+				opcode
+			)~;
 	}
 }
 
@@ -874,10 +941,10 @@ struct WlDataOffer
 *>
 constset WlDataOfferError : uint
 {
-	INVALID_FINISH = 0,
+	INVALID_FINISH      = 0,
 	INVALID_ACTION_MASK = 1,
-	INVALID_ACTION = 2,
-	INVALID_OFFER = 3,
+	INVALID_ACTION      = 2,
+	INVALID_OFFER       = 3,
 }
 
 <*
@@ -891,7 +958,11 @@ alias WlDataOfferOfferFn = fn void(void* context, WlDataOffer* target, String mi
  source. It will be sent immediately after creating the wl_data_offer object, or anytime the
  source side changes its offered actions through wl_data_source.set_actions.
 *>
-alias WlDataOfferSourceActionsFn = fn void(void* context, WlDataOffer* target, WlDataDeviceManagerDndAction source_actions);
+alias WlDataOfferSourceActionsFn = fn void(
+	void* context,
+	WlDataOffer* target,
+	WlDataDeviceManagerDndAction source_actions
+);
 
 <*
  Event wl_data_offer.action: This event indicates the action selected by the compositor after
@@ -1007,7 +1078,13 @@ fn void? WlDataOffer.finish(&self)
 	w.begin(self.base.id, 3);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_data_offer.finish needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_data_offer.finish needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 }
@@ -1033,13 +1110,23 @@ fn void? WlDataOffer.finish(&self)
  protocol error will be raised otherwise.
  Available since version 3.
 *>
-fn void? WlDataOffer.set_actions(&self, WlDataDeviceManagerDndAction dnd_actions, WlDataDeviceManagerDndAction preferred_action)
+fn void? WlDataOffer.set_actions(
+	&self,
+	WlDataDeviceManagerDndAction dnd_actions,
+	WlDataDeviceManagerDndAction preferred_action
+)
 {
 	wire::Writer w;
 	w.begin(self.base.id, 4);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_data_offer.set_actions needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_data_offer.set_actions needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_uint((uint)dnd_actions)!;
 	w.put_uint((uint)preferred_action)!;
@@ -1052,34 +1139,43 @@ fn void? wl_data_offer_dispatch(display::Display* conn, display::Proxy* proxy, u
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.offer != null)
+
 			{
-				listener.offer(proxy.context, (WlDataOffer*)proxy, mime_type);
+				String mime_type = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.offer != null)
+				{
+					listener.offer(proxy.context, (WlDataOffer*)proxy, mime_type);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			WlDataDeviceManagerDndAction source_actions = (WlDataDeviceManagerDndAction)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.source_actions != null)
+
 			{
-				listener.source_actions(proxy.context, (WlDataOffer*)proxy, source_actions);
+				WlDataDeviceManagerDndAction source_actions = (WlDataDeviceManagerDndAction)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.source_actions != null)
+				{
+					listener.source_actions(proxy.context, (WlDataOffer*)proxy, source_actions);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			WlDataDeviceManagerDndAction dnd_action = (WlDataDeviceManagerDndAction)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.action != null)
+
 			{
-				listener.action(proxy.context, (WlDataOffer*)proxy, dnd_action);
+				WlDataDeviceManagerDndAction dnd_action = (WlDataDeviceManagerDndAction)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.action != null)
+				{
+					listener.action(proxy.context, (WlDataOffer*)proxy, dnd_action);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_data_offer", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_data_offer",
+				opcode
+			)~;
 	}
 }
 
@@ -1089,7 +1185,11 @@ fn void? wl_data_offer_dispatch(display::Display* conn, display::Proxy* proxy, u
  client in a data transfer and provides a way to describe the offered data and a way to
  respond to requests to transfer the data.
 *>
-const display::Interface WL_DATA_SOURCE = { .name = "wl_data_source", .version = 4, .dispatch = &wl_data_source_dispatch };
+const display::Interface WL_DATA_SOURCE = {
+	.name = "wl_data_source",
+	.version = 4,
+	.dispatch = &wl_data_source_dispatch
+};
 
 <*
  Typed view of a wl_data_source object. The proxy is the first field, so a pointer to either
@@ -1106,7 +1206,7 @@ struct WlDataSource
 constset WlDataSourceError : uint
 {
 	INVALID_ACTION_MASK = 0,
-	INVALID_SOURCE = 1,
+	INVALID_SOURCE      = 1,
 }
 
 <*
@@ -1237,7 +1337,13 @@ fn void? WlDataSource.set_actions(&self, WlDataDeviceManagerDndAction dnd_action
 	w.begin(self.base.id, 2);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_data_source.set_actions needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_data_source.set_actions needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_uint((uint)dnd_actions)!;
 	self.base.conn.send(&w)!;
@@ -1249,63 +1355,75 @@ fn void? wl_data_source_dispatch(display::Display* conn, display::Proxy* proxy, 
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.target_ != null)
+
 			{
-				listener.target_(proxy.context, (WlDataSource*)proxy, mime_type);
+				String mime_type = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.target_ != null)
+				{
+					listener.target_(proxy.context, (WlDataSource*)proxy, mime_type);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			String mime_type = args.get_string()!;
-			Native fd = args.get_fd()!;
-			if (!proxy.zombie && listener != null && listener.send != null)
+
 			{
-				listener.send(proxy.context, (WlDataSource*)proxy, mime_type, fd);
+				String mime_type = args.get_string()!;
+				Native fd        = args.get_fd()!;
+				if (!proxy.zombie && listener != null && listener.send != null)
+				{
+					listener.send(proxy.context, (WlDataSource*)proxy, mime_type, fd);
+				}
+				else
+				{
+					conn.close_native(fd);
+				}
+				return;
 			}
-			else
-			{
-				conn.close_native(fd);
-			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.cancelled != null)
+
 			{
-				listener.cancelled(proxy.context, (WlDataSource*)proxy);
+				if (!proxy.zombie && listener != null && listener.cancelled != null)
+				{
+					listener.cancelled(proxy.context, (WlDataSource*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			if (!proxy.zombie && listener != null && listener.dnd_drop_performed != null)
+
 			{
-				listener.dnd_drop_performed(proxy.context, (WlDataSource*)proxy);
+				if (!proxy.zombie && listener != null && listener.dnd_drop_performed != null)
+				{
+					listener.dnd_drop_performed(proxy.context, (WlDataSource*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			if (!proxy.zombie && listener != null && listener.dnd_finished != null)
+
 			{
-				listener.dnd_finished(proxy.context, (WlDataSource*)proxy);
+				if (!proxy.zombie && listener != null && listener.dnd_finished != null)
+				{
+					listener.dnd_finished(proxy.context, (WlDataSource*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			WlDataDeviceManagerDndAction dnd_action = (WlDataDeviceManagerDndAction)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.action != null)
+
 			{
-				listener.action(proxy.context, (WlDataSource*)proxy, dnd_action);
+				WlDataDeviceManagerDndAction dnd_action = (WlDataDeviceManagerDndAction)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.action != null)
+				{
+					listener.action(proxy.context, (WlDataSource*)proxy, dnd_action);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_data_source", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_data_source",
+				opcode
+			)~;
 	}
 }
 
@@ -1315,7 +1433,11 @@ fn void? wl_data_source_dispatch(display::Display* conn, display::Proxy* proxy, 
  wl_data_device_manager singleton. A wl_data_device provides access to inter-client data
  transfer mechanisms such as copy-and-paste and drag-and-drop.
 *>
-const display::Interface WL_DATA_DEVICE = { .name = "wl_data_device", .version = 4, .dispatch = &wl_data_device_dispatch };
+const display::Interface WL_DATA_DEVICE = {
+	.name = "wl_data_device",
+	.version = 4,
+	.dispatch = &wl_data_device_dispatch
+};
 
 <*
  Typed view of a wl_data_device object. The proxy is the first field, so a pointer to either
@@ -1331,7 +1453,7 @@ struct WlDataDevice
 *>
 constset WlDataDeviceError : uint
 {
-	ROLE = 0,
+	ROLE        = 0,
 	USED_SOURCE = 1,
 }
 
@@ -1349,7 +1471,15 @@ alias WlDataDeviceDataOfferFn = fn void(void* context, WlDataDevice* target, WlD
  surface owned by the client. The position of the pointer at enter time is provided by the x
  and y arguments, in surface-local coordinates.
 *>
-alias WlDataDeviceEnterFn = fn void(void* context, WlDataDevice* target, uint serial, WlSurface* surface, wire::Fixed x, wire::Fixed y, WlDataOffer* id);
+alias WlDataDeviceEnterFn = fn void(
+	void* context,
+	WlDataDevice* target,
+	uint serial,
+	WlSurface* surface,
+	wire::Fixed x,
+	wire::Fixed y,
+	WlDataOffer* id
+);
 
 <*
  Event wl_data_device.leave: This event is sent when the drag-and-drop pointer leaves the
@@ -1470,7 +1600,13 @@ fn void? WlDataDevice.release(&self)
 	w.begin(self.base.id, 2);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_data_device.release needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_data_device.release needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -1482,69 +1618,89 @@ fn void? wl_data_device_dispatch(display::Display* conn, display::Proxy* proxy, 
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint id_id = args.get_new_id()!;
-			WlDataOffer* id = (WlDataOffer*)(conn.server_object(id_id, WL_DATA_OFFER, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.data_offer != null)
+
 			{
-				listener.data_offer(proxy.context, (WlDataDevice*)proxy, id);
+				uint id_id      = args.get_new_id()!;
+				WlDataOffer* id = (WlDataOffer*)(conn.server_object(id_id, WL_DATA_OFFER, proxy.version)!);
+				if (!proxy.zombie && listener != null && listener.data_offer != null)
+				{
+					listener.data_offer(proxy.context, (WlDataDevice*)proxy, id);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint serial = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			wire::Fixed x = args.get_fixed()!;
-			wire::Fixed y = args.get_fixed()!;
-			uint id = args.get_object()!;
-			display::Proxy* id_obj = conn.find(id);
-			if (!proxy.zombie && listener != null && listener.enter != null)
+
 			{
-				listener.enter(proxy.context, (WlDataDevice*)proxy, serial, (WlSurface*)surface_obj, x, y, (WlDataOffer*)id_obj);
+				uint serial                 = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				wire::Fixed x               = args.get_fixed()!;
+				wire::Fixed y               = args.get_fixed()!;
+				uint id                     = args.get_object()!;
+				display::Proxy* id_obj      = conn.find(id);
+				if (!proxy.zombie && listener != null && listener.enter != null)
+				{
+					listener.enter(
+						proxy.context,
+						(WlDataDevice*)proxy,
+						serial,
+						(WlSurface*)surface_obj,
+						x,
+						y,
+						(WlDataOffer*)id_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.leave != null)
+
 			{
-				listener.leave(proxy.context, (WlDataDevice*)proxy);
+				if (!proxy.zombie && listener != null && listener.leave != null)
+				{
+					listener.leave(proxy.context, (WlDataDevice*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint time = args.get_uint()!;
-			wire::Fixed x = args.get_fixed()!;
-			wire::Fixed y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.motion != null)
+
 			{
-				listener.motion(proxy.context, (WlDataDevice*)proxy, time, x, y);
+				uint time     = args.get_uint()!;
+				wire::Fixed x = args.get_fixed()!;
+				wire::Fixed y = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.motion != null)
+				{
+					listener.motion(proxy.context, (WlDataDevice*)proxy, time, x, y);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			if (!proxy.zombie && listener != null && listener.drop != null)
+
 			{
-				listener.drop(proxy.context, (WlDataDevice*)proxy);
+				if (!proxy.zombie && listener != null && listener.drop != null)
+				{
+					listener.drop(proxy.context, (WlDataDevice*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			uint id = args.get_object()!;
-			display::Proxy* id_obj = conn.find(id);
-			if (!proxy.zombie && listener != null && listener.selection != null)
+
 			{
-				listener.selection(proxy.context, (WlDataDevice*)proxy, (WlDataOffer*)id_obj);
+				uint id                = args.get_object()!;
+				display::Proxy* id_obj = conn.find(id);
+				if (!proxy.zombie && listener != null && listener.selection != null)
+				{
+					listener.selection(proxy.context, (WlDataDevice*)proxy, (WlDataOffer*)id_obj);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_data_device", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_data_device",
+				opcode
+			)~;
 	}
 }
 
@@ -1557,7 +1713,11 @@ fn void? wl_data_device_dispatch(display::Display* conn, display::Proxy* proxy, 
  wl_data_device_manager object will have different requirements for functioning properly. See
  wl_data_source.set_actions, wl_data_offer.accept and wl_data_offer.finish for details.
 *>
-const display::Interface WL_DATA_DEVICE_MANAGER = { .name = "wl_data_device_manager", .version = 4, .dispatch = &wl_data_device_manager_dispatch };
+const display::Interface WL_DATA_DEVICE_MANAGER = {
+	.name = "wl_data_device_manager",
+	.version = 4,
+	.dispatch = &wl_data_device_manager_dispatch
+};
 
 <*
  Typed view of a wl_data_device_manager object. The proxy is the first field, so a pointer to
@@ -1587,7 +1747,7 @@ constset WlDataDeviceManagerDndAction : uint
 	NONE = 0,
 	COPY = 1,
 	MOVE = 2,
-	ASK = 4,
+	ASK  = 4,
 }
 
 
@@ -1631,18 +1791,35 @@ fn void? WlDataDeviceManager.release(&self)
 	w.begin(self.base.id, 2);
 	if (self.base.version < 4)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_data_device_manager.release needs version 4, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_data_device_manager.release needs version 4, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
 }
 
-fn void? wl_data_device_manager_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? wl_data_device_manager_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_data_device_manager", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_data_device_manager",
+				opcode
+			)~;
 	}
 }
 
@@ -1703,7 +1880,13 @@ fn void? wl_shell_dispatch(display::Display* conn, display::Proxy* proxy, ushort
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_shell", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_shell",
+				opcode
+			)~;
 	}
 }
 
@@ -1716,7 +1899,11 @@ fn void? wl_shell_dispatch(display::Display* conn, display::Proxy* proxy, ushort
  wl_surface is destroyed. On the client side, wl_shell_surface_destroy() must be called
  before destroying the wl_surface object.
 *>
-const display::Interface WL_SHELL_SURFACE = { .name = "wl_shell_surface", .version = 1, .dispatch = &wl_shell_surface_dispatch };
+const display::Interface WL_SHELL_SURFACE = {
+	.name = "wl_shell_surface",
+	.version = 1,
+	.dispatch = &wl_shell_surface_dispatch
+};
 
 <*
  Typed view of a wl_shell_surface object. The proxy is the first field, so a pointer to
@@ -1734,14 +1921,14 @@ struct WlShellSurface
 *>
 constset WlShellSurfaceResize : uint
 {
-	NONE = 0,
-	TOP = 1,
-	BOTTOM = 2,
-	LEFT = 4,
-	TOP_LEFT = 5,
-	BOTTOM_LEFT = 6,
-	RIGHT = 8,
-	TOP_RIGHT = 9,
+	NONE         = 0,
+	TOP          = 1,
+	BOTTOM       = 2,
+	LEFT         = 4,
+	TOP_LEFT     = 5,
+	BOTTOM_LEFT  = 6,
+	RIGHT        = 8,
+	TOP_RIGHT    = 9,
 	BOTTOM_RIGHT = 10,
 }
 
@@ -1762,9 +1949,9 @@ constset WlShellSurfaceTransient : uint
 constset WlShellSurfaceFullscreenMethod : uint
 {
 	DEFAULT = 0,
-	SCALE = 1,
-	DRIVER = 2,
-	FILL = 3,
+	SCALE   = 1,
+	DRIVER  = 2,
+	FILL    = 3,
 }
 
 <*
@@ -1783,7 +1970,13 @@ alias WlShellSurfacePingFn = fn void(void* context, WlShellSurface* target, uint
  dismiss all but the last configure event it received. The width and height arguments specify
  the size of the window in surface-local coordinates.
 *>
-alias WlShellSurfaceConfigureFn = fn void(void* context, WlShellSurface* target, WlShellSurfaceResize edges, int width, int height);
+alias WlShellSurfaceConfigureFn = fn void(
+	void* context,
+	WlShellSurface* target,
+	WlShellSurfaceResize edges,
+	int width,
+	int height
+);
 
 <*
  Event wl_shell_surface.popup_done: The popup_done event is sent out when a popup grab is
@@ -1928,7 +2121,15 @@ fn void? WlShellSurface.set_fullscreen(&self, WlShellSurfaceFullscreenMethod met
  surface relative to the upper left corner of the parent surface, in surface-local
  coordinates.
 *>
-fn void? WlShellSurface.set_popup(&self, WlSeat* seat, uint serial, WlSurface* parent, int x, int y, WlShellSurfaceTransient flags)
+fn void? WlShellSurface.set_popup(
+	&self,
+	WlSeat* seat,
+	uint serial,
+	WlSurface* parent,
+	int x,
+	int y,
+	WlShellSurfaceTransient flags
+)
 {
 	wire::Writer w;
 	w.begin(self.base.id, 6);
@@ -2003,35 +2204,44 @@ fn void? wl_shell_surface_dispatch(display::Display* conn, display::Proxy* proxy
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint serial = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.ping != null)
+
 			{
-				listener.ping(proxy.context, (WlShellSurface*)proxy, serial);
+				uint serial = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.ping != null)
+				{
+					listener.ping(proxy.context, (WlShellSurface*)proxy, serial);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			WlShellSurfaceResize edges = (WlShellSurfaceResize)(args.get_uint()!);
-			int width = args.get_int()!;
-			int height = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.configure != null)
+
 			{
-				listener.configure(proxy.context, (WlShellSurface*)proxy, edges, width, height);
+				WlShellSurfaceResize edges = (WlShellSurfaceResize)(args.get_uint()!);
+				int width                  = args.get_int()!;
+				int height                 = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.configure != null)
+				{
+					listener.configure(proxy.context, (WlShellSurface*)proxy, edges, width, height);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.popup_done != null)
+
 			{
-				listener.popup_done(proxy.context, (WlShellSurface*)proxy);
+				if (!proxy.zombie && listener != null && listener.popup_done != null)
+				{
+					listener.popup_done(proxy.context, (WlShellSurface*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_shell_surface", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_shell_surface",
+				opcode
+			)~;
 	}
 }
 
@@ -2078,12 +2288,12 @@ struct WlSurface
 *>
 constset WlSurfaceError : uint
 {
-	INVALID_SCALE = 0,
-	INVALID_TRANSFORM = 1,
-	INVALID_SIZE = 2,
-	INVALID_OFFSET = 3,
+	INVALID_SCALE       = 0,
+	INVALID_TRANSFORM   = 1,
+	INVALID_SIZE        = 2,
+	INVALID_OFFSET      = 3,
 	DEFUNCT_ROLE_OBJECT = 4,
-	NO_BUFFER = 5,
+	NO_BUFFER           = 5,
 }
 
 <*
@@ -2368,7 +2578,13 @@ fn void? WlSurface.set_buffer_transform(&self, WlOutputTransform transform)
 	w.begin(self.base.id, 7);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_surface.set_buffer_transform needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_surface.set_buffer_transform needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_int((int)(uint)transform)!;
 	self.base.conn.send(&w)!;
@@ -2396,7 +2612,13 @@ fn void? WlSurface.set_buffer_scale(&self, int scale)
 	w.begin(self.base.id, 8);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_surface.set_buffer_scale needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_surface.set_buffer_scale needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_int(scale)!;
 	self.base.conn.send(&w)!;
@@ -2430,7 +2652,13 @@ fn void? WlSurface.damage_buffer(&self, int x, int y, int width, int height)
 	w.begin(self.base.id, 9);
 	if (self.base.version < 4)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_surface.damage_buffer needs version 4, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_surface.damage_buffer needs version 4, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_int(x)!;
 	w.put_int(y)!;
@@ -2457,7 +2685,13 @@ fn void? WlSurface.offset(&self, int x, int y)
 	w.begin(self.base.id, 10);
 	if (self.base.version < 5)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_surface.offset needs version 5, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_surface.offset needs version 5, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_int(x)!;
 	w.put_int(y)!;
@@ -2483,7 +2717,13 @@ fn WlCallback*? WlSurface.get_release(&self)
 	w.begin(self.base.id, 11);
 	if (self.base.version < 7)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_surface.get_release needs version 7, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_surface.get_release needs version 7, bound at version %d",
+			self.base.version
+		)~;
 	}
 	display::Proxy* created = self.base.conn.new_object(WL_CALLBACK, self.base.version)!;
 	w.put_new_id(created.id)!;
@@ -2497,45 +2737,55 @@ fn void? wl_surface_dispatch(display::Display* conn, display::Proxy* proxy, usho
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint output = args.get_object()!;
-			display::Proxy* output_obj = conn.find(output);
-			if (!proxy.zombie && listener != null && listener.enter != null)
+
 			{
-				listener.enter(proxy.context, (WlSurface*)proxy, (WlOutput*)output_obj);
+				uint output                = args.get_object()!;
+				display::Proxy* output_obj = conn.find(output);
+				if (!proxy.zombie && listener != null && listener.enter != null)
+				{
+					listener.enter(proxy.context, (WlSurface*)proxy, (WlOutput*)output_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint output = args.get_object()!;
-			display::Proxy* output_obj = conn.find(output);
-			if (!proxy.zombie && listener != null && listener.leave != null)
+
 			{
-				listener.leave(proxy.context, (WlSurface*)proxy, (WlOutput*)output_obj);
+				uint output                = args.get_object()!;
+				display::Proxy* output_obj = conn.find(output);
+				if (!proxy.zombie && listener != null && listener.leave != null)
+				{
+					listener.leave(proxy.context, (WlSurface*)proxy, (WlOutput*)output_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			int factor = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.preferred_buffer_scale != null)
+
 			{
-				listener.preferred_buffer_scale(proxy.context, (WlSurface*)proxy, factor);
+				int factor = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.preferred_buffer_scale != null)
+				{
+					listener.preferred_buffer_scale(proxy.context, (WlSurface*)proxy, factor);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			WlOutputTransform transform = (WlOutputTransform)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.preferred_buffer_transform != null)
+
 			{
-				listener.preferred_buffer_transform(proxy.context, (WlSurface*)proxy, transform);
+				WlOutputTransform transform = (WlOutputTransform)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.preferred_buffer_transform != null)
+				{
+					listener.preferred_buffer_transform(proxy.context, (WlSurface*)proxy, transform);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_surface", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_surface",
+				opcode
+			)~;
 	}
 }
 
@@ -2562,9 +2812,9 @@ struct WlSeat
 *>
 constset WlSeatCapability : uint
 {
-	POINTER = 1,
+	POINTER  = 1,
 	KEYBOARD = 2,
-	TOUCH = 4,
+	TOUCH    = 4,
 }
 
 <*
@@ -2690,7 +2940,13 @@ fn void? WlSeat.release(&self)
 	w.begin(self.base.id, 3);
 	if (self.base.version < 5)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_seat.release needs version 5, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_seat.release needs version 5, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -2702,25 +2958,33 @@ fn void? wl_seat_dispatch(display::Display* conn, display::Proxy* proxy, ushort 
 	switch (opcode)
 	{
 		case 0:
-		{
-			WlSeatCapability capabilities = (WlSeatCapability)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.capabilities != null)
+
 			{
-				listener.capabilities(proxy.context, (WlSeat*)proxy, capabilities);
+				WlSeatCapability capabilities = (WlSeatCapability)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.capabilities != null)
+				{
+					listener.capabilities(proxy.context, (WlSeat*)proxy, capabilities);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			String name = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.name != null)
+
 			{
-				listener.name(proxy.context, (WlSeat*)proxy, name);
+				String name = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.name != null)
+				{
+					listener.name(proxy.context, (WlSeat*)proxy, name);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_seat", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_seat",
+				opcode
+			)~;
 	}
 }
 
@@ -2757,7 +3021,7 @@ constset WlPointerError : uint
 constset WlPointerButtonState : uint
 {
 	RELEASED = 0,
-	PRESSED = 1,
+	PRESSED  = 1,
 }
 
 <*
@@ -2765,7 +3029,7 @@ constset WlPointerButtonState : uint
 *>
 constset WlPointerAxis : uint
 {
-	VERTICAL_SCROLL = 0,
+	VERTICAL_SCROLL   = 0,
 	HORIZONTAL_SCROLL = 1,
 }
 
@@ -2783,8 +3047,8 @@ constset WlPointerAxis : uint
 *>
 constset WlPointerAxisSource : uint
 {
-	WHEEL = 0,
-	FINGER = 1,
+	WHEEL      = 0,
+	FINGER     = 1,
 	CONTINUOUS = 2,
 	WHEEL_TILT = 3,
 }
@@ -2796,7 +3060,7 @@ constset WlPointerAxisSource : uint
 constset WlPointerAxisRelativeDirection : uint
 {
 	IDENTICAL = 0,
-	INVERTED = 1,
+	INVERTED  = 1,
 }
 
 <*
@@ -2805,7 +3069,14 @@ constset WlPointerAxisRelativeDirection : uint
  should respond to this event by setting an appropriate pointer image with the set_cursor
  request.
 *>
-alias WlPointerEnterFn = fn void(void* context, WlPointer* target, uint serial, WlSurface* surface, wire::Fixed surface_x, wire::Fixed surface_y);
+alias WlPointerEnterFn = fn void(
+	void* context,
+	WlPointer* target,
+	uint serial,
+	WlSurface* surface,
+	wire::Fixed surface_x,
+	wire::Fixed surface_y
+);
 
 <*
  Event wl_pointer.leave: Notification that this seat's pointer is no longer focused on a
@@ -2821,7 +3092,13 @@ alias WlPointerLeaveFn = fn void(void* context, WlPointer* target, uint serial, 
  Event wl_pointer.motion: Notification of pointer location change. The arguments surface_x
  and surface_y are the location relative to the focused surface.
 *>
-alias WlPointerMotionFn = fn void(void* context, WlPointer* target, uint time, wire::Fixed surface_x, wire::Fixed surface_y);
+alias WlPointerMotionFn = fn void(
+	void* context,
+	WlPointer* target,
+	uint time,
+	wire::Fixed surface_x,
+	wire::Fixed surface_y
+);
 
 <*
  Event wl_pointer.button: Mouse button click and release notifications. The location of the
@@ -2832,7 +3109,14 @@ alias WlPointerMotionFn = fn void(void* context, WlPointer* target, uint time, w
  other button codes above 0xFFFF are currently undefined but may be used in future versions
  of this protocol.
 *>
-alias WlPointerButtonFn = fn void(void* context, WlPointer* target, uint serial, uint time, uint button, WlPointerButtonState state);
+alias WlPointerButtonFn = fn void(
+	void* context,
+	WlPointer* target,
+	uint serial,
+	uint time,
+	uint button,
+	WlPointerButtonState state
+);
 
 <*
  Event wl_pointer.axis: Scroll and other axis notifications. For scroll events (vertical and
@@ -2954,7 +3238,12 @@ alias WlPointerAxisValue120Fn = fn void(void* context, WlPointer* target, WlPoin
  wl_pointer.axis_relative_direction, wl_pointer.axis_discrete and wl_pointer.axis_source is
  not guaranteed.
 *>
-alias WlPointerAxisRelativeDirectionFn = fn void(void* context, WlPointer* target, WlPointerAxis axis, WlPointerAxisRelativeDirection direction);
+alias WlPointerAxisRelativeDirectionFn = fn void(
+	void* context,
+	WlPointer* target,
+	WlPointerAxis axis,
+	WlPointerAxisRelativeDirection direction
+);
 
 <*
  Event wl_pointer.warp: Notification of pointer location change within a surface. This
@@ -3040,7 +3329,13 @@ fn void? WlPointer.release(&self)
 	w.begin(self.base.id, 1);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_pointer.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_pointer.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -3052,132 +3347,157 @@ fn void? wl_pointer_dispatch(display::Display* conn, display::Proxy* proxy, usho
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint serial = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			wire::Fixed surface_x = args.get_fixed()!;
-			wire::Fixed surface_y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.enter != null)
+
 			{
-				listener.enter(proxy.context, (WlPointer*)proxy, serial, (WlSurface*)surface_obj, surface_x, surface_y);
+				uint serial                 = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				wire::Fixed surface_x       = args.get_fixed()!;
+				wire::Fixed surface_y       = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.enter != null)
+				{
+					listener.enter(
+						proxy.context,
+						(WlPointer*)proxy,
+						serial,
+						(WlSurface*)surface_obj,
+						surface_x,
+						surface_y
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint serial = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			if (!proxy.zombie && listener != null && listener.leave != null)
+
 			{
-				listener.leave(proxy.context, (WlPointer*)proxy, serial, (WlSurface*)surface_obj);
+				uint serial                 = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				if (!proxy.zombie && listener != null && listener.leave != null)
+				{
+					listener.leave(proxy.context, (WlPointer*)proxy, serial, (WlSurface*)surface_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			uint time = args.get_uint()!;
-			wire::Fixed surface_x = args.get_fixed()!;
-			wire::Fixed surface_y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.motion != null)
+
 			{
-				listener.motion(proxy.context, (WlPointer*)proxy, time, surface_x, surface_y);
+				uint time             = args.get_uint()!;
+				wire::Fixed surface_x = args.get_fixed()!;
+				wire::Fixed surface_y = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.motion != null)
+				{
+					listener.motion(proxy.context, (WlPointer*)proxy, time, surface_x, surface_y);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint serial = args.get_uint()!;
-			uint time = args.get_uint()!;
-			uint button = args.get_uint()!;
-			WlPointerButtonState state = (WlPointerButtonState)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.button != null)
+
 			{
-				listener.button(proxy.context, (WlPointer*)proxy, serial, time, button, state);
+				uint serial                = args.get_uint()!;
+				uint time                  = args.get_uint()!;
+				uint button                = args.get_uint()!;
+				WlPointerButtonState state = (WlPointerButtonState)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.button != null)
+				{
+					listener.button(proxy.context, (WlPointer*)proxy, serial, time, button, state);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			uint time = args.get_uint()!;
-			WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
-			wire::Fixed value = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.axis != null)
+
 			{
-				listener.axis(proxy.context, (WlPointer*)proxy, time, axis, value);
+				uint time          = args.get_uint()!;
+				WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
+				wire::Fixed value  = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.axis != null)
+				{
+					listener.axis(proxy.context, (WlPointer*)proxy, time, axis, value);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			if (!proxy.zombie && listener != null && listener.frame != null)
+
 			{
-				listener.frame(proxy.context, (WlPointer*)proxy);
+				if (!proxy.zombie && listener != null && listener.frame != null)
+				{
+					listener.frame(proxy.context, (WlPointer*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 6:
-		{
-			WlPointerAxisSource axis_source = (WlPointerAxisSource)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.axis_source != null)
+
 			{
-				listener.axis_source(proxy.context, (WlPointer*)proxy, axis_source);
+				WlPointerAxisSource axis_source = (WlPointerAxisSource)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.axis_source != null)
+				{
+					listener.axis_source(proxy.context, (WlPointer*)proxy, axis_source);
+				}
+				return;
 			}
-			return;
-		}
 		case 7:
-		{
-			uint time = args.get_uint()!;
-			WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.axis_stop != null)
+
 			{
-				listener.axis_stop(proxy.context, (WlPointer*)proxy, time, axis);
+				uint time          = args.get_uint()!;
+				WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.axis_stop != null)
+				{
+					listener.axis_stop(proxy.context, (WlPointer*)proxy, time, axis);
+				}
+				return;
 			}
-			return;
-		}
 		case 8:
-		{
-			WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
-			int discrete = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.axis_discrete != null)
+
 			{
-				listener.axis_discrete(proxy.context, (WlPointer*)proxy, axis, discrete);
+				WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
+				int discrete       = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.axis_discrete != null)
+				{
+					listener.axis_discrete(proxy.context, (WlPointer*)proxy, axis, discrete);
+				}
+				return;
 			}
-			return;
-		}
 		case 9:
-		{
-			WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
-			int value120 = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.axis_value120 != null)
+
 			{
-				listener.axis_value120(proxy.context, (WlPointer*)proxy, axis, value120);
+				WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
+				int value120       = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.axis_value120 != null)
+				{
+					listener.axis_value120(proxy.context, (WlPointer*)proxy, axis, value120);
+				}
+				return;
 			}
-			return;
-		}
 		case 10:
-		{
-			WlPointerAxis axis = (WlPointerAxis)(args.get_uint()!);
-			WlPointerAxisRelativeDirection direction = (WlPointerAxisRelativeDirection)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.axis_relative_direction != null)
+
 			{
-				listener.axis_relative_direction(proxy.context, (WlPointer*)proxy, axis, direction);
+				WlPointerAxis axis                       = (WlPointerAxis)(args.get_uint()!);
+				WlPointerAxisRelativeDirection direction = (WlPointerAxisRelativeDirection)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.axis_relative_direction != null)
+				{
+					listener.axis_relative_direction(proxy.context, (WlPointer*)proxy, axis, direction);
+				}
+				return;
 			}
-			return;
-		}
 		case 11:
-		{
-			wire::Fixed surface_x = args.get_fixed()!;
-			wire::Fixed surface_y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.warp != null)
+
 			{
-				listener.warp(proxy.context, (WlPointer*)proxy, surface_x, surface_y);
+				wire::Fixed surface_x = args.get_fixed()!;
+				wire::Fixed surface_y = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.warp != null)
+				{
+					listener.warp(proxy.context, (WlPointer*)proxy, surface_x, surface_y);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_pointer", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_pointer",
+				opcode
+			)~;
 	}
 }
 
@@ -3207,7 +3527,7 @@ struct WlKeyboard
 constset WlKeyboardKeymapFormat : uint
 {
 	NO_KEYMAP = 0,
-	XKB_V1 = 1,
+	XKB_V1    = 1,
 }
 
 <*
@@ -3220,7 +3540,7 @@ constset WlKeyboardKeymapFormat : uint
 constset WlKeyboardKeyState : uint
 {
 	RELEASED = 0,
-	PRESSED = 1,
+	PRESSED  = 1,
 	REPEATED = 2,
 }
 
@@ -3229,7 +3549,13 @@ constset WlKeyboardKeyState : uint
  memory-mapped in read-only mode to provide a keyboard mapping description. From version 7
  onwards, the fd must be mapped with MAP_PRIVATE by the recipient, as MAP_SHARED may fail.
 *>
-alias WlKeyboardKeymapFn = fn void(void* context, WlKeyboard* target, WlKeyboardKeymapFormat format, Native fd, uint size);
+alias WlKeyboardKeymapFn = fn void(
+	void* context,
+	WlKeyboard* target,
+	WlKeyboardKeymapFormat format,
+	Native fd,
+	uint size
+);
 
 <*
  Event wl_keyboard.enter: Notification that this seat's keyboard focus is on a certain
@@ -3266,7 +3592,14 @@ alias WlKeyboardLeaveFn = fn void(void* context, WlKeyboard* target, uint serial
  a wl_keyboard.repeat_info event with a rate argument of 0 has been received. This allows the
  compositor to take over the responsibility of key repetition.
 *>
-alias WlKeyboardKeyFn = fn void(void* context, WlKeyboard* target, uint serial, uint time, uint key, WlKeyboardKeyState state);
+alias WlKeyboardKeyFn = fn void(
+	void* context,
+	WlKeyboard* target,
+	uint serial,
+	uint time,
+	uint key,
+	WlKeyboardKeyState state
+);
 
 <*
  Event wl_keyboard.modifiers: Notifies clients that the modifier and/or group state has
@@ -3278,7 +3611,15 @@ alias WlKeyboardKeyFn = fn void(void* context, WlKeyboard* target, uint serial, 
  send a wl_keyboard.modifiers event with no pressed modifiers. In the wl_keyboard logical
  state, this event updates the modifiers and group.
 *>
-alias WlKeyboardModifiersFn = fn void(void* context, WlKeyboard* target, uint serial, uint mods_depressed, uint mods_latched, uint mods_locked, uint group);
+alias WlKeyboardModifiersFn = fn void(
+	void* context,
+	WlKeyboard* target,
+	uint serial,
+	uint mods_depressed,
+	uint mods_latched,
+	uint mods_locked,
+	uint group
+);
 
 <*
  Event wl_keyboard.repeat_info: Informs the client about the keyboard's repeat rate and
@@ -3325,7 +3666,13 @@ fn void? WlKeyboard.release(&self)
 	w.begin(self.base.id, 0);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_keyboard.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_keyboard.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -3337,80 +3684,100 @@ fn void? wl_keyboard_dispatch(display::Display* conn, display::Proxy* proxy, ush
 	switch (opcode)
 	{
 		case 0:
-		{
-			WlKeyboardKeymapFormat format = (WlKeyboardKeymapFormat)(args.get_uint()!);
-			Native fd = args.get_fd()!;
-			uint size = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.keymap != null)
+
 			{
-				listener.keymap(proxy.context, (WlKeyboard*)proxy, format, fd, size);
+				WlKeyboardKeymapFormat format = (WlKeyboardKeymapFormat)(args.get_uint()!);
+				Native fd                     = args.get_fd()!;
+				uint size                     = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.keymap != null)
+				{
+					listener.keymap(proxy.context, (WlKeyboard*)proxy, format, fd, size);
+				}
+				else
+				{
+					conn.close_native(fd);
+				}
+				return;
 			}
-			else
-			{
-				conn.close_native(fd);
-			}
-			return;
-		}
 		case 1:
-		{
-			uint serial = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			char[] keys = args.get_array()!;
-			if (!proxy.zombie && listener != null && listener.enter != null)
+
 			{
-				listener.enter(proxy.context, (WlKeyboard*)proxy, serial, (WlSurface*)surface_obj, keys);
+				uint serial                 = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				char[] keys                 = args.get_array()!;
+				if (!proxy.zombie && listener != null && listener.enter != null)
+				{
+					listener.enter(proxy.context, (WlKeyboard*)proxy, serial, (WlSurface*)surface_obj, keys);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			uint serial = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			if (!proxy.zombie && listener != null && listener.leave != null)
+
 			{
-				listener.leave(proxy.context, (WlKeyboard*)proxy, serial, (WlSurface*)surface_obj);
+				uint serial                 = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				if (!proxy.zombie && listener != null && listener.leave != null)
+				{
+					listener.leave(proxy.context, (WlKeyboard*)proxy, serial, (WlSurface*)surface_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint serial = args.get_uint()!;
-			uint time = args.get_uint()!;
-			uint key = args.get_uint()!;
-			WlKeyboardKeyState state = (WlKeyboardKeyState)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.key != null)
+
 			{
-				listener.key(proxy.context, (WlKeyboard*)proxy, serial, time, key, state);
+				uint serial              = args.get_uint()!;
+				uint time                = args.get_uint()!;
+				uint key                 = args.get_uint()!;
+				WlKeyboardKeyState state = (WlKeyboardKeyState)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.key != null)
+				{
+					listener.key(proxy.context, (WlKeyboard*)proxy, serial, time, key, state);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			uint serial = args.get_uint()!;
-			uint mods_depressed = args.get_uint()!;
-			uint mods_latched = args.get_uint()!;
-			uint mods_locked = args.get_uint()!;
-			uint group = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.modifiers != null)
+
 			{
-				listener.modifiers(proxy.context, (WlKeyboard*)proxy, serial, mods_depressed, mods_latched, mods_locked, group);
+				uint serial         = args.get_uint()!;
+				uint mods_depressed = args.get_uint()!;
+				uint mods_latched   = args.get_uint()!;
+				uint mods_locked    = args.get_uint()!;
+				uint group          = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.modifiers != null)
+				{
+					listener.modifiers(
+						proxy.context,
+						(WlKeyboard*)proxy,
+						serial,
+						mods_depressed,
+						mods_latched,
+						mods_locked,
+						group
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			int rate = args.get_int()!;
-			int delay = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.repeat_info != null)
+
 			{
-				listener.repeat_info(proxy.context, (WlKeyboard*)proxy, rate, delay);
+				int rate  = args.get_int()!;
+				int delay = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.repeat_info != null)
+				{
+					listener.repeat_info(proxy.context, (WlKeyboard*)proxy, rate, delay);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_keyboard", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_keyboard",
+				opcode
+			)~;
 	}
 }
 
@@ -3438,7 +3805,16 @@ struct WlTouch
  assigned a unique ID. Future events from this touch point reference this ID. The ID ceases
  to be valid after a touch up event and may be reused in the future.
 *>
-alias WlTouchDownFn = fn void(void* context, WlTouch* target, uint serial, uint time, WlSurface* surface, int id, wire::Fixed x, wire::Fixed y);
+alias WlTouchDownFn = fn void(
+	void* context,
+	WlTouch* target,
+	uint serial,
+	uint time,
+	WlSurface* surface,
+	int id,
+	wire::Fixed x,
+	wire::Fixed y
+);
 
 <*
  Event wl_touch.up: The touch point has disappeared. No further events will be sent for this
@@ -3542,7 +3918,13 @@ fn void? WlTouch.release(&self)
 	w.begin(self.base.id, 0);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_touch.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_touch.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -3554,82 +3936,95 @@ fn void? wl_touch_dispatch(display::Display* conn, display::Proxy* proxy, ushort
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint serial = args.get_uint()!;
-			uint time = args.get_uint()!;
-			uint surface = args.get_object()!;
-			display::Proxy* surface_obj = conn.find(surface);
-			int id = args.get_int()!;
-			wire::Fixed x = args.get_fixed()!;
-			wire::Fixed y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.down != null)
+
 			{
-				listener.down(proxy.context, (WlTouch*)proxy, serial, time, (WlSurface*)surface_obj, id, x, y);
+				uint serial                 = args.get_uint()!;
+				uint time                   = args.get_uint()!;
+				uint surface                = args.get_object()!;
+				display::Proxy* surface_obj = conn.find(surface);
+				int id                      = args.get_int()!;
+				wire::Fixed x               = args.get_fixed()!;
+				wire::Fixed y               = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.down != null)
+				{
+					listener.down(proxy.context, (WlTouch*)proxy, serial, time, (WlSurface*)surface_obj, id, x, y);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint serial = args.get_uint()!;
-			uint time = args.get_uint()!;
-			int id = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.up != null)
+
 			{
-				listener.up(proxy.context, (WlTouch*)proxy, serial, time, id);
+				uint serial = args.get_uint()!;
+				uint time   = args.get_uint()!;
+				int id      = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.up != null)
+				{
+					listener.up(proxy.context, (WlTouch*)proxy, serial, time, id);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			uint time = args.get_uint()!;
-			int id = args.get_int()!;
-			wire::Fixed x = args.get_fixed()!;
-			wire::Fixed y = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.motion != null)
+
 			{
-				listener.motion(proxy.context, (WlTouch*)proxy, time, id, x, y);
+				uint time     = args.get_uint()!;
+				int id        = args.get_int()!;
+				wire::Fixed x = args.get_fixed()!;
+				wire::Fixed y = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.motion != null)
+				{
+					listener.motion(proxy.context, (WlTouch*)proxy, time, id, x, y);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			if (!proxy.zombie && listener != null && listener.frame != null)
+
 			{
-				listener.frame(proxy.context, (WlTouch*)proxy);
+				if (!proxy.zombie && listener != null && listener.frame != null)
+				{
+					listener.frame(proxy.context, (WlTouch*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			if (!proxy.zombie && listener != null && listener.cancel != null)
+
 			{
-				listener.cancel(proxy.context, (WlTouch*)proxy);
+				if (!proxy.zombie && listener != null && listener.cancel != null)
+				{
+					listener.cancel(proxy.context, (WlTouch*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			int id = args.get_int()!;
-			wire::Fixed major = args.get_fixed()!;
-			wire::Fixed minor = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.shape != null)
+
 			{
-				listener.shape(proxy.context, (WlTouch*)proxy, id, major, minor);
+				int id            = args.get_int()!;
+				wire::Fixed major = args.get_fixed()!;
+				wire::Fixed minor = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.shape != null)
+				{
+					listener.shape(proxy.context, (WlTouch*)proxy, id, major, minor);
+				}
+				return;
 			}
-			return;
-		}
 		case 6:
-		{
-			int id = args.get_int()!;
-			wire::Fixed orientation = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.orientation != null)
+
 			{
-				listener.orientation(proxy.context, (WlTouch*)proxy, id, orientation);
+				int id                  = args.get_int()!;
+				wire::Fixed orientation = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.orientation != null)
+				{
+					listener.orientation(proxy.context, (WlTouch*)proxy, id, orientation);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_touch", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_touch",
+				opcode
+			)~;
 	}
 }
 
@@ -3658,12 +4053,12 @@ struct WlOutput
 *>
 constset WlOutputSubpixel : uint
 {
-	UNKNOWN = 0,
-	NONE = 1,
+	UNKNOWN        = 0,
+	NONE           = 1,
 	HORIZONTAL_RGB = 2,
 	HORIZONTAL_BGR = 3,
-	VERTICAL_RGB = 4,
-	VERTICAL_BGR = 5,
+	VERTICAL_RGB   = 4,
+	VERTICAL_BGR   = 5,
 }
 
 <*
@@ -3675,12 +4070,12 @@ constset WlOutputSubpixel : uint
 *>
 constset WlOutputTransform : uint
 {
-	NORMAL = 0,
-	N90 = 1,
-	N180 = 2,
-	N270 = 3,
-	FLIPPED = 4,
-	FLIPPED_90 = 5,
+	NORMAL      = 0,
+	N90         = 1,
+	N180        = 2,
+	N270        = 3,
+	FLIPPED     = 4,
+	FLIPPED_90  = 5,
 	FLIPPED_180 = 6,
 	FLIPPED_270 = 7,
 }
@@ -3691,7 +4086,7 @@ constset WlOutputTransform : uint
 *>
 constset WlOutputMode : uint
 {
-	CURRENT = 1,
+	CURRENT   = 1,
 	PREFERRED = 2,
 }
 
@@ -3708,7 +4103,18 @@ constset WlOutputMode : uint
  and y, clients should use xdg_output.logical_position. Instead of using make and model,
  clients should use name and description.
 *>
-alias WlOutputGeometryFn = fn void(void* context, WlOutput* target, int x, int y, int physical_width, int physical_height, WlOutputSubpixel subpixel, String make, String model, WlOutputTransform transform);
+alias WlOutputGeometryFn = fn void(
+	void* context,
+	WlOutput* target,
+	int x,
+	int y,
+	int physical_width,
+	int physical_height,
+	WlOutputSubpixel subpixel,
+	String make,
+	String model,
+	WlOutputTransform transform
+);
 
 <*
  Event wl_output.mode: The mode event describes an available mode for the output. The event
@@ -3819,7 +4225,13 @@ fn void? WlOutput.release(&self)
 	w.begin(self.base.id, 0);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_output.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_output.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -3831,70 +4243,93 @@ fn void? wl_output_dispatch(display::Display* conn, display::Proxy* proxy, ushor
 	switch (opcode)
 	{
 		case 0:
-		{
-			int x = args.get_int()!;
-			int y = args.get_int()!;
-			int physical_width = args.get_int()!;
-			int physical_height = args.get_int()!;
-			WlOutputSubpixel subpixel = (WlOutputSubpixel)((uint)args.get_int()!);
-			String make = args.get_string()!;
-			String model = args.get_string()!;
-			WlOutputTransform transform = (WlOutputTransform)((uint)args.get_int()!);
-			if (!proxy.zombie && listener != null && listener.geometry != null)
+
 			{
-				listener.geometry(proxy.context, (WlOutput*)proxy, x, y, physical_width, physical_height, subpixel, make, model, transform);
+				int x                       = args.get_int()!;
+				int y                       = args.get_int()!;
+				int physical_width          = args.get_int()!;
+				int physical_height         = args.get_int()!;
+				WlOutputSubpixel subpixel   = (WlOutputSubpixel)((uint)args.get_int()!);
+				String make                 = args.get_string()!;
+				String model                = args.get_string()!;
+				WlOutputTransform transform = (WlOutputTransform)((uint)args.get_int()!);
+				if (!proxy.zombie && listener != null && listener.geometry != null)
+				{
+					listener.geometry(
+						proxy.context,
+						(WlOutput*)proxy,
+						x,
+						y,
+						physical_width,
+						physical_height,
+						subpixel,
+						make,
+						model,
+						transform
+					);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			WlOutputMode flags = (WlOutputMode)(args.get_uint()!);
-			int width = args.get_int()!;
-			int height = args.get_int()!;
-			int refresh = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.mode != null)
+
 			{
-				listener.mode(proxy.context, (WlOutput*)proxy, flags, width, height, refresh);
+				WlOutputMode flags = (WlOutputMode)(args.get_uint()!);
+				int width          = args.get_int()!;
+				int height         = args.get_int()!;
+				int refresh        = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.mode != null)
+				{
+					listener.mode(proxy.context, (WlOutput*)proxy, flags, width, height, refresh);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.done != null)
+
 			{
-				listener.done(proxy.context, (WlOutput*)proxy);
+				if (!proxy.zombie && listener != null && listener.done != null)
+				{
+					listener.done(proxy.context, (WlOutput*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			int factor = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.scale != null)
+
 			{
-				listener.scale(proxy.context, (WlOutput*)proxy, factor);
+				int factor = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.scale != null)
+				{
+					listener.scale(proxy.context, (WlOutput*)proxy, factor);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			String name = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.name != null)
+
 			{
-				listener.name(proxy.context, (WlOutput*)proxy, name);
+				String name = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.name != null)
+				{
+					listener.name(proxy.context, (WlOutput*)proxy, name);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			String description = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.description != null)
+
 			{
-				listener.description(proxy.context, (WlOutput*)proxy, description);
+				String description = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.description != null)
+				{
+					listener.description(proxy.context, (WlOutput*)proxy, description);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_output", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_output",
+				opcode
+			)~;
 	}
 }
 
@@ -3962,7 +4397,13 @@ fn void? wl_region_dispatch(display::Display* conn, display::Proxy* proxy, ushor
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_region", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_region",
+				opcode
+			)~;
 	}
 }
 
@@ -3979,7 +4420,11 @@ fn void? wl_region_dispatch(display::Display* conn, display::Proxy* proxy, ushor
  player with decorations and video in separate wl_surface objects. This should allow the
  compositor to pass YUV video buffer processing to dedicated overlay hardware when possible.
 *>
-const display::Interface WL_SUBCOMPOSITOR = { .name = "wl_subcompositor", .version = 1, .dispatch = &wl_subcompositor_dispatch };
+const display::Interface WL_SUBCOMPOSITOR = {
+	.name = "wl_subcompositor",
+	.version = 1,
+	.dispatch = &wl_subcompositor_dispatch
+};
 
 <*
  Typed view of a wl_subcompositor object. The proxy is the first field, so a pointer to
@@ -3996,7 +4441,7 @@ struct WlSubcompositor
 constset WlSubcompositorError : uint
 {
 	BAD_SURFACE = 0,
-	BAD_PARENT = 1,
+	BAD_PARENT  = 1,
 }
 
 
@@ -4043,7 +4488,13 @@ fn void? wl_subcompositor_dispatch(display::Display* conn, display::Proxy* proxy
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_subcompositor", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_subcompositor",
+				opcode
+			)~;
 	}
 }
 
@@ -4183,7 +4634,13 @@ fn void? wl_subsurface_dispatch(display::Display* conn, display::Proxy* proxy, u
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_subsurface", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_subsurface",
+				opcode
+			)~;
 	}
 }
 
@@ -4261,7 +4718,13 @@ fn void? WlFixes.ack_global_remove(&self, WlRegistry* registry, uint name)
 	w.begin(self.base.id, 2);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "wl_fixes.ack_global_remove needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"wl_fixes.ack_global_remove needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_object(registry.base.id)!;
 	w.put_uint(name)!;
@@ -4273,6 +4736,12 @@ fn void? wl_fixes_dispatch(display::Display* conn, display::Proxy* proxy, ushort
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of wl_fixes", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of wl_fixes",
+				opcode
+			)~;
 	}
 }

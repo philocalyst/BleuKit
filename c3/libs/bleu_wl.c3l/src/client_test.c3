@@ -571,15 +571,12 @@ fn void idle_notification_reports_idled_then_resumed() @test
 	Thread t;
 	t.create(&idle_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals                                     = client.globals_view();
-	ext_idle_notify::ExtIdleNotifierV1* notifier         = (ext_idle_notify::ExtIdleNotifierV1*)client.bind(
+	Global[] globals = client.globals_view();
+	ext_idle_notify::ExtIdleNotifierV1* notifier = (ext_idle_notify::ExtIdleNotifierV1*)client.bind(
 		globals[2],
 		ext_idle_notify::EXT_IDLE_NOTIFIER_V1
 	)!!;
-	wayland::WlSeat* seat                                = (wayland::WlSeat*)client.bind(
-		globals[3],
-		wayland::WL_SEAT
-	)!!;
+	wayland::WlSeat* seat = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
 	ext_idle_notify::ExtIdleNotificationV1* notification = notifier.get_idle_notification(5000, seat)!!;
 	IdleState state;
 	notification.set_listener(&IDLE_LISTENER, &state);
@@ -599,16 +596,13 @@ fn void gamma_ramp_is_passed_as_a_descriptor() @test
 	Thread t;
 	t.create(&gamma_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals                                      = client.globals_view();
-	wayland::WlOutput* output                             = (wayland::WlOutput*)client.bind(
-		globals[0],
-		wayland::WL_OUTPUT
-	)!!;
+	Global[] globals = client.globals_view();
+	wayland::WlOutput* output = (wayland::WlOutput*)client.bind(globals[0], wayland::WL_OUTPUT)!!;
 	wlr_gamma_control::ZwlrGammaControlManagerV1* manager = (wlr_gamma_control::ZwlrGammaControlManagerV1*)client.bind(
 		globals[1],
 		wlr_gamma_control::ZWLR_GAMMA_CONTROL_MANAGER_V1
 	)!!;
-	wlr_gamma_control::ZwlrGammaControlV1* control        = manager.get_gamma_control(output)!!;
+	wlr_gamma_control::ZwlrGammaControlV1* control = manager.get_gamma_control(output)!!;
 	GammaState state;
 	control.set_listener(&GAMMA_LISTENER, &state);
 	client.flush()!!;
@@ -635,7 +629,7 @@ fn void output_configuration_round_trips_server_objects() @test
 	Thread t;
 	t.create(&output_management_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals                                    = client.globals_view();
+	Global[] globals = client.globals_view();
 	wlr_output_management::ZwlrOutputManagerV1* manager = (wlr_output_management::ZwlrOutputManagerV1*)client.bind(
 		globals[4],
 		wlr_output_management::ZWLR_OUTPUT_MANAGER_V1
@@ -666,13 +660,13 @@ fn void selected_offer_is_received_through_a_pipe() @test
 	Thread t;
 	t.create(&data_control_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals                                    = client.globals_view();
-	wayland::WlSeat* seat                               = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
+	Global[] globals      = client.globals_view();
+	wayland::WlSeat* seat = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
 	wlr_data_control::ZwlrDataControlManagerV1* manager = (wlr_data_control::ZwlrDataControlManagerV1*)client.bind(
 		globals[5],
 		wlr_data_control::ZWLR_DATA_CONTROL_MANAGER_V1
 	)!!;
-	wlr_data_control::ZwlrDataControlDeviceV1* device   = manager.get_data_device(seat)!!;
+	wlr_data_control::ZwlrDataControlDeviceV1* device = manager.get_data_device(seat)!!;
 	OfferState state;
 	device.set_listener(&DEVICE_LISTENER, &state);
 	client.flush()!!;

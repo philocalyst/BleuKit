@@ -72,7 +72,8 @@ came from D-Bus. `emit_properties_changed` reads the getters for the properties 
 
 Introspection: the XML lists the standard interfaces (Peer, Introspectable, Properties,
 as sd-bus does), the object's interfaces, ObjectManager for a root, and child nodes.
-It validates against the introspection DTD (see Verified how).
+It validates against the introspection DTD (see Verified how). GetManagedObjects lists
+each object's own interfaces only (sd-bus also lists the three standard ones there).
 
 Ownership: `own_name` follows the bus's queueing rules. `DO_NOT_QUEUE` on a taken name
 fails with `BUSY`. A queued request is granted later, and `on_acquired` runs when the
@@ -106,12 +107,12 @@ sent (until `has_pending_output()` is false).
 ## Verified how
 
 - **Run** (Linux x86-64, C3 0.8.5_1, dbus-daemon 1.14.10, python-dbus-next 0.2.3):
-  - Unit tests (`tests/unit`, 80 tests, `compile-test`): the 67 client tests, mutation
+  - Unit tests (`tests/unit`, 81 tests, `compile-test`): the 67 client tests, mutation
     fuzzing of the Reader (200 000 inputs) and of whole messages (100 000), golden vectors
-    from python-dbus-next and the specification, and 13 server tests (Introspect XML,
+    from python-dbus-next and the specification, and 14 server tests (Introspect XML,
     argument checks, routing errors, Properties Get/Set/GetAll, NO_REPLY_EXPECTED,
     deferred replies, Peer, validation of descriptions, fallbacks, ObjectManager,
-    signal emission, error-name round trip). The server tests drive the server through a
+    signal emission, error-name round trip, a failure after deferring). The server tests drive the server through a
     recording sink, so they need no bus.
   - `tests/integration.sh` against a private dbus-daemon, on an abstract and a filesystem
     socket: the client suite (49 checks per socket); the **object server** suite (41 checks

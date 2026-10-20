@@ -17,10 +17,10 @@
  releases an id for reuse. A destroyed object keeps its id, as a zombie, until the
  server says it is released, because events for it may still be in flight.
 
- Sources: Wayland book chapter "Wire Protocol" and "Object IDs"
+ Sources: Wayland book chapter "Wire Protocol"
  (https://wayland.freedesktop.org/docs/book/Protocol.html); wayland.xml `wl_display`
- (the `error` codes, and `delete_id`); wayland-backend 0.3.11 src/rs/map.rs (id
- ranges and free-list reuse).
+ (the `error` codes at lines 86-97, and `delete_id` at line 101); wayland-backend 0.3.11 src/rs/map.rs (id
+ ranges, line 8).
 *>
 module bleu::wl::display;
 import std::collections::list;
@@ -32,7 +32,7 @@ const uint DISPLAY_ID = 1;
 <* First id the client may allocate after `wl_display`. *>
 const uint FIRST_CLIENT_ID = 2;
 
-<* Ids from here up belong to the server (wayland-backend map.rs: SERVER_ID_START). *>
+<* Ids from here up belong to the server (wayland-backend 0.3.11 src/rs/map.rs:8, SERVER_ID_LIMIT). *>
 const uint SERVER_ID_START = 0xFF000000;
 
 <* Bytes of receive buffer. Holds more than one largest message, so a frame never has to wait for space. *>

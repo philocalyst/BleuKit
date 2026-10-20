@@ -149,7 +149,9 @@ fn void? parse_entry(Allocator allocator, String entry, List{Endpoint}* found) @
 				endpoint = { .abstract = false, .path = value };
 				selectors++;
 			case "abstract":
-				if (!env::LINUX) return error::UNSUPPORTED~;
+				$if !env::LINUX:
+					return error::UNSUPPORTED~; // abstract sockets are a Linux feature
+				$endif
 				endpoint = { .abstract = true, .path = value };
 				selectors++;
 			case "runtime":

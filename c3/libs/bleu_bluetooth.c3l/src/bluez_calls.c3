@@ -45,7 +45,7 @@ fn void? perform(Bluez* self, Request* r) @private
 		case bluetooth::Command.SET_BLOCKED: return write_device(self, r, "Blocked", value::boolean(r.flag));
 		case bluetooth::Command.RENAME: return write_device(self, r, "Alias", value::str(r.op.allocator(), r.text)!);
 		case bluetooth::Command.REMOVE: return remove_device(self, r);
-		case bluetooth::Command.REPLY_PAIRING: return error::UNSUPPORTED~;
+		case bluetooth::Command.REPLY_PAIRING: return answer_prompt(self, r);
 		case bluetooth::Command.REFRESH: return;
 	}
 }

@@ -20,3 +20,5 @@ if [ -z "$xml_dir" ]; then
   done < "$here/protocols.tsv"
 fi
 python3 -I "$here/wlscan.py" --manifest "$here/protocols.tsv" --xml-dir "$xml_dir" --out "$out"
+# The committed files are c3fmt output, so regeneration must end with the same formatter.
+c3fmt -i "$out"/*.c3

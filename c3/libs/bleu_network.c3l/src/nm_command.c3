@@ -70,7 +70,7 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 	char[] ssid = c.ssid.bytes[0 : c.ssid.len];
 	String secret = (String)c.secret.bytes[0 : c.secret.len];
 	Profile[] profiles = load_profiles(&b.bus, tmem)!;
-	Security security = security_on_air(hub, ssid);
+	Security security = network::security_on_air(hub, ssid);
 	Profile saved;
 	bool known = false;
 	if (try found = find_profile(profiles, ssid))

@@ -101,6 +101,14 @@ fn void? defer_it(void* context, Call* call)
 	state.token = call.defer_reply()!;
 }
 
+// Defers the call, then fails: the failure must be the deferred call's answer.
+fn void? defer_then_fail(void* context, Call* call)
+{
+	TestState* state = (TestState*)context;
+	state.token = call.defer_reply()!;
+	return error::PERMISSION_DENIED~;
+}
+
 fn Value? get_count(void* context, String path, Allocator allocator)
 {
 	TestState* state = (TestState*)context;
@@ -135,7 +143,7 @@ struct Rig
 	String[2] add_in;
 	String[1] add_out;
 	String[1] notice_args;
-	Method[7] methods;
+	Method[8] methods;
 	Property[3] properties;
 	Signal[1] signals;
 	Interface[1] interfaces;
@@ -173,6 +181,7 @@ fn void Rig.start(&self)
 		{ .name = "Broken", .out_signature = "u", .handler = &broken },
 		{ .name = "Silent", .out_signature = "u", .handler = &silent },
 		{ .name = "Defer", .in_signature = "s", .out_signature = "s", .handler = &defer_it, .context = &self.state },
+		{ .name = "DeferThenFail", .handler = &defer_then_fail, .context = &self.state },
 	};
 	self.properties = {
 		{
@@ -467,6 +476,21 @@ fn void deferred_reply_is_sent_when_completed() @test
 	};
 }
 
+fn void a_failure_after_deferring_answers_the_deferred_call() @test
+{
+	Rig rig;
+	rig.start();
+	defer rig.stop();
+	rig.export_test();
+	@pool()
+	{
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "DeferThenFail", "", { });
+		expect_error(&rig.cap, ERROR_ACCESS_DENIED);
+		assert(rig.cap.messages == 1, "the failure is sent once, as the deferred answer");
+		testing::@expect_fault(rig.server.reply(rig.state.token, { }), NOT_FOUND);
+	};
+}
+
 fn void peer_answers_on_any_path() @test
 {
 	Rig rig;
@@ -492,15 +516,14 @@ fn void invalid_descriptions_are_refused() @test
 		{ .name = "Same", .handler = &named },
 		{ .name = "Same", .handler = &named },
 	};
-	Method[1] no_handler   = { { .name = "Nothing" } };
-	Method[1] bad_sig      = { { .name = "Bad", .in_signature = "a", .handler = &named } };
-	Method[1] bad_names    = {
-		{ .name = "Count", .in_signature = "ss", .in_names = rig.echo_in[..], .handler = &named }
-	};
+	Method[1] no_handler = { { .name = "Nothing" } };
+	Method[1] bad_sig    = { { .name = "Bad", .in_signature = "a", .handler = &named } };
+	String[] wrong_names = rig.echo_in[..];
+	Method[1] bad_names  = { { .name = "Count", .in_signature = "ss", .in_names = wrong_names, .handler = &named } };
 	Property[1] write_only = {
 		{ .name = "W", .signature = "u", .access = WRITE, .changes = EMITS_CHANGED, .set = &set_count }
 	};
-	Property[1] const_rw   = {
+	Property[1] const_rw = {
 		{ .name = "C", .signature = "u", .access = READ_WRITE, .changes = CONST, .get = &get_count, .set = &set_count }
 	};
 	Interface[1] dup_iface = { { .name = "org.bleu.Dup", .methods = dup[..] } };

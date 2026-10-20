@@ -68,11 +68,18 @@ fn OwnedName*? Connection.own_name(
 	o.name.append_string(name);
 	if (catch err = o.subscribe_signals())
 	{
+		o.unsubscribe_signals();
 		free_owned(o);
 		return err~;
 	}
-	NameReply reply = self.request_name(name, flags) ?? UNKNOWN_REPLY;
-	switch (reply)
+	NameReply? answer = self.request_name(name, flags);
+	if (catch err = answer)
+	{
+		o.unsubscribe_signals();
+		free_owned(o);
+		return err~;
+	}
+	switch (answer)
 	{
 		case PRIMARY_OWNER:
 		case ALREADY_OWNER:

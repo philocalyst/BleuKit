@@ -28,7 +28,7 @@
  "Introspection Data Format" (the introspect DTD).
 *>
 module bleu::dbus::server;
-import bleu::error, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::value, bleu::dbus::names;
+import bleu::error, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::names;
 import std::collections::list;
 
 <* Interface of the peer-to-peer methods, which every object answers. *>
@@ -271,6 +271,15 @@ fn void? ObjectServer.user_call(&self, Call* c, Target* target)
 // Answers a call whose handler failed with `failure`, unless the handler answered it already.
 fn void fail_call(Call* c, fault failure) @private
 {
+	if (c.deferred != (ReplyToken)0)
+	{
+		// The handler deferred the call and then failed: the failure is the deferred call's answer.
+		// If the handler answered it already, the token is used up and this is refused, which is right.
+		if (catch c.server.reply_error(c.deferred, error_name_for(failure), detail_text(failure)))
+		{
+		}
+		return;
+	}
 	if (c.answered) return;
 	c.answered = true;
 	if (!c.expects_reply) return;

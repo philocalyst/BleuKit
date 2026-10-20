@@ -21,6 +21,9 @@
 module bleu::network::wlan_native @feat(WIN32) @link("wlanapi");
 import bleu::win::guid;
 
+<* An SSID is at most 32 octets (DOT11_SSID, mod.rs 3324). *>
+const uint SSID_OCTETS = 32;
+
 <* WLAN_CLIENT_VERSION_LONGHORN: the client version of Windows Vista and later. *>
 const uint CLIENT_VERSION = 2;
 
@@ -183,15 +186,15 @@ struct L2NotificationData
 <* WLAN_NOTIFICATION_CALLBACK. Runs on a WLAN thread: it may only post to a mailbox. *>
 alias NotificationCallback = fn void(L2NotificationData* data, void* context);
 
-extern fn uint WlanOpenHandle(uint client_version, void* reserved, uint* negotiated_version, void** handle) @cname("WlanOpenHandle");
-extern fn uint WlanCloseHandle(void* handle, void* reserved) @cname("WlanCloseHandle");
-extern fn void WlanFreeMemory(void* memory) @cname("WlanFreeMemory");
-extern fn uint WlanEnumInterfaces(void* handle, void* reserved, WlanInterfaceInfoList** list) @cname("WlanEnumInterfaces");
-extern fn uint WlanGetAvailableNetworkList(void* handle, Guid* interface_guid, uint flags, void* reserved, WlanAvailableNetworkList** list) @cname("WlanGetAvailableNetworkList");
-extern fn uint WlanGetNetworkBssList(void* handle, Guid* interface_guid, Dot11Ssid* ssid, int bss_type, int security_enabled, void* reserved, WlanBssList** list) @cname("WlanGetNetworkBssList");
-extern fn uint WlanScan(void* handle, Guid* interface_guid, Dot11Ssid* ssid, void* ie_data, void* reserved) @cname("WlanScan");
-extern fn uint WlanConnect(void* handle, Guid* interface_guid, WlanConnectionParameters* parameters, void* reserved) @cname("WlanConnect");
-extern fn uint WlanDisconnect(void* handle, Guid* interface_guid, void* reserved) @cname("WlanDisconnect");
-extern fn uint WlanSetProfile(void* handle, Guid* interface_guid, uint flags, WString profile_xml, WString all_user_security, int overwrite, void* reserved, uint* reason) @cname("WlanSetProfile");
-extern fn uint WlanDeleteProfile(void* handle, Guid* interface_guid, WString profile_name, void* reserved) @cname("WlanDeleteProfile");
-extern fn uint WlanRegisterNotification(void* handle, uint source, int ignore_duplicate, NotificationCallback callback, void* context, void* reserved, uint* previous_source) @cname("WlanRegisterNotification");
+extern fn uint wlan_open_handle(uint client_version, void* reserved, uint* negotiated_version, void** handle) @cname("WlanOpenHandle");
+extern fn uint wlan_close_handle(void* handle, void* reserved) @cname("WlanCloseHandle");
+extern fn void wlan_free_memory(void* memory) @cname("WlanFreeMemory");
+extern fn uint wlan_enum_interfaces(void* handle, void* reserved, WlanInterfaceInfoList** list) @cname("WlanEnumInterfaces");
+extern fn uint wlan_get_available_network_list(void* handle, Guid* interface_guid, uint flags, void* reserved, WlanAvailableNetworkList** list) @cname("WlanGetAvailableNetworkList");
+extern fn uint wlan_get_network_bss_list(void* handle, Guid* interface_guid, Dot11Ssid* ssid, int bss_type, int security_enabled, void* reserved, WlanBssList** list) @cname("WlanGetNetworkBssList");
+extern fn uint wlan_scan(void* handle, Guid* interface_guid, Dot11Ssid* ssid, void* ie_data, void* reserved) @cname("WlanScan");
+extern fn uint wlan_connect(void* handle, Guid* interface_guid, WlanConnectionParameters* parameters, void* reserved) @cname("WlanConnect");
+extern fn uint wlan_disconnect(void* handle, Guid* interface_guid, void* reserved) @cname("WlanDisconnect");
+extern fn uint wlan_set_profile(void* handle, Guid* interface_guid, uint flags, WString profile_xml, WString all_user_security, int overwrite, void* reserved, uint* reason) @cname("WlanSetProfile");
+extern fn uint wlan_delete_profile(void* handle, Guid* interface_guid, WString profile_name, void* reserved) @cname("WlanDeleteProfile");
+extern fn uint wlan_register_notification(void* handle, uint source, int ignore_duplicate, NotificationCallback callback, void* context, void* reserved, uint* previous_source) @cname("WlanRegisterNotification");

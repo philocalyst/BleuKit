@@ -26,6 +26,7 @@ struct Call
 	String out_signature;
 	bool expects_reply;
 	bool answered;
+	ReplyToken deferred;
 }
 
 <*
@@ -82,7 +83,8 @@ fn ReplyToken? Call.defer_reply(&self)
 {
 	if (self.answered) return error::INVALID_STATE~;
 	self.answered = true;
-	return park(self.server, self.sender, self.serial, self.out_signature, self.expects_reply);
+	self.deferred = park(self.server, self.sender, self.serial, self.out_signature, self.expects_reply);
+	return self.deferred;
 }
 
 <*

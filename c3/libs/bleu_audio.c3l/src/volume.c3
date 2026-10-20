@@ -51,3 +51,15 @@ fn Gain from_amplitude(float linear)
 	if (linear <= 0.0f) return (Gain)0.0f;
 	return (Gain)math::pow((double)linear, 1.0 / 3.0);
 }
+
+<*
+ Balance of a left and a right slider position, as the signed value shells show:
+ -1.0 all left, +1.0 all right, 0.0 equal. The same rule as PulseAudio's
+ pa_cvolume_get_balance, applied to two channels (pulse/volume.c:691-713).
+*>
+fn float stereo_balance(Gain left, Gain right)
+{
+	if (left == right) return 0.0f;
+	if (left > right) return -1.0f + (float)right / (float)left;
+	return 1.0f - (float)left / (float)right;
+}
