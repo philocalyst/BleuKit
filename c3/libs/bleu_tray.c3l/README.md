@@ -49,7 +49,7 @@ type-checked for the target only (`tools/check.sh`), never executed; **Not done*
 | Pixmaps: ARGB32 network order to RGBA, size checks | Run and Unit | - | - |
 | Publish own icon | Run (served and remote watcher) | Compiled | Compiled |
 | Own menu and its click events | Run | Compiled | Compiled |
-| Own icon events: activate (x, y), secondary activate | Run (activate, secondary) | Compiled (activate; secondary not sent) | not sent: the status item opens its menu on click |
+| Own icon events: activate (x, y), secondary activate | Run (Activate driven by a host; SecondaryActivate handled, not driven) | Compiled (activate; secondary not sent) | not sent: the status item opens its menu on click |
 | Explorer restart: re-add our icon (TaskbarCreated) | - | Compiled | - |
 | XEmbed system tray (X11) | Not done (cut) | - | - |
 

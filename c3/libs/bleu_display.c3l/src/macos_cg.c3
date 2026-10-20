@@ -25,16 +25,15 @@ const Driver DRIVER = {
 	.run = &run,
 };
 
-// The backend's state: the mailbox the reconfiguration callback posts to, and the rollback point.
+// The backend's state: the mailbox the reconfiguration callback posts to, and the synchronous flow.
 struct Backend
 {
 	Allocator allocator;
 	DisplayHub* hub;
 	Mailbox{Command}* mailbox;
 	bool dirty;
-	RevertGuard guard;
-	ApplyOp* guard_op;
-	Config guard_config;
+	SyncNative native;
+	Rollback rollback;
 }
 
 // CoreGraphics is part of every macOS session; the real check is that a display is attached (in `create`).
@@ -45,14 +44,29 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	DirectDisplayId[MAX_DISPLAYS] displays;
 	if (active_displays(displays[..]) == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no display is active")~;
 	fill_capabilities(capabilities);
-	return alloc::new(allocator, Backend, { .allocator = allocator });
+	Backend* backend = alloc::new(allocator, Backend);
+	backend.allocator = allocator;
+	backend.native = { .backend = backend, .allocator = allocator, .read = &read_native, .commit = &commit_native, .can_rotate = false, .can_toggle = false };
+	return backend;
 }
 
 fn void destroy(Allocator allocator, void* state)
 {
 	Backend* backend = (Backend*)state;
-	if (backend.guard_op) backend.guard_op.release();
+	if (backend.rollback.op) backend.rollback.op.release();
 	alloc::free(allocator, backend);
+}
+
+// The read the synchronous flow uses: the current state, in the allocator it is given.
+fn State? read_native(void* backend, Allocator allocator)
+{
+	return read_state(allocator);
+}
+
+// The commit the synchronous flow uses: one CoreGraphics transaction.
+fn void? commit_native(void* backend, Config config, bool test_only, bool persistent)
+{
+	return run_transaction(config, test_only, persistent);
 }
 
 // What this backend can and cannot do; DEGRADED says what the caveat is.
@@ -218,12 +232,15 @@ fn void run(void* state, DisplayHub* hub, Host{Command}* host)
 	publish(b);
 	Command[8] commands;
 	while (!host.stopping()) {
-		if (catch poller.wait(b.guard.remaining(clock::now()))) {
+		if (catch poller.wait(b.rollback.guard.remaining(clock::now()))) {
 			// TIMEOUT is the rollback falling due, or nothing happening.
 		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) handle(b, commands[i], clock::now());
-		if (b.guard.due(clock::now())) revert(b, clock::now());
+		if (b.rollback.guard.due(clock::now())) {
+			revert_sync(&b.native, &b.rollback, b.hub);
+			b.dirty = true;
+		}
 		if (b.dirty) {
 			b.dirty = false;
 			publish(b);
@@ -251,97 +268,9 @@ fn void handle(Backend* b, Command command, Clock now)
 {
 	switch (command.kind) {
 		case REFRESH: b.dirty = true;
-		case CONFIRM: confirm(b, now);
-		case APPLY: apply_now(b, command, now);
+		case CONFIRM: confirm_sync(&b.rollback, now);
+		case APPLY: apply_sync(&b.native, &b.rollback, command, now);
 	}
-}
-
-// Keep the change waiting for confirmation: forget the rollback point.
-fn void confirm(Backend* b, Clock now)
-{
-	if (b.guard.confirm(now)) {
-		if (b.guard_op) b.guard_op.release();
-		b.guard_op = null;
-	}
-}
-
-// Complete a command with an error.
-fn void reject(ApplyOp* op, fault failure)
-{
-	op.fail(failure);
-	op.release();
-}
-
-// Check the config against the state: no disabling, no rotation, and it must name every display.
-// `changed` says whether anything differs.
-fn void? check_request(Backend* b, Config config, bool* changed)
-{
-	@pool()
-	{
-		display::State state = read_state(tmem);
-		display::validate_config(state.outputs, config)!;
-		for (sz i = 0; i < config.outputs.len; i++) {
-			display::Maybe{sz} index = display::index_of_output(state.outputs, config.outputs[i].output_id);
-			display::OutputDelta delta = display::delta_of(state.outputs[index.value], config.outputs[i]);
-			if (delta.enabled) return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "enabling or disabling a display is not in this macOS version")~;
-			if (config.outputs[i].transform != state.outputs[index.value].transform) {
-				return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "rotating a display is not in this macOS version")~;
-			}
-		}
-		*changed = display::config_changes(state, config);
-	};
-}
-
-// The layout as it is now, copied into `allocator`: the point a rollback returns to.
-fn display::Config previous_config(Backend* b, Allocator allocator)
-{
-	display::Config result;
-	@pool()
-	{
-		result = display::config_from_state(read_state(tmem), allocator);
-	};
-	return result;
-}
-
-// Carry out one apply: the transaction, then the rollback point when it is asked for.
-fn void apply_now(Backend* b, Command command, Clock now)
-{
-	ApplyOp* op = command.op;
-	op.start();
-	bool changed = false;
-	if (catch err = check_request(b, command.config, &changed)) {
-		reject(op, err);
-		return;
-	}
-	if (!changed) {
-		op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = false });
-		op.release();
-		return;
-	}
-	ApplyOp* holder = null;
-	display::Config previous;
-	if (command.mode == APPLY_WITH_REVERT) {
-		holder = operation::begin(b.allocator);
-		previous = previous_config(b, holder.allocator());
-	}
-	if (catch err = run_transaction(command.config, command.mode == TEST_ONLY, command.config.persistent)) {
-		if (holder) holder.release();
-		reject(op, err);
-		return;
-	}
-	if (command.mode == APPLY_WITH_REVERT) {
-		if (b.guard_op) b.guard_op.release();
-		b.guard_op = holder;
-		b.guard_config = previous;
-		b.guard.arm(now, command.revert_after);
-	} else if (command.mode == APPLY) {
-		b.guard.disarm();
-		if (b.guard_op) b.guard_op.release();
-		b.guard_op = null;
-	}
-	op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = command.mode == APPLY_WITH_REVERT });
-	op.release();
-	b.dirty = true;
 }
 
 <*
@@ -406,25 +335,10 @@ fn void? configure_display(ConfigRef transaction, DirectDisplayId display, displ
 	}
 }
 
-// Roll back the change nobody confirmed: apply the layout that was current before it.
-fn void revert(Backend* b, Clock now)
-{
-	b.guard.disarm();
-	ApplyOp* holder = b.guard_op;
-	display::Config previous = b.guard_config;
-	b.guard_op = null;
-	if (catch err = run_transaction(previous, false, false)) {
-		// The displays keep the change; the publish below reports what the system now has.
-	}
-	if (holder) holder.release();
-	display::emit(b.hub, display::EventKind.REVERTED, "");
-	b.dirty = true;
-}
-
 // Stop: a rollback still armed is applied now (the shell is going away); queued commands are refused.
 fn void shutdown(Backend* b, Host{Command}* host)
 {
-	if (b.guard.armed) revert(b, clock::now());
+	if (b.rollback.guard.armed) revert_sync(&b.native, &b.rollback, b.hub);
 	Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
 	while (count > 0) {

@@ -48,7 +48,8 @@ Linux handlers are reached through the session the tests drive, but `run` itself
 
 * Linux: no run against a real compositor with data-control (the headless weston in this
   environment has none). Primary selection is written as data-control code but not exercised.
-  Globals that disappear after startup end the session. The source application is not known.
+  The globals are read once at startup; a removed manager is noticed only when the compositor retires
+  the device, which ends the session. The source application is not known.
 * Linux: a served `send` and the pipe reads are bounded by `transfer_timeout` on the worker thread.
 * macOS: the pasteboard privacy control of macOS 15.4 (`accessBehavior`) is not used; its names are
   UNVERIFIED. Types are pasteboard identifiers, mapped only for UTF-8 text.
