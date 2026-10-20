@@ -4,12 +4,13 @@ import std::collections::maybe, bleu::windows, bleu::windows::linux_map, bleu::c
 // Builds a compositor model with one focused window on "1" and one floating window on "2".
 fn void maps_windows_workspaces_and_outputs() @test
 {
+	compositor::Rect wide = { .x = 0, .y = 0, .width = 800, .height = 600 };
 	compositor::Window[2] source_windows = {
 		{
 			.id = "0x1", .title = "~/src", .app_id = "foot", .pid = maybe::value(4242),
 			.workspace_id = "1", .output = "DP-1", .focused = true, .floating = false,
 			.fullscreen = maybe::value(false), .maximized = { }, .urgent = { },
-			.geometry = maybe::value(compositor::Rect { .x = 0, .y = 0, .width = 800, .height = 600 }),
+			.geometry = maybe::value(wide),
 		},
 		{
 			.id = "0x2", .title = "Calc", .app_id = "gnome-calculator", .pid = { },
@@ -34,7 +35,8 @@ fn void maps_windows_workspaces_and_outputs() @test
 	DynamicArenaAllocator arena;
 	arena.init(mem, 4096);
 	defer arena.free();
-	linux_map::fill_state(&state, &model, &arena);
+	Allocator allocator = &arena;
+	linux_map::fill_state(&state, &model, allocator);
 
 	assert(state.connection == windows::CONNECTED);
 	assert(state.focused_window_id == "0x1");

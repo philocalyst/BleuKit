@@ -29,9 +29,6 @@ const uint DEVICE_INFO_TARGET_NAME = 2;
 const uint MODE_INFO_SOURCE = 1;
 const uint MODE_INFO_TARGET = 2;
 
-// DISPLAYCONFIG_ROTATION (wingdi.h): a quarter turn is one more than the turn count.
-const uint ROTATION_IDENTITY = 1;
-
 // SetDisplayConfig flags (wingdi.h).
 const uint SDC_APPLY = 0x80;
 const uint SDC_VALIDATE = 0x40;
@@ -41,9 +38,6 @@ const uint SDC_ALLOW_CHANGES = 0x400;
 
 // The size of a CCHDEVICENAME buffer (wingdi.h).
 const usz CCH_DEVICE_NAME = 32;
-
-// The value the EnumDisplaySettingsExW index names the current settings with (winuser.h).
-const uint ENUM_CURRENT_SETTINGS = 0xFFFFFFFF;
 
 // LUID: the adapter a path or device belongs to.
 struct Luid
