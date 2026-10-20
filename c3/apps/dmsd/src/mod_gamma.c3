@@ -200,6 +200,13 @@ fn DayTimes day_times(GammaSettings s, long now)
 	return { };
 }
 
+// Whether `output` has a temperature that bleu_color applies to it: a ramp can be written there.
+// An output without gamma control has the temperature only in the request, not on the screen.
+fn bool takes_temperature(color::Output* output) @inline
+{
+	return output.control.gamma_supported && output.control.temperature.has_value;
+}
+
 // The `Config` object (types.go:31-49). Go writes the fields by their names: the struct has no tags.
 fn void? write_config(wire::Line* line, GammaSettings s)
 {
@@ -262,13 +269,11 @@ fn String? render_state(Allocator allocator, GammaSettings s, color::State* stat
 	write_config(&line, s)!;
 	sz[] order = sorted_indices(state);
 	long current_temp = 0;
-	bool found_temp   = false;
 	foreach (i : order)
 	{
-		if (state.outputs[i].control.temperature.has_value)
+		if (takes_temperature(&state.outputs[i]))
 		{
 			current_temp = (long)state.outputs[i].control.temperature.value;
-			found_temp   = true;
 			break;
 		}
 	}
@@ -299,7 +304,7 @@ fn String? render_state(Allocator allocator, GammaSettings s, color::State* stat
 	line.writer.begin_object()!;
 	foreach (i : order)
 	{
-		if (state.outputs[i].control.temperature.has_value)
+		if (takes_temperature(&state.outputs[i]))
 		{
 			wire::key_int(&line.writer, state.outputs[i].id, (long)state.outputs[i].control.temperature.value)!;
 		}

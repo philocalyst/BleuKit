@@ -18,12 +18,12 @@ import std::thread, std::atomic, std::time, bleu::network, bleu::stream, bleu::o
 // How often the pump checks whether it was asked to stop, while no prompt is waiting.
 const Duration POLL_INTERVAL = (Duration)100_000;
 // The fields of a Wi-Fi passphrase prompt, and their labels (DMS buildFieldsInfo, `802-11-wireless-security`).
-const String[1] PSK_FIELDS    = { "psk" };
-const String WIFI_CONNECTION  = "802-11-wireless";
-const String WIFI_SECURITY    = "802-11-wireless-security";
-const String PSK_LABEL        = "Password";
+const String[1] PSK_FIELDS   = { "psk" };
+const String WIFI_CONNECTION = "802-11-wireless";
+const String WIFI_SECURITY   = "802-11-wireless-security";
+const String PSK_LABEL       = "Password";
 // DMS's `reasonFromFlags` default (agent_networkmanager.go:1126-1143): the secret is required.
-const String REASON_REQUIRED  = "required";
+const String REASON_REQUIRED = "required";
 
 <*
  Reads the service's events on its own thread and publishes each prompt on `topic`.
@@ -126,7 +126,7 @@ fn String? render_prompt(Allocator allocator, network::Event* event)
 	wire::Line line;
 	line.begin(allocator);
 	json::JsonWriter* w = &line.writer;
-	String ssid = event.ssid.label;
+	String ssid         = event.ssid.label;
 	w.begin_object()!;
 	wire::key_string(w, "token", string::tformat("%d", event.request))!;
 	wire::key_string(w, "name", ssid)!;

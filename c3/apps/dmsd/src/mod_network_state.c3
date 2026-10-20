@@ -17,7 +17,7 @@ const String STATUS_DISCONNECTED = "disconnected";
 const String STATUS_ETHERNET     = "ethernet";
 const String STATUS_WIFI         = "wifi";
 // DMS's `ConnectionPhase` default (types.go:23). Bleu cannot set a preference; the OS routes.
-const String PREFERENCE_AUTO = "auto";
+const String PREFERENCE_AUTO     = "auto";
 
 // A quality of 0..1 as DMS's 0..100 percentage, rounded. Zero when there is no figure.
 fn ulong percent_of(float quality)
@@ -195,9 +195,9 @@ fn String wifi_state(network::Wifi* wifi)
 *>
 fn void? write_wifi_device(json::JsonWriter* w, network::State* state)
 {
-	network::Wifi* wifi = &state.wifi;
+	network::Wifi* wifi      = &state.wifi;
 	network::AccessPoint* on = connected_ap(wifi);
-	bool connected = wifi.phase == network::ConnectionPhase.CONNECTED;
+	bool connected           = wifi.phase == network::ConnectionPhase.CONNECTED;
 	w.begin_object()!;
 	wire::key_string(w, "name", wifi.interface_name)!;
 	wire::key_string(w, "hwAddress", "")!;
@@ -214,7 +214,7 @@ fn void? write_wifi_device(json::JsonWriter* w, network::State* state)
 // The Wi-Fi block of `NetworkState`: `wifiIP` through `wifiDevices`.
 fn void? write_wifi(json::JsonWriter* w, network::State* state)
 {
-	network::Wifi* wifi = &state.wifi;
+	network::Wifi* wifi      = &state.wifi;
 	network::AccessPoint* on = connected_ap(wifi);
 	wire::key_string(w, "wifiIP", "")!;
 	wire::key_string(w, "wifiDevice", wifi.interface_name)!;
@@ -285,7 +285,8 @@ fn String failure_sentence(network::FailureReason reason)
 // `lastError`: the sentence for a failed or refused connection, else "".
 fn String last_error(network::Wifi* wifi)
 {
-	bool refused = wifi.phase == network::ConnectionPhase.FAILED || wifi.phase == network::ConnectionPhase.AUTH_REQUIRED;
+	bool refused = wifi.phase == network::ConnectionPhase.FAILED
+		|| wifi.phase == network::ConnectionPhase.AUTH_REQUIRED;
 	return refused ? failure_sentence(wifi.failure) : "";
 }
 
@@ -293,7 +294,8 @@ fn String last_error(network::Wifi* wifi)
 fn void? write_connecting(json::JsonWriter* w, network::State* state)
 {
 	network::ConnectionPhase phase = state.wifi.phase;
-	bool connecting = phase == network::ConnectionPhase.CONNECTING || phase == network::ConnectionPhase.OBTAINING_ADDRESS;
+	bool connecting                = phase == network::ConnectionPhase.CONNECTING
+		|| phase == network::ConnectionPhase.OBTAINING_ADDRESS;
 	wire::key_bool(w, "isConnecting", connecting)!;
 	wire::key_string(w, "connectingSSID", "")!;
 	wire::key_string(w, "lastError", last_error(&state.wifi))!;

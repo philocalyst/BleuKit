@@ -12,14 +12,20 @@ module dmsd::network_actions;
 import std::collections::object, std::time, bleu::network, bleu::observe, bleu::ipc, bleu::error, bleu::json, dmsd::contract, dmsd::wire, dmsd::params, dmsd::network_state;
 
 // How long a request waits for its operation to finish.
-const Duration WRITE_TIMEOUT = (Duration)5_000_000;
+const Duration WRITE_TIMEOUT      = (Duration)5_000_000;
 // The 802.1X fields of DMS's `wifi.connect` (handlers.go:208-214). Bleu refuses enterprise networks.
 const String[8] ENTERPRISE_FIELDS = {
-	"username", "anonymousIdentity", "domainSuffixMatch", "eapMethod",
-	"phase2Auth", "caCertPath", "clientCertPath", "privateKeyPath",
+	"username",
+	"anonymousIdentity",
+	"domainSuffixMatch",
+	"eapMethod",
+	"phase2Auth",
+	"caCertPath",
+	"clientCertPath",
+	"privateKeyPath",
 };
 // The secret of a Wi-Fi passphrase prompt: the field name DMS uses for it (agent_networkmanager.go buildFieldsInfo).
-const String PSK_FIELD = "psk";
+const String PSK_FIELD            = "psk";
 
 // An optional string member: `fallback` when absent or not a string (params.StringOpt).
 fn String opt_text(Object* params, String key, String fallback) @private
@@ -48,7 +54,7 @@ fn void? await_settle(network::SettleOp* op, String text, String missing) @priva
 {
 	if (catch err = op.wait(WRITE_TIMEOUT))
 	{
-		String what = err == NOT_FOUND && missing.len > 0 ? missing : text;
+		String what   = err == NOT_FOUND && missing.len > 0 ? missing : text;
 		String reason = op.detail().message();
 		if (reason.len == 0) return refused(err, what)~;
 		return error::raise(err, error::Domain.INTERNAL, 0, "%s: %s", what, reason)~;
@@ -91,13 +97,14 @@ fn void? refuse_enterprise(Object* params) @private
 {
 	foreach (field : ENTERPRISE_FIELDS)
 	{
-		if (opt_text(params, field, "").len > 0) return error::raise(
-			error::UNSUPPORTED,
-			error::Domain.INTERNAL,
-			0,
-			"not supported: 802.1X sign-in ('%s') is not available in bleu_network",
-			field
-		)~;
+		if (opt_text(params, field, "")
+			.len > 0) return error::raise(
+				error::UNSUPPORTED,
+				error::Domain.INTERNAL,
+				0,
+				"not supported: 802.1X sign-in ('%s') is not available in bleu_network",
+				field
+			)~;
 	}
 	if (try found = json::read::present(params, "useSystemCACerts"))
 	{
@@ -234,11 +241,12 @@ fn void handle_wifi_forget(void* context, ipc::Call* call)
 
 fn void? forget_wifi(network::Network* service, ipc::Call* call) @private
 {
-	String ssid = params::param_string(call.params, "ssid")!;
+	String ssid                = params::param_string(call.params, "ssid")!;
 	network::SettleOp*? result = service.forget(ssid);
 	if (catch err = result) return refused(err, "cannot forget the network")~;
 	defer result.release();
 	await_settle(result, "failed to forget the network", "no saved network has this name")!;
+	if (catch err = service.refresh()) return refused(err, "cannot re-read the networks")~;
 	wire::respond_success(call, "forgotten")!;
 }
 
@@ -362,7 +370,7 @@ fn void handle_info(void* context, ipc::Call* call)
 
 fn void? network_info(network::Network* service, ipc::Call* call) @private
 {
-	String ssid = params::param_string(call.params, "ssid")!;
+	String ssid                             = params::param_string(call.params, "ssid")!;
 	observe::Snapshot{network::State}*? now = service.latest();
 	if (catch err = now) return refused(err, "cannot describe the network")~;
 	defer now.release();
@@ -418,8 +426,8 @@ fn void handle_credentials_cancel(void* context, ipc::Call* call)
 
 fn void? cancel_credentials(network::Network* service, ipc::Call* call) @private
 {
-	String token = params::param_string(call.params, "token")!;
-	ulong request = parse_token(token)!;
+	String token               = params::param_string(call.params, "token")!;
+	ulong request              = parse_token(token)!;
 	network::SettleOp*? result = service.cancel_credentials(request);
 	if (catch err = result) return refused(err, "cannot cancel the credentials")~;
 	defer result.release();

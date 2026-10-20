@@ -22,12 +22,13 @@ struct tags the tests use are in `apps/dmsd/tests/golden/go_tags.json`, regenera
 | `brightness` module (6 methods, 2 topics) | done, tested on a fake sysfs tree |
 | `loginctl` module (11 methods, 1 topic; 4 answer `not supported`) | done, tested against a logind mock |
 | `bluetooth` module (15 methods, 2 topics; `mpris.publish` and `subscribe` answer `not supported`) | done, tested against the BlueZ mock of `bleu_bluetooth` and a logind mock |
+| `network` module (13 methods, 2 topics; 32 answer `not supported`) | done, tested against the NetworkManager mock of `bleu_network` on a private bus; Linux only, the Wi-Fi interface is the first one |
 | `dgop` (sysinfo): `dgop.meta`, `dgop.modules`; `gpu`, `hardware` refused | done, partial: the fields Bleu does not report are zero or empty; tested against `/proc` |
 | `clipboard` module (12 methods, 1 topic; 10 refused) | done, compiled only: no Wayland compositor here, so only its absence is run |
 | `apps` module: `apppicker.open`, `browser.open`, `mime.*` (2 refused) | done, partial: no mimeinfo.cache, no MIME alias or subclass chains; `browser` not advertised |
 | `evdev` (`evdev.getState` refused) | refused: bleu_input has no lock-key state |
 | Refused modules: cups, tailscale, wellbeing, sysupdate, wallpaper, files, plugins, themes, registries | every DMS method answers `not supported: <why>`; no capability |
-| Every other DMS module (network, bluetooth, audio-adjacent, ...) | not started: the method is `unknown method` until its module lands |
+| Every other DMS module (audio-adjacent, ...) | not started: the method is `unknown method` until its module lands |
 
 ## Running
 
@@ -57,6 +58,11 @@ mod_brightness.c3  brightness module: methods, topics, DMS device list
 mod_loginctl.c3    loginctl module: session state, actions, sleep barrier
 mod_bluetooth.c3   bluetooth module: methods, state topic, pairing prompts (over bleu_bluetooth)
 bluetooth_wire.c3  the bluetooth module's DMS shapes: state, device, adapter, prompt
+mod_network.c3     network module: state and prompt topics, method registration, getState
+mod_network_state.c3        NetworkState, WiFiNetwork, WiFiDevice, EthernetDevice from a Bleu snapshot
+mod_network_actions.c3      Wi-Fi actions, network.info, the passphrase answers
+mod_network_credentials.c3  network.credentials: the prompt event pump and CredentialPrompt
+mod_network_unsupported.c3  the refused network methods, one table
 ```
 
 Threads: the IPC layer owns its I/O and handler threads (bleu_ipc). Each service
@@ -329,6 +335,68 @@ Prompts (`agent.go`, `promptFor`): `requestType` is `confirm`, `pin`, `passkey`,
 key is sent for a confirmation and a displayed passkey only. The shell reads these names and the
 `secrets` keys in `quickshell/Modals/BluetoothPairingModal.qml:375-400`.
 
+### network (`network/handlers.go`, `types.go`, `manager.go`, `agent_networkmanager.go`) — `mod_network*.c3`, `bleu_network`
+
+Capability `network` (`server.go:432`). Topic `network` carries `NetworkState` on every change and
+is retained; topic `network.credentials` carries one `CredentialPrompt` per passphrase request and
+is not retained (DMS's `server.go:579-595` subscriptions have the same shape). Bleu manages one
+Wi-Fi interface, the first one; `device` naming another is refused. The shapes and the order of
+their fields are DMS's (`tests/golden/network_tags.json`, from `network/types.go` at 8be08999).
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `network.getState` | done | `NetworkState`, 45 fields in Go order; the values Bleu does not report are listed in Differences |
+| `network.wifi.networks` | done | `[]WiFiNetwork` of the last scan, one entry per SSID |
+| `network.wifi.scan` {device} | done | queued; answered `scanning` |
+| `network.wifi.connect` {ssid, password, device} | done | queued; answered `connecting`. A network not in the last scan is refused in the reply; one that needs a password and has none asks through `network.credentials` |
+| `network.wifi.disconnect` {device} | done | waits for the disconnect |
+| `network.wifi.forget` {ssid} | done | waits; removes every saved profile of the SSID; `no saved network has this name` otherwise |
+| `network.wifi.toggle`, `enable`, `disable` | done | waits; replies `{enabled}` with the value now set |
+| `network.wifi.setAutoconnect` {ssid, autoconnect} | done | waits, then asks for a re-read so the state shows the flag |
+| `network.info` {ssid} | done, partial | `NetworkInfoResponse`; one entry in `bands` (Bleu merges the bands of one SSID) |
+| `network.credentials.submit` {token, secrets.psk, save} | done | `save: false` is refused: bleu_network keeps the passphrase in the saved profile |
+| `network.credentials.cancel` {token} | done | the connection fails; `lastError` says why |
+| `network.subscribe` | n/s | streaming form; use top-level `subscribe` with `network` and `network.credentials` |
+| `network.ethernet.connect`, `connect.config`, `disconnect`, `info` | n/s | bleu_network has no wired profile or activation API |
+| `network.cellular.*` (6 methods) | n/s | no cellular service |
+| `network.preference.set` | n/s | the OS chooses the route |
+| `network.qrcode`, `qrcode-content`, `generate-qrcode`, `delete-qrcode` | n/s | Bleu never reads a saved passphrase, and has no QR encoder |
+| `network.vpn.*` (12 methods) | n/s | no VPN service in bleu_network v1 (`docs/research/network.md` section 6) |
+| `network.hotspot.*` (4 methods) | n/s | no hotspot in bleu_network |
+
+| Topic | Status | Notes |
+| --- | --- | --- |
+| `network` | done | `NetworkState` on every change of the Bleu state (the pump merges a burst into one publication) |
+| `network.credentials` | done | one `CredentialPrompt` per `CREDENTIALS_WANTED` event; nothing is sent to a client that subscribes later |
+
+Differences from DMS (network):
+
+* Bleu does not report, and the field is empty or zero: `ethernetIP`, `wifiIP`, `wifiBSSID`, device
+  `hwAddress`, `driver`, `ip`, `mode`, `rate`, `channel`, `hidden`, `outOfRange`, `connectingSSID`,
+  `connectingDevice` (omitted), `wiredConnections`, `vpnProfiles`, `vpnActive`, every `cellular*`
+  and `hotspot*` field. `preference` is `auto`, the value DMS starts with, since the OS routes.
+* Derived values, because DMS's own derivations (`networkStatus`, the device `state` words) were not
+  read: `networkStatus` is `ethernet` when the default route's interface is Ethernet, `wifi` when the
+  Wi-Fi interface is connected, else `disconnected`; device `state` is `connected`, `connecting`,
+  `disconnecting`, `disconnected` or `unavailable` from Bleu's link state and connection phase.
+  `ethernetConnected` means the link is up (no address is checked). `secured` is any security
+  but open; `enterprise` is 802.1X. `wifiSSID` is the network the interface is on, as Bleu reports it,
+  which can be the one being joined.
+* `lastError` is Bleu's sentence for the failure reason (`mod_network_state.c3`), not NetworkManager's
+  text. `isConnecting` is true while the phase is connecting or obtaining an address.
+* `savedWifiNetworks` lists the saved profiles of the networks in the last scan only.
+* A connection is answered when it is queued. Its outcome is in `networkStatus`, `isConnecting`,
+  `wifiConnected` and `lastError`. A new profile joins automatically (Bleu's `autoconnect`), because
+  DMS's `wifi.connect` has no such parameter. `interactive` is read by no code here: Bleu asks for the
+  passphrase when NetworkManager does.
+* 802.1X fields (`username`, `eapMethod`, certificates, ...) are refused with `not supported`, as
+  bleu_network cannot connect to an enterprise network.
+* A prompt's `token` is the request id in decimal, and `reason` is `required` (DMS's default); a
+  prompt's `connectionId` and `connectionUuid` are "" (Bleu does not expose them). DMS has no event
+  that withdraws a prompt, so a superseded or withdrawn request is not announced.
+* Error texts are dmsd's wording, except `network not found: <ssid>` (`manager.go:621`). DMS's
+  `network/manager.go` error strings were not read beyond that.
+
 ### Not started (DMS methods that dmsd does not serve yet)
 
 Each of these modules will follow `apps/dmsd/tests`' pattern once written. Until then
@@ -338,7 +406,6 @@ modules); the rows that remain here belong to the modules not yet written.
 
 | Module | Methods | Bleu service(s) |
 | --- | --- | --- |
-| network | getState, wifi.* (scan, networks, connect, disconnect, forget, toggle, enable, disable, setAutoconnect), ethernet.*, cellular.*, preference.set, info, qrcode*, vpn.*, hotspot.*, credentials.submit, credentials.cancel | network |
 | gamma (wayland) | gamma.getState, setTemperature, setLocation, setManualTimes, setUseIPLocation, setGamma, setEnabled, icc.* | color |
 | theme.auto | getState, setEnabled, setMode, setSchedule, setLocation, setUseIPLocation, trigger | appearance |
 | freedesktop | getState, accounts.* (setIconFile, setRealName, setEmail, setLanguage, setLocation, getUserIconFile), settings.getColorScheme, settings.setIconTheme | appearance, session |
@@ -450,6 +517,19 @@ against the QML code itself).
   accepted), a refused token, connect, disconnect, trust, untrust, remove, the `not supported` texts and
   the state topic. Then a shutdown with a pairing in flight (exit 0), `--module-off bluetooth`, and a
   start with no BlueZ (not advertised, reported once). Stable over four runs.
+* `apps/dmsd/tests/network.sh`, called by `run.sh`: its own private system bus, the NetworkManager mock of
+  `libs/bleu_network.c3l/tests/nm_mock.py` (run from there, not copied) and a fake sysfs tree with `eth0`
+  and `wlan0`. `network_check.py` makes 139 checks: the handshake; `getState` against
+  `golden/network_state_initial.json`, whose values are also checked against the mock's access point table
+  field by field; the key order of `NetworkState`, `WiFiNetwork`, `WiFiDevice`, `EthernetDevice`,
+  `NetworkInfoResponse`, `CredentialPrompt` and `FieldInfo` against `golden/network_tags.json`, which was
+  taken from DMS's `network/types.go` at 8be08999 (fetched from raw.githubusercontent.com: no DMS checkout
+  was present, so `extract_go_tags.py` was not run); every error text (`golden/network_errors.json`) and
+  every `not supported` text (`golden/network_unsupported.json`, generated from the table in
+  `mod_network_unsupported.c3`, so it checks the file against the table, not against DMS); connect, wrong
+  and right passphrase, cancel, token reuse, the radio, forget, autoconnect, scan and `network.info`; the
+  `network` and `network.credentials` frames. Then clean shutdown on SIGTERM, an absent NetworkManager
+  (not advertised, reported once), and `--module-off network`.
 * `tools/check-apps.sh dmsd` (the four POSIX targets) passed on a copy of the tree with this module,
   `loginctl` and `brightness`; the shared tree did not compile as a whole while other modules were in
   progress. On the same copy, `run.sh` passed its unit tests, build, sleep barrier, shutdown and the
@@ -459,6 +539,15 @@ against the QML code itself).
 
 ## Found in the libraries (not fixed here)
 
+* `bleu_network` `connect`: a connection to a network that is not in the last scan, or whose security is
+  unknown, is refused on the worker thread, after the reply. dmsd checks the same two things before
+  queueing (`check_joinable`), so the refusal reaches the caller.
+* `bleu_network` `set_autoconnect` and `forget`: the state is not republished until the next re-read
+  (the poll interval, 5 s by default), so `saved` and `autoconnect` would lag a change. dmsd calls
+  `refresh` after both.
+* `bleu_network` `forget`, `set_autoconnect` and `supply_credentials` complete with bare excuses
+  (`NOT_FOUND~`) that carry no message, so the reason of a NOT_FOUND is the caller's own text.
+  `contract::failure_text` would otherwise return an earlier request's message on that thread.
 * `bleu_ipc`: a frame is labelled with its topic's name, so DMS's `browser` service (frames
   `browser.open_requested`) cannot be served as DMS names it (Differences, item 16).
 * `bleu_input`: no lock-key (caps lock) state; the v1 cut in its README. evdev is refused for this.

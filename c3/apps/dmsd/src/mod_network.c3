@@ -86,7 +86,7 @@ fn bool start(contract::Context* context, contract::Module* self)
 	NetworkModule* m = alloc::new(context.allocator, NetworkModule);
 	m.service = service;
 	m.backend_name = service.backend_name();
-	ipc::Topic* state_topic = context.server.register_topic("network")!!;
+	ipc::Topic* state_topic  = context.server.register_topic("network")!!;
 	ipc::Topic* prompt_topic = context.server.register_topic("network.credentials")!!;
 	context.server.register_method("network.getState", &handle_get_state, m)!!;
 	context.server.register_method("network.wifi.networks", &network_actions::handle_wifi_networks, service)!!;
@@ -97,10 +97,22 @@ fn bool start(contract::Context* context, contract::Module* self)
 	context.server.register_method("network.wifi.toggle", &network_actions::handle_wifi_toggle, service)!!;
 	context.server.register_method("network.wifi.enable", &network_actions::handle_wifi_enable, service)!!;
 	context.server.register_method("network.wifi.disable", &network_actions::handle_wifi_disable, service)!!;
-	context.server.register_method("network.wifi.setAutoconnect", &network_actions::handle_wifi_set_autoconnect, service)!!;
+	context.server.register_method(
+		"network.wifi.setAutoconnect",
+		&network_actions::handle_wifi_set_autoconnect,
+		service
+	)!!;
 	context.server.register_method("network.info", &network_actions::handle_info, service)!!;
-	context.server.register_method("network.credentials.submit", &network_actions::handle_credentials_submit, service)!!;
-	context.server.register_method("network.credentials.cancel", &network_actions::handle_credentials_cancel, service)!!;
+	context.server.register_method(
+		"network.credentials.submit",
+		&network_actions::handle_credentials_submit,
+		service
+	)!!;
+	context.server.register_method(
+		"network.credentials.cancel",
+		&network_actions::handle_credentials_cancel,
+		service
+	)!!;
 	network_unsupported::register_unsupported(context.server);
 	m.state_pump.start("network", state_topic, &encode_state, m)!!;
 	m.prompts.start("network.credentials", prompt_topic, events)!!;

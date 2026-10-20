@@ -20,22 +20,43 @@ struct Unsupported
 // Cellular: no ModemManager backend. VPN and hotspot: not in bleu_network v1 (docs/research/network.md section 6).
 // The QR codes need a saved passphrase, which Bleu never reads, and bleu has no QR encoder.
 const Unsupported[32] UNSUPPORTED = {
-	{ .method = "network.ethernet.connect", .message = "not supported: bleu_network cannot activate a wired connection" },
-	{ .method = "network.ethernet.connect.config", .message = "not supported: bleu_network cannot activate a wired connection profile" },
-	{ .method = "network.ethernet.disconnect", .message = "not supported: bleu_network cannot disconnect a wired interface" },
-	{ .method = "network.ethernet.info", .message = "not supported: bleu_network does not report wired profiles, addresses or DNS" },
+	{
+		.method = "network.ethernet.connect",
+		.message = "not supported: bleu_network cannot activate a wired connection"
+	},
+	{
+		.method = "network.ethernet.connect.config",
+		.message = "not supported: bleu_network cannot activate a wired connection profile"
+	},
+	{
+		.method = "network.ethernet.disconnect",
+		.message = "not supported: bleu_network cannot disconnect a wired interface"
+	},
+	{
+		.method = "network.ethernet.info",
+		.message = "not supported: bleu_network does not report wired profiles, addresses or DNS"
+	},
 	{ .method = "network.cellular.connect", .message = "not supported: bleu_network has no cellular service" },
 	{ .method = "network.cellular.connect.config", .message = "not supported: bleu_network has no cellular service" },
 	{ .method = "network.cellular.disconnect", .message = "not supported: bleu_network has no cellular service" },
 	{ .method = "network.cellular.toggle", .message = "not supported: bleu_network has no cellular service" },
 	{ .method = "network.cellular.enable", .message = "not supported: bleu_network has no cellular service" },
 	{ .method = "network.cellular.disable", .message = "not supported: bleu_network has no cellular service" },
-	{ .method = "network.preference.set", .message = "not supported: bleu_network does not choose the route; the OS does" },
-	{ .method = "network.qrcode", .message = "not supported: bleu_network does not read saved passphrases, so it cannot make a QR code" },
+	{
+		.method = "network.preference.set",
+		.message = "not supported: bleu_network does not choose the route; the OS does"
+	},
+	{
+		.method = "network.qrcode",
+		.message = "not supported: bleu_network does not read saved passphrases, so it cannot make a QR code"
+	},
 	{ .method = "network.qrcode-content", .message = "not supported: bleu_network does not read saved passphrases" },
 	{ .method = "network.generate-qrcode", .message = "not supported: bleu_network has no QR code encoder" },
 	{ .method = "network.delete-qrcode", .message = "not supported: bleu_network writes no QR code files" },
-	{ .method = "network.subscribe", .message = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"network\", \"network.credentials\"] instead" },
+	{
+		.method = "network.subscribe",
+		.message = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"network\", \"network.credentials\"] instead"
+	},
 	{ .method = "network.vpn.profiles", .message = "not supported: bleu_network has no VPN service" },
 	{ .method = "network.vpn.active", .message = "not supported: bleu_network has no VPN service" },
 	{ .method = "network.vpn.connect", .message = "not supported: bleu_network has no VPN service" },
