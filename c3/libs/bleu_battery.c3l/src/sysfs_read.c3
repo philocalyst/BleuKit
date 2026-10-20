@@ -101,11 +101,12 @@ fn Source? read_supply(Allocator allocator, String root, String name)
 		);
 	}
 
-	// Flow: power_now (µW), else current_now (µA) x voltage; signed by direction of flow.
+	// Flow, positive into the battery. power_now is a magnitude, so its direction comes from the
+	// status; current_now is signed by the kernel (negative while discharging) and needs no status.
 	MilliWatt? flow;
 	if (try v = supply.number("power_now"))
 	{
-		flow = (MilliWatt)(v / 1000);
+		flow = flow_from_power(v, source.state);
 	}
 	else if (try c = supply.number("current_now"))
 	{
@@ -113,8 +114,8 @@ fn Source? read_supply(Allocator allocator, String root, String name)
 	}
 	if (try f = flow)
 	{
+		source.power = maybe::value(f);
 		long magnitude = (long)f < 0 ? -(long)f : (long)f;
-		source.power = maybe::value((MilliWatt)(source.state == DISCHARGING ? -magnitude : magnitude));
 		if (source.energy.has_value && source.energy_full.has_value)
 		{
 			if (source.state == DISCHARGING)
@@ -136,8 +137,9 @@ fn Source? read_supply(Allocator allocator, String root, String name)
 }
 
 <*
- Read every supply under `root` into `list`. Sorted by id so the result is
- deterministic and snapshots compare equal when nothing changed.
+ Read every supply under `root`. Sorted by id so the result is deterministic and snapshots
+ compare equal when nothing changed. A supply that cannot be read is left out and the
+ reading says so (DEGRADED); a supply without a `type` is not a device and is not counted.
 *>
 fn State? read_all(Allocator allocator, String root)
 {
@@ -146,34 +148,25 @@ fn State? read_all(Allocator allocator, String root)
 		PathList names = fs::list_dir(tmem, string::tformat("%s%s", root, SUPPLY_DIR))!;
 		List{Source} sources;
 		sources.init(tmem);
+		usz skipped = 0;
 		foreach (name : names)
 		{
 			Source? source = read_supply(allocator, root, (String)name);
-			if (catch err = source) continue; // not a real device (yet), or vanished while reading
+			if (catch err = source)
+			{
+				// Not a real device (yet), or it vanished while reading: nothing to report.
+				if (err != NOT_FOUND) skipped++;
+				continue;
+			}
 			sources.push(source);
 		}
-		sort_by_id(sources.array_view());
+		battery::sort_by_id(sources.array_view());
 		State state = { .sources = alloc::clone_slice(allocator, sources.array_view()) };
+		state.reading = battery::reading_after(skipped);
 		foreach (&s : state.sources)
 		{
 			if (s.kind == MAINS && s.present) state.on_mains = true;
 		}
 		return state;
 	};
-}
-
-// Insertion sort: there are a handful of supplies.
-fn void sort_by_id(Source[] sources) @local
-{
-	for (sz i = 1; i < sources.len; i++)
-	{
-		Source key = sources[i];
-		sz j       = i - 1;
-		while (j >= 0 && sources[j].id.compare_to(key.id) > 0)
-		{
-			sources[j + 1] = sources[j];
-			j--;
-		}
-		sources[j + 1] = key;
-	}
 }

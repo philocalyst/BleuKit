@@ -148,7 +148,7 @@ fn fault fault_from_cw_error(long code)
 		case -3900: return error::INVALID_ARGUMENT;  // kCWInvalidParameterErr
 		case -3903: return error::UNSUPPORTED;  // kCWNotSupportedErr
 		case -3905: return TIMEOUT;  // kCWTimeoutErr
-		case -3909:  // kCWAssociationDeniedErr
+		case -3909: return error::PERMISSION_DENIED;  // kCWAssociationDeniedErr: the access point refused this client (MAC filter, client limit)
 		case -3910:  // kCWAuthenticationAlgorithmUnsupportedErr
 		case -3912:  // kCWChallengeFailureErr
 		case -3923:  // kCWCipherSuiteRejectedErr
@@ -157,4 +157,28 @@ fn fault fault_from_cw_error(long code)
 		case -3930: return error::PERMISSION_DENIED;  // kCWOperationNotPermittedErr
 		default: return error::BACKEND_FAILURE;
 	}
+}
+
+<*
+ Whether this Mac has an association, judged without the fields Location Services
+ withholds. CoreWLAN withholds the SSID, its data, the BSSID and the country code
+ (objc2-core-wlan 0.3.0 CWInterface.rs lines 81-116, "not available unless Location
+ Services is enabled and the user has authorized the calling app"); the signal and
+ the transmit rate are not listed there. So an association is one with a visible name
+ or BSSID, or with a non-zero signal or rate. Unverified on a Mac.
+*>
+fn bool is_associated(bool has_ssid, bool has_bssid, long rssi, double transmit_rate)
+{
+	return has_ssid || has_bssid || rssi != 0 || transmit_rate > 0.0;
+}
+
+<*
+ The failure for a network the last scan did not show. While the names are withheld
+ (`withheld_seen`: the scan has networks with no name) and Location Services does not
+ authorize this app, the network may well be there: PERMISSION_DENIED, so the caller can
+ say what to do. Otherwise NOT_FOUND.
+*>
+fn fault missing_network_fault(LocationAccess location, bool withheld_seen)
+{
+	return location != LocationAccess.AUTHORIZED && withheld_seen ? error::PERMISSION_DENIED : NOT_FOUND;
 }

@@ -81,10 +81,11 @@ fn Source? read_device(Allocator allocator, Connection* connection, String path)
 	proxy::Proxy device = proxy::for_object(connection, UPOWER_NAME, path, DEVICE_INTERFACE)!;
 	Value props         = device.get_all_properties(tmem)!;
 	uint type           = prop_u32(props, "Type") ?? TYPE_UNKNOWN;
+	bool power_supply   = prop_bool(props, "PowerSupply") ?? true;
 	String native       = prop_text(props, "NativePath", allocator);
 	Source source = {
 		.id = native.len > 0 ? native : path.copy(allocator),
-		.kind = device_kind(type),
+		.kind = device_kind(type, power_supply),
 		.present = true,
 	};
 	if (source.kind == MAINS)
@@ -133,18 +134,31 @@ fn State? read_all(Allocator allocator, Connection* connection)
 		Value paths          = body.read_value(tmem)!;
 		List{Source} sources;
 		sources.init(tmem);
+		usz skipped = 0;
 		for (usz i = 0; i < paths.count(); i++)
 		{
+			// A device that vanishes between enumeration and reading is left out, and the reading says so.
 			if (try path = object_path_at(paths, i))
 			{
-				// A device that vanishes between enumeration and reading is skipped.
-				if (try source = read_device(allocator, connection, path)) sources.push(source);
+				if (try source = read_device(allocator, connection, path))
+				{
+					sources.push(source);
+				}
+				else
+				{
+					skipped++;
+				}
+			}
+			else
+			{
+				skipped++;
 			}
 		}
 		State state = { };
+		state.reading = battery::reading_after(skipped);
 		if (sources.array_view().len > 0)
 		{
-			sort_by_id(sources.array_view());
+			battery::sort_by_id(sources.array_view());
 			state.sources = alloc::clone_slice(allocator, sources.array_view());
 		}
 		foreach (&source : state.sources)

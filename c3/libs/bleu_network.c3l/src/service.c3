@@ -21,6 +21,9 @@ alias Capabilities = EnumMap{Cap, Availability};
 <* Default period of the periodic re-read, in microseconds (time::sec() cannot initialise a global). *>
 const Duration DEFAULT_POLL = (Duration)5_000_000;
 
+<* Most commands that may wait for the worker of one service. *>
+const usz COMMAND_QUEUE = 256;
+
 <*
  Longest wait for a backend's first publication when opening. The backend
  publishes after its setup (bus, secret agent), so this bounds that setup.
@@ -82,7 +85,7 @@ fn Network*? open(Allocator allocator, Options options = { })
 			driver.info.name,
 			driver.run,
 			self.driver_state,
-			service::DEFAULT_QUEUE,
+			COMMAND_QUEUE,
 			&abandon_command
 		))
 		{
@@ -146,8 +149,12 @@ fn WatchId{State} Network.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Network.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove (or one it runs inside)"
+*>
+fn void? Network.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events. Overflow is reported by `Reader.take_dropped`: re-read the state then. *>
 fn Reader{Event}*? Network.subscribe(&self) => self.hub.events.subscribe();

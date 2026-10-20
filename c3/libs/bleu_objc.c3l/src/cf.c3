@@ -159,7 +159,7 @@ fn String? string_value(CFTypeRef string, Allocator allocator)
 	CFIndex capacity = cf_string_max_size(cf_string_length(string), CF_STRING_ENCODING_UTF8) + NUL_BYTES;
 	// The scratch buffer comes from the heap, and no pool is opened: the copy goes to
 	// `allocator`, which may be `tmem`, so it must not be released before the caller's pool.
-	char[] scratch = alloc::new_array(mem, char, (sz)capacity);
+	char[] scratch   = alloc::new_array(mem, char, (sz)capacity);
 	defer alloc::free(mem, scratch.ptr);
 	if (!cf_string_get_cstring(string, scratch.ptr, capacity, CF_STRING_ENCODING_UTF8))
 	{
@@ -198,12 +198,11 @@ fn long? number_long(CFTypeRef number)
 		"not a CFNumber"
 	)~;
 	long value = 0;
-	if (!cf_number_get_value(number, CF_NUMBER_SINT64, &value)) return error::raise(
-		error::OUT_OF_RANGE,
-		error::Domain.INTERNAL,
-		0,
-		"CFNumber is not an exact 64-bit integer"
-	)~;
+	if (!cf_number_get_value(
+		number,
+		CF_NUMBER_SINT64,
+		&value
+	)) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "CFNumber is not an exact 64-bit integer")~;
 	return value;
 }
 
@@ -371,12 +370,12 @@ fn Plain? list_to_plain(CFTypeRef array, Allocator allocator, int depth) @local
 <* Convert a CFDictionary at `depth`, refusing non-string keys. *>
 fn Plain? map_to_plain(CFTypeRef dictionary, Allocator allocator, int depth) @local
 {
-	sz count      = dictionary_count(dictionary);
-	Plain[] items = alloc::new_array(allocator, Plain, count);
-	String[] keys = alloc::new_array(allocator, String, count);
+	sz count             = dictionary_count(dictionary);
+	Plain[] items        = alloc::new_array(allocator, Plain, count);
+	String[] keys        = alloc::new_array(allocator, String, count);
 	// The raw references are scratch: they come from the heap, because the results
 	// are allocated from `allocator` (which may be `tmem`) and no pool may be open here.
-	CFTypeRef[] raw_keys   = alloc::new_array(mem, CFTypeRef, count);
+	CFTypeRef[] raw_keys = alloc::new_array(mem, CFTypeRef, count);
 	defer alloc::free(mem, raw_keys.ptr);
 	CFTypeRef[] raw_values = alloc::new_array(mem, CFTypeRef, count);
 	defer alloc::free(mem, raw_values.ptr);

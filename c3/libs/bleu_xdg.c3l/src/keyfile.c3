@@ -33,9 +33,34 @@
  the specification.
 *>
 module bleu::xdg::keyfile;
-import bleu::error, std::collections::list;
+import bleu::error, std::io, std::collections::list;
+
+<*
+ The largest key file read from disk, in bytes. Desktop entries, index.theme and the
+ MIME association lists are a few kilobytes. A directory a user can write to must not
+ make the reader load a gigabyte.
+*>
+const long MAX_FILE_BYTES = 1024 * 1024;
 
 const char LIST_SEPARATOR      = ';';
+const uint UTF8_ONE_BYTE_LIMIT   = 0x80;
+const uint UTF8_TWO_BYTE_LIMIT   = 0x800;
+const uint UTF8_THREE_BYTE_LIMIT = 0x10000;
+const uint UTF8_MAX_CODE_POINT   = 0x10FFFF;
+const uint UTF8_FIRST_SURROGATE  = 0xD800;
+const uint UTF8_LAST_SURROGATE   = 0xDFFF;
+const uint UTF8_TWO_FIRST        = 0xC2;
+const uint UTF8_TWO_LAST         = 0xDF;
+const uint UTF8_THREE_FIRST      = 0xE0;
+const uint UTF8_THREE_LAST       = 0xEF;
+const uint UTF8_FOUR_FIRST       = 0xF0;
+const uint UTF8_FOUR_LAST        = 0xF4;
+const uint UTF8_TWO_MASK         = 0x1F;
+const uint UTF8_THREE_MASK       = 0x0F;
+const uint UTF8_FOUR_MASK        = 0x07;
+const uint UTF8_CONTINUATION_TAG  = 0x80;
+const uint UTF8_CONTINUATION_MASK = 0x3F;
+const uint UTF8_CONTINUATION_BITS = 6;
 const char ESCAPE              = '\\';
 const char COMMENT_START       = '#';
 const char GROUP_OPEN          = '[';
@@ -114,6 +139,8 @@ fn KeyFile? parse(Allocator allocator, String source) => parse_with(allocator, s
 *>
 fn KeyFile? parse_with(Allocator allocator, String source, KeySyntax syntax)
 {
+	// The file is UTF-8, and GLib refuses other bytes too; they would reach names and values as they are.
+	if (!well_formed_utf8(source)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "the key file is not UTF-8")~;
 	KeyFile file = { .allocator = allocator, .text = source.copy(allocator) };
 	file.groups.init(allocator);
 	defer catch file.free();
@@ -583,4 +610,98 @@ fn String[]? decode_list(String raw, Allocator allocator) @local
 	}
 	if (has_characters) items.push(current.str_view().copy(allocator));
 	return items.to_aligned_array(allocator);
+}
+
+<*
+ The whole key file at `path`, in temporary memory. A file over `MAX_FILE_BYTES` is
+ refused before it is read. Errors keep the OS's kind: a missing file is NOT_FOUND and
+ a refused one is PERMISSION_DENIED; other failures are BACKEND_FAILURE.
+
+ @return? NOT_FOUND : "The file does not exist"
+ @return? error::PERMISSION_DENIED : "The OS refuses to read the file"
+ @return? error::OUT_OF_RANGE : "The file is larger than `MAX_FILE_BYTES`"
+ @return? error::BACKEND_FAILURE : "The file exists but could not be read for another reason"
+*>
+fn char[]? load_file(String path)
+{
+	char[]? bytes = read_capped(path);
+	if (catch err = bytes)
+	{
+		if (err == io::FILE_NOT_FOUND || err == io::PATH_COULD_NOT_BE_FOUND) return NOT_FOUND~;
+		if (err == io::NO_PERMISSION) return error::PERMISSION_DENIED~;
+		if (err == error::OUT_OF_RANGE) return err~;
+		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "could not read %s", path)~;
+	}
+	return bytes;
+}
+
+// `path` read whole, after its size has been checked against `MAX_FILE_BYTES`.
+fn char[]? read_capped(String path) @local
+{
+	long size = io::file::get_size(path)!;
+	if (size > MAX_FILE_BYTES) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"%s is %d bytes, more than the %d the reader accepts",
+		path,
+		size,
+		MAX_FILE_BYTES
+	)~;
+	return io::file::load(tmem, path);
+}
+
+// The UTF-8 length of the sequence at byte `at`, or 0 when it is not well formed
+// (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF).
+fn usz utf8_length_at(String bytes, usz at) @local
+{
+	uint lead = (uint)(bytes[at] & 0xFF);
+	if (lead < UTF8_ONE_BYTE_LIMIT) return 1;
+	usz width;
+	uint value;
+	uint minimum;
+	if (lead >= UTF8_TWO_FIRST && lead <= UTF8_TWO_LAST)
+	{
+		width = 2;
+		value = lead & UTF8_TWO_MASK;
+		minimum = UTF8_ONE_BYTE_LIMIT;
+	}
+	else if (lead >= UTF8_THREE_FIRST && lead <= UTF8_THREE_LAST)
+	{
+		width = 3;
+		value = lead & UTF8_THREE_MASK;
+		minimum = UTF8_TWO_BYTE_LIMIT;
+	}
+	else if (lead >= UTF8_FOUR_FIRST && lead <= UTF8_FOUR_LAST)
+	{
+		width = 4;
+		value = lead & UTF8_FOUR_MASK;
+		minimum = UTF8_THREE_BYTE_LIMIT;
+	}
+	else
+	{
+		return 0;
+	}
+	if (at + width > bytes.len) return 0;
+	for (usz i = 1; i < width; i++)
+	{
+		uint continuation = (uint)(bytes[at + i] & 0xFF);
+		if ((continuation & ~UTF8_CONTINUATION_MASK) != UTF8_CONTINUATION_TAG) return 0;
+		value = (value << UTF8_CONTINUATION_BITS) | (continuation & UTF8_CONTINUATION_MASK);
+	}
+	if (value < minimum || value > UTF8_MAX_CODE_POINT || (value >= UTF8_FIRST_SURROGATE && value <= UTF8_LAST_SURROGATE)) return 0;
+	return width;
+}
+
+// Whether `bytes` is well-formed UTF-8 throughout.
+fn bool well_formed_utf8(String bytes) @local
+{
+	usz at = 0;
+	while (at < bytes.len)
+	{
+		usz width = utf8_length_at(bytes, at);
+		if (width == 0) return false;
+		at += width;
+	}
+	return true;
 }

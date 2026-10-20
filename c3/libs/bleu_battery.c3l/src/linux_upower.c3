@@ -30,6 +30,7 @@ struct Backend
 	Connection connection;
 	bool connected;
 	bool changed;
+	Startup* startup;
 }
 
 const Driver DRIVER = {
@@ -57,21 +58,19 @@ fn bool probe(Options* options)
 	return false;
 }
 
-fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
+fn void*? create(Allocator allocator, Options options, Capabilities* capabilities, Startup* startup)
 {
 	capabilities.init(availability::YES);
 	capabilities.set(
 		Cap.TEMPERATURE,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"Reported only by devices whose kernel driver exposes a temperature"
-		)
+		battery::degraded("Reported only by devices whose kernel driver exposes a temperature")
 	);
-	capabilities.set(
-		Cap.CYCLES,
-		availability::no(availability::Reason.DEGRADED, "ChargeCycles is -1 where the driver does not report it")
+	capabilities.set(Cap.CYCLES, battery::degraded("ChargeCycles is -1 where the driver does not report it"));
+	Backend* backend = alloc::new(
+		allocator,
+		Backend,
+		{ .allocator = allocator, .poll = options.poll, .startup = startup }
 	);
-	Backend* backend = alloc::new(allocator, Backend, { .allocator = allocator, .poll = options.poll });
 	return backend;
 }
 
@@ -114,7 +113,13 @@ fn void? connect(Backend* backend, Poller* poller)
 		backend.connection.free();
 		return err~;
 	}
-	int fd = backend.connection.fd()!;
+	int? fd = backend.connection.fd();
+	if (catch err = fd)
+	{
+		backend.connection.close();
+		backend.connection.free();
+		return err~;
+	}
 	if (catch err = poller.add({ .handle = (rt::Native)fd, .interest = { .readable = true }, .tag = CONNECTION_TAG }))
 	{
 		backend.connection.close();
@@ -158,30 +163,34 @@ fn State? read_current(Backend* backend, Allocator allocator)
 	return read_all(allocator, &backend.connection);
 }
 
-<* Publish the state now. An unreadable UPower is an empty state: nothing is known. *>
+<* Read UPower now and publish the result. A failed read keeps the last good state, marked stale. *>
 fn void refresh(Backend* backend, BatteryHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
-	if (try state = read_current(backend, snapshot.allocator()))
+	State? state              = read_current(backend, snapshot.allocator());
+	if (catch err = state)
 	{
-		snapshot.value = state;
+		battery::publish_failure(hub, snapshot);
+		return;
 	}
-	else
-	{
-		snapshot.value = { };
-	}
-	hub.publish_if_changed(snapshot);
+	snapshot.value = state;
+	battery::publish_reading(hub, snapshot);
 }
 
 fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 {
 	Backend* backend = (Backend*)state;
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 1)) return;
+	if (catch err = poller.init(mem, host.wakeup(), 1))
+	{
+		backend.startup.fail(err);
+		return;
+	}
 	defer poller.free();
+	backend.startup.succeed();
 	if (catch connect(backend, &poller))
 	{
-		// UPower is not reachable yet: each poll tick tries again, and the state stays empty.
+		// UPower is not reachable yet: each poll tick tries again; until it answers there is no reading.
 	}
 	refresh(backend, hub);
 	Command[8] commands;
@@ -208,7 +217,7 @@ fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 		{
 			if (catch connect(backend, &poller))
 			{
-				// Still unreachable; the empty state stands.
+				// Still unreachable; the next poll tick tries again.
 			}
 		}
 		if (timed_out || requested || backend.changed)

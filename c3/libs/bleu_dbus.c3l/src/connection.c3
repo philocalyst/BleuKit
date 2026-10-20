@@ -9,10 +9,22 @@
 
  I/O is non-blocking except for `call`, which is blocking by design. An event
  loop watches `fd()` for readability, and also for writability while
- `has_pending_output()`, and calls `process()`. `call` pumps the connection
- until its reply arrives; every other message it reads is queued for the next
- `process()`, not dropped. Handlers run inside `process()` and must not call
- `process()` or `close()` themselves.
+ `has_pending_output()`, and calls `process()`. `process()` reads at most
+ `MAX_READS_PER_PROCESS` times, so a poller must be level-triggered (poll(2),
+ select(2), or epoll in level mode): the descriptor stays readable while data
+ is left, and the next call takes it.
+
+ Handlers and when they run. A handler is a callback the library runs for
+ something that arrived: a reply (`ReplyHandler`), a signal (`SignalHandler`), an
+ incoming method call (`IncomingCallHandler`), a name change (`NameHandler`), or a
+ close (`CloseHandler`). They run only in three places:
+ * inside `process()`;
+ * at the end of the outermost public operation that read from the socket (`call`,
+ `open_address`, and the bus methods), once that operation's own work is complete,
+ never between two of its steps (see `begin_operation`);
+ * for an incoming method call, inside the blocking `call` that received it, because
+ the peer may be waiting for that answer. The call is answered there and then.
+ While a handler runs, nothing else is dispatched, and `process()` is refused.
 
  When the peer closes the socket, or sends malformed data, the connection is
  closed: every later call reports DISCONNECTED until `open_*` is called again.
@@ -45,6 +57,15 @@ const PEER_INTERFACE = "org.freedesktop.DBus.Peer";
 <* Bytes read from the socket per receive call. *>
 const RECEIVE_CHUNK = 16384;
 
+<*
+ Socket reads one `process()` call may make. The socket stays readable while data
+ is left, so a level-triggered poller calls again.
+*>
+const MAX_READS_PER_PROCESS = 16;
+
+<* Read budget of a blocking call, which reads until its reply, its timeout, or the end. *>
+const UNBOUNDED_READS = 0;
+
 <* Identifier of a signal subscription, for `unsubscribe`. *>
 typedef SubscriptionId = uint;
 
@@ -70,6 +91,19 @@ alias ReplyHandler = fn void(void* context, Message* reply, error::Status status
  this to serve exported objects.
 *>
 alias IncomingCallHandler = fn bool(void* context, Message* call);
+
+<*
+ Called once when the connection closes, after its state has been reset. The
+ connection is closed while the handler runs. See `watch_close`.
+*>
+alias CloseHandler = fn void(void* context);
+
+<* A registration made with `Connection.watch_close`. *>
+struct CloseWatch
+{
+	CloseHandler handler;
+	void* context;
+}
 
 <* A call that was sent and has not been answered yet. *>
 struct PendingCall
@@ -127,12 +161,21 @@ struct Connection
 	usz sent;
 	List{OutboundFds} outbound_fds;
 	DString inbox;
+	// Stream offset of the first byte of `inbox`: the bytes of every earlier frame, all parsed.
+	usz parsed_bytes;
 	bool dispatching; // inside a handler: calls made now must not dispatch again
+	uint depth;       // operations in progress; the outermost one dispatches what it read
 	List{int} descriptors;
+	// The stream offset each descriptor arrived with, in step with `descriptors`.
+	List{usz} descriptor_at;
 	List{Message*} deferred;
+	// Serials of blocking calls in progress, and the replies to them that arrived during another call.
+	List{uint} awaiting;
+	List{Message*} stashed;
 	List{PendingCall} pending;
 	List{Subscription*} subscriptions;
 	List{NameOwner*} names;
+	List{CloseWatch} close_watches;
 	IncomingCallHandler incoming_handler;
 	void* incoming_context;
 }
@@ -156,10 +199,14 @@ fn void Connection.init(&self, Allocator allocator)
 	self.inbox.init(allocator);
 	self.outbound_fds.init(allocator);
 	self.descriptors.init(allocator);
+	self.descriptor_at.init(allocator);
 	self.deferred.init(allocator);
+	self.awaiting.init(allocator);
+	self.stashed.init(allocator);
 	self.pending.init(allocator);
 	self.subscriptions.init(allocator);
 	self.names.init(allocator);
+	self.close_watches.init(allocator);
 }
 
 <* Close the connection if it is open, and release everything it holds. *>
@@ -172,10 +219,14 @@ fn void Connection.free(&self)
 	self.inbox.free();
 	self.outbound_fds.free();
 	self.descriptors.free();
+	self.descriptor_at.free();
 	self.deferred.free();
+	self.awaiting.free();
+	self.stashed.free();
 	self.pending.free();
 	self.subscriptions.free();
 	self.names.free();
+	self.close_watches.free();
 }
 
 // Asserts, in debug builds, that the caller is the thread that owns this connection.
@@ -226,6 +277,8 @@ fn void? Connection.open_address(&self, String addresses)
 {
 	self.check_owner();
 	if (self.is_open) return error::INVALID_STATE~;
+	begin_operation(self);
+	defer end_operation(self);
 	@pool()
 	{
 		Endpoint[] endpoints = address::parse_addresses(tmem, addresses)!;
@@ -276,7 +329,11 @@ fn void? say_hello(Connection* c) @private
 	c.unique_name.append_string(r.read_string()!);
 }
 
-<* Close the connection. Pending calls fail with DISCONNECTED. Idempotent. *>
+<*
+ Close the connection. Pending calls fail with DISCONNECTED, and each name held
+ through `own_name` is lost (its `on_lost` runs). Idempotent. Called from a handler,
+ it ends the connection at once: the rest of the queue is dropped.
+*>
 fn void Connection.close(&self)
 {
 	self.check_owner();
@@ -291,15 +348,24 @@ fn void Connection.close(&self)
 *>
 fn int? Connection.fd(&self)
 {
+	self.check_owner();
 	if (!self.is_open) return error::INVALID_STATE~;
 	return self.socket_fd;
 }
 
 <* True while queued bytes wait for the socket to take them. *>
-fn bool Connection.has_pending_output(&self) @inline => self.sent < (usz)self.outbound.len();
+fn bool Connection.has_pending_output(&self) @inline
+{
+	self.check_owner();
+	return self.sent < (usz)self.outbound.len();
+}
 
 <* The unique name of this connection on the bus, or empty while closed. *>
-fn String Connection.name_on_bus(&self) @inline => self.unique_name.str_view();
+fn String Connection.name_on_bus(&self) @inline
+{
+	self.check_owner();
+	return self.unique_name.str_view();
+}
 
 <*
  Queue `message` for sending and write as much as the socket takes now. The
@@ -320,9 +386,12 @@ fn uint? Connection.send(&self, Message* message)
 }
 
 <*
- Send `message` and block until its reply arrives or `timeout` passes. Other
- messages read in the meantime are dispatched to their handlers before this returns
- (except when called from inside a handler, where they wait for the next `process()`).
+ Send `message` and block until its reply arrives or `timeout` passes. While it
+ waits, incoming method calls are answered at once (by the incoming handler, or by
+ the default answer), so that two peers calling each other do not wait for each
+ other until their timeouts. Signals and other replies read in the meantime are
+ dispatched to their handlers when this returns (or, when called from a handler,
+ at the next `process()`).
 
  @return "The METHOD_RETURN; the caller releases it"
  @return? error::DISCONNECTED : "The connection closed before the reply arrived"
@@ -332,28 +401,33 @@ fn uint? Connection.send(&self, Message* message)
 fn Message*? Connection.call(&self, Message* message, Duration timeout = time::ms(DEFAULT_TIMEOUT_MS))
 {
 	self.check_owner();
-	Message*? reply = call(self, message, timeout);
-	// Signals and calls that arrived while waiting would otherwise sit in the queue until the
-	// next process(), which a poller on fd() never triggers: run them now, unless this call was
-	// itself made from a handler (handlers are not re-entered).
-	if (!self.dispatching && self.is_open) dispatch(self);
-	return reply;
+	begin_operation(self);
+	defer end_operation(self);
+	return call(self, message, timeout);
 }
 
-// The blocking call, shared with the handshake.
+// The blocking call, shared with the handshake and the library's own bus methods.
 fn Message*? call(Connection* c, Message* message, Duration timeout) @private
 {
 	if (!c.is_open) return error::DISCONNECTED~;
 	uint serial       = queue_message(c, message)!;
 	Deadline deadline = deadline::after(timeout);
-	Message* reply    = null;
+	await(c, serial);
+	defer unawait(c, serial);
+	Message* reply = null;
 	while (true)
 	{
 		if (catch err = flush(c)) return drop(c, err)~;
-		bool eof = read_available(c)!!;
-		if (catch err = parse_inbox(c, serial, &reply)) return drop(c, err)~;
+		bool? eof = receive(c, serial, &reply, UNBOUNDED_READS);
+		if (catch err = eof)
+		{
+			if (reply != null) reply.release();
+			return drop(c, err)~;
+		}
+		if (reply == null) take_stashed(c, serial, &reply);
 		if (reply != null) return finish_reply(reply);
 		if (eof) return drop(c, error::DISCONNECTED)~;
+		if (!c.is_open) return error::DISCONNECTED~;
 		if (deadline.expired()) return TIMEOUT~;
 		transport::wait(c.socket_fd, true, c.has_pending_output(), deadline.remaining());
 	}
@@ -373,6 +447,9 @@ fn Message*? finish_reply(Message* reply) @private
  from `process()`, once the reply arrives or `timeout` passes. If the connection
  closes first the handler runs with DISCONNECTED, possibly before this returns.
 
+ A failure while writing closes the connection, and the handler then runs with
+ DISCONNECTED. The call was accepted, so that failure is not returned as well.
+
  @return? error::DISCONNECTED : "The connection is not open"
 *>
 fn void? Connection.call_async(
@@ -389,24 +466,29 @@ fn void? Connection.call_async(
 	self.pending.push(
 		{ .serial = serial, .deadline = deadline::after(timeout), .handler = handler, .context = context }
 	);
-	if (catch err = flush(self)) return drop(self, err)~;
+	if (catch flush(self)) reset(self);
 }
 
 <*
  Do what is possible without blocking: write queued output, read what the
- socket holds, parse complete messages, expire calls past their timeout, and
- run the handlers of everything received.
+ socket holds (at most `MAX_READS_PER_PROCESS` reads), parse complete messages,
+ expire calls past their timeout, and run the handlers of everything received.
 
+ @return? error::INVALID_STATE : "Called from a handler; the handler is already inside process()"
  @return? error::DISCONNECTED : "The peer closed the connection, or the connection was already closed"
  @return? error::PROTOCOL : "The peer sent malformed data; the connection is closed"
+ @return? error::BACKEND_FAILURE : "The socket failed; the connection is closed"
 *>
 fn void? Connection.process(&self)
 {
 	self.check_owner();
+	if (self.dispatching) return error::INVALID_STATE~;
 	if (!self.is_open) return error::DISCONNECTED~;
+	begin_operation(self);
+	defer end_operation(self);
 	if (catch err = flush(self)) return drop(self, err)~;
-	bool eof = read_available(self)!!;
-	if (catch err = parse_inbox(self, 0, null)) return drop(self, err)~;
+	bool? eof = receive(self, 0, null, MAX_READS_PER_PROCESS);
+	if (catch err = eof) return drop(self, err)~;
 	expire_calls(self);
 	dispatch(self);
 	if (eof || !self.is_open) return drop(self, error::DISCONNECTED)~;
@@ -471,7 +553,8 @@ fn void? flush_blocking(Connection* c, Deadline deadline) @private
 	}
 }
 
-// The next line of the handshake, copied out of the input buffer.
+// The next line of the handshake, copied out of the input buffer. The handshake is not
+// framed, so its reads are not bounded by frames.
 fn String? read_line(Connection* c, Deadline deadline) @private
 {
 	while (true)
@@ -480,37 +563,69 @@ fn String? read_line(Connection* c, Deadline deadline) @private
 		{
 			String line = c.inbox.str_view()[0:end].copy(tmem);
 			c.inbox.delete(0, (sz)end + 2);
+			c.parsed_bytes += end + 2;
 			return line;
 		}
 		if (deadline.expired()) return TIMEOUT~;
 		transport::wait(c.socket_fd, true, false, deadline.remaining());
-		if (read_available(c)!!) return error::DISCONNECTED~;
+		if (catch err = read_chunk(c, (usz)RECEIVE_CHUNK)) return err~;
 	}
 }
 
-// Reads everything the socket holds into the input buffer. Returns true at end of stream.
-fn bool? read_available(Connection* c) @private
+// Reads what the socket holds, a frame at a time, and parses each frame as it completes.
+// It stops after `budget` reads (UNBOUNDED_READS for none), when the reply to `wanted` has
+// been found, or when the socket has nothing more. Returns true at end of stream, after the
+// complete frames before it have been parsed.
+fn bool? receive(Connection* c, uint wanted, Message** found, usz budget) @private
 {
-	char[RECEIVE_CHUNK] chunk;
-	while (true)
+	usz reads = 0;
+	while (c.is_open && (budget == UNBOUNDED_READS || reads < budget))
 	{
-		usz? got = transport::recv_some(c.socket_fd, chunk[0:RECEIVE_CHUNK], 0, &c.descriptors);
-		if (try n = got)
-		{
-			if (n == 0) return false;
-			c.inbox.append_bytes(chunk[0:n]);
-			continue;
-		}
+		usz limit = read_limit(c)!;
+		usz? got  = read_chunk(c, limit);
 		if (catch err = got)
 		{
-			if (err == error::DISCONNECTED) return true;
-			return err~;
+			if (err != error::DISCONNECTED) return err~;
+			parse_inbox(c, wanted, found)!;
+			return true;
 		}
+		if (got == 0) return false;
+		reads++;
+		parse_inbox(c, wanted, found)!;
+		if (found != null && *found != null) return false;
 	}
+	return false;
 }
 
-// Parses every complete message in the input buffer. A reply to `wanted` goes to
-// `found` (when it is not null); every other message is queued for dispatch.
+// The most bytes the next read may take: the rest of the frame being received, and at
+// most RECEIVE_CHUNK. A read never spans two frames, so a descriptor that arrives with
+// the first byte of a read is the first byte of its frame. Until the header is complete,
+// the read takes what the header still needs.
+fn usz? read_limit(Connection* c) @private
+{
+	usz buffered = (usz)c.inbox.len();
+	if (buffered < (usz)message::FIXED_HEADER_LENGTH) return (usz)message::FIXED_HEADER_LENGTH - buffered;
+	usz rest = message::frame_length(c.inbox.str_view()[0:message::FIXED_HEADER_LENGTH])! - buffered;
+	return rest < (usz)RECEIVE_CHUNK ? rest : (usz)RECEIVE_CHUNK;
+}
+
+// Reads up to `limit` bytes into the input buffer, and records the stream offset that each
+// descriptor arrived with: the offset of the first byte this read returns. Returns the number
+// of bytes read (0 when none is ready), or DISCONNECTED at the end of the stream.
+fn usz? read_chunk(Connection* c, usz limit) @private
+{
+	char[RECEIVE_CHUNK] chunk;
+	usz at    = c.parsed_bytes + (usz)c.inbox.len();
+	sz before = c.descriptors.len();
+	usz? got  = transport::recv_some(c.socket_fd, chunk[0:limit], 0, &c.descriptors);
+	for (sz i = before; i < c.descriptors.len(); i++) c.descriptor_at.push(at);
+	if (catch err = got) return err~;
+	c.inbox.append_bytes(chunk[0:got]);
+	return got;
+}
+
+// Parses every complete frame in the input buffer, in order. Each frame takes the descriptors
+// that arrived with its first byte; the count must match its UNIX_FDS field (see message::parse).
 fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 {
 	while (c.inbox.len() >= (sz)message::FIXED_HEADER_LENGTH)
@@ -518,16 +633,55 @@ fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 		String buffered = c.inbox.str_view();
 		usz total       = message::frame_length(buffered[0:message::FIXED_HEADER_LENGTH])!;
 		if (c.inbox.len() < (sz)total) return;
-		Message* parsed = message::parse(c.allocator, buffered[0:total], &c.descriptors)!;
+		usz count = frame_descriptors(c, c.parsed_bytes, total)!;
+		Message* parsed = message::parse(c.allocator, buffered[0:total], c.descriptors.array_view()[0:count])!;
 		c.inbox.delete(0, (sz)total);
-		if (wanted != 0 && found != null && *found == null && is_reply_to(parsed, wanted))
+		c.parsed_bytes += total;
+		for (usz i = 0; i < count; i++)
 		{
-			*found = parsed;
+			c.descriptors.remove_at(0);
+			c.descriptor_at.remove_at(0);
 		}
-		else
-		{
-			c.deferred.push(parsed);
-		}
+		deliver_parsed(c, parsed, wanted, found);
+	}
+}
+
+// How many descriptors arrived with the first byte of the frame at `start` (they lead the
+// list), after checking that none arrived inside the frame. A peer may attach a descriptor
+// only to the first byte of a message.
+fn usz? frame_descriptors(Connection* c, usz start, usz total) @private
+{
+	usz count = 0;
+	while (count < (usz)c.descriptor_at.len() && c.descriptor_at.get((sz)count) == start) count++;
+	if (count < (usz)c.descriptor_at.len() && c.descriptor_at.get((sz)count) < start + total) return error::PROTOCOL~;
+	return count;
+}
+
+// Hands a parsed frame to where it belongs. Outside a blocking call it is queued for dispatch.
+// Inside one: the reply it waits for is found; a reply to an outer blocking call is kept for
+// that call; an incoming method call is answered now; anything else is queued.
+fn void deliver_parsed(Connection* c, Message* parsed, uint wanted, Message** found) @private
+{
+	if (wanted == 0)
+	{
+		c.deferred.push(parsed);
+	}
+	else if (found != null && *found == null && is_reply_to(parsed, wanted))
+	{
+		*found = parsed;
+	}
+	else if (is_awaited_reply(c, parsed))
+	{
+		c.stashed.push(parsed);
+	}
+	else if (parsed.type == METHOD_CALL)
+	{
+		serve_call(c, parsed);
+		parsed.release();
+	}
+	else
+	{
+		c.deferred.push(parsed);
 	}
 }
 
@@ -535,6 +689,66 @@ fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 fn bool is_reply_to(Message* m, uint serial) @private
 {
 	return (m.type == METHOD_RETURN || m.type == ERROR) && m.reply_serial == serial;
+}
+
+// True when `m` is a reply to a blocking call that is in progress on this connection.
+fn bool is_awaited_reply(Connection* c, Message* m) @private
+{
+	if (m.type != METHOD_RETURN && m.type != ERROR) return false;
+	foreach (serial : c.awaiting)
+	{
+		if (serial == m.reply_serial) return true;
+	}
+	return false;
+}
+
+// Records that a blocking call waits for the reply to `serial`.
+fn void await(Connection* c, uint serial) @private
+{
+	c.awaiting.push(serial);
+}
+
+// Forgets the blocking call that waited for `serial`, and releases any reply to it that
+// was stashed and not taken.
+fn void unawait(Connection* c, uint serial) @private
+{
+	for (sz i = 0; i < c.awaiting.len(); i++)
+	{
+		if (c.awaiting.get(i) != serial) continue;
+		c.awaiting.remove_at(i);
+		break;
+	}
+	Message* stale = null;
+	take_stashed(c, serial, &stale);
+	while (stale != null)
+	{
+		stale.release();
+		stale = null;
+		take_stashed(c, serial, &stale);
+	}
+}
+
+// Moves a stashed reply to `serial` into `reply`, when one arrived during another blocking call.
+fn void take_stashed(Connection* c, uint serial, Message** reply) @private
+{
+	for (sz i = 0; i < c.stashed.len(); i++)
+	{
+		Message* m = c.stashed.get(i);
+		if (!is_reply_to(m, serial)) continue;
+		c.stashed.remove_at(i);
+		*reply = m;
+		return;
+	}
+}
+
+// Answers one incoming method call: the incoming handler's answer, or the default one. The
+// handler runs with `dispatching` set, so nothing else is dispatched inside it.
+fn void serve_call(Connection* c, Message* m) @private
+{
+	bool outer = c.dispatching;
+	c.dispatching = true;
+	defer c.dispatching = outer;
+	if (!route_incoming(c, m)) answer_unknown(c, m);
 }
 
 // Runs the handlers of every queued message. Handlers may queue more; those run too.
@@ -563,10 +777,10 @@ fn void dispatch_one(Connection* c, Message* m) @private
 			observe_owner_change(c, m);
 			deliver_signal(c, m);
 		case METHOD_CALL:
-			if (!route_incoming(c, m)) answer_unknown(c, m);
+			serve_call(c, m);
 		case INVALID:
 		case UNKNOWN:
-		// Unknown types are ignored, as the specification requires.
+			// Unknown types are ignored, as the specification requires.
 	}
 }
 
@@ -713,7 +927,7 @@ fn void expire_calls(Connection* c) @private
 }
 
 // Closes the socket and forgets everything held for it. Pending calls fail with
-// DISCONNECTED. Safe to call on a connection that is already closed.
+// DISCONNECTED, and close watches run. Safe to call on a connection that is already closed.
 fn void reset(Connection* c) @private
 {
 	if (c.socket_fd >= 0)
@@ -729,13 +943,18 @@ fn void reset(Connection* c) @private
 	foreach (entry : c.outbound_fds) alloc::free(c.allocator, entry.fds.ptr);
 	c.outbound_fds.clear();
 	c.inbox.clear();
+	c.parsed_bytes = 0;
 	foreach (fd : c.descriptors) transport::close_fd(fd);
 	c.descriptors.clear();
+	c.descriptor_at.clear();
 	foreach (m : c.deferred) m.release();
 	c.deferred.clear();
+	foreach (m : c.stashed) m.release();
+	c.stashed.clear();
 	clear_subscriptions(c);
 	clear_names(c);
 	fail_pending(c);
+	run_close_watches(c);
 }
 
 // Frees every subscription, active or not.
@@ -765,7 +984,7 @@ fn void clear_names(Connection* c) @private
 	c.names.clear();
 }
 
-// Hands every pending call the DISCONNECTED status. Runs last in `reset`, when
+// Hands every pending call the DISCONNECTED status. Runs in `reset`, when
 // the connection is already in its closed state.
 fn void fail_pending(Connection* c) @private
 {
@@ -780,11 +999,69 @@ fn void fail_pending(Connection* c) @private
 	};
 }
 
+// Runs the close watches, once each, and forgets them. Runs last in `reset`.
+fn void run_close_watches(Connection* c) @private
+{
+	@pool()
+	{
+		CloseWatch[] watches = c.close_watches.to_aligned_array(tmem);
+		c.close_watches.clear();
+		foreach (w : watches) w.handler(w.context);
+	};
+}
+
 // Closes the connection after a failure and returns the failure, for `return drop(...)~`.
 fn fault drop(Connection* c, fault failure) @private
 {
 	reset(c);
 	return failure;
+}
+
+<*
+ Run `handler(context)` when this connection closes, once, and forget it. The handler
+ runs after the connection has been reset: it is closed, its pending calls have failed,
+ and its subscriptions are gone. `forget_close` withdraws the registration first.
+*>
+fn void Connection.watch_close(&self, CloseHandler handler, void* context)
+{
+	self.check_owner();
+	self.close_watches.push({ .handler = handler, .context = context });
+}
+
+<*
+ Withdraw the `watch_close` registration made with `context`. Does nothing when there is
+ none, or when its handler has already run.
+*>
+fn void Connection.forget_close(&self, void* context)
+{
+	self.check_owner();
+	for (sz i = 0; i < self.close_watches.len(); i++)
+	{
+		if (self.close_watches.get(i).context != context) continue;
+		self.close_watches.remove_at(i);
+		return;
+	}
+}
+
+<*
+ Begin a library operation that makes several calls on the connection. Until the
+ matching `end_operation`, the handlers for what the operation reads wait: they run
+ when the outermost operation ends, so that no handler runs between two steps of one
+ operation. Operations nest. Library code calls this; applications do not need it.
+*>
+fn void begin_operation(Connection* c)
+{
+	c.depth++;
+}
+
+<*
+ End an operation begun with `begin_operation`. When the outermost one ends, the
+ handlers for what it read run, unless a handler is already running.
+*>
+fn void end_operation(Connection* c)
+{
+	c.depth--;
+	if (c.depth == 0 && c.is_open && !c.dispatching) dispatch(c);
 }
 
 <*
@@ -803,6 +1080,7 @@ fn SubscriptionId Connection.add_subscription(
 	void* owned = null
 )
 {
+	self.check_owner();
 	Subscription* s = alloc::new(self.allocator, Subscription);
 	*s = {
 		.id = (SubscriptionId)self.next_subscription++,
@@ -823,6 +1101,7 @@ fn SubscriptionId Connection.add_subscription(
 *>
 fn Subscription*? Connection.subscription(&self, SubscriptionId id)
 {
+	self.check_owner();
 	foreach (s : self.subscriptions)
 	{
 		if (s.active && s.id == id) return s;
@@ -833,6 +1112,7 @@ fn Subscription*? Connection.subscription(&self, SubscriptionId id)
 <* Stop delivering to a subscription. Its rule is freed at the next signal delivery. *>
 fn void Connection.deactivate(&self, SubscriptionId id)
 {
+	self.check_owner();
 	foreach (s : self.subscriptions)
 	{
 		if (s.id == id) s.active = false;
@@ -842,6 +1122,7 @@ fn void Connection.deactivate(&self, SubscriptionId id)
 <* True when the owner cache follows this well-known name. *>
 fn bool Connection.tracks_name(&self, String name)
 {
+	self.check_owner();
 	foreach (entry : self.names)
 	{
 		if (entry.name.str_view() == name) return true;
@@ -850,13 +1131,21 @@ fn bool Connection.tracks_name(&self, String name)
 }
 
 <* The unique name that owns `name`, as the bus last reported it; empty when unowned or untracked. *>
-fn String Connection.owner_of(&self, String name) => sender_owner(self, name);
+fn String Connection.owner_of(&self, String name)
+{
+	self.check_owner();
+	return sender_owner(self, name);
+}
 
 <*
  Record the owner of a well-known name, starting to track it if needed. An
  empty `owner` means the name is unowned.
 *>
-fn void Connection.set_owner(&self, String name, String owner) => set_owner(self, name, owner);
+fn void Connection.set_owner(&self, String name, String owner)
+{
+	self.check_owner();
+	set_owner(self, name, owner);
+}
 
 fn void set_owner(Connection* c, String name, String owner) @private
 {

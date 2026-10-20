@@ -73,12 +73,12 @@ alias RunLoopWake = fn void(void* context);
 
  Ownership and shutdown (the rule that makes `wake` safe):
  * `loop`, `source` and `running` are written under `mutex`. The loop thread sets
-   them when it becomes ready and clears `running` and `loop` when it leaves its run
-   loop, after it has removed the source from that loop.
+ them when it becomes ready and clears `running` and `loop` when it leaves its run
+ loop, after it has removed the source from that loop.
  * `wake` reads `source` and `loop` only while `running` is set, under `mutex`, so it
-   never touches a loop that has ended.
+ never touches a loop that has ended.
  * The loop thread never releases the source. `stop_and_join` does, after `join`,
-   when no other thread can reach the source.
+ when no other thread can reach the source.
 *>
 struct RunLoopThread
 {
@@ -168,10 +168,10 @@ fn void? RunLoopThread.stop_and_join(&self)
 <* Thread entry: create the source, run `setup`, then run until stopped. *>
 fn int run_loop_thread_entry(void* argument) @local
 {
-	RunLoopThread* self = (RunLoopThread*)argument;
-	void* loop          = cf_run_loop_get_current();
+	RunLoopThread* self          = (RunLoopThread*)argument;
+	void* loop                   = cf_run_loop_get_current();
 	RunLoopSourceContext context = { .version = 0, .info = self, .perform = (void*)&run_loop_perform };
-	void* source        = cf_run_loop_source_create(null, 0, &context);
+	void* source                 = cf_run_loop_source_create(null, 0, &context);
 	cf_run_loop_add_source(loop, source, KCF_RUNLOOP_DEFAULT_MODE);
 	if (self.setup) self.setup(loop, self.setup_context);
 	self.mutex.lock()!!;

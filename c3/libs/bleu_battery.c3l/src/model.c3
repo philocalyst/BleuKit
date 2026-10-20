@@ -77,6 +77,10 @@ struct State
 	// does not report it (macOS reports it; Linux and Windows do not in v1). Added after v1 of the
 	// model: the field is last so that positional initialisers written earlier keep their meaning.
 	Maybe{uint} adapter_watts;
+	// How the newest reading was obtained. AVAILABLE for a full reading; DEGRADED when some devices
+	// could not be read and are left out of `sources`; BACKEND_STOPPED when the newest read failed,
+	// and `sources` is the last good reading (never an empty state). Added after v1, last, like `adapter_watts`.
+	Availability reading;
 }
 
 enum Cap : char
@@ -99,7 +103,10 @@ enum EventKind : char
 	STATE_CHANGED, // a source changed charge state (charging <-> discharging, full ...)
 }
 
-<* A transient: what changed. Re-read the state for the values. *>
+<*
+ A transient: what changed. Re-read the state for the values. `source_id` names the source
+ concerned, and is empty for MAINS_CHANGED.
+*>
 struct Event
 {
 	EventKind kind;

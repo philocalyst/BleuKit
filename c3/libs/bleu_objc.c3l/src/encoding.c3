@@ -65,19 +65,19 @@ macro ZString type_code($Type)
 			$if $Type::size == 4:
 				return "f";
 			$else return "d";
+		$endif
+	$case POINTER:
+		return "@";
+	$case TYPEDEF:
+		$if $feat(DARWIN):
+			$if $Type == ObjSel:
+				return ":";
 			$endif
-		$case POINTER:
-			return "@";
-		$case TYPEDEF:
-			$if $feat(DARWIN):
-				$if $Type == ObjSel:
-					return ":";
-				$endif
-			$endif
-			return type_code($Type::inner);
-		$default:
-			$error "bleu::objc: no Objective-C type encoding for this C3 type";
-	$endswitch
+		$endif
+		return type_code($Type::inner);
+	$default:
+		$error "bleu::objc: no Objective-C type encoding for this C3 type";
+$endswitch
 }
 
 <*

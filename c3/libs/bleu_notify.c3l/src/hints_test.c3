@@ -302,7 +302,7 @@ fn void the_hint_count_is_capped() @test
 		Writer w;
 		w.init(tmem, "a{sv}")!!;
 		w.begin_array("a{sv}")!!;
-		for (int k = 0; k < hints::MAX_HINTS; k++) put_string(&w, "x-filler", "f");
+		for (usz k = 0; k < hints::MAX_HINTS; k++) put_string(&w, "x-filler", "f");
 		put_scalar(&w, "urgency", "y", 2);
 		w.end_array()!!;
 		Hints h;

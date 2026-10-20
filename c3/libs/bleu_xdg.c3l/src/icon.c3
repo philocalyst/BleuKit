@@ -203,8 +203,11 @@ fn String? Finder.find(&self, Allocator allocator, String name, int size, int sc
 		if (io::file::is_file(name)) return name.copy(allocator);
 		return NOT_FOUND~;
 	}
-	if (try path = self.find_in_theme(self.theme, name, size, scale, 0)) return path.copy(allocator);
-	if (try path = self.find_in_theme(FALLBACK_THEME, name, size, scale, 0)) return path.copy(allocator);
+	// One visited set for the whole lookup: a theme already searched has no icon to add.
+	HashSet{String} visited;
+	visited.tinit();
+	if (try path = self.find_in_theme(self.theme, name, size, scale, 0, &visited)) return path.copy(allocator);
+	if (try path = self.find_in_theme(FALLBACK_THEME, name, size, scale, 0, &visited)) return path.copy(allocator);
 	if (try path = self.lookup_fallback(name)) return path.copy(allocator);
 	return NOT_FOUND~;
 }
@@ -233,16 +236,28 @@ fn String[] default_base_dirs(Environment env, Allocator allocator)
 	return bases.to_aligned_array(allocator);
 }
 
-// The icon in `theme_name` or its parents, depth-limited against inheritance loops.
-fn String? Finder.find_in_theme(&self, String theme_name, String name, int size, int scale, int depth)
+// The icon in `theme_name` or its parents. `visited` holds every theme this lookup has
+// searched: a theme that inherits from itself, or from a cycle, is searched once, so the
+// work is bounded by the number of themes, not by the number of inheritance paths.
+// `depth` still bounds the recursion for a long chain of distinct themes.
+fn String? Finder.find_in_theme(
+	&self,
+	String theme_name,
+	String name,
+	int size,
+	int scale,
+	int depth,
+	HashSet{String}* visited
+)
 {
 	if (depth > MAX_THEME_DEPTH) return NOT_FOUND~;
+	if (!visited.add(theme_name)) return NOT_FOUND~;
 	Theme* theme = self.load_theme(theme_name);
 	if (!theme) return NOT_FOUND~;
 	if (try path = self.lookup_in_theme(theme, name, size, scale)) return path;
 	foreach (parent : theme.inherits)
 	{
-		if (try path = self.find_in_theme(parent, name, size, scale, depth + 1)) return path;
+		if (try path = self.find_in_theme(parent, name, size, scale, depth + 1, visited)) return path;
 	}
 	return NOT_FOUND~;
 }
@@ -312,7 +327,7 @@ fn Theme* Finder.load_theme(&self, String name)
 	{
 		String index = string::tformat("%s/%s/%s", base, name, INDEX_FILE);
 		if (!io::file::is_file(index)) continue;
-		char[]? bytes = io::file::load(tmem, index);
+		char[]? bytes = keyfile::load_file(index);
 		if (catch bytes) break;
 		// A malformed index.theme is treated as absent, so the search goes on to the parents.
 		if (try parsed = parse_index(&self.arena, name, (String)bytes))

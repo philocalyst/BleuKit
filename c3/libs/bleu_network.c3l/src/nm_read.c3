@@ -191,7 +191,7 @@ fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 			entry.autoconnect = profile.autoconnect;
 		}
 	}
-	scan.networks = clone_networks(out, networks.array_view());
+	scan.networks = network::clone_access_points(out, networks.array_view());
 	return scan;
 }
 

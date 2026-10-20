@@ -205,8 +205,15 @@ fn Applied? MacOS.write_native(&self, String device_id, Level level)
 	if (!device_id.starts_with(
 		"cg-"
 	)) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
+	// The display number is every character after "cg-", and each must be a digit.
 	uint display = 0;
-	for (usz i = 3; i < device_id.len; i++) display = display * 10 + (uint)(device_id[i] - '0');
+	if (device_id.len == 3) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' names no display", device_id)~;
+	for (usz i = 3; i < device_id.len; i++)
+	{
+		char c = device_id[i];
+		if (c < '0' || c > '9') return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
+		display = display * 10 + (uint)(c - '0');
+	}
 	if (self.native.api.set_brightness(display, (float)level) != 0)
 	{
 		return error::raise(
@@ -224,5 +231,6 @@ fn Applied? MacOS.write_native(&self, String device_id, Level level)
 		read_back = maybe::value((Level)value);
 	}
 	long raw = (long)(level.to_raw(0, NATIVE_STEPS));
+	brightness::confirm_read_back(device_id, raw, 0, NATIVE_STEPS, read_back)!;
 	return brightness::applied_at(Mechanism.NATIVE, level, raw, 0, NATIVE_STEPS, read_back);
 }

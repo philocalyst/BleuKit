@@ -190,7 +190,7 @@ fn String[] defaults_in(Source source, String mime) @local
 fn String[] association_list(Source source, String group, String mime) @local
 {
 	if (!io::file::is_file(source.path)) return { };
-	char[]? bytes = io::file::load(tmem, source.path);
+	char[]? bytes = keyfile::load_file(source.path);
 	if (catch err = bytes) return { };
 	KeyFile? file = keyfile::parse_with(tmem, (String)bytes, PERMISSIVE);
 	if (catch err = file) return { };

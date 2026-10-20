@@ -100,6 +100,7 @@ cat "$work/recon.out"
 check recon-lost "$work/recon.out" "lost connection=DISCONNECTED windows=0 workspaces=0 outputs=0 focused=none status="
 check recon-down-action "$work/recon.out" "action_while_down=failed"
 check recon-back "$work/recon.out" "back connection=CONNECTED windows=2 workspaces=2 outputs=2 focused=~/src status=none"
+check recon-storm "$work/recon.out" "storm=reconnected"
 [ $rc -eq 0 ] || { echo "FAIL  reconnect driver exit $rc"; fail=1; }
 kill "${pids[-1]}" 2>/dev/null
 rm -rf "$work/run/hypr"

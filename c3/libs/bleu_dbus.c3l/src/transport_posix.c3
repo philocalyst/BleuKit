@@ -55,6 +55,17 @@ const ECONNREFUSED = env::LINUX ? 111 : 61;
 <* `recvmsg` flag: the control data did not fit and was truncated. *>
 const int MSG_CTRUNC = env::LINUX ? 0x8 : 0x20;
 
+<*
+ Linux: `recvmsg` flag that closes received descriptors on exec, and `socket` type
+ flag that does the same for a new socket, so that no other thread can fork them
+ open. Sources: glibc <bits/socket.h> (MSG_CMSG_CLOEXEC 0x40000000) and
+ <bits/socket_type.h> (SOCK_CLOEXEC = O_CLOEXEC = 02000000); the libc crate 0.2.191
+ src/unix/linux_like/mod.rs (MSG_CMSG_CLOEXEC) and src/new/musl/sys/socket.rs
+ (SOCK_CLOEXEC 0o2000000). Apple has neither: there the `fcntl` calls are the only way.
+*>
+const int MSG_CMSG_CLOEXEC = 0x40000000;
+const int SOCK_CLOEXEC     = 0x80000;
+
 <* `sendmsg` flag: do not raise SIGPIPE when the peer has gone. *>
 const int MSG_NOSIGNAL = env::LINUX ? 0x4000 : 0x80000;
 
@@ -171,7 +182,7 @@ fn int? connect_unix(String path, bool abstract)
 {
 	if (abstract && !env::LINUX) return error::UNSUPPORTED~;
 	if (path.len == 0 || path.len > SUN_PATH_CAPACITY - 1) return error::INVALID_ARGUMENT~;
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	int fd = socket(AF_UNIX, SOCK_STREAM | (env::LINUX ? SOCK_CLOEXEC : 0), 0);
 	if (fd < 0) return failure("socket")~;
 	char[SOCKADDR_CAPACITY] addr;
 	uint address_len = fill_address(&addr, path, abstract);
@@ -272,15 +283,17 @@ fn usz? recv_some(int fd, char[] buffer, usz offset, List{int}* descriptors)
 	char[CONTROL_CAPACITY] control;
 	Iovec vec  = { .base = &buffer[offset], .len = buffer.len - offset };
 	Msghdr msg = { .iov = &vec, .iovlen = 1, .control = &control, .controllen = CONTROL_CAPACITY };
-	sz got     = recvmsg(fd, &msg, 0);
+	sz got     = recvmsg(fd, &msg, env::LINUX ? MSG_CMSG_CLOEXEC : 0);
 	if (got < 0)
 	{
 		if (libc::errno() == EAGAIN || libc::errno() == EINTR) return 0;
 		if (libc::errno() == ECONNRESET) return error::DISCONNECTED~;
 		return failure("recvmsg")~;
 	}
-	if (msg.flags & MSG_CTRUNC) return error::PROTOCOL~;
+	// Descriptors the kernel installed are recorded before the truncation check, so that
+	// the caller closes them when it drops the connection.
 	take_descriptors(&control, (usz)msg.controllen, descriptors);
+	if (msg.flags & MSG_CTRUNC) return error::PROTOCOL~;
 	if (got == 0) return error::DISCONNECTED~;
 	return (usz)got;
 }

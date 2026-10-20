@@ -33,6 +33,9 @@ const CInt O_NONBLOCK_FLAG = 0o4000;
 // SOCK_CLOEXEC has the value of O_CLOEXEC: close-on-exec from creation, atomically.
 const CInt SOCKET_CLOEXEC = 0o2000000;
 
+// nfds_t of poll(2): unsigned long on glibc (poller_posix.c3 carries the same alias).
+alias PollCount = CULong;
+
 const CInt SOL_SOCKET      = 1;
 const CInt SO_PEERCRED     = 17;
 const CInt SCM_RIGHTS_TYPE = 1;

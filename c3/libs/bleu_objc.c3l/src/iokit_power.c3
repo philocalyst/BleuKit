@@ -8,9 +8,9 @@
 
  Sources:
  * `kIOPSPowerSourceStateKey` values and the other key strings: IOPowerSources
-   `IOPSKeys.h` in apple-oss-distributions/IOKitUser (`ps.subproj/`).
+ `IOPSKeys.h` in apple-oss-distributions/IOKitUser (`ps.subproj/`).
  * `kIOMessage*` codes: xnu `iokit/IOKit/IOMessage.h` (`iokit_common_msg`), and the
-   Rust `io-kit-sys` 0.4.1 `src/keys.rs`.
+ Rust `io-kit-sys` 0.4.1 `src/keys.rs`.
 *>
 module bleu::iokit_power;
 

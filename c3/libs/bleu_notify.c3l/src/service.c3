@@ -58,7 +58,15 @@ fn Notify*? open(Allocator allocator, Options options = { })
 		return err~;
 	}
 	self.driver_state = state;
-	if (catch err = self.hub.start(allocator, "notify", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"notify",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		service::DEFAULT_QUEUE{State, Command, Event},
+		&abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		startup.release();
@@ -78,6 +86,14 @@ fn Notify*? open(Allocator allocator, Options options = { })
 	}
 	startup.release();
 	return self;
+}
+
+// Runs when the backend stopped with commands still queued: their operations fail, so that no waiter hangs.
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.operation == null) return;
+	(void)command.operation.fail(error::DISCONNECTED);
+	command.operation.release();
 }
 
 <* Stop the backend, release the bus name and everything else. *>

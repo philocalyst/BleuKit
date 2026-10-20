@@ -62,6 +62,7 @@ struct DesktopEntry
 	String comment;
 	String icon;
 	String exec;
+	String url; // the target of a Link entry; required for Type=Link, empty otherwise
 	String try_exec;
 	String working_dir;
 	String startup_wm_class;
@@ -118,11 +119,13 @@ fn DesktopEntry*? parse(Allocator allocator, String source, String locale)
 
  @return? NOT_FOUND : "The file does not exist"
  @return? error::PERMISSION_DENIED : "The file cannot be read"
+ @return? error::OUT_OF_RANGE : "The file is larger than the reader accepts"
+ @return? error::BACKEND_FAILURE : "The file exists but could not be read for another reason"
  @return? error::PROTOCOL : "The file is not a valid desktop entry"
 *>
 fn DesktopEntry*? load(Allocator allocator, String path, String locale)
 {
-	char[] bytes = read_file(path)!;
+	char[] bytes = keyfile::load_file(path)!;
 	return parse(allocator, (String)bytes, locale);
 }
 
@@ -238,6 +241,7 @@ fn void? fill(DesktopEntry* entry, KeyFile* file, String locale) @local
 	entry.comment = localized_value(file, a, MAIN_GROUP, "Comment", locale)!;
 	entry.icon = localized_value(file, a, MAIN_GROUP, "Icon", locale)!;
 	entry.exec = string_value(file, a, MAIN_GROUP, "Exec")!;
+	entry.url = string_value(file, a, MAIN_GROUP, "URL")!;
 	entry.try_exec = string_value(file, a, MAIN_GROUP, "TryExec")!;
 	entry.working_dir = string_value(file, a, MAIN_GROUP, "Path")!;
 	entry.startup_wm_class = string_value(file, a, MAIN_GROUP, "StartupWMClass")!;
@@ -259,6 +263,10 @@ fn void? fill(DesktopEntry* entry, KeyFile* file, String locale) @local
 			0,
 			"an application needs Exec unless DBusActivatable is true"
 		)~;
+	}
+	if (entry.type == LINK && entry.url.len == 0)
+	{
+		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "a Link needs URL")~;
 	}
 	entry.actions = actions(file, a, list_value(file, tmem, MAIN_GROUP, "Actions")!, locale)!;
 }
@@ -362,17 +370,4 @@ fn bool contains(String[] list, String value) @local
 		if (item == value) return true;
 	}
 	return false;
-}
-
-// The bytes of `path`, in temporary memory. Missing files are NOT_FOUND;
-// every other I/O failure is reported as a permission problem.
-fn char[]? read_file(String path) @local
-{
-	char[]? bytes = io::file::load(tmem, path);
-	if (catch err = bytes)
-	{
-		if (err == io::FILE_NOT_FOUND) return NOT_FOUND~;
-		return error::PERMISSION_DENIED~;
-	}
-	return bytes;
 }

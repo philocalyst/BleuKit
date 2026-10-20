@@ -4,7 +4,7 @@ module bleu::objc::block_layout;
 fn void literal_offsets() @test
 {
 	BlockLiteral literal = { };
-	usz base = (usz)&literal;
+	usz base             = (usz)&literal;
 	assert((usz)&literal.isa - base == 0);
 	assert((usz)&literal.flags - base == 8);
 	assert((usz)&literal.reserved - base == 12);
@@ -17,7 +17,7 @@ fn void literal_offsets() @test
 fn void descriptor_offsets() @test
 {
 	BlockDescriptor descriptor = { };
-	usz base = (usz)&descriptor;
+	usz base                   = (usz)&descriptor;
 	assert((usz)&descriptor.reserved - base == 0);
 	assert((usz)&descriptor.size - base == 8);
 	assert((usz)&descriptor.copy_helper - base == 16);
@@ -27,7 +27,7 @@ fn void descriptor_offsets() @test
 fn void context_offsets() @test
 {
 	BlockContext context = { };
-	usz base = (usz)&context;
+	usz base             = (usz)&context;
 	assert((usz)&context.refs - base == 0);
 	assert((usz)&context.callback - base == 8);
 	assert((usz)&context.user - base == 16);

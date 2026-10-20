@@ -25,6 +25,9 @@ alias Capabilities = EnumMap{Cap, Availability};
 const Duration DEFAULT_RETRY     = (Duration)1_000_000;  // 1 s, in microseconds
 const Duration DEFAULT_RETRY_MAX = (Duration)30_000_000; // 30 s
 
+// Commands the queue holds before a post is refused with BUSY.
+const usz COMMAND_QUEUE = 256;
+
 <* An open windows service. Released by `close`. *>
 struct Windows
 {
@@ -64,7 +67,7 @@ fn Windows*? open(Allocator allocator, Options options = { })
 		driver.info.name,
 		driver.run,
 		self.driver_state,
-		service::DEFAULT_QUEUE,
+		COMMAND_QUEUE,
 		&cancel_command
 	))
 	{

@@ -61,6 +61,7 @@ struct PortalBackend
 	String bus_address;
 	String[] wallpaper_command;
 	bool desktop;
+	bool known; // the portal's values have been read at least once; nothing is published before that
 	PortalValues values;
 	EnumMap{PortalKey, bool} dirty;
 }
@@ -152,8 +153,14 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 1)) return;
 	defer poller.free();
-	int fd = bus.fd()!!;
-	poller.add({ .handle = fd, .interest = { .readable = true }, .tag = BUS_TAG })!!;
+	// Without the bus in the poller, the poll tick still reads the portal: a failure here only delays changes.
+	if (try fd = bus.fd())
+	{
+		if (catch poller.add({ .handle = fd, .interest = { .readable = true }, .tag = BUS_TAG }))
+		{
+			// Not registered: the poll tick reads the portal.
+		}
+	}
 	read_all(backend, &bus);
 	publish_state(backend, hub);
 	Command[8] commands;
@@ -164,7 +171,8 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 		{
 			// TIMEOUT is the normal poll tick.
 		}
-		// The peer going away ends the backend: nothing more can be read.
+		// The peer going away ends the backend: nothing more can be read. The worker then refuses new requests
+		// (its mailbox closes), and the last state stands.
 		if (catch bus.process()) break;
 		apply_dirty(backend, &bus);
 		for (usz count = host.mailbox()
@@ -172,9 +180,10 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 		{
 			for (usz i = 0; i < count; i++) execute(backend, &bus, &commands[i]);
 		}
+		// Until the first successful read, the portal's values are unknown: the read is retried on each tick.
+		if (!backend.known) read_all(backend, &bus);
 		publish_state(backend, hub);
 	}
-	appearance::cancel_pending(host);
 }
 
 fn void? subscribe_changes(Connection* bus, PortalBackend* backend)
@@ -214,8 +223,8 @@ fn void apply_dirty(PortalBackend* backend, Connection* bus) @private
 	for (usz i = 0; i < backend.dirty.values.len; i++)
 	{
 		if (!backend.dirty.values[i]) continue;
-		backend.dirty.values[i] = false;
-		read_key(backend, bus, (PortalKey)(char)i);
+		// A key whose read fails stays dirty: the next poll tick reads it again.
+		backend.dirty.values[i] = !read_key(backend, bus, (PortalKey)(char)i);
 	}
 }
 
@@ -273,6 +282,7 @@ fn Value? call_read(Connection* bus, Allocator allocator, PortalKey key) @privat
 	return r.read_value(allocator).unwrap();
 }
 
+// Read every key at once. A failed call leaves the values as they were, and `known` stays false until one works.
 fn void read_all(PortalBackend* backend, Connection* bus) @private
 {
 	@pool()
@@ -287,16 +297,23 @@ fn void read_all(PortalBackend* backend, Connection* bus) @private
 				if (try v = ns.dict_get(key_name(CONTRAST_KEY))) apply(&backend.values, CONTRAST_KEY, v);
 				if (try v = ns.dict_get(key_name(MOTION_KEY))) apply(&backend.values, MOTION_KEY, v);
 			}
+			backend.known = true;
 		}
 	};
 }
 
-fn void read_key(PortalBackend* backend, Connection* bus, PortalKey key) @private
+// Read one key. False when the call fails, and the key keeps its last value.
+fn bool read_key(PortalBackend* backend, Connection* bus, PortalKey key) @private
 {
 	@pool()
 	{
-		if (try value = call_read(bus, tmem, key)) apply(&backend.values, key, value);
+		if (try value = call_read(bus, tmem, key))
+		{
+			apply(&backend.values, key, value);
+			return true;
+		}
 	};
+	return false;
 }
 
 fn void apply(PortalValues* values, PortalKey key, Value value) @private
@@ -326,8 +343,10 @@ fn double? channel_at(Value colour, usz index) @private
 	return channel.as_f64();
 }
 
+// Publish the values read so far. Nothing is published before the first successful read: the state is unknown.
 fn void publish_state(PortalBackend* backend, AppearanceHub* hub) @private
 {
+	if (!backend.known) return;
 	StateSnapshot* snapshot = hub.begin();
 	State state = {
 		.color_scheme = backend.values.color_scheme,

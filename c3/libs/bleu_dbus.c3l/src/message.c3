@@ -215,13 +215,61 @@ fn Message*? error_reply_to(Allocator parent, String destination, uint reply_ser
 {
 	if (!names::is_error_name(error_name)) return error::INVALID_ARGUMENT~;
 	Message* m = create(parent, ERROR);
+	bool handed_over = false;
+	defer if (!handed_over) m.release();
 	m.reply_serial = reply_serial;
 	m.error_name = error_name.copy(&m.storage);
 	m.destination = destination.copy(&m.storage);
-	Writer* w = m.body_writer("s")!;
-	w.append_string(text)!;
+	@pool()
+	{
+		// The text is made valid first, so that a reply is always built: the body writer copies it.
+		Writer* w = m.body_writer("s")!;
+		w.append_string(text_for_wire(tmem, text))!;
+	};
+	handed_over = true;
 	return m;
 }
+
+<*
+ Longest text an ERROR message carries, in bytes. The specification does not limit
+ it; a longer text is cut before the character that would pass the limit.
+*>
+const MAX_ERROR_TEXT = 1024;
+
+// U+FFFD REPLACEMENT CHARACTER in UTF-8: what stands in for a byte that is not text.
+const REPLACEMENT = "\xef\xbf\xbd";
+
+// `text` as valid D-Bus text: every byte that does not begin a valid UTF-8 character
+// (a NUL included) becomes U+FFFD, and the result is cut at `MAX_ERROR_TEXT` bytes,
+// never inside a character. Allocated from `allocator`.
+fn String text_for_wire(Allocator allocator, String text) @private
+{
+	DString out;
+	out.init(allocator);
+	usz at = 0;
+	while (at < text.len)
+	{
+		usz width   = character_width(text, at);
+		String piece = width > 0 ? text[at:width] : REPLACEMENT;
+		if (out.len() + piece.len > MAX_ERROR_TEXT) break;
+		out.append_string(piece);
+		at += width > 0 ? width : 1;
+	}
+	return out.str_view();
+}
+
+// The byte length of the valid UTF-8 character that starts at `at`, or 0 when none does.
+fn usz character_width(String text, usz at) @private
+{
+	for (usz width = 1; width <= MAX_CHARACTER_BYTES && at + width <= text.len; width++)
+	{
+		if (names::is_utf8_text(text[at:width])) return width;
+	}
+	return 0;
+}
+
+// The longest UTF-8 character, in bytes.
+const MAX_CHARACTER_BYTES = 4;
 
 <*
  The writer for the body of an outgoing message, initialised for `signature`.
@@ -309,23 +357,21 @@ fn usz? frame_length(String prefix)
  (as framed by `frame_length`). The bytes are copied into the message, so
  `frame` may be reused.
 
- The message's descriptors are taken from the front of `descriptors`, which
- holds the descriptors received so far in arrival order: the first
- `unix_fds` of them belong to this message. They are removed from the list and
- owned by the message from then on (closed by `release`). On failure the list
- is left unchanged.
+ The descriptors are the ones that arrived with the first byte of this frame, in
+ order. The message takes them: they are closed by `release`, and the caller must
+ not close them afterwards. The count must equal the message's UNIX_FDS field.
 
  @param parent : "Allocator for the message"
  @param frame : "The message bytes"
- @param descriptors : "Received descriptors in arrival order, or null when none can arrive"
- @return? error::PROTOCOL : "The bytes do not form a valid message, or fewer descriptors arrived than it declares"
+ @param fds : "The descriptors that arrived with the frame's first byte, in order"
+ @return? error::PROTOCOL : "The bytes do not form a valid message, or its UNIX_FDS field does not match the descriptors"
 *>
-fn Message*? parse(Allocator parent, String frame, List{int}* descriptors = null)
+fn Message*? parse(Allocator parent, String frame, int[] fds = { })
 {
 	usz total = frame_length(frame)!;
 	if (frame.len != total) return error::PROTOCOL~;
 	Message* m = create(parent, INVALID);
-	if (catch err = fill(m, frame, descriptors))
+	if (catch err = fill(m, frame, fds))
 	{
 		m.release();
 		return err~;
@@ -347,8 +393,9 @@ fn String? Message.error_text(&self)
 	return r.read_string();
 }
 
-// Fills this message from `frame` (already length-checked) and validates it.
-fn void? fill(Message* self, String frame, List{int}* descriptors) @private
+// Fills this message from `frame` (already length-checked) and validates it. The
+// descriptors are taken only when the frame's UNIX_FDS field equals their number.
+fn void? fill(Message* self, String frame, int[] fds) @private
 {
 	self.big_endian = endianness_of(frame)!;
 	String stored = frame.copy(&self.storage);
@@ -369,14 +416,10 @@ fn void? fill(Message* self, String frame, List{int}* descriptors) @private
 	}
 	if (body_at + body_length != stored.len) return error::PROTOCOL~;
 	self.body = stored[body_at:body_length];
-	usz available = descriptors == null ? 0 : (usz)descriptors.len();
-	if (self.unix_fds > available) return error::PROTOCOL~;
+	// A descriptor the frame does not declare, or one it declares and lacks, is a protocol error.
+	if (self.unix_fds != (usz)fds.len) return error::PROTOCOL~;
 	validate(self)!;
-	for (usz i = 0; i < self.unix_fds; i++)
-	{
-		self.fds.push(descriptors.get(0));
-		descriptors.remove_at(0);
-	}
+	foreach (fd : fds) self.fds.push(fd);
 }
 
 // Reads the header field array into `m`, rejecting duplicates and wrong types.

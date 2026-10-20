@@ -19,6 +19,7 @@ fn void execute(Backend* b, NetworkHub* hub, Command* c)
 	switch (c.kind)
 	{
 		case REFRESH:
+		case SCAN_FINISHED:
 			// Every pass of the loop reads the platform; a refresh request needs nothing more.
 			return;
 		case CONNECT:
@@ -68,9 +69,10 @@ fn void? need_wifi(Backend* b)
 }
 
 <*
- Connect to a network. Uses the saved profile when there is one and no
- passphrase is given; otherwise writes the profile (with the passphrase) and
- activates it.
+ Connect to a network. A saved profile is activated when no passphrase is given.
+ Otherwise the network must be in the last scan: a new profile is written (with the
+ passphrase, or without one so that NetworkManager asks its agent), and a saved
+ profile gets only the new secret (`update_profile`); the rest of its settings stay.
 *>
 fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 {
@@ -79,52 +81,22 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 	char[] ssid        = c.ssid.bytes[0:c.ssid.len];
 	String secret      = (String)c.secret.bytes[0:c.secret.len];
 	Profile[] profiles = load_profiles(&b.bus, tmem)!;
-	Security security  = network::security_on_air(hub, ssid);
 	Profile saved;
-	bool known         = false;
+	bool known = false;
 	if (try found = find_profile(profiles, ssid))
 	{
 		saved = found;
 		known = true;
 	}
 	String active;
-	if (secret.len == 0)
+	if (secret.len == 0 && known)
 	{
-		if (known)
-		{
-			active = activate(b, saved.path)!;
-		}
-		else if (security == Security.OPEN || security == Security.OWE)
-		{
-			nm_settings::ProfileSpec open_spec = {
-				.ssid = ssid,
-				.id = display_id(ssid),
-				.uuid = nm_settings::uuid_for_ssid(tmem, ssid),
-				.autoconnect = c.flag,
-				.key_mgmt = security == Security.OWE ? nm_settings::KeyManagement.OWE
-					: nm_settings::KeyManagement.OPEN,
-			};
-			active = add_and_activate(b, open_spec)!;
-		}
-		else
-		{
-			// A secured network with no passphrase: the profile has no psk, so NetworkManager asks the
-			// secret agent for it, which publishes CREDENTIALS_WANTED.
-			nm_settings::ProfileSpec ask_spec = {
-				.ssid = ssid,
-				.id = display_id(ssid),
-				.uuid = nm_settings::uuid_for_ssid(tmem, ssid),
-				.autoconnect = c.flag,
-				.key_mgmt = security == Security.WPA3_SAE ? nm_settings::KeyManagement.SAE
-					: nm_settings::KeyManagement.WPA_PSK,
-			};
-			active = add_and_activate(b, ask_spec)!;
-		}
-		b.last_supplied = false;
+		active = activate(b, saved.path)!;
 	}
 	else
 	{
-		if (security == Security.OPEN) return error::raise(
+		Security security = network::joinable_security(hub, ssid)!;
+		if (security == Security.OPEN && secret.len > 0) return error::raise(
 			error::INVALID_ARGUMENT,
 			error::Domain.INTERNAL,
 			0,
@@ -141,21 +113,20 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 			.id = display_id(ssid),
 			.uuid = known ? saved.uuid : nm_settings::uuid_for_ssid(tmem, ssid),
 			.autoconnect = c.flag,
-			.key_mgmt = security == Security.WPA3_SAE ? nm_settings::KeyManagement.SAE
-				: nm_settings::KeyManagement.WPA_PSK,
+			.key_mgmt = key_management_for(security),
 			.psk = secret,
 		};
 		if (known)
 		{
-			update_profile(b, saved.path, spec)!;
+			update_profile(b, saved.path, spec.key_mgmt, secret)!;
 			active = activate(b, saved.path)!;
 		}
 		else
 		{
 			active = add_and_activate(b, spec)!;
 		}
-		b.last_supplied = true;
 	}
+	b.last_supplied = secret.len > 0;
 	add_pending(
 		b,
 		{
@@ -169,6 +140,19 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 		}
 	);
 	c.connect = null;
+}
+
+// The NetworkManager key management of a network the last scan showed. WEP and 802.1X are refused by the caller.
+fn nm_settings::KeyManagement key_management_for(Security security) @local
+{
+	switch (security)
+	{
+		case OWE: return nm_settings::KeyManagement.OWE;
+		case WPA3_SAE: return nm_settings::KeyManagement.SAE;
+		case WPA2_PSK: return nm_settings::KeyManagement.WPA_PSK;
+		case WPA_PSK: return nm_settings::KeyManagement.WPA_PSK;
+		default: return nm_settings::KeyManagement.OPEN;
+	}
 }
 
 // The name shown for a new profile: the SSID as text when it is UTF-8, else a fixed name.
@@ -210,6 +194,8 @@ fn void? try_disconnect(Backend* b, SettleOp* op)
 	}
 	Proxy device = object_proxy(&b.bus, b.wifi_path, NM_DEVICE_IFACE)!;
 	method_void(&device, "Disconnect")!;
+	// Whatever failed before belongs to the connection the user just ended.
+	b.last_supplied = false;
 	add_pending(
 		b,
 		{
@@ -226,21 +212,23 @@ fn bool is_active_state(uint state) @local
 	return state >= nm_convert::DEVICE_STATE_PREPARE && state != nm_convert::DEVICE_STATE_UNMANAGED;
 }
 
-<* Delete the saved profile for this SSID. NOT_FOUND when there is none. *>
+<*
+ Delete every saved profile for this SSID: NetworkManager may hold more than one for
+ a network, and forgetting it must leave none. NOT_FOUND when there is none.
+*>
 fn void? try_forget(Backend* b, Command* c)
 {
 	Profile[] profiles = load_profiles(&b.bus, tmem)!;
-	Profile saved;
-	if (try found = find_profile(profiles, c.ssid.bytes[0:c.ssid.len]))
+	char[] ssid        = c.ssid.bytes[0:c.ssid.len];
+	usz deleted        = 0;
+	foreach (profile : profiles)
 	{
-		saved = found;
+		if (!network::same_ssid(profile.ssid, ssid)) continue;
+		Proxy connection = object_proxy(&b.bus, profile.path, NM_CONNECTION_IFACE)!;
+		method_void(&connection, "Delete")!;
+		deleted++;
 	}
-	else
-	{
-		return NOT_FOUND~;
-	}
-	Proxy connection = object_proxy(&b.bus, saved.path, NM_CONNECTION_IFACE)!;
-	method_void(&connection, "Delete")!;
+	if (deleted == 0) return NOT_FOUND~;
 	settle_now(c.settle, Settled.CHANGED);
 }
 
@@ -315,11 +303,16 @@ fn String? add_and_activate(Backend* b, nm_settings::ProfileSpec spec)
 	return r.read_object_path()!.copy(tmem);
 }
 
-<* Replace the settings of a saved profile with `spec`. *>
-fn void? update_profile(Backend* b, String profile, nm_settings::ProfileSpec spec)
+<*
+ Give a saved profile a new secret. Only the key management and the passphrase change;
+ the profile's other settings are read back and kept.
+*>
+fn void? update_profile(Backend* b, String profile, nm_settings::KeyManagement key_mgmt, String psk)
 {
-	Value settings = nm_settings::profile_settings(tmem, spec)!;
-	update_settings(b, profile, settings)!;
+	Proxy connection = object_proxy(&b.bus, profile, NM_CONNECTION_IFACE)!;
+	Value current    = method_value(&connection, "GetSettings", tmem)!;
+	Value updated    = nm_settings::with_secret(tmem, current, key_mgmt, psk)!;
+	update_settings(b, profile, updated)!;
 }
 
 <* Replace the settings of a saved profile, persisting them. *>
@@ -377,6 +370,8 @@ fn void? try_cancel(Backend* b, Command* c)
 		Prompt* prompt = b.prompts.get_ref(index);
 		b.server.reply_error(prompt.token, ERROR_USER_CANCELED, "the user cancelled the request")!;
 		drop_prompt(b, index);
+		// The refused passphrase belongs to a connection that now fails for lack of one.
+		b.last_supplied = false;
 		settle_now(c.settle, Settled.CHANGED);
 		return;
 	}

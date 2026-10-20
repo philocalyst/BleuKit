@@ -314,7 +314,7 @@ fn void run(void* state, display::DisplayHub* hub, Host{display::Command}* host)
 		for (usz i = 0; i < count; i++) handle(b, commands[i], clock::now());
 		if (b.rollback.guard.due(clock::now()))
 		{
-			display::revert_sync(&b.native, &b.rollback, b.hub);
+			display::revert_and_announce(&b.native, &b.rollback, b.hub);
 			b.dirty = true;
 		}
 		if (b.dirty)
@@ -391,7 +391,10 @@ fn void? configure_all(macos_native::ConfigRef transaction, display::Config conf
 {
 	for (sz i = 0; i < config.outputs.len; i++)
 	{
-		display::OutputChange change          = config.outputs[i];
+		display::OutputChange change = config.outputs[i];
+		// A disabled output is not configured as a mode: disabling is not supported here (refused by check_request),
+		// so there is nothing to write for it.
+		if (!change.enabled) continue;
 		macos_native::DirectDisplayId display = parse_display(change.output_id)!;
 		configure_display(transaction, display, change)!;
 	}
@@ -466,7 +469,7 @@ fn void? configure_display(
 // Stop: a rollback still armed is applied now (the shell is going away); queued commands are refused.
 fn void shutdown(CoreGraphicsBackend* b, Host{display::Command}* host)
 {
-	if (b.rollback.guard.armed) display::revert_sync(&b.native, &b.rollback, b.hub);
+	if (b.rollback.guard.armed) display::revert_and_announce(&b.native, &b.rollback, b.hub);
 	display::Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
 	while (count > 0)

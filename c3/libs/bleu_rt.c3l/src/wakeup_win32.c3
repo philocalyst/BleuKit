@@ -46,7 +46,7 @@ fn void native_close(Wakeup* self) @private
 fn void? native_signal(Wakeup* self) @private
 {
 	if (win32::setEvent(self.write_end)) return;
-	return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "SetEvent failed")~;
+	return error::raise_text(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "SetEvent failed")~;
 }
 
 fn void? native_drain(Wakeup* self) @private

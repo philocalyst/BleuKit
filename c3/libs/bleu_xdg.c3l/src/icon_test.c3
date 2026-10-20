@@ -183,6 +183,46 @@ fn void absolute_names_and_inheritance_loops_are_handled() @test
 	test::@error(finder.find(tmem, "foo", 48, 1), NOT_FOUND);
 }
 
+// A theme that inherits from itself, from a two-theme cycle, or from a three-way loop must
+// be searched once per lookup. Before the visited set, each `Inherits` entry multiplied the
+// work, so a missing icon in a two-way self-inheriting theme took seconds, and a three-way
+// one never finished.
+fn void inheritance_cycles_are_searched_once() @test
+{
+	String root = make_tree("cycles");
+	defer (void)io::path::rmtree((Path)root);
+	String base = string::tformat("%s/base", root);
+	write_theme(base, "self", "self,self");
+	write_theme(base, "three", "three2,three2,three2");
+	write_theme(base, "three2", "three,three");
+	write_theme(base, "cyc-a", "cyc-b");
+	write_theme(base, "cyc-b", "cyc-a");
+	io::file::save(string::tformat("%s/cyc-b/16x16/apps/only.png", base), (char[])"x")!!;
+	String[] bases = { base };
+	Finder* finder = open(mem, bases, "self");
+	defer finder.release();
+	test::@error(finder.find(tmem, "absent", 16, 1), NOT_FOUND);
+	test::@error(finder.find(tmem, "absent", 16, 1), NOT_FOUND);
+	Finder* three_way = open(mem, bases, "three");
+	defer three_way.release();
+	test::@error(three_way.find(tmem, "absent", 16, 1), NOT_FOUND);
+	// A is searched, then its parent B holds the icon, found across the cycle.
+	Finder* cycle = open(mem, bases, "cyc-a");
+	defer cycle.release();
+	test::eq(string::tformat("%s/cyc-b/16x16/apps/only.png", base), cycle.find(tmem, "only", 16, 1)!!);
+}
+
+// A theme directory with an index.theme whose `Inherits` is `inherits` and one 16 px directory.
+fn void write_theme(String base, String name, String inherits) @local
+{
+	String dir = string::tformat("%s/%s", base, name);
+	io::path::mkdir((Path)string::tformat("%s/16x16/apps", dir), true)!!;
+	io::file::save(
+		string::tformat("%s/index.theme", dir),
+		(char[])string::tformat("[Icon Theme]\nName=%s\nDirectories=16x16/apps\nInherits=%s\n[16x16/apps]\nSize=16\n", name, inherits)
+	)!!;
+}
+
 fn void default_base_directories_follow_the_specification() @test
 {
 	Variables vars = {

@@ -7,9 +7,9 @@
 
  Sources (cross-checked):
  * Apple, "Block Implementation Specification" (libclosure `Block_private.h`:
-   `BLOCK_HAS_COPY_DISPOSE = 1 << 25`, `struct Block_descriptor_1 { reserved, size }`,
-   `struct Block_descriptor_2` adds copy and dispose, and the literal fields
-   `isa, flags, reserved, invoke, descriptor`).
+ `BLOCK_HAS_COPY_DISPOSE = 1 << 25`, `struct Block_descriptor_1 { reserved, size }`,
+ `struct Block_descriptor_2` adds copy and dispose, and the literal fields
+ `isa, flags, reserved, invoke, descriptor`).
  * Rust `block2` 0.5.1, `src/abi.rs` (the same flag value and field order).
 
  The ABI fixes the field order, so the sizes are checked with `$assert` and the

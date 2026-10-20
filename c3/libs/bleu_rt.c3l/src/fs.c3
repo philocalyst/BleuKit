@@ -100,22 +100,26 @@ fn String? read_into(String path, char[] buffer) @private
 	if (catch err = read) return io_error("read", path, err)~;
 	String data = (String)read;
 	if (data.len < buffer.len) return data;
-	// Full: the file is exactly this long, or longer. One more byte tells which.
-	if (try extra = file.read_byte())
+	// Full: the file is exactly this long, or longer. One more byte tells which, and
+	// only an end-of-file reply means the file ended here; any other fault is a read failure.
+	if (catch err = file.read_byte())
 	{
-		return error::raise(
-			error::PROTOCOL,
-			error::Domain.INTERNAL,
-			0,
-			"%s is longer than %d bytes",
-			path,
-			buffer.len
-		)~;
+		if (err == io::EOF) return data;
+		return io_error("read", path, err)~;
 	}
-	return data;
+	return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"%s is longer than %d bytes",
+		path,
+		buffer.len
+	)~;
 }
 
-// Translate a standard-library fault into the Bleu excuse vocabulary.
+// Translate a standard-library fault into the Bleu excuse vocabulary. The native
+// code is not kept: std::io's faults do not carry it, and errno is not read back
+// after the standard library's own calls, so `Domain.NONE` says so honestly.
 fn fault io_fault(fault f) @private
 {
 	switch (f)

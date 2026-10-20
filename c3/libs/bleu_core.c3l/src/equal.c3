@@ -11,12 +11,17 @@ module bleu::equal;
  True when `a` and `b` hold the same data: strings and slices element by
  element, structs member by member, everything else with `==`.
 
+ A float compares equal to itself when it is NaN, so an unchanged state that holds
+ a NaN is not republished. Zero and negative zero compare equal.
+
  @require $Typeof(a) == $Typeof(b) : "both sides must have the same type"
 *>
 macro bool deep(a, b)
 {
 	var $Type = $Typeof(a);
 	$switch $Type::kind:
+		$case FLOAT:
+			return a == b || (a != a && b != b);
 		$case STRUCT:
 			$foreach $member : $Type::members:
 				if (!deep(a.$member, b.$member)) return false;

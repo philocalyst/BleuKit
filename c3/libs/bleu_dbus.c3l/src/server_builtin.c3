@@ -71,6 +71,7 @@ fn void? get_property(Call* c, Target* target) @private
 	Reader r              = c.reader()!;
 	String interface_name = r.read_string()!;
 	String name           = r.read_string()!;
+	if (catch r.finish()) return c.reply_error(ERROR_INVALID_ARGS, "Get takes an interface and a property name");
 	Interface* i          = find_interface(target.interfaces, interface_name);
 	if (i == null) return c.reply_error(
 		ERROR_UNKNOWN_INTERFACE,
@@ -101,6 +102,7 @@ fn void? set_property(Call* c, Target* target) @private
 	String interface_name = r.read_string()!;
 	String name           = r.read_string()!;
 	Value boxed           = r.read_value(tmem)!;
+	if (catch r.finish()) return c.reply_error(ERROR_INVALID_ARGS, "Set takes an interface, a property name and a variant");
 	Interface* i          = find_interface(target.interfaces, interface_name);
 	if (i == null) return c.reply_error(
 		ERROR_UNKNOWN_INTERFACE,
@@ -131,6 +133,7 @@ fn void? get_all_properties(Call* c, Target* target) @private
 	if (!arguments_are(c, "s")) return c.reply_error(ERROR_INVALID_ARGS, "GetAll takes an interface name");
 	Reader r              = c.reader()!;
 	String interface_name = r.read_string()!;
+	if (catch r.finish()) return c.reply_error(ERROR_INVALID_ARGS, "GetAll takes an interface name");
 	Interface* i          = find_interface(target.interfaces, interface_name);
 	if (i == null) return c.reply_error(
 		ERROR_UNKNOWN_INTERFACE,

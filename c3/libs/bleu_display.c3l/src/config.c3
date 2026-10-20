@@ -83,25 +83,50 @@ fn void? validate_config(Output[] outputs, Config config)
 		}
 		scale_check(change)!;
 		if (!change.enabled) continue;
-		if (change.mode.width == 0 || change.mode.height == 0)
+		if (change.mode.width == 0 || change.mode.height == 0 || change.mode.width > MAX_MODE_DIMENSION || change.mode.height > MAX_MODE_DIMENSION)
 		{
 			return error::raise(
 				error::INVALID_ARGUMENT,
 				error::Domain.INTERNAL,
 				0,
-				"output %s has no mode",
+				"output %s has no usable mode",
 				change.output_id
 			)~;
 		}
-		rects[enabled++] = change_rect(change);
+		Rect rect = change_rect(change);
+		// A mode too small for its scale rounds to nothing: the output would have no pixels on the desktop.
+		if (rect.width < 1 || rect.height < 1)
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"output %s has no logical size at this scale",
+				change.output_id
+			)~;
+		}
+		rects[enabled++] = rect;
 	}
 	validate_layout(rects[0:enabled])!;
 }
 
-// A scale, when given, must be positive.
+<*
+ Scale factors the layout accepts: a quarter to ten times. Outside them the logical size is either
+ unusable or too large for the `int` extents it is stored in. The bounds are this library's own choice.
+*>
+const ScaleFactor MIN_SCALE = 0.25;
+const ScaleFactor MAX_SCALE = 10.0;
+
+<*
+ Largest width or height of a mode the layout accepts. With MIN_SCALE it keeps every logical size
+ well inside an `int`, so the conversion in `logical_extent` cannot overflow.
+*>
+const uint MAX_MODE_DIMENSION = 65535;
+
+// A scale, when given, must be within MIN_SCALE and MAX_SCALE (the negated form also refuses NaN).
 fn void? scale_check(OutputChange change) @private
 {
-	if (change.scale.has_value && !(change.scale.value > 0.0))
+	if (change.scale.has_value && !(change.scale.value >= MIN_SCALE && change.scale.value <= MAX_SCALE))
 	{
 		return error::raise(
 			error::INVALID_ARGUMENT,

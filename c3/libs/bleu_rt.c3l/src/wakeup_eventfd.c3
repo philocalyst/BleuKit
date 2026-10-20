@@ -45,7 +45,7 @@ fn void? native_signal(Wakeup* self) @private
 	sz written = libc::write(self.write_end, &one, (usz)EVENTFD_COUNTER_SIZE);
 	// EAGAIN means the counter is at its maximum: a signal is already pending.
 	if (written == EVENTFD_COUNTER_SIZE || libc::errno() == EAGAIN) return;
-	return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "eventfd signal failed")~;
+	return error::raise_text(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "eventfd signal failed")~;
 }
 
 fn void? native_drain(Wakeup* self) @private

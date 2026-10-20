@@ -113,7 +113,8 @@ alias Capabilities = EnumMap{Cap, Availability};
 
 <*
  What changed. `OUTPUT_*` describe an output coming, going or changing its properties; `REVERTED`
- says a change made with `APPLY_WITH_REVERT` was rolled back because nobody confirmed it.
+ says a change made with `APPLY_WITH_REVERT` was rolled back because nobody confirmed it, and
+ `REVERT_FAILED` says that rollback was refused.
 *>
 enum EventKind : char
 {
@@ -121,9 +122,10 @@ enum EventKind : char
 	OUTPUT_REMOVED,
 	OUTPUT_CHANGED,
 	REVERTED,
+	REVERT_FAILED, // the rollback was refused: the change that nobody confirmed stays in effect
 }
 
-<* A transient. `output_id` is empty for `REVERTED`. Re-read the state for the values. *>
+<* A transient. `output_id` is empty for `REVERTED` and `REVERT_FAILED`. Re-read the state for the values. *>
 struct Event
 {
 	EventKind kind;

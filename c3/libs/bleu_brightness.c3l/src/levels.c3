@@ -3,7 +3,7 @@
  really produces, and the ramp of a smooth transition. No I/O.
 *>
 module bleu::brightness;
-import std::collections::maybe, std::time, bleu::unit;
+import std::collections::maybe, std::time, bleu::error, bleu::unit;
 
 <*
  The result of writing `requested` to a control whose raw range is

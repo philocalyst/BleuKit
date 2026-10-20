@@ -69,7 +69,7 @@ fn void? native_signal(Wakeup* self) @private
 	char byte  = 1;
 	sz written = libc::write(self.write_end, &byte, 1);
 	if (written == 1 || libc::errno() == EAGAIN) return;
-	return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "wake-up pipe signal failed")~;
+	return error::raise_text(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "wake-up pipe signal failed")~;
 }
 
 fn void? native_drain(Wakeup* self) @private

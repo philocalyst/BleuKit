@@ -89,21 +89,13 @@ fn void fail_command(Command* command, fault failure)
 }
 
 <*
- Fail every request still queued when the worker stops, so no caller waits
- forever. Call it from the backend's run function after its loop has ended.
+ Complete a request the worker did not run, when the backend stops or bails out before taking it: its
+ operation fails with CANCELLED, so no caller waits for an operation nobody will run. Registered with
+ `Hub.start`; runs on the worker thread after the backend's run function has returned.
 *>
-fn void cancel_pending(Host{Command}* host)
+fn void abandon_command(void* backend, Command* command)
 {
-	Command[16] buffer;
-	usz count = host.mailbox().take_all(buffer[..]);
-	while (count > 0)
-	{
-		for (usz i = 0; i < count; i++)
-		{
-			if (buffer[i].op) fail_command(&buffer[i], error::CANCELLED);
-		}
-		count = host.mailbox().take_all(buffer[..]);
-	}
+	settle_fault(command, error::CANCELLED);
 }
 
 <* A copy of `values`, and of every string in it, allocated from `allocator`. *>

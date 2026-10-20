@@ -13,7 +13,7 @@ struct Backend
 {
 	String root;
 	Duration poll;
-	State previous_sources;
+	Startup* startup;
 }
 
 const Driver DRIVER = {
@@ -33,7 +33,7 @@ fn bool probe(Options* options)
 	};
 }
 
-fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
+fn void*? create(Allocator allocator, Options options, Capabilities* capabilities, Startup* startup)
 {
 	capabilities.init(availability::YES);
 	// sysfs maps a supply to MAINS, BATTERY, UPS or UNKNOWN; peripheral batteries come only from UPower.
@@ -45,7 +45,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		)
 	);
 	// What the kernel interface cannot tell us at all, on any hardware.
-	return alloc::new(allocator, Backend, { .root = options.root.copy(allocator), .poll = options.poll });
+	return alloc::new(allocator, Backend, { .root = options.root.copy(allocator), .poll = options.poll, .startup = startup });
 }
 
 fn void destroy(Allocator allocator, void* state)
@@ -62,22 +62,24 @@ fn void refresh(Backend* backend, BatteryHub* hub)
 	State? state              = read_all(snapshot.allocator(), backend.root);
 	if (catch err = state)
 	{
-		// An unreadable tree is an empty one: the subsystem went away.
-		snapshot.value = { };
+		battery::publish_failure(hub, snapshot);
+		return;
 	}
-	else
-	{
-		snapshot.value = state;
-	}
-	hub.publish_if_changed(snapshot);
+	snapshot.value = state;
+	battery::publish_reading(hub, snapshot);
 }
 
 fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 {
 	Backend* backend = (Backend*)state;
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 0)) return;
+	if (catch err = poller.init(mem, host.wakeup(), 0))
+	{
+		backend.startup.fail(err);
+		return;
+	}
 	defer poller.free();
+	backend.startup.succeed();
 	Command[8] commands;
 	refresh(backend, hub);
 	while (!host.stopping())

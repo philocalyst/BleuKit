@@ -230,7 +230,8 @@ const Policy DEFAULT_POLICY = {
 
 <*
  How `open` finds and tunes the centre. `replace` takes the bus name from the daemon
- that holds it, when that daemon allows replacement (a running centre always does).
+ that holds it, but only when that daemon allows replacement. A centre from this
+ library never allows it: any process could otherwise take every notification.
 *>
 struct Options
 {

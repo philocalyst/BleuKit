@@ -338,22 +338,32 @@ fn void? commit_native(void* backend, display::Config config, bool test_only, bo
 			if ((path.flags & win_native::DISPLAYCONFIG_PATH_ACTIVE) != 0) kept[count++] = path;
 		}
 		uint validate = win_native::SDC_USE_SUPPLIED_DISPLAY_CONFIG | win_native::SDC_VALIDATE;
-		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, validate) != 0)
+		int status = win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, validate);
+		if (status != 0)
 		{
+			// The status is kept as the native code: an invalid layout and access denied are different answers.
 			return error::raise(
 				error::INVALID_ARGUMENT,
-				error::Domain.INTERNAL,
-				0,
-				"Windows refuses the configuration (SetDisplayConfig validate)"
+				error::Domain.WIN32,
+				status,
+				"Windows refuses the configuration (SetDisplayConfig validate, status %d)",
+				status
 			)~;
 		}
 		if (test_only) return;
 		uint apply = win_native::SDC_USE_SUPPLIED_DISPLAY_CONFIG | win_native::SDC_APPLY
 			| win_native::SDC_ALLOW_CHANGES;
 		if (persistent) apply |= win_native::SDC_SAVE_TO_DATABASE;
-		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, apply) != 0)
+		int applied = win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, apply);
+		if (applied != 0)
 		{
-			return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "SetDisplayConfig (apply) failed")~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.WIN32,
+				applied,
+				"SetDisplayConfig (apply) failed, status %d",
+				applied
+			)~;
 		}
 	};
 }
@@ -463,7 +473,7 @@ fn void pump_until_stopped(WindowsBackend* b, Host{display::Command}* host, Poll
 		for (usz i = 0; i < count; i++) handle(b, commands[i], clock::now());
 		if (b.rollback.guard.due(clock::now()))
 		{
-			display::revert_sync(&b.native, &b.rollback, b.hub);
+			display::revert_and_announce(&b.native, &b.rollback, b.hub);
 			b.dirty = true;
 		}
 		if (b.dirty)
@@ -510,7 +520,7 @@ fn void handle(WindowsBackend* b, display::Command command, Clock now)
 // Stop: a rollback still armed is applied now; queued commands are refused.
 fn void shutdown(WindowsBackend* b, Host{display::Command}* host)
 {
-	if (b.rollback.guard.armed) display::revert_sync(&b.native, &b.rollback, b.hub);
+	if (b.rollback.guard.armed) display::revert_and_announce(&b.native, &b.rollback, b.hub);
 	display::Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
 	while (count > 0)

@@ -48,7 +48,14 @@ fn Display*? open(Allocator allocator, Options options = { })
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "display", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"display",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -98,8 +105,12 @@ fn WatchId{State} Display.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Display.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Display.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (outputs added, removed, changed; a change reverted). *>
 fn Reader{Event}*? Display.subscribe(&self) => self.hub.events.subscribe();
@@ -115,24 +126,32 @@ fn void? Display.refresh(&self)
  Carry out `config`, a full desired layout (one entry per output, from `latest()`). The returned
  operation completes with the outcome once the platform has accepted or refused the change.
 
- `APPLY_WITH_REVERT` makes the change live and rolls it back to the current state after
+ `APPLY_WITH_REVERT` makes the change live and rolls it back to the last confirmed layout after
  `revert_after` unless `confirm` is called first. The caller must keep the operation until it
  completes; the arguments are copied, so the caller's `config` may be released at once.
 
+ `revert_after`: zero means DEFAULT_REVERT_AFTER (15 s); FOREVER means no rollback, so the change
+ is kept as a plain APPLY would keep it; a negative window is refused. A plain APPLY is a decision
+ of its own: it keeps the layout it names and forgets any pending rollback, even when it changes
+ nothing. A TEST_ONLY, or an APPLY_WITH_REVERT that changes nothing, leaves a pending rollback alone.
+
  @return? error::UNSUPPORTED : "This backend cannot revert, or cannot persist, the change"
+ @return? error::INVALID_ARGUMENT : "`revert_after` is negative"
  @return? error::BUSY : "The request queue is full"
 *>
 fn ApplyOp*? Display.apply(&self, Config config, ApplyMode mode, Duration revert_after = time::DURATION_ZERO)
 {
 	if (mode == APPLY_WITH_REVERT) require_cap(self, REVERT)!;
 	if (config.persistent) require_cap(self, PERSISTENT)!;
-	ApplyOp* op = operation::begin(self.allocator);
-	Command command = {
+	Duration window     = revert_window(revert_after)!;
+	ApplyMode effective = mode == APPLY_WITH_REVERT && window == time::FOREVER ? APPLY : mode;
+	ApplyOp* op         = operation::begin(self.allocator);
+	Command command     = {
 		.kind = APPLY,
 		.op = op,
 		.config = copy_config(config, op.allocator()),
-		.mode = mode,
-		.revert_after = revert_after,
+		.mode = effective,
+		.revert_after = window,
 	};
 	op.retain();
 	if (catch err = self.hub.post(command))
@@ -152,6 +171,17 @@ fn void? Display.confirm(&self)
 {
 	Command command = { .kind = CONFIRM };
 	return self.hub.post(command);
+}
+
+<*
+ Fail an apply the worker never served, so its waiter is released with DISCONNECTED. Other
+ commands carry nothing to complete. The hub calls this once the worker has stopped.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.kind != APPLY) return;
+	(void)command.op.fail(error::DISCONNECTED);
+	command.op.release();
 }
 
 // Refuse, as UNSUPPORTED or UNAVAILABLE, a request the backend cannot serve.

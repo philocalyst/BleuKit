@@ -55,13 +55,16 @@ fn void? Mailbox.init(&self, Allocator allocator, usz max_capacity = DEFAULT_MAX
 		self.mutex.destroy();
 		return err~;
 	}
+	self.closed = false;
 	usz initial = min(INITIAL_CAPACITY, max_capacity);
 	self.ring = alloc::new_array(allocator, Command, (sz)initial);
 }
 
 <*
- Release the ring buffer and the wake-up. Commands still queued are discarded.
- The mailbox must not be used afterwards.
+ Release the ring buffer, the wake-up and the mutex. Commands still queued are
+ discarded. Call it once, after `close`, when no thread can still `post`: a post
+ that runs after this, or concurrently with it, is undefined. The owner decides
+ that, which is why `Hub.stop` never frees the mailbox and `Hub.free` does.
 *>
 fn void Mailbox.free(&self)
 {
@@ -72,7 +75,8 @@ fn void Mailbox.free(&self)
 }
 
 <*
- Enqueue a command and wake the consumer. Callable from any thread.
+ Enqueue a command and wake the consumer. Callable from any thread, including a
+ foreign callback: the refusals use no temporary memory.
 
  @return? error::UNAVAILABLE : "The mailbox is closed; no further commands are accepted"
  @return? error::BUSY : "The queue holds `max_capacity` commands already"
@@ -83,13 +87,13 @@ fn void? Mailbox.post(&self, Command command)
 	defer self.mutex.unlock();
 	if (self.closed)
 	{
-		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "mailbox is closed")~;
+		return error::raise_text(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "mailbox is closed")~;
 	}
 	if (self.count == (usz)self.ring.len)
 	{
 		if (self.count >= self.max_capacity)
 		{
-			return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "mailbox is full (%d commands)", self.count)~;
+			return error::raise_text(error::BUSY, error::Domain.INTERNAL, 0, "mailbox is full")~;
 		}
 		self.grow();
 	}

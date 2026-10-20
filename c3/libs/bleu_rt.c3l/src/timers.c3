@@ -60,10 +60,15 @@ fn void? TimerQueue.schedule(&self, usz id, Duration delay)
  the moment it is noticed.
 
  @require period > time::DURATION_ZERO : "A repeating timer needs a positive period"
- @return? error::INVALID_ARGUMENT : "A timer with this id is already pending"
+ @return? error::INVALID_ARGUMENT : "A timer with this id is already pending, or the period is not positive"
 *>
 fn void? TimerQueue.schedule_repeating(&self, usz id, Duration period)
 {
+	// A zero period would fire on every poll: with contracts off it must not become a one-shot silently.
+	if (period <= time::DURATION_ZERO)
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "repeating period must be positive")~;
+	}
 	return timer_add(self, id, period, period);
 }
 
@@ -95,7 +100,8 @@ fn Duration TimerQueue.next_timeout(&self)
  return how many. One-shot timers leave the queue; repeating timers are rearmed.
  Timers that did not fit stay due, so the next call returns them.
 
- @param buffer : "Receives the expired ids"
+ @param buffer : "Receives the expired ids; it must have room for at least one"
+ @require buffer.len > 0 : "An empty buffer never drains a due timer, so `next_timeout` would stay at zero"
 *>
 fn usz TimerQueue.pop_expired(&self, usz[] buffer)
 {

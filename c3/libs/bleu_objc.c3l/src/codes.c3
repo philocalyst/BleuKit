@@ -8,7 +8,7 @@
  Sources (values, each checked against the header named):
  * `KERN_*`: Apple xnu `osfmk/mach/kern_return.h` (`KERN_RESOURCE_SHORTAGE` is 6).
  * `kIOReturn*` (`IO_*`): Apple xnu `iokit/IOKit/IOReturn.h` (`err_system(0x38)`,
-   `iokit_common_err(n)`), and the Rust `io-kit-sys` 0.4.1 `src/ret.rs`.
+ `iokit_common_err(n)`), and the Rust `io-kit-sys` 0.4.1 `src/ret.rs`.
  * `NSCocoaErrorDomain` codes: objc2-foundation `src/generated/FoundationErrors.rs`.
  * errno values: Apple xnu `bsd/sys/errno.h`.
  * `errAEEventNotPermitted` (-1743): objc2-core-services `src/generated/AE/AppleEvents.rs`.

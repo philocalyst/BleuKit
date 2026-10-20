@@ -3,12 +3,17 @@
 // the `reconnect` argument, a lost compositor and its return. Output lines are
 // `key=value` so run.sh can check them.
 module service_live;
-import bleu::windows, bleu::error, bleu::stream, bleu::observe, bleu::operation, std::io, std::time;
+import bleu::windows, bleu::error, bleu::stream, bleu::observe, bleu::operation, std::io, std::thread, std::time;
 
 const Duration FIRST_STATE_WAIT = (Duration)8_000_000;
 const Duration EVENT_WAIT       = (Duration)200_000;
 const Duration ACTION_WAIT      = (Duration)3_000_000;
 const int EVENT_ROUNDS          = 10;
+// The storm while the compositor is down: a command every STORM_STEP, for STORM_ROUNDS rounds.
+// The step is shorter than the first retry wait (1 s by default), so a timer that every
+// wake-up restarts never fires during the storm.
+const Duration STORM_STEP       = (Duration)100_000;
+const int STORM_ROUNDS          = 60;
 
 fn String connection_name(windows::Connection connection) @private
 {
@@ -173,6 +178,20 @@ fn int main(int argc, char** argv)
 		lost.release();
 		report_action("action_while_down", service.focus_window(target)!!);
 		io::printfn("runner=restart-compositor");
+		// Keep commands arriving while the compositor is down; the return must come from the
+		// retry deadline, while the storm is still running.
+		bool back_during_storm = false;
+		for (int round = 0; round < STORM_ROUNDS && !back_during_storm; round++)
+		{
+			if (try request = service.focus_window(target)) request.release();
+			if (try current = service.latest())
+			{
+				back_during_storm = current.value.connection == windows::Connection.CONNECTED;
+				current.release();
+			}
+			thread::sleep(STORM_STEP)!!;
+		}
+		io::printfn("storm=%s", back_during_storm ? "reconnected" : "starved");
 		Snapshot{windows::State}* back = wait_for_connection(
 			service,
 			seen,

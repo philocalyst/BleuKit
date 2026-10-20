@@ -13,10 +13,13 @@
 // Threading: CoreWLAN calls run on the worker. The event callbacks (on
 // CoreWLAN's threads, in corewlan_events.c3) only post a refresh to the mailbox.
 module bleu::network::corewlan @feat(DARWIN) @link("CoreWLAN.framework");
-import std::io, std::time, std::collections::maybe, std::os::darwin::objc, bleu::observe, bleu::unit, bleu::availability, bleu::error, bleu::network, bleu::network::corewlan_convert, bleu::network::corewlan_location, bleu::objc, bleu::objc::foundation, bleu::rt::poller, bleu::rt::worker;
+import std::io, std::time, std::collections::list, std::collections::maybe, std::os::darwin::objc, bleu::observe, bleu::unit, bleu::availability, bleu::error, bleu::network, bleu::network::corewlan_convert, bleu::network::corewlan_location, bleu::objc, bleu::objc::foundation, bleu::rt::poller, bleu::rt::worker;
 
 <* Commands taken from the mailbox per pass of the loop. *>
 const usz COMMAND_BATCH = 16;
+
+<* What to do when the names are withheld: the reason a connect fails with PERMISSION_DENIED (kept under the detail limit). *>
+const String LOCATION_REMEDY = "Wi-Fi names are withheld: grant Location Services to this app (System Settings > Privacy & Security > Location Services); the app must request it itself";
 
 <* The backend's state. The worker thread owns it. *>
 struct Backend
@@ -158,7 +161,11 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	objc::Obj delegate = install_delegate(host.mailbox());
 	defer uninstall_delegate(delegate);
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 2)) return;
+	if (catch poller.init(mem, host.wakeup(), 2))
+	{
+		network::publish_empty(hub);
+		return;
+	}
 	defer poller.free();
 	Command[COMMAND_BATCH] commands;
 	refresh(b, hub);
@@ -175,6 +182,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 			for (usz i = 0; i < count; i++)
 			{
 				execute(b, &commands[i]);
+				network::wipe_command_secret(&commands[i]);
 			}
 			refresh(b, hub);
 		};
@@ -193,7 +201,8 @@ fn void execute(Backend* b, Command* c)
 {
 	switch (c.kind)
 	{
-		case REFRESH: return;
+		case REFRESH:
+		case SCAN_FINISHED: return;
 		case SCAN:
 			if (catch err = scan(b, c.settle)) fail_settle(c.settle, err);
 		case CONNECT: finish_connect(c.connect, b, c);
@@ -256,12 +265,18 @@ fn Connected? connect(Backend* b, Command* c, Allocator out)
 {
 	char[] ssid   = c.ssid.bytes[0:c.ssid.len];
 	ObjId network = find_scanned(b, ssid);
-	if (network == (ObjId)null) return error::raise(
-		NOT_FOUND,
-		error::Domain.INTERNAL,
-		0,
-		"that network is not in the last scan (or its name is withheld)"
-	)~;
+	if (network == (ObjId)null)
+	{
+		fault failure = corewlan_convert::missing_network_fault(corewlan_location::authorization(), has_withheld(b));
+		if (failure == error::PERMISSION_DENIED) return error::raise(
+			failure,
+			error::Domain.INTERNAL,
+			0,
+			"%s",
+			LOCATION_REMEDY
+		)~;
+		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "that network is not in the last scan")~;
+	}
 	ObjId password = (ObjId)null;
 	if (c.secret.len > 0) password = foundation::from_string((String)c.secret.bytes[0:c.secret.len]).ptr;
 	ObjId err   = (ObjId)null;
@@ -284,6 +299,31 @@ fn ObjId find_scanned(Backend* b, char[] ssid) @local
 	return (ObjId)null;
 }
 
+// Whether the last scan has a network whose name CoreWLAN withholds (no SSID data).
+fn bool has_withheld(Backend* b) @local
+{
+	ObjId list = scan_list(b);
+	usz count  = foundation::array_count(list);
+	for (usz i = 0; i < count; i++)
+	{
+		ObjId network = foundation::array_at(list, i);
+		if (data_or_empty(view(network).send_id("ssidData"), tmem).len == 0) return true;
+	}
+	return false;
+}
+
+// Whether this Mac is associated (see corewlan_convert.is_associated).
+fn bool associated(Backend* b) @local
+{
+	objc::Obj iface = b.iface;
+	return corewlan_convert::is_associated(
+		iface.send_id("ssid") != (ObjId)null,
+		iface.send_id("bssid") != (ObjId)null,
+		iface.send_long("rssiValue"),
+		iface.send_double("transmitRate")
+	);
+}
+
 // The last scan's networks as an NSArray (possibly empty; never nil).
 fn ObjId scan_list(Backend* b) @local
 {
@@ -292,9 +332,10 @@ fn ObjId scan_list(Backend* b) @local
 	return foundation::set_members(set);
 }
 
+// Disconnect needs no name: an association with withheld names is still one. Completes ALREADY when there is none.
 fn void disconnect(Backend* b, SettleOp* op)
 {
-	if (b.iface.send_id("ssid") == (ObjId)null && b.iface.send_id("bssid") == (ObjId)null)
+	if (!associated(b))
 	{
 		settle_now(op, Settled.ALREADY);
 		return;
@@ -315,21 +356,23 @@ fn void? set_radio(Backend* b, SettleOp* op, bool on)
 	settle_now(op, Settled.CHANGED);
 }
 
-<* The state as CoreWLAN shows it right now. Withheld names are empty; `location` says why. *>
+<*
+ The state as CoreWLAN shows it right now. Withheld names are empty and `ssid_visible` is
+ false while associated; `location` says why (the permission). An association is never
+ reported as "not associated" because its name is withheld.
+*>
 fn State read_state(Backend* b, Allocator out)
 {
 	Wifi wifi = { .present = true, .interface_name = b.interface_name.copy(out) };
 	wifi.radio_enabled = b.iface.send_bool("powerOn");
-	ObjId ssid    = b.iface.send_id("ssid");
-	ObjId bssid   = b.iface.send_id("bssid");
-	char[] octets = data_or_empty(b.iface.send_id("ssidData"), out);
-	if (ssid != (ObjId)null && octets.len > 0)
-	{
-		wifi.connected_ssid = network::make_ssid(out, octets);
-		wifi.ssid_visible = true;
-	}
-	bool associated = ssid != (ObjId)null || bssid != (ObjId)null;
-	wifi.phase = associated ? CONNECTED : IDLE;
+	ObjId ssid        = b.iface.send_id("ssid");
+	ObjId bssid       = b.iface.send_id("bssid");
+	bool linked       = associated(b);
+	char[] octets    = data_or_empty(b.iface.send_id("ssidData"), out);
+	bool named        = ssid != (ObjId)null && octets.len > 0;
+	if (named) wifi.connected_ssid = network::make_ssid(out, octets);
+	wifi.ssid_visible = !linked || named;
+	wifi.phase = linked ? CONNECTED : IDLE;
 	wifi.networks = scanned_networks(b, out, bssid);
 	foreach (&network : wifi.networks)
 	{
@@ -340,18 +383,22 @@ fn State read_state(Backend* b, Allocator out)
 	return {
 		.connectivity = UNKNOWN,
 		.location = corewlan_location::authorization(),
-		.primary_interface = associated ? b.interface_name.copy(out) : "",
+		.primary_interface = linked ? b.interface_name.copy(out) : "",
 		.wifi = wifi,
 		.interfaces = interfaces,
 	};
 }
 
-<* One entry per scanned access point. CoreWLAN has no saved-profile information, so `known` stays false. *>
+<*
+ One entry per network: the scanned access points are merged by SSID (`network::merge_access_point`),
+ so a network seen on several bands or BSSIDs is listed once. Withheld names stay one entry per access point.
+*>
 fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid) @local
 {
-	ObjId list          = scan_list(b);
-	usz count           = foundation::array_count(list);
-	AccessPoint[] found = alloc::new_array(out, AccessPoint, (sz)count);
+	ObjId list = scan_list(b);
+	usz count  = foundation::array_count(list);
+	List{AccessPoint} merged;
+	merged.init(tmem);
 	for (usz i = 0; i < count; i++)
 	{
 		ObjId network    = foundation::array_at(list, i);
@@ -371,9 +418,9 @@ fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid
 			.in_use = current_bssid != (ObjId)null && bssid_text(current_bssid, tmem) == bssid && bssid.len > 0,
 		};
 		if (try mhz = corewlan_convert::frequency_from_channel(band, number)) entry.frequency = maybe::value(mhz);
-		found[i] = entry;
+		network::merge_access_point(&merged, entry);
 	}
-	return found;
+	return network::clone_access_points(out, merged.array_view());
 }
 
 // The octets of an NSData, or an empty slice when it is nil (withheld).

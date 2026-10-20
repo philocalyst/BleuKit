@@ -177,3 +177,61 @@ fn void cancelled_configuration_is_retried_once() @test
 	// Already retried once: report it, do not loop.
 	assert(wayland_convert::after_cancel(true, 7, 8) == wayland_convert::CancelAction.GIVE_UP);
 }
+fn void revert_window_maps_zero_to_the_default_and_refuses_negative() @test
+{
+	assert(display::revert_window(time::DURATION_ZERO)!! == display::DEFAULT_REVERT_AFTER);
+	assert(display::revert_window(time::FOREVER)!! == time::FOREVER);
+	test::@error(display::revert_window((Duration)-1), error::INVALID_ARGUMENT);
+}
+
+fn void forever_never_comes_due() @test
+{
+	// Before the fix, FOREVER wrapped the deadline into the past and the change was rolled back at once.
+	display::RevertGuard guard;
+	Clock start = (Clock)1_000_000_000;
+	guard.arm(start, time::FOREVER);
+	assert(!guard.due(start));
+	assert(!guard.due(start + (Clock)1_000_000_000_000_000));
+	assert(guard.remaining(start) != time::DURATION_ZERO);
+	assert(guard.confirm(start + (Clock)5_000_000));
+}
+
+fn void the_deadline_is_one_instant_for_confirm_and_due() @test
+{
+	display::RevertGuard guard;
+	Clock start = (Clock)1_000_000_000;
+	guard.arm(start, (Duration)1);
+	// Half a microsecond left is not yet due, and the caller must still wait for it.
+	assert(!guard.due(start + (Clock)999));
+	assert(guard.remaining(start + (Clock)999) == (Duration)1);
+	// At the deadline the change is due and a confirmation is refused.
+	assert(guard.due(start + (Clock)1000));
+	assert(!guard.confirm(start + (Clock)1000));
+	assert(guard.armed);
+}
+
+fn void deadlines_saturate_instead_of_wrapping() @test
+{
+	display::RevertGuard guard;
+	Clock near_the_end = (Clock)0xFFFF_FFFF_FFFF_FFF0;
+	guard.arm(near_the_end, (Duration)15_000_000);
+	assert(!guard.due(near_the_end));
+	assert(guard.remaining(near_the_end) != time::DURATION_ZERO);
+}
+
+fn void logical_size_and_scale_bounds_are_checked() @test
+{
+	display::Output[2] outputs = { };
+	two_outputs(outputs[..]);
+	display::OutputChange[2] changes = { };
+	changes[1] = { .output_id = "HDMI-1", .enabled = false };
+	// A 1x1 mode at scale 4 has no logical pixels at all: refused, not accepted with a 0x0 size.
+	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = { .width = 1, .height = 1, .refresh = 60000 }, .scale = maybe::value(4.0) };
+	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
+	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = fhd60(), .scale = maybe::value(11.0) };
+	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
+	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = { .width = 100000, .height = 1080, .refresh = 60000 } };
+	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
+	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = fhd60(), .scale = maybe::value(2.0) };
+	display::validate_config(outputs[..], { .outputs = changes[..] })!!;
+}

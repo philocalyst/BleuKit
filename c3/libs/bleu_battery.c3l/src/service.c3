@@ -34,13 +34,15 @@ struct Battery
 	Driver* driver;
 	void* driver_state;
 	Capabilities capabilities;
+	Startup startup;
 }
 
 <*
- Open the first working backend of this platform (or the one in `options`).
+ Open the first working backend of this platform (or the one in `options`). Blocks
+ until the backend's worker is running, so a backend that cannot start is an error here.
 
  @param allocator : "Allocator for the service and its snapshots"
- @return? error::UNAVAILABLE : "No backend works here (no battery subsystem)"
+ @return? error::UNAVAILABLE : "No backend works here (no battery subsystem), or the chosen one failed to start"
  @return? error::UNSUPPORTED : "The requested backend does not exist on this platform"
 *>
 fn Battery*? open(Allocator allocator, Options options = { })
@@ -50,11 +52,33 @@ fn Battery*? open(Allocator allocator, Options options = { })
 	Battery* self  = alloc::new(allocator, Battery);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "battery", driver.info.name, driver.run, self.driver_state))
+	self.startup.init();
+	void*? state = driver.create(allocator, options, &self.capabilities, &self.startup);
+	if (catch err = state)
+	{
+		self.startup.free();
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"battery",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		service::DEFAULT_QUEUE,
+		&abandon
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
+		self.startup.free();
 		alloc::free(allocator, self);
+		return err~;
+	}
+	if (catch err = self.startup.wait())
+	{
+		self.close();
 		return err~;
 	}
 	return self;
@@ -65,8 +89,17 @@ fn void Battery.close(&self)
 {
 	self.hub.stop();
 	self.driver.destroy(self.allocator, self.driver_state);
+	self.startup.free();
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
+}
+
+<*
+ Called for each command still queued when the backend stops. REFRESH carries no
+ `Operation`, so nothing waits on it and there is nothing to complete.
+*>
+fn void abandon(void* backend, Command* command) @local
+{
 }
 
 <* Name of the backend in use, for diagnostics ("sysfs", "upower", "iokit", "win32"). *>

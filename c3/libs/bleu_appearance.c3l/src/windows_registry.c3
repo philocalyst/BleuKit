@@ -34,6 +34,7 @@ extern fn int system_parameters_info_w(uint action, uint param, void* data, uint
 struct WindowsBackend
 {
 	Duration poll;
+	ColorScheme scheme; // the last scheme read: kept when the Personalize key cannot be read
 }
 
 const Driver DRIVER = {
@@ -66,7 +67,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	capabilities.init(availability::YES);
 	capabilities.values[Cap.COLOR_SCHEME_SET.ordinal] = availability::no(
 		availability::Reason.DEGRADED,
-		"writes AppsUseLightTheme; apps may not repaint until a broadcast, which v1 does not send"
+		"writes AppsUseLightTheme only: apps repaint after a broadcast, which v1 does not send, and the taskbar and system UI keep their scheme"
 	);
 	capabilities.values[Cap.ACCENT.ordinal] = availability::no(
 		availability::Reason.DEGRADED,
@@ -120,17 +121,21 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 	if (catch poller.init(mem, host.wakeup(), 2, true)) return;
 	defer poller.free();
 
-	// The hidden window must be opened on this thread, which dispatches its messages.
-	message_loop::Loop* window = message_loop::open(mem, &on_message, null)!!;
-	defer window.close();
+	// The hidden window must be opened on this thread, which dispatches its messages. Without it, the poll
+	// tick still re-reads the desktop: a failure here only delays the changes.
+	message_loop::Loop* window = null;
+	if (try opened = message_loop::open(mem, &on_message, null)) window = opened;
+	defer
+	{
+		if (window != null) window.close();
+	}
 
 	registry::Watch personalize;
 	bool watching_personalize = false;
-	if (try watch = watch_key_at(PERSONALIZE_PATH))
+	if (try watch = open_watch(&poller, PERSONALIZE_PATH, PERSONALIZE_TAG))
 	{
 		personalize = watch;
 		watching_personalize = true;
-		poller.add({ .handle = personalize.handle(), .interest = { .readable = true }, .tag = PERSONALIZE_TAG })!!;
 	}
 	defer
 	{
@@ -138,18 +143,17 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 	}
 	registry::Watch accent;
 	bool watching_accent = false;
-	if (try watch = watch_key_at(DWM_PATH))
+	if (try watch = open_watch(&poller, DWM_PATH, DWM_TAG))
 	{
 		accent = watch;
 		watching_accent = true;
-		poller.add({ .handle = accent.handle(), .interest = { .readable = true }, .tag = DWM_TAG })!!;
 	}
 	defer
 	{
 		if (watching_accent) accent.close();
 	}
 
-	refresh(hub);
+	refresh(backend, hub);
 	Command[8] commands;
 	while (!host.stopping())
 	{
@@ -158,8 +162,22 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 			foreach (event : ready)
 			{
 				if (event.tag == poller::WINDOW_MESSAGES_TAG) message_loop::dispatch_pending();
-				if (event.tag == PERSONALIZE_TAG && watching_personalize) personalize.arm()!!;
-				if (event.tag == DWM_TAG && watching_accent) accent.arm()!!;
+				if (event.tag == PERSONALIZE_TAG && watching_personalize)
+				{
+					if (catch personalize.arm())
+					{
+						drop_watch(&poller, &personalize, PERSONALIZE_TAG);
+						watching_personalize = false;
+					}
+				}
+				if (event.tag == DWM_TAG && watching_accent)
+				{
+					if (catch accent.arm())
+					{
+						drop_watch(&poller, &accent, DWM_TAG);
+						watching_accent = false;
+					}
+				}
 			}
 		}
 		for (usz count = host.mailbox()
@@ -167,9 +185,35 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 		{
 			for (usz i = 0; i < count; i++) execute(&commands[i]);
 		}
-		refresh(hub);
+		refresh(backend, hub);
 	}
-	appearance::cancel_pending(host);
+}
+
+<*
+ Watch the key at `path` for changes, as a source of `poller` under `tag`. A key that cannot be watched is not
+ an error: the poll tick still re-reads the desktop, so the change only comes one interval late.
+
+ @return? error::BACKEND_FAILURE : "The key cannot be opened, or the poller refuses it"
+*>
+fn registry::Watch? open_watch(Poller* poller, String path, usz tag) @private
+{
+	registry::Watch watch = watch_key_at(path)!;
+	if (catch err = poller.add({ .handle = watch.handle(), .interest = { .readable = true }, .tag = tag }))
+	{
+		watch.close();
+		return err~;
+	}
+	return watch;
+}
+
+// Take a watch that failed out of the poller and close it. The poll tick keeps the desktop up to date.
+fn void drop_watch(Poller* poller, registry::Watch* watch, usz tag) @private
+{
+	if (catch poller.remove(tag))
+	{
+		// Not registered: nothing to take out.
+	}
+	watch.close();
 }
 
 // The wake-up itself is the signal: the loop re-reads the whole state after it.
@@ -183,24 +227,30 @@ fn registry::Watch? watch_key_at(String path) @private
 	return registry::watch_key(key)!;
 }
 
-fn void refresh(AppearanceHub* hub) @private
+fn void refresh(WindowsBackend* backend, AppearanceHub* hub) @private
 {
 	StateSnapshot* snapshot = hub.begin();
-	snapshot.value = read_state(snapshot.allocator());
+	snapshot.value = read_state(backend, snapshot.allocator());
 	appearance::publish(hub, snapshot);
 }
 
-fn State read_state(Allocator allocator) @private
+fn State read_state(WindowsBackend* backend, Allocator allocator) @private
 {
+	ColorScheme scheme = read_scheme(backend.scheme);
+	backend.scheme = scheme;
 	return {
-		.color_scheme = read_scheme(),
+		.color_scheme = scheme,
 		.accent = read_accent(),
 		.wallpapers = read_wallpaper(allocator),
 	};
 }
 
-// AppsUseLightTheme is missing on a machine that never chose a theme; Windows then uses light.
-fn ColorScheme read_scheme() @private
+<*
+ The scheme from AppsUseLightTheme. A missing value is LIGHT, which Windows uses on a machine that never chose a
+ theme. When the Personalize key cannot be opened the reading is unknown, so `last` stands: a failed read is not
+ reported as a fact.
+*>
+fn ColorScheme read_scheme(ColorScheme last) @private
 {
 	if (try key = registry::open(
 		registry::Hive.CURRENT_USER,
@@ -211,8 +261,9 @@ fn ColorScheme read_scheme() @private
 	{
 		defer key.close();
 		if (try value = key.dword(APPS_LIGHT_VALUE)) return convert::scheme_from_apps_use_light_theme(value);
+		return LIGHT;
 	}
-	return LIGHT;
+	return last;
 }
 
 fn Maybe{Rgb} read_accent() @private

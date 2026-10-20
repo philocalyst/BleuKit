@@ -68,8 +68,24 @@ fn NameReply? Connection.request_name(&self, String name, uint flags)
 	w.append_u32(flags)!;
 	Message* reply = self.call(call)!;
 	defer reply.release();
-	uint code = reply.reader()!.read_u32()!;
-	return (NameReply)(char)code;
+	return name_reply_of(reply.reader()!.read_u32()!);
+}
+
+<*
+ The NameReply for a RequestName reply code: 1 to 4, the specification's set.
+
+ @return? error::BACKEND_FAILURE : "The bus sent a code outside the specification's set"
+*>
+fn NameReply? name_reply_of(uint code)
+{
+	switch (code)
+	{
+		case 1: return NameReply.PRIMARY_OWNER;
+		case 2: return NameReply.IN_QUEUE;
+		case 3: return NameReply.EXISTS;
+		case 4: return NameReply.ALREADY_OWNER;
+		default: return error::raise(error::BACKEND_FAILURE, error::Domain.DBUS, (int)code, "RequestName reply code %d", code)~;
+	}
 }
 
 <*
@@ -85,8 +101,23 @@ fn ReleaseReply? Connection.release_name(&self, String name)
 	call.body_writer("s")!.append_string(name)!;
 	Message* reply = self.call(call)!;
 	defer reply.release();
-	uint code = reply.reader()!.read_u32()!;
-	return (ReleaseReply)(char)code;
+	return release_reply_of(reply.reader()!.read_u32()!);
+}
+
+<*
+ The ReleaseReply for a ReleaseName reply code: 1 to 3, the specification's set.
+
+ @return? error::BACKEND_FAILURE : "The bus sent a code outside the specification's set"
+*>
+fn ReleaseReply? release_reply_of(uint code)
+{
+	switch (code)
+	{
+		case 1: return ReleaseReply.RELEASED;
+		case 2: return ReleaseReply.NON_EXISTENT;
+		case 3: return ReleaseReply.NOT_OWNER;
+		default: return error::raise(error::BACKEND_FAILURE, error::Domain.DBUS, (int)code, "ReleaseName reply code %d", code)~;
+	}
 }
 
 <*
@@ -106,13 +137,28 @@ fn SubscriptionId? Connection.subscribe(
 	void* owned = null
 )
 {
-	if (catch err = add_match(self, rule.rule_text()))
+	begin_operation(self);
+	defer end_operation(self);
+	String rule_text = rule.rule_text();
+	if (catch err = add_match(self, rule_text))
 	{
 		rule.free();
 		if (owned != null) alloc::free(self.allocator, owned);
 		return err~;
 	}
-	if (rule.sender.len > 0) track_sender(self, rule.sender)!;
+	if (rule.sender.len > 0)
+	{
+		if (catch err = track_sender(self, rule.sender))
+		{
+			// The bus already has the match: take it back, or it keeps sending messages nobody handles.
+			if (catch remove_match(self, rule_text))
+			{
+			}
+			rule.free();
+			if (owned != null) alloc::free(self.allocator, owned);
+			return err~;
+		}
+	}
 	return self.add_subscription(rule, handler, context, owned);
 }
 
@@ -215,8 +261,22 @@ fn StartReply? Connection.start_service_by_name(&self, String name)
 	w.append_u32(0)!;
 	Message* reply = self.call(call)!;
 	defer reply.release();
-	uint code = reply.reader()!.read_u32()!;
-	return (StartReply)(char)code;
+	return start_reply_of(reply.reader()!.read_u32()!);
+}
+
+<*
+ The StartReply for a StartServiceByName reply code: 1 or 2, the specification's set.
+
+ @return? error::BACKEND_FAILURE : "The bus sent a code outside the specification's set"
+*>
+fn StartReply? start_reply_of(uint code)
+{
+	switch (code)
+	{
+		case 1: return StartReply.SUCCESS;
+		case 2: return StartReply.ALREADY_RUNNING;
+		default: return error::raise(error::BACKEND_FAILURE, error::Domain.DBUS, (int)code, "StartServiceByName reply code %d", code)~;
+	}
 }
 
 // A METHOD_CALL to a member of org.freedesktop.DBus on the bus daemon.
@@ -257,17 +317,19 @@ fn void? track_sender(Connection* c, String name) @private
 	if (name[0] == ':' || c.tracks_name(name)) return;
 	match::Match changes;
 	changes.init(c.allocator);
+	defer changes.free();
 	changes.with_type(MessageType.SIGNAL)!;
 	changes.with_sender(connection::BUS_NAME)!;
 	changes.with_interface(connection::BUS_INTERFACE)!;
 	changes.with_member(NAME_OWNER_CHANGED)!;
 	changes.with_arg(0, name)!;
 	add_match(c, changes.rule_text())!;
-	changes.free();
 	c.set_owner(name, "");
 	Message* call = bus_method(c, "GetNameOwner")!;
 	defer call.release();
 	call.body_writer("s")!.append_string(name)!;
+	// When the bus does not answer, the owner stays unknown (""), as the cache says until the
+	// bus reports a change. The match is kept either way, so that change is reported.
 	if (try reply = c.call(call))
 	{
 		defer reply.release();

@@ -116,16 +116,13 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 	{
 		if (catch s.client.flush()) break;
 		Clock now = clock::now();
-		if (try ready = poller.wait(next_wake(s, now)))
+		Ready[]? ready = poller.wait(next_wake(s, now));
+		if (catch err = ready)
 		{
-			foreach (event : ready)
-			{
-				if (event.tag == CLIENT_TAG)
-				{
-					if (catch s.client.dispatch()) break;
-				}
-			}
+			// TIMEOUT is the normal end of the wait; any other error means the poller is broken, and the session stops.
+			if (err != TIMEOUT) break;
 		}
+		else if (!dispatch_ready(s, ready)) break;
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) handle_command(s, commands[i], clock::now());
 		advance(s, clock::now());
@@ -136,7 +133,18 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 			publish(s);
 		}
 	}
-	shutdown(s, host);
+	shutdown(s);
+}
+
+// Dispatch the socket when it is ready. False when the connection failed: the session must stop.
+fn bool dispatch_ready(Session* s, Ready[] ready) @local
+{
+	foreach (event : ready)
+	{
+		if (event.tag != CLIENT_TAG) continue;
+		if (catch s.client.dispatch()) return false;
+	}
+	return true;
 }
 
 // One command from the mailbox.
@@ -151,19 +159,13 @@ fn void handle_command(Session* s, Command command, Clock now)
 }
 
 <*
- Stop: a rollback that is still armed is sent without waiting (the shell is going away, so the
- change must not stay unconfirmed); requests in flight and queued ones fail with DISCONNECTED.
+ Stop. A request still in flight will never be answered, so it fails with DISCONNECTED first; only
+ then may a rollback that is still armed take the pending slot. That rollback is sent without
+ waiting for its answer, because the connection closes right after it: its outcome is not known
+ once the service has stopped (README, "Not done"). Queued commands are failed by the hub.
 *>
-fn void shutdown(Session* s, Host{Command}* host)
+fn void shutdown(Session* s)
 {
-	if (s.guard.armed)
-	{
-		start_revert(s, clock::now());
-		if (catch s.client.flush())
-		{
-		}
-		if (s.pending) release_pending(s.pending);
-	}
 	if (s.pending)
 	{
 		finish_failed(
@@ -171,17 +173,11 @@ fn void shutdown(Session* s, Host{Command}* host)
 			error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped")
 		);
 	}
-	Command[8] commands;
-	usz count = host.mailbox().take_all(commands[..]);
-	while (count > 0)
+	if (s.guard.armed)
 	{
-		for (usz i = 0; i < count; i++)
-		{
-			if (commands[i].kind == APPLY) reject(
-				commands[i].op,
-				error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped")
-			);
-		}
-		count = host.mailbox().take_all(commands[..]);
+		start_revert(s, clock::now());
+		if (s.pending) release_pending(s.pending);
 	}
+	// Best effort: the connection is closing, so a failed flush has nobody left to report it to.
+	if (catch s.client.flush()) {}
 }

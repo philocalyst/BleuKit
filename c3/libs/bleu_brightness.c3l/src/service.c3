@@ -13,6 +13,9 @@ module bleu::brightness;
 import std::collections::enummap, std::math, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit;
 
 alias BrightnessHub = Hub{State, Command, Event};
+
+<* Requests that may wait for the worker at once; a full queue refuses with BUSY. *>
+const usz COMMAND_QUEUE = 256;
 alias Capabilities = EnumMap{Cap, Availability};
 
 <*
@@ -61,7 +64,7 @@ fn Brightness*? open(Allocator allocator, Options options = { })
 		driver.info.name,
 		driver.run,
 		self.driver_state,
-		service::DEFAULT_QUEUE,
+		COMMAND_QUEUE,
 		&abandon_command
 	))
 	{

@@ -17,6 +17,10 @@ import std::time, std::collections::maybe, bleu::availability, bleu::observe, bl
 
 <* Longest wait for a connection to finish, from the request. *>
 const Duration CONNECT_TIMEOUT = (Duration)60_000_000;
+<* Longest wait for a scan to report completion (its ACM notification), from the request. *>
+const Duration SCAN_TIMEOUT = (Duration)20_000_000;
+<* Longest wait for the interface to leave the network, from the request. *>
+const Duration DISCONNECT_TIMEOUT = (Duration)15_000_000;
 
 <* Commands taken from the mailbox per pass of the loop. *>
 const usz COMMAND_BATCH = 16;
@@ -37,6 +41,10 @@ struct Backend
 	usz connect_ssid_len;
 	Deadline connect_deadline;
 	bool connect_saw_busy; // the interface has left DISCONNECTED for the attempt
+	SettleOp* scan; // the scan waiting for its completion notification, or null
+	Deadline scan_deadline;
+	SettleOp* disconnect; // the disconnect waiting for the interface to leave the network, or null
+	Deadline disconnect_deadline;
 }
 
 const Driver DRIVER = {
@@ -167,7 +175,11 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	}
 	defer unregister(b);
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 2)) return;
+	if (catch poller.init(mem, host.wakeup(), 2))
+	{
+		network::publish_empty(hub);
+		return;
+	}
 	defer poller.free();
 	Command[COMMAND_BATCH] commands;
 	refresh(b, hub);
@@ -181,10 +193,12 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 		for (usz i = 0; i < count; i++)
 		{
 			execute(b, hub, &commands[i]);
+			network::wipe_command_secret(&commands[i]);
 		}
 		refresh(b, hub);
 	}
 	abandon_connect(b);
+	abandon_settles(b);
 }
 
 // Ask for ACM notifications; the callback posts a refresh.
@@ -218,12 +232,16 @@ fn void unregister(Backend* b) @local
 	);
 }
 
-// WLAN notification callback: runs on a WLAN thread, so it only posts.
+// WLAN notification callback: runs on a WLAN thread, so it only posts. A finished scan is its own
+// command, because the request that started it waits for exactly that.
 fn void on_notification(L2NotificationData* data, void* context)
 {
 	Mailbox{Command}* box = (Mailbox{Command}*)context;
+	CommandKind kind = data.source == wlan_native::NOTIFICATION_SOURCE_ACM && data.code == wlan_native::ACM_SCAN_COMPLETE
+		? SCAN_FINISHED
+		: REFRESH;
 	// A full queue already holds a refresh, so a refused post changes nothing.
-	if (catch err = box.post({ .kind = REFRESH }))
+	if (catch err = box.post({ .kind = kind }))
 	{
 	}
 }
@@ -234,6 +252,7 @@ fn void execute(Backend* b, NetworkHub* hub, Command* c)
 	switch (c.kind)
 	{
 		case REFRESH: return;
+		case SCAN_FINISHED: finish_scan(b);
 		case SCAN:
 			if (catch err = scan(b, c.settle)) fail_settle(c.settle, err);
 		case CONNECT: start_connect(b, hub, c);
@@ -263,15 +282,37 @@ fn void settle_now(SettleOp* op, Settled value)
 	op.release();
 }
 
-// Ask for a scan. The results arrive as the notification that the scan completed.
+// Ask for a scan. The operation completes when the platform's scan-complete notification arrives
+// (`finish_scan`), or fails with TIMEOUT (`settle_scan`). One scan at a time.
 fn void? scan(Backend* b, SettleOp* op)
 {
+	if (b.scan != null) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "a scan is already running")~;
 	uint code = wlan_native::wlan_scan(b.handle, &b.interface_guid, null, null, null);
 	if (code != 0) return errors::raise_win32(code, "starting a scan")~;
-	settle_now(op, Settled.CHANGED);
+	b.scan          = op;
+	b.scan_deadline = deadline::after(SCAN_TIMEOUT);
 }
 
-// Disconnect. Completes ALREADY when the interface is not connected or connecting.
+// The scan-complete notification: the scan in progress is done.
+fn void finish_scan(Backend* b) @local
+{
+	if (b.scan == null) return;
+	b.scan.succeed(Settled.CHANGED);
+	b.scan.release();
+	b.scan = null;
+}
+
+// Fail the scan in progress when it has run out of time.
+fn void settle_scan(Backend* b) @local
+{
+	if (b.scan == null || !b.scan_deadline.expired()) return;
+	b.scan.fail(error::raise(TIMEOUT, error::Domain.WIN32, 0, "the scan did not finish in time"));
+	b.scan.release();
+	b.scan = null;
+}
+
+// Disconnect. Completes ALREADY when the interface is not connected or connecting; otherwise it
+// completes CHANGED when the interface reports that it left the network (`settle_disconnect`).
 fn void? disconnect(Backend* b, SettleOp* op)
 {
 	WlanInterfaceInfo info;
@@ -285,9 +326,48 @@ fn void? disconnect(Backend* b, SettleOp* op)
 		settle_now(op, Settled.ALREADY);
 		return;
 	}
+	if (b.disconnect != null) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "a disconnect is already running")~;
 	uint code = wlan_native::wlan_disconnect(b.handle, &b.interface_guid, null);
 	if (code != 0) return errors::raise_win32(code, "disconnecting")~;
-	settle_now(op, Settled.CHANGED);
+	b.disconnect          = op;
+	b.disconnect_deadline = deadline::after(DISCONNECT_TIMEOUT);
+}
+
+// Complete the disconnect in progress when the interface is out of the network, or fail it when it runs out of time.
+fn void settle_disconnect(Backend* b, State* state) @local
+{
+	if (b.disconnect == null) return;
+	if (!state.stale.wifi && state.wifi.phase == IDLE)
+	{
+		b.disconnect.succeed(Settled.CHANGED);
+	}
+	else if (b.disconnect_deadline.expired())
+	{
+		b.disconnect.fail(error::raise(TIMEOUT, error::Domain.WIN32, 0, "the disconnect did not finish in time"));
+	}
+	else
+	{
+		return;
+	}
+	b.disconnect.release();
+	b.disconnect = null;
+}
+
+// Give up the scan and the disconnect in progress when the service stops.
+fn void abandon_settles(Backend* b) @local
+{
+	if (b.scan != null)
+	{
+		b.scan.fail(error::CANCELLED);
+		b.scan.release();
+		b.scan = null;
+	}
+	if (b.disconnect != null)
+	{
+		b.disconnect.fail(error::CANCELLED);
+		b.disconnect.release();
+		b.disconnect = null;
+	}
 }
 
 // Delete the profile of this SSID. NOT_FOUND when there is none.
@@ -331,37 +411,27 @@ fn void? join(Backend* b, NetworkHub* hub, Command* c) @local
 {
 	char[] ssid       = c.ssid.bytes[0:c.ssid.len];
 	String passphrase = (String)c.secret.bytes[0:c.secret.len];
-	Security security = security_on_air(hub, ssid);
-	if (security == UNKNOWN) return error::raise(
-		error::UNAVAILABLE,
-		error::Domain.INTERNAL,
-		0,
-		"the network is not in the last scan"
-	)~;
+	Security security = network::joinable_security(hub, ssid)!;
 	@pool()
 	{
-		String xml      = wlan_profile::profile_xml(tmem, ssid, security, passphrase, c.flag)!;
-		String name     = wlan_profile::profile_name(tmem, ssid);
-		WideZ xml_wide  = text::to_wide(tmem, xml)!!;
-		WideZ name_wide = text::to_wide(tmem, name)!!;
-		uint reason     = 0;
-		uint code = wlan_native::wlan_set_profile(
-			b.handle,
-			&b.interface_guid,
-			0,
-			xml_wide.as_wstring(),
-			null,
-			1,
-			null,
-			&reason
-		);
-		if (code != 0) return errors::raise_win32(code, "writing the network profile")~;
+		if (wlan_profile::connect_route(security, passphrase.len > 0) == wlan_profile::ConnectRoute.WRITE_PROFILE)
+		{
+			write_profile(b, ssid, security, passphrase, c.flag)!;
+		}
+		// Keyed networks without a passphrase connect by the saved profile's name, so nothing is rewritten.
+		WideZ name_wide = text::to_wide(tmem, wlan_profile::profile_name(tmem, ssid))!!;
 		wlan_native::WlanConnectionParameters parameters = {
 			.mode = wlan_native::CONNECTION_MODE_PROFILE,
 			.profile = name_wide.as_wstring(),
 			.bss_type = wlan_native::BSS_TYPE_ANY,
 		};
-		code = wlan_native::wlan_connect(b.handle, &b.interface_guid, &parameters, null);
+		uint code = wlan_native::wlan_connect(b.handle, &b.interface_guid, &parameters, null);
+		if (code == wlan_native::ERROR_NOT_FOUND) return error::raise(
+			error::AUTH_REQUIRED,
+			error::Domain.WIN32,
+			(int)code,
+			"no saved profile for this network: its passphrase is needed"
+		)~;
 		if (code != 0) return errors::raise_win32(code, "joining the network")~;
 	};
 	b.connect = c.connect;
@@ -370,6 +440,34 @@ fn void? join(Backend* b, NetworkHub* hub, Command* c) @local
 	mem::copy(&b.connect_ssid, ssid.ptr, ssid.len);
 	b.connect_deadline = deadline::after(CONNECT_TIMEOUT);
 	b.connect_saw_busy = false;
+}
+
+<*
+ Write bleu's profile for a network: per-user (`profile_scope_flags`), replacing the profile
+ of the same name, which only bleu writes (its names carry the "bleu-" prefix).
+*>
+fn void? write_profile(Backend* b, char[] ssid, Security security, String passphrase, bool autoconnect) @local
+{
+	String xml      = wlan_profile::profile_xml(tmem, ssid, security, passphrase, autoconnect)!;
+	WideZ xml_wide  = text::to_wide(tmem, xml)!!;
+	uint reason     = 0;
+	uint code = wlan_native::wlan_set_profile(
+		b.handle,
+		&b.interface_guid,
+		wlan_profile::profile_scope_flags(),
+		xml_wide.as_wstring(),
+		null,
+		1,
+		null,
+		&reason
+	);
+	if (code == wlan_native::ERROR_ACCESS_DENIED) return error::raise(
+		error::PERMISSION_DENIED,
+		error::Domain.WIN32,
+		(int)code,
+		"writing the network profile: this user may not write it"
+	)~;
+	if (code != 0) return errors::raise_win32(code, "writing the network profile")~;
 }
 
 // The security class of the network in the last published scan.
@@ -387,21 +485,35 @@ fn void abandon_connect(Backend* b) @local
 	b.connect = null;
 }
 
-<* Read the interface and the networks, settle the connection in progress and publish. *>
+<*
+ Read the interface and the networks, settle what the read decides (the connection,
+ the scan, the disconnect) and publish. A read that cannot run keeps the previous picture.
+*>
 fn void refresh(Backend* b, NetworkHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
-	State? state              = read_state(b, snapshot.allocator());
-	if (catch err = state)
+	if (try previous = hub.latest())
 	{
-		snapshot.value = { };
+		defer previous.release();
+		snapshot.value = picture(b, snapshot.allocator(), &previous.value);
 	}
 	else
 	{
-		snapshot.value = state;
+		State none;
+		snapshot.value = picture(b, snapshot.allocator(), &none);
 	}
 	settle_connect(b, &snapshot.value);
+	settle_scan(b);
+	settle_disconnect(b, &snapshot.value);
 	network::publish_snapshot(hub, snapshot);
+}
+
+// The picture of one read, or the previous one flagged stale when the interface cannot be read.
+fn State picture(Backend* b, Allocator out, State* previous) @local
+{
+	State? state = read_state(b, out, previous);
+	if (catch err = state) return network::stale_picture(out, previous);
+	return state;
 }
 
 // Complete the connection in progress when the network shows connected, fail it when the attempt
@@ -416,10 +528,10 @@ fn void settle_connect(Backend* b, State* state) @local
 	{
 		b.connect_saw_busy = true;
 	}
-	bool joined = phase_state == wlan_native::INTERFACE_STATE_CONNECTED && network::same_ssid(
-		state.wifi.connected_ssid.bytes,
-		b.connect_ssid[0:b.connect_ssid_len]
-	);
+	// A stale Wi-Fi block says nothing about the network now: only a fresh read can join the request.
+	bool joined = !state.stale.wifi
+		&& phase_state == wlan_native::INTERFACE_STATE_CONNECTED
+		&& network::same_ssid(state.wifi.connected_ssid.bytes, b.connect_ssid[0:b.connect_ssid_len]);
 	if (joined)
 	{
 		b.connect.succeed(
@@ -457,8 +569,11 @@ fn void finish_connect(Backend* b) @local
 	b.connect = null;
 }
 
-<* The Wi-Fi interface's view: its networks from the last scan, and the connection. *>
-fn State? read_state(Backend* b, Allocator out)
+<*
+ The Wi-Fi interface's view: its networks from the last scan, and the connection. When the
+ networks cannot be listed, the Wi-Fi block is the previous one, flagged stale.
+*>
+fn State? read_state(Backend* b, Allocator out, State* previous)
 {
 	@pool()
 	{
@@ -467,6 +582,8 @@ fn State? read_state(Backend* b, Allocator out)
 		b.interface_guid = info.guid;
 		b.interface_state = info.state;
 		String name = text::from_wide_units(out, info.description[..]) ?? "";
+		Interface[] interfaces = alloc::new_array(out, Interface, 1);
+		interfaces[0] = { .name = name.copy(out), .kind = WIFI, .link = UNKNOWN };
 		Wifi wifi = {
 			.present = true,
 			.interface_name = name,
@@ -474,14 +591,24 @@ fn State? read_state(Backend* b, Allocator out)
 			.ssid_visible = true,
 			.phase = phase_of(info.state),
 		};
-		AccessPoint[] networks = read_networks(b, out)!;
-		foreach (&network : networks)
+		if (try networks = read_networks(b, out))
 		{
-			if (network.in_use) wifi.connected_ssid = network.ssid;
+			wifi.networks = networks;
+			foreach (&network : networks)
+			{
+				if (network.in_use) wifi.connected_ssid = network.ssid;
+			}
 		}
-		wifi.networks = networks;
-		Interface[] interfaces = alloc::new_array(out, Interface, 1);
-		interfaces[0] = { .name = name.copy(out), .kind = WIFI, .link = UNKNOWN };
+		else
+		{
+			return {
+				.connectivity = UNKNOWN,
+				.location = NOT_APPLICABLE,
+				.wifi = network::clone_wifi(out, &previous.wifi),
+				.interfaces = interfaces,
+				.stale = { .wifi = true },
+			};
+		}
 		return {
 			.connectivity = UNKNOWN,
 			.location = NOT_APPLICABLE,

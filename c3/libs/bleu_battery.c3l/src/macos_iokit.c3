@@ -133,13 +133,11 @@ fn void refresh(BatteryHub* hub)
 	State? state              = read_all(snapshot.allocator());
 	if (catch err = state)
 	{
-		// Unreadable power sources: nothing is known, so publish an empty state.
-		snapshot.value = { };
+		// IOPowerSources failed: republish the last good reading as stale, never an empty state (publish.c3).
+		battery::publish_failure(hub, snapshot);
+		return;
 	}
-	else
-	{
-		snapshot.value = state;
-	}
+	snapshot.value = state;
 	hub.publish_if_changed(snapshot);
 }
 

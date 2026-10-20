@@ -159,6 +159,7 @@ fn void withdraw(Backend* b, String path, String setting, String error_name, Str
 		if (catch err = b.server.reply_error(prompt.token, error_name, text))
 		{
 		} // the caller is gone; nothing to answer
+		network::emit_event(b.hub, { .kind = CREDENTIALS_WITHDRAWN, .request = prompt.id });
 		drop_prompt(b, i);
 	}
 }
@@ -174,7 +175,7 @@ fn void drop_prompt(Backend* b, sz index)
 	b.prompts.remove_at(index);
 }
 
-// Refuse every prompt still waiting. Used when the service stops.
+// Refuse every prompt still waiting, and withdraw it from the shells. Used when the service stops.
 fn void abandon_prompts(Backend* b)
 {
 	while (b.prompts.len() > 0)
@@ -182,7 +183,8 @@ fn void abandon_prompts(Backend* b)
 		Prompt* prompt = b.prompts.get_ref(0);
 		if (catch err = b.server.reply_error(prompt.token, ERROR_USER_CANCELED, "the service stopped"))
 		{
-		}
+		} // the caller is gone; nothing to answer
+		network::emit_event(b.hub, { .kind = CREDENTIALS_WITHDRAWN, .request = prompt.id });
 		drop_prompt(b, 0);
 	}
 }
@@ -194,10 +196,13 @@ fn void? register_agent(Backend* b)
 	method_string(&manager, "Register", AGENT_IDENTIFIER)!;
 }
 
+// Withdraw the agent. Shutdown path: a failure is only logged by the caller's ignore, the bus may be gone.
 fn void unregister_agent(Backend* b)
 {
-	Proxy manager = object_proxy(&b.bus, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE)!!;
-	if (catch err = method_void(&manager, "Unregister"))
+	if (try manager = object_proxy(&b.bus, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE))
 	{
-	} // best effort: the bus may already be gone
+		if (catch err = method_void(&manager, "Unregister"))
+		{
+		} // best effort: the bus may already be gone
+	}
 }

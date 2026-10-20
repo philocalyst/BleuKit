@@ -25,6 +25,7 @@ fn Kind kind_from_type(String type)
 		case "USB_DCP":
 		case "USB_CDP":
 		case "USB_ACA":
+		case "USB_PD_DRP":
 		case "Wireless": return MAINS;
 		case "UPS": return UPS;
 		default: return UNKNOWN;
@@ -76,12 +77,23 @@ fn MilliWatt power_from_current(long micro_amps, long micro_volts) @inline
 	return (MilliWatt)((double)micro_amps * (double)micro_volts / 1.0e9);
 }
 
+<*
+ Flow from `power_now`, a magnitude in µW: the kernel reports no sign, so the direction is
+ the charge state's (negative while discharging). Positive into the battery otherwise.
+*>
+fn MilliWatt flow_from_power(long micro_watts, ChargeState state) @inline
+{
+	long magnitude = micro_watts / 1000;
+	return (MilliWatt)(state == DISCHARGING ? -magnitude : magnitude);
+}
+
 <* The kernel gives temperature in tenths of a degree Celsius. *>
 fn Celsius celsius_from_tenths(long tenths) @inline => (Celsius)((float)tenths / 10.0f);
 
 <*
  Time to empty/full from stored energy and flow, when the driver gave no
- estimate. Returns 0 when the flow is too small to extrapolate.
+ estimate. Returns 0 for a non-positive flow, which has no time to give; the caller
+ passes the magnitude.
 *>
 fn Duration hours_at(long milli_watt_hours, long milli_watts)
 {

@@ -30,6 +30,7 @@ struct Backend
 	List{Transition} transitions;
 	List{Pending} pending;
 	NetworkHub* hub; // where events go; set by `run`
+	Capabilities* capabilities; // the service's table; `run` withdraws what the setup could not provide
 	ObjectServer server; // answers NetworkManager's calls to the secret agent
 	server::Method[4] agent_methods; // the agent's methods; the server keeps pointers to them
 	server::Interface[1] agent_interfaces; // the agent's interface; the server keeps a slice of it
@@ -80,6 +81,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			.root = own_text(allocator, options.root),
 			.poll = options.poll,
 			.bus_address = own_text(allocator, options.bus_address),
+			.capabilities = capabilities,
 		}
 	);
 	self.transitions.init(allocator);
@@ -173,6 +175,8 @@ fn void destroy(Allocator allocator, void* state)
 	drop_text(allocator, b.bus_address);
 	drop_text(allocator, b.wifi_path);
 	drop_text(allocator, b.wifi_name);
+	// Transitions that arrived after the last settle still own their device paths.
+	foreach (t : b.transitions.array_view()) drop_text(allocator, t.device);
 	b.transitions.free();
 	b.pending.free();
 	b.prompts.free();
@@ -221,7 +225,12 @@ fn void? queue_transition(Backend* b, Message* signal) @local
 	);
 }
 
-<* The loop: wait for the bus, the mailbox or the next read; run the commands; read and settle. *>
+<*
+ The loop: wait for the bus, the mailbox or the next read; run the commands; read and settle.
+ Every return publishes the empty picture first, so a shell is never left with a stale one.
+ When the bus is lost the loop stops and the picture is empty; the service then refuses
+ new commands (its mailbox is closed), so nothing waits for a reply that will not come.
+*>
 fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 {
 	Backend* b = (Backend*)state;
@@ -236,15 +245,38 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	b.server.init(b.allocator);
 	defer b.server.free();
 	b.server.attach(&b.bus);
-	start_agent(b);
+	if (catch err = start_agent(b))
+	{
+		// `create` offered the prompt; NetworkManager refused the agent, so the passphrase must come up front.
+		b.capabilities.set(
+			Cap.WIFI_SECRET_PROMPT,
+			availability::no(
+				availability::Reason.PERMISSION_NEEDED,
+				"NetworkManager refused the secret agent (bus policy): the passphrase must be given up front"
+			)
+		);
+	}
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 4)) return;
+	if (catch poller.init(mem, host.wakeup(), 4))
+	{
+		network::publish_empty(hub);
+		return;
+	}
 	defer poller.free();
 	int descriptor = b.bus.fd() ?? -1;
-	if (descriptor < 0) return;
-	if (catch poller.add({ .handle = (Native)descriptor, .interest = { .readable = true }, .tag = 1 })) return;
+	if (descriptor < 0)
+	{
+		network::publish_empty(hub);
+		return;
+	}
+	if (catch poller.add({ .handle = (Native)descriptor, .interest = { .readable = true }, .tag = 1 }))
+	{
+		network::publish_empty(hub);
+		return;
+	}
 	Command[COMMAND_BATCH] commands;
 	refresh(b, hub);
+	bool lost = false;
 	while (!host.stopping())
 	{
 		bool woke     = true;
@@ -254,7 +286,6 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 			// TIMEOUT is the periodic tick: a read is due even when nothing signalled.
 			woke = false;
 		}
-		bool lost = false;
 		@pool()
 		{
 			// Incoming calls (the agent's) and signals are handled here; their temporaries end with this pool.
@@ -266,6 +297,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 			for (usz i = 0; i < count; i++)
 			{
 				execute(b, hub, &commands[i]);
+				network::wipe_command_secret(&commands[i]);
 			}
 			if (lost || !woke || b.changed || count > 0 || b.pending.len() > 0)
 			{
@@ -274,6 +306,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 		};
 		if (lost) break;
 	}
+	if (lost) network::publish_empty(hub);
 	abandon_pending(b);
 	abandon_prompts(b);
 	if (b.agent_registered) unregister_agent(b);
@@ -283,42 +316,58 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
  Export the secret agent and register it with NetworkManager. When either step
  fails the backend has no agent: a network that needs a passphrase then fails
  with AUTH_REQUIRED instead of prompting.
+
+ @return? error::BACKEND_FAILURE : "The agent could not be exported or registered"
 *>
-fn void start_agent(Backend* b) @local
+fn void? start_agent(Backend* b) @local
 {
 	b.agent_interfaces[0] = agent_interface(b, b.agent_methods[..]);
-	if (catch err = b.server.export(AGENT_PATH, b.agent_interfaces[..])) return;
-	if (catch err = register_agent(b)) return;
+	b.server.export(AGENT_PATH, b.agent_interfaces[..])!;
+	register_agent(b)!;
 	b.agent_registered = true;
 }
 
 <*
  One read, one settle, one publication. Runs inside a pool that the loop owns.
- An unreadable bus publishes an empty picture: nothing is known about it.
+ A read that cannot run at all (the root properties or the device list) keeps the
+ previous picture, every part flagged stale, rather than publishing an empty one.
 *>
 fn void refresh(Backend* b, NetworkHub* hub)
 {
 	b.changed = false;
 	Snapshot{State}* snapshot = hub.begin();
 	Reading reading;
-	State? state              = read_state(b, snapshot.allocator(), &reading);
-	if (catch err = state)
+	if (try previous = hub.latest())
 	{
-		snapshot.value = { };
-		reading = { };
+		defer previous.release();
+		snapshot.value = picture(b, snapshot.allocator(), &previous.value, &reading);
 	}
 	else
 	{
-		snapshot.value = state;
+		State none;
+		snapshot.value = picture(b, snapshot.allocator(), &none, &reading);
 	}
 	remember(b, &reading);
 	settle(b, &reading);
 	network::publish_snapshot(hub, snapshot);
 }
 
-// Keep what the commands need from this read.
+// The picture of one read, or the previous one flagged stale when the read could not run at all.
+fn State picture(Backend* b, Allocator out, State* previous, Reading* r) @local
+{
+	State? state = read_state(b, out, previous, r);
+	if (catch err = state)
+	{
+		r.wifi_known = false;
+		return network::stale_picture(out, previous);
+	}
+	return state;
+}
+
+// Keep what the commands need from this read. A read whose Wi-Fi part failed says nothing, so the last good values stay.
 fn void remember(Backend* b, Reading* r) @local
 {
+	if (!r.wifi_known) return;
 	b.device_state = r.wifi_found ? r.device_state : 0;
 	b.radio_enabled = r.radio_enabled;
 	b.last_scan = r.last_scan;

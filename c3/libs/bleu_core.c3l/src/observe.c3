@@ -287,7 +287,10 @@ fn void? Observable.unwatch(&self, WatchId token)
 			)~;
 		}
 	}
-	else self.delivery.lock()!!;
+	else
+	{
+		self.delivery.lock()!!;
+	}
 	self.mutex.lock()!!;
 	foreach (i, &w : self.watchers)
 	{

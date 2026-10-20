@@ -27,7 +27,14 @@ extern fn ZString mach_error_string(int error_value) @cname("mach_error_string")
 *>
 fn fault raise_code(int code, ZString context)
 {
-	return error::raise(codes::classify_mach(code), error::Domain.MACH, code, "%s: %s", context, mach_error_string(code));
+	return error::raise(
+		codes::classify_mach(code),
+		error::Domain.MACH,
+		code,
+		"%s: %s",
+		context,
+		mach_error_string(code)
+	);
 }
 
 <*

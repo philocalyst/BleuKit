@@ -20,8 +20,8 @@ const usz COMM_CAPACITY  = 64; // the kernel keeps 15 characters; the buffer lea
 fn OwnedName*? claim_name(Backend* backend, Connection* conn, Session* session)
 {
 	// Never queue: a queued request would report success while another daemon serves. This centre
-	// allows itself to be replaced, so that a later `replace` start can take the name over.
-	uint flags = bus::NAME_DO_NOT_QUEUE | bus::NAME_ALLOW_REPLACEMENT;
+	// does not allow itself to be replaced: any process could take every notification with one call.
+	uint flags = bus::NAME_DO_NOT_QUEUE;
 	if (backend.replace) flags |= bus::NAME_REPLACE_EXISTING;
 	OwnedName*? owned = conn.own_name(SERVICE_NAME, flags, &on_acquired, &on_lost, session);
 	if (catch err = owned)

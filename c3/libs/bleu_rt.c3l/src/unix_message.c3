@@ -28,6 +28,20 @@ struct IoVec
 	usz len;
 }
 
+<* `struct pollfd` of poll(2). Its layout is an int and two shorts on Linux and Darwin alike. *>
+struct PollEntry
+{
+	CInt fd;
+	CShort events;
+	CShort revents;
+}
+
+const CShort POLLIN_EVENT  = 0x0001; // POLLIN, as in the sources of poller_posix.c3
+const CShort POLLHUP_EVENT = 0x0010; // POLLHUP, reported in revents when the peer has closed
+
+// poll(2) for one descriptor and a zero timeout: only the hang-up check uses it.
+extern fn CInt sys_poll_hup(PollEntry* fds, PollCount count, CInt timeout_ms) @cname("poll");
+
 <* What one `recv` delivered. `fds` descriptors were written into the buffer given. *>
 struct RecvResult
 {
@@ -46,21 +60,13 @@ struct RecvResult
 
  @param fds : "Descriptors to pass, at most `MAX_FDS_PER_MESSAGE`"
  @return "Bytes accepted by the kernel"
+ @return? error::INVALID_ARGUMENT : "Too many descriptors, or descriptors with no data to travel with"
  @return? error::BUSY : "Non-blocking socket is full; nothing was sent"
  @return? error::DISCONNECTED : "The peer has closed the connection"
 *>
 fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = { })
 {
-	if ((usz)fds.len > MAX_FDS_PER_MESSAGE)
-	{
-		return error::raise(
-			error::INVALID_ARGUMENT,
-			error::Domain.INTERNAL,
-			0,
-			"at most %d descriptors per message",
-			MAX_FDS_PER_MESSAGE
-		)~;
-	}
+	check_descriptor_count(bytes, fds)!;
 	char[CONTROL_BUFFER_SIZE] control_storage;
 	char[] control = control_storage[..];
 	IoVec iov      = { .base = bytes.ptr, .len = bytes.len };
@@ -89,10 +95,12 @@ fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = { })
  piece. Requires a blocking socket: a non-blocking one that fills up midway fails
  with BUSY, and the bytes already accepted cannot be taken back.
 
+ @return? error::INVALID_ARGUMENT : "Descriptors with no data to travel with, or too many of them"
  @return? error::BUSY : "The socket filled up midway through the message"
 *>
 fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = { })
 {
+	check_descriptor_count(bytes, fds)!;
 	usz done     = 0;
 	Fd[] pending = fds;
 	while (done < (usz)bytes.len)
@@ -113,13 +121,23 @@ fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = { })
  the call fails. A message that does not fit `buffer` (sequenced-packet only) is
  also a failure: its data is gone, so the caller must not guess at it.
 
+ A zero-length message on a sequenced-packet socket is a message, returned with
+ `bytes == 0`. Zero bytes on a stream socket, and zero bytes on a sequenced-packet
+ socket whose peer has hung up, mean the peer closed the connection.
+
+ @param buffer : "Receives the data; must not be empty"
  @return "How many bytes and descriptors arrived"
  @return? error::DISCONNECTED : "The peer closed the connection"
  @return? error::PROTOCOL : "Descriptors or data were truncated, or too many descriptors arrived"
  @return? error::BUSY : "Non-blocking socket has nothing to read"
+ @return? error::INVALID_ARGUMENT : "`buffer` is empty"
 *>
 fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 {
+	if (buffer.len == 0)
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "receive buffer is empty")~;
+	}
 	char[CONTROL_BUFFER_SIZE] control_storage;
 	char[] control = control_storage[..];
 	IoVec iov      = { .base = buffer.ptr, .len = buffer.len };
@@ -166,13 +184,48 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 		close_stored(fd_buffer[:stored]);
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message is longer than the buffer")~;
 	}
-	if (got == 0 && total == 0) return error::raise(
-		error::DISCONNECTED,
-		error::Domain.INTERNAL,
-		0,
-		"peer closed the connection"
-	)~;
+	// Zero bytes and no descriptors: end of stream, or on a sequenced-packet socket either
+	// that or a zero-length message. Only a hang-up tells them apart.
+	if (got == 0 && total == 0 && (self.kind == STREAM || self.peer_hung_up()))
+	{
+		return error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "peer closed the connection")~;
+	}
 	return { .bytes = (usz)got, .fds = total };
+}
+
+// True when the peer has closed its end of the connection. recvmsg(2) returns 0 for a
+// closed peer and for a zero-length sequenced-packet message alike; poll(2) reports
+// POLLHUP only for the closed peer.
+fn bool UnixSocket.peer_hung_up(&self)
+{
+	PollEntry entry = { .fd = self.fd.raw(), .events = POLLIN_EVENT, .revents = 0 };
+	if (sys_poll_hup(&entry, (PollCount)1, 0) <= 0) return false;
+	return ((CInt)entry.revents & (CInt)POLLHUP_EVENT) != 0;
+}
+
+// Refuse descriptors that have no data to travel with: the kernel would drop them, and the
+// receiver would wait for descriptors that never come. Also bounds the count.
+fn void? check_descriptor_count(char[] bytes, Fd[] fds) @private
+{
+	if ((usz)fds.len > MAX_FDS_PER_MESSAGE)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"at most %d descriptors per message",
+			MAX_FDS_PER_MESSAGE
+		)~;
+	}
+	if (bytes.len == 0 && fds.len > 0)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"descriptors need at least one byte of data"
+		)~;
+	}
 }
 
 fn usz take_descriptors(char* control, usz used, Fd[] out) @private

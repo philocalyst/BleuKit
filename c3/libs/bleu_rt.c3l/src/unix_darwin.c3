@@ -40,6 +40,9 @@ const CInt F_DUPFD_CLOEXEC = 67;
 // No SOCK_CLOEXEC on Darwin: configure_socket sets FD_CLOEXEC after creation.
 const CInt SOCKET_CLOEXEC = 0;
 
+// nfds_t of poll(2): unsigned int in XNU bsd/sys/poll.h (poller_posix.c3 carries the same alias).
+alias PollCount = CUInt;
+
 const CInt SOL_SOCKET      = 0xffff;
 const CInt SO_NOSIGPIPE    = 0x1022;
 const CInt SCM_RIGHTS_TYPE = 1;

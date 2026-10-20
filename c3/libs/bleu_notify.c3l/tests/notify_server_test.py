@@ -392,15 +392,40 @@ async def main():
           and note["app"] == "notify-send-test" and note["expires"] == 1
           and [r["text"] for r in note["body"]] == ["from the sender"] and note["actions"] == [("open", "Open")],
           str(sent) + " " + str(note))
+    # Replacement is for the notification the same sender posted; a send from another process is a new one.
     again = run_sender(["Replaced by C3", "--replace", str(sid)])
     st = await centre.state()
-    check("a replacing send returns the replaced id", again.get("id") == sid and find(st, sid)["summary"] == "Replaced by C3",
-          str(again))
+    check("a send from another process is a new notification, not a replacement",
+          again.get("id") not in (None, sid) and find(st, sid)["summary"] == "Sent by C3", str(again))
     short = run_sender(["Short by C3", "--expire", "250"])
     ok = await listener.wait_for(lambda: (short.get("id"), 1) in listener.closed(short.get("id")), 5)
     check("a sender's expiry closes with reason 1", ok, str(short))
     bad = run_sender(["Bad urgency", "--replace", "not-a-number"])
     check("the sender reports a bad option instead of sending", "error" in bad or bad.get("exit", 0) != 0, str(bad))
+
+    # 17. Ownership: another connection cannot replace or close a notification it did not post.
+    mine = await notify(bus, "mine")
+    other = await MessageBus().connect()
+    theirs = await notify(other, "theirs", replaces=mine)
+    st = await centre.state()
+    check("another connection's replaces_id does not replace the notification",
+          theirs != mine and find(st, mine)["summary"] == "mine", f"{mine} {theirs}")
+    closed = await call(other, "CloseNotification", "u", [mine])
+    st = await centre.state()
+    check("another connection cannot close it (an error, as for an unknown id)",
+          closed.message_type == MessageType.ERROR and in_active(st, mine), str(closed.error_name))
+    # An id that names no open notification is never adopted (the counter issues a fresh id).
+    fresh = await notify(bus, "fresh", replaces=424242)
+    st = await centre.state()
+    check("a replaces_id naming no open notification gets a fresh id",
+          fresh != 424242 and find(st, 424242) is None, str(fresh))
+    other.disconnect()
+    # A plain-text body with markup characters arrives as written.
+    escaped = run_sender(["Escaped by C3", "x<y>z and a<b and c>d"])
+    st = await centre.state()
+    note = find(st, escaped.get("id")) if escaped.get("id") else None
+    check("a plain-text body with markup characters arrives as written",
+          note is not None and "".join(r["text"] for r in note["body"]) == "x<y>z and a<b and c>d", str(note))
 
     # 14. Name ownership: a second daemon is refused and told who owns the name.
     second = Centre()
@@ -410,14 +435,20 @@ async def main():
           and f"pid {centre.proc.pid}, notify_test_ser" in line, line)
     await second.proc.wait()
 
-    # 15. Replace takes the name over; the first server loses it.
+    # 15. The name cannot be taken from this centre: --replace is refused, and another client's
+    # REPLACE_EXISTING queues instead of taking it (this centre does not allow replacement).
     third = Centre(["--replace"])
     line = await third.start()
-    check("--replace takes the name over", line == "READY fdo", line)
-    await asyncio.sleep(0.5)
+    check("--replace does not take the name from a centre that does not allow it", line.startswith("OPEN_FAILED"), line)
+    await third.proc.wait()
+    attacker = await MessageBus().connect()
+    taken = await attacker.call(Message(destination="org.freedesktop.DBus", path="/org/freedesktop/DBus",
+                                        interface="org.freedesktop.DBus", member="RequestName", signature="su",
+                                        body=["org.freedesktop.Notifications", 2]))
+    check("another client cannot take the name with REPLACE_EXISTING", taken.body[0] != 1, str(taken.body))
+    attacker.disconnect()
     st = parse_state(await centre.cmd("state"))
-    check("the displaced server reports it is no longer serving", st["header"].get("serving") == "0", str(st["header"]))
-    await third.quit()
+    check("the centre still serves after the takeover attempts", st["header"].get("serving") == "1", str(st["header"]))
 
     check("the centre quits cleanly", await centre.quit() == 0)
     bus.disconnect()

@@ -1,4 +1,5 @@
 module bleu::objc::encoding;
+import std::os::darwin::objc;
 
 // The primitive codes from the `@encode` table, with the BOOL rule of this target.
 fn void primitive_codes() @test
@@ -29,4 +30,11 @@ fn void method_signatures() @test
 	assert(signature(double).str_view() == "d@:");
 	assert(signature(int, (ulong)0).str_view() == "i@:Q");
 	assert(signature(void, (void*)null, (double)0.0).str_view() == "v@:@d");
+}
+
+// SEL is a Darwin type (`ObjSel` lives in std::os::darwin::objc), so this test exists only on Darwin.
+fn void selector_code() @feat(DARWIN) @test
+{
+	assert(type_code(ObjSel).str_view() == ":");
+	assert(signature(void, (ObjSel)null).str_view() == "v@::");
 }

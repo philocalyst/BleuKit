@@ -7,8 +7,8 @@ module bleu::display::linux_wayland @feat(LINUX);
 import bleu::display, bleu::display::wayland_convert, bleu::error, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::wlr_output_management;
 import bleu::observe, bleu::operation, std::time, std::time::clock, std::collections::maybe, std::core::string;
 
-<* The monotonic instant `timeout` after `now`. *>
-fn Clock clock_after(Clock now, Duration timeout) @inline => (Clock)((ulong)now + (ulong)timeout * 1000);
+<* The monotonic instant `timeout` after `now`, saturating (see `deadline_after`). *>
+fn Clock clock_after(Clock now, Duration timeout) @inline => display::deadline_after(now, timeout);
 
 <*
  Start a command on the wlr route. The command's reference to `op` moves into the request, which
@@ -47,6 +47,7 @@ fn void begin_apply(Session* s, Command command, Clock now)
 	}
 	if (!changed)
 	{
+		if (command.mode == APPLY) forget_guard(s);
 		op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = false });
 		op.release();
 		return;
@@ -59,7 +60,8 @@ fn void begin_apply(Session* s, Command command, Clock now)
 	p.revert_after = command.revert_after;
 	p.testing = true;
 	p.result = PENDING;
-	if (command.mode == APPLY_WITH_REVERT)
+	// A rollback already pending keeps its point (the last confirmed layout); only its deadline moves.
+	if (command.mode == APPLY_WITH_REVERT && !s.guard.armed)
 	{
 		p.revert_op = operation::begin(s.allocator);
 		p.revert_config = previous_config(s, p.revert_op.allocator());
@@ -128,7 +130,7 @@ fn void? start_attempt(Pending* p)
 // Describe one head in the attempt: disabled, or enabled with its mode, place, transform and scale.
 fn void? configure_head(Pending* p, OutputRecord* rec)
 {
-	sz index                     = change_index(p.config, rec);
+	sz index                     = change_index(p.config, rec)!;
 	display::OutputChange change = p.config.outputs[index];
 	if (!change.enabled)
 	{
@@ -142,10 +144,15 @@ fn void? configure_head(Pending* p, OutputRecord* rec)
 	if (change.scale.has_value) head.set_scale(wire::fixed_from_double(change.scale.value))!;
 }
 
-// The index of the change for this record's output. The validation guarantees it exists.
-fn sz change_index(display::Config config, OutputRecord* rec)
+<*
+ The index of the change for this record's output. A head that appeared after the layout was
+ read has no change: the attempt is refused rather than given another output's settings.
+
+ @return? error::INVALID_STATE : "An output appeared after the layout was read"
+*>
+fn sz? change_index(display::Config config, OutputRecord* rec)
 {
-	sz found = 0;
+	sz found = -1;
 	@pool()
 	{
 		String id = record_id(rec, tmem);
@@ -158,6 +165,15 @@ fn sz change_index(display::Config config, OutputRecord* rec)
 			}
 		}
 	};
+	if (found < 0)
+	{
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.WAYLAND,
+			0,
+			"an output appeared after the layout was read: read the state again"
+		)~;
+	}
 	return found;
 }
 
@@ -285,39 +301,47 @@ fn void finish_applied(Pending* p, Clock now, bool live)
 	}
 	else if (p.mode == APPLY_WITH_REVERT && live)
 	{
-		if (s.guard_op) s.guard_op.release();
-		s.guard_op = p.revert_op;
-		s.guard_config = p.revert_config;
-		p.revert_op = null;
+		if (p.revert_op)
+		{
+			if (s.guard_op) s.guard_op.release();
+			s.guard_op = p.revert_op;
+			s.guard_config = p.revert_config;
+			p.revert_op = null;
+		}
 		s.guard.arm(now, p.revert_after);
 		p.op.succeed({ .mode = p.mode, .live = true, .revert_armed = true });
 	}
 	else
 	{
-		if (live)
-		{
-			s.guard.disarm();
-			if (s.guard_op) s.guard_op.release();
-			s.guard_op = null;
-		}
+		if (live) forget_guard(s);
 		p.op.succeed({ .mode = p.mode, .live = live, .revert_armed = false });
 	}
 	s.dirty = true;
 	release_pending(p);
 }
 
-// Complete the request with an error; the change, if any, was not made.
+// Complete the request with an error; the change, if any, was not made. A refused rollback is announced.
 fn void finish_failed(Pending* p, fault failure)
 {
+	if (p.is_revert) display::emit(p.session.hub, display::EventKind.REVERT_FAILED, "");
 	p.op.fail(failure);
 	release_pending(p);
 }
 
-// Forget the request and drop what it held.
+// Forget the request and drop what it held. The configuration object is destroyed first: its
+// listener points at this request, which is freed here, so no late answer may reach it.
 fn void release_pending(Pending* p)
 {
 	Session* s = p.session;
 	s.pending = null;
+	if (p.object)
+	{
+		if (catch p.object.destroy())
+		{
+			// The compositor is gone or refuses the request; the object is retired locally either way.
+		}
+		p.object = null;
+	}
 	if (p.revert_op) p.revert_op.release();
 	if (p.arena_owner) p.arena_owner.release();
 	p.op.release();
@@ -355,13 +379,17 @@ fn Duration next_wake(Session* s, Clock now)
 	return wait;
 }
 
+<* Forget the pending rollback: the layout in effect is kept for good. *>
+fn void forget_guard(Session* s)
+{
+	s.guard.disarm();
+	if (s.guard_op) s.guard_op.release();
+	s.guard_op = null;
+}
+
 <* Confirm the pending change in time: keep it, and forget the rollback point. *>
 fn void confirm(Session* s, Clock now)
 {
-	if (s.guard.confirm(now))
-	{
-		if (s.guard_op) s.guard_op.release();
-		s.guard_op = null;
-	}
+	if (s.guard.confirm(now)) forget_guard(s);
 	s.dirty = true;
 }

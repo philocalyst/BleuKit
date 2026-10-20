@@ -13,7 +13,7 @@
 
  Constants:
  * `NSUTF8StringEncoding = 4`: objc2-foundation `src/generated/NSString.rs`
-   (generated from the Foundation headers), and Apple `NSString.h`.
+ (generated from the Foundation headers), and Apple `NSString.h`.
  * CocoaError code values: objc2-foundation `src/generated/FoundationErrors.rs`.
  * Errno values: Apple xnu `bsd/sys/errno.h`.
 *>

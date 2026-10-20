@@ -362,5 +362,8 @@ fn void system_power_callback(void* refcon, iokit::IoObject service, uint messag
 	{
 		if (power.handler) power.handler(power.context, event);
 	};
-	if (event == PowerEvent.CAN_SLEEP || event == PowerEvent.WILL_SLEEP) io_allow_power_change(power.root, (long)argument);
+	if (event == PowerEvent.CAN_SLEEP || event == PowerEvent.WILL_SLEEP) io_allow_power_change(
+		power.root,
+		(long)argument
+	);
 }

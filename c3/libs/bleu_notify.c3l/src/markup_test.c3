@@ -51,7 +51,7 @@ fn void links_carry_their_href() @test
 {
 	@pool()
 	{
-		assert(render(tmem, `see <a href="file:///tmp/x">here</a>.`) == "see ||;here||file:///tmp/x;.||;");
+		assert(render(tmem, `see <a href="https://e.org/x">here</a>.`) == "see ||;here||https://e.org/x;.||;");
 		assert(render(tmem, "<a href='https://e.org/a?b=c'>y</a>") == "y||https://e.org/a?b=c;");
 	};
 }
@@ -158,5 +158,44 @@ fn void body_length_is_bounded() @test
 		usz total           = 0;
 		foreach (run : runs) total += run.text.len;
 		assert(total == notify::MAX_BODY);
+	};
+}
+// Regression (N-07): only http, https and mailto hrefs survive; the text stays.
+fn void only_web_and_mail_links_survive() @test
+{
+	@pool()
+	{
+		assert(render(tmem, "<a href=\"javascript:alert(1)\">x</a><a href=\"https://ok.example\">y</a>") ==
+			"x||;y||https://ok.example;", "javascript: is dropped, https: kept");
+		assert(render(tmem, "<a href=\"FILE:///etc/passwd\">p</a>") == "p||;", "file: is dropped, any case");
+		assert(render(tmem, "<a href=\"mailto:a@b.example\">m</a>") == "m||mailto:a@b.example;", "mailto: is kept");
+	};
+}
+
+// Regression (N-05): 8192 bare '<' bytes are text and parse in linear time (each '<' used to rescan to the end).
+fn void a_run_of_bare_angle_brackets_is_text() @test
+{
+	@pool()
+	{
+		DString body;
+		body.init(tmem);
+		for (usz k = 0; k < notify::MAX_BODY - 1; k++) body.append_char('<');
+		body.append_char('x');
+		notify::Span[] runs = markup::parse(tmem, body.str_view());
+		usz total           = 0;
+		foreach (run : runs) total += run.text.len;
+		assert(total == notify::MAX_BODY, "every byte is kept as text");
+	};
+}
+
+// Regression (N-08): escape writes what `parse` reads back as the same text.
+fn void escaped_text_is_read_back_as_written() @test
+{
+	@pool()
+	{
+		String raw     = "x<y>z and a&b <b>not bold</b>";
+		String escaped = markup::escape(raw, tmem);
+		assert(escaped == "x&lt;y&gt;z and a&amp;b &lt;b&gt;not bold&lt;/b&gt;");
+		assert(render(tmem, escaped) == "x<y>z and a&b <b>not bold</b>||;");
 	};
 }

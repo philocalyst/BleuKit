@@ -38,13 +38,18 @@ const uint TECHNOLOGY_LEAD_ACID            = 4;
 const uint TECHNOLOGY_NICKEL_CADMIUM       = 5;
 const uint TECHNOLOGY_NICKEL_METAL_HYDRIDE = 6;
 
-<* The `Kind` of a device, from its `Type`. Peripherals are every type above UPS. *>
-fn Kind device_kind(uint type)
+<*
+ The `Kind` of a device, from its `Type` and its `PowerSupply` flag. Peripherals are every
+ type above UPS. The spec (`org.freedesktop.UPower.Device.xml`, PowerSupply): TRUE for laptop
+ batteries and UPS devices, FALSE for wireless mice and PDAs, which UPower may still report
+ as a battery (Type 2). Such a device is a peripheral, not the machine's battery.
+*>
+fn Kind device_kind(uint type, bool power_supply)
 {
 	switch (type)
 	{
 		case TYPE_LINE_POWER: return MAINS;
-		case TYPE_BATTERY: return BATTERY;
+		case TYPE_BATTERY: return power_supply ? BATTERY : PERIPHERAL;
 		case TYPE_UPS: return UPS;
 		case TYPE_UNKNOWN: return UNKNOWN;
 		default: return PERIPHERAL;
@@ -120,22 +125,3 @@ fn Maybe{uint} cycles_from(long cycles)
 
 <* A temperature from UPower's Temperature (degrees Celsius, spec). *>
 fn Maybe{Celsius} temperature_from(double celsius) @inline => maybe::value((Celsius)celsius);
-
-<*
- Sort sources by id, so every snapshot lists them in the same order and equal states
- compare equal. Insertion sort: a machine has a handful of devices.
-*>
-fn void sort_by_id(Source[] sources)
-{
-	for (sz i = 1; i < sources.len; i++)
-	{
-		Source key = sources[i];
-		sz j       = i - 1;
-		while (j >= 0 && sources[j].id.compare_to(key.id) > 0)
-		{
-			sources[j + 1] = sources[j];
-			j--;
-		}
-		sources[j + 1] = key;
-	}
-}

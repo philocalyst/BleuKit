@@ -12,6 +12,10 @@
  An unbundled process cannot post: the centre refuses without a bundle identifier,
  so `open` checks for one first and reports UNAVAILABLE with the reason.
 
+ Each call waits for its own `Answer`. The completion block holds a reference to
+ it, so an answer that arrives after the sender gave up writes into live memory
+ and cannot complete a newer request.
+
  Compiled only: no macOS machine was available. Every call goes through bleu_objc.
 *>
 module bleu::notify::sender_un @feat(DARWIN) @link("UserNotifications.framework");
@@ -23,16 +27,23 @@ const ulong OPTION_ALERT             = 4;                    // UNAuthorizationO
 const Duration AUTHORIZATION_TIMEOUT = (Duration)60_000_000; // the user may take a while over the prompt
 const Duration POST_TIMEOUT          = (Duration)10_000_000;
 
-// Shared with the completion handlers, which run on another thread. One request at a time.
+// The sender's own state. Each request has its own `Answer`, so the sender keeps nothing shared.
 struct UnSender
+{
+	Allocator allocator;
+	notify::NoteId next_id;
+}
+
+// One request's answer. The sender and each completion block that may still run hold a reference; the last release frees it.
+struct Answer
 {
 	Allocator allocator;
 	Mutex mutex;
 	ConditionVariable changed;
+	int refs;
 	bool answered;
 	bool granted;
 	objc::Obj failure;
-	notify::NoteId next_id;
 }
 
 const sender::SenderDriver DRIVER = {
@@ -82,11 +93,9 @@ fn void*? open_un(Allocator allocator, sender::Features* features)
 	}
 	UnSender* self = alloc::new(allocator, UnSender);
 	*self = { .allocator = allocator, .next_id = 1 };
-	self.mutex.init()!!;
-	self.changed.init()!!;
-	if (catch err = authorize(self))
+	if (catch err = authorize(allocator))
 	{
-		close_un(allocator, self);
+		alloc::free(allocator, self);
 		return err~;
 	}
 	return self;
@@ -94,11 +103,7 @@ fn void*? open_un(Allocator allocator, sender::Features* features)
 
 fn void close_un(Allocator allocator, void* state)
 {
-	UnSender* self = (UnSender*)state;
-	self.failure.close();
-	self.mutex.destroy();
-	self.changed.destroy()!!;
-	alloc::free(allocator, self);
+	alloc::free(allocator, state);
 }
 
 // True when the main bundle has an identifier, which UNUserNotificationCenter requires.
@@ -120,21 +125,55 @@ fn bool has_bundle_identifier()
 fn objc::Obj notification_center() => objc::borrow(objc::class_named("UNUserNotificationCenter")
 	.send(ObjId, "currentNotificationCenter"));
 
-// Ask once for the permissions this sender uses. The user's answer decides every later send.
-fn void? authorize(UnSender* self)
+// A new answer with one reference, held by the caller.
+fn Answer* new_answer(Allocator allocator)
 {
+	Answer* answer = alloc::new(allocator, Answer, { .allocator = allocator, .refs = 1 });
+	answer.mutex.init()!!;
+	answer.changed.init()!!;
+	return answer;
+}
+
+// Take one more reference (for a completion block that will run).
+fn void Answer.retain(&self)
+{
+	self.mutex.lock()!!;
+	self.refs++;
+	self.mutex.unlock();
+}
+
+// Drop a reference; the last one frees the answer.
+fn void Answer.release(&self)
+{
+	self.mutex.lock()!!;
+	self.refs--;
+	bool last = self.refs == 0;
+	self.mutex.unlock();
+	if (!last) return;
+	Allocator allocator = self.allocator;
+	self.failure.close();
+	self.mutex.destroy();
+	self.changed.destroy()!!;
+	alloc::free(allocator, self);
+}
+
+// Ask once for the permissions this sender uses. The user's answer decides every later send.
+fn void? authorize(Allocator allocator)
+{
+	Answer* answer = new_answer(allocator);
+	defer answer.release();
 	objc::Obj center = notification_center();
 	defer center.close();
-	objc::Block handler = objc::bool_error_block(&on_authorized, self);
+	objc::Block handler = objc::bool_error_block(&on_authorized, answer);
 	defer handler.release();
-	self.answered = false;
+	answer.retain();
 	center.send_void(
 		"requestAuthorizationWithOptions:completionHandler:",
 		OPTION_BADGE | OPTION_SOUND | OPTION_ALERT,
 		handler.id()
 	);
-	wait_for_answer(self, AUTHORIZATION_TIMEOUT)!;
-	if (!self.granted)
+	wait_for_answer(answer, AUTHORIZATION_TIMEOUT)!;
+	if (!answer.granted)
 	{
 		return error::raise(
 			error::PERMISSION_DENIED,
@@ -147,12 +186,13 @@ fn void? authorize(UnSender* self)
 
 fn void on_authorized(void* user, bool success, ObjId error)
 {
-	UnSender* self = (UnSender*)user;
-	self.mutex.lock()!!;
-	self.granted = success;
-	self.answered = true;
-	self.changed.broadcast()!!;
-	self.mutex.unlock();
+	Answer* answer = (Answer*)user;
+	answer.mutex.lock()!!;
+	answer.granted = success;
+	answer.answered = true;
+	answer.changed.broadcast()!!;
+	answer.mutex.unlock();
+	answer.release();
 }
 
 // Post one request. A replacement reuses the identifier of the notification it replaces.
@@ -182,37 +222,39 @@ fn notify::NoteId? send_un(void* state, sender::Request* request)
 		.send(ObjId, "requestWithIdentifier:content:trigger:", identifier.ptr, content.ptr, null);
 	objc::Obj center = notification_center();
 	defer center.close();
-	objc::Block handler = objc::id_block(&on_added, self);
+	Answer* answer = new_answer(self.allocator);
+	defer answer.release();
+	objc::Block handler = objc::id_block(&on_added, answer);
 	defer handler.release();
-	self.answered = false;
-	self.failure.close();
+	answer.retain();
 	center.send_void("addNotificationRequest:withCompletionHandler:", post, handler.id());
-	wait_for_answer(self, POST_TIMEOUT)!;
-	if (self.failure.ptr)
+	wait_for_answer(answer, POST_TIMEOUT)!;
+	if (answer.failure.ptr)
 	{
-		return foundation::raise_ns_error(self.failure.ptr, "posting the notification")~;
+		return foundation::raise_ns_error(answer.failure.ptr, "posting the notification")~;
 	}
 	return id;
 }
 
 fn void on_added(void* user, ObjId error)
 {
-	UnSender* self = (UnSender*)user;
-	self.mutex.lock()!!;
-	if (error) self.failure = objc::borrow(error);
-	self.answered = true;
-	self.changed.broadcast()!!;
-	self.mutex.unlock();
+	Answer* answer = (Answer*)user;
+	answer.mutex.lock()!!;
+	if (error) answer.failure = objc::borrow(error);
+	answer.answered = true;
+	answer.changed.broadcast()!!;
+	answer.mutex.unlock();
+	answer.release();
 }
 
-// Wait until a completion handler answered, or the time is up.
-fn void? wait_for_answer(UnSender* self, Duration timeout)
+// Wait until the completion block answered, or the time is up.
+fn void? wait_for_answer(Answer* answer, Duration timeout)
 {
 	Deadline deadline = deadline::after(timeout);
-	self.mutex.lock()!!;
-	defer self.mutex.unlock();
-	while (!self.answered)
+	answer.mutex.lock()!!;
+	defer answer.mutex.unlock();
+	while (!answer.answered)
 	{
-		if (!deadline.wait(&self.changed, &self.mutex)) return TIMEOUT~;
+		if (!deadline.wait(&answer.changed, &answer.mutex)) return TIMEOUT~;
 	}
 }

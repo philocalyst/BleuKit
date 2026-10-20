@@ -35,3 +35,9 @@ fn void a_difference_anywhere_is_detected() @test
 	assert(!equal::deep((Tree) { true, l1[..] }, (Tree) { true, l3[..] }));
 	assert(!equal::deep((Tree) { true, l1[..] }, (Tree) { true, { } }));
 }
+fn void nan_compares_equal_to_itself() @test
+{
+	float nan = bitcast((uint)0x7FC0_0000, float);
+	test::@check(equal::deep(nan, nan), "an unchanged NaN is not a change");
+	test::@check(equal::deep(0.0f, -0.0f), "zero and negative zero are equal");
+}

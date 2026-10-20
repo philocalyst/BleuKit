@@ -56,8 +56,21 @@ fn Appearance*? open(Allocator allocator, Options options = { })
 	Appearance* self = alloc::new(allocator, Appearance);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "appearance", driver.info.name, driver.run, self.driver_state))
+	void*? state = driver.create(allocator, options, &self.capabilities);
+	if (catch err = state)
+	{
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"appearance",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -133,16 +146,17 @@ fn Operation{bool}*? Appearance.set_color_scheme(&self, ColorScheme scheme)
 
 <*
  Set the desktop picture to the file at `path`, on every screen the desktop
- has one picture for. `path` must be absolute.
+ has one picture for. `path` must be absolute: "/..." on POSIX; "C:\..." or "\\server\share\..." on
+ Windows.
 
  @return? error::UNSUPPORTED : "This backend cannot set the wallpaper (see `capability`)"
- @return? error::INVALID_ARGUMENT : "The path is empty or not absolute"
+ @return? error::INVALID_ARGUMENT : "The path is not absolute on this platform"
 *>
 fn Operation{bool}*? Appearance.set_wallpaper(&self, String path)
 {
 	Availability availability = self.capability(WALLPAPER_SET);
 	if (!availability.ok()) return availability.refusal()~;
-	if (path.len == 0 || path[0] != '/') return error::raise(
+	if (!is_absolute_path(path)) return error::raise(
 		error::INVALID_ARGUMENT,
 		error::Domain.INTERNAL,
 		0,

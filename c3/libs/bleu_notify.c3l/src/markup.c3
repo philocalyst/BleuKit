@@ -36,6 +36,7 @@ struct Parser
 	String[MAX_DEPTH] hrefs;
 	usz depth;
 	bool full;
+	usz next_close; // index of the first '>' at or after the last tag search (input.len: none); keeps the search linear
 }
 
 <*
@@ -110,8 +111,9 @@ fn bool try_tag(Parser* p)
 {
 	String input = p.input;
 	usz start    = p.pos + 1;
-	usz close    = start;
-	while (close < input.len && input[close] != '>') close++;
+	// A '>' found by an earlier search, at or after `start`, is still the first one: searches move forward only.
+	if (p.next_close < start) p.next_close = find_close(input, start);
+	usz close = p.next_close;
 	if (close >= input.len) return false;
 	String inner = input[start:close - start];
 	bool closing = inner.len > 0 && inner[0] == '/';
@@ -157,10 +159,55 @@ fn bool apply_style(Parser* p, bool closing, Tag kind)
 	return closing ? pop_kind(p, kind) : push_kind(p, kind, "");
 }
 
+// A link keeps its text; its href is kept only when it is short, plain, and a web or mail address.
 fn bool push_link(Parser* p, String href)
 {
-	if (href.len > notify::MAX_LINK || has_control(href)) href = "";
+	if (href.len > notify::MAX_LINK || has_control(href) || !allowed_scheme(href)) href = "";
 	return push_kind(p, LINK, href);
+}
+
+// The index of the first '>' at or after `from`, or the length of `input` when there is none.
+fn usz find_close(String input, usz from)
+{
+	usz close = from;
+	while (close < input.len && input[close] != '>') close++;
+	return close;
+}
+
+// Only http, https and mailto links survive; javascript:, file: and every other scheme are dropped (ASCII case-insensitive).
+fn bool allowed_scheme(String href)
+{
+	return starts_with_ci(href, "http://") || starts_with_ci(href, "https://") || starts_with_ci(href, "mailto:");
+}
+
+fn bool starts_with_ci(String text, String prefix)
+{
+	return text.len >= prefix.len && name_is(text[0:prefix.len], prefix);
+}
+
+<*
+ `text` with `&`, `<` and `>` written as the entities that `parse` reads back, so
+ that a plain-text body sent to a daemon is shown as written. The result is
+ allocated in `allocator`.
+*>
+fn String escape(String text, Allocator allocator)
+{
+	DString out;
+	out.init(allocator);
+	foreach (c : text)
+	{
+		switch (c)
+		{
+			case '&':
+				foreach (e : "&amp;") out.append_char(e);
+			case '<':
+				foreach (e : "&lt;") out.append_char(e);
+			case '>':
+				foreach (e : "&gt;") out.append_char(e);
+			default: out.append_char(c);
+		}
+	}
+	return out.str_view();
 }
 
 fn bool push_kind(Parser* p, Tag kind, String href)

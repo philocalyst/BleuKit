@@ -8,10 +8,16 @@
  is free, or allowed to take the name from its owner (`REPLACE_EXISTING`, which
  the owner has to allow with `ALLOW_REPLACEMENT`).
 
- The handlers run from `process()`, on the connection's thread.
+ The handlers run on the connection's thread, under the rules in
+ `bleu::dbus::connection`: `on_acquired` and `on_lost` never run between two steps
+ of `own_name` or `release`.
 
  A successful `own_name` does NOT mean the name is held: a queued request succeeds with
  `OwnedName.held == false`. Check `held` (or use DO_NOT_QUEUE and treat refusal as failure).
+
+ When the connection closes, a held name is lost: `held` becomes false and `on_lost`
+ runs once. A queued request is dropped by the bus with the connection, and nothing
+ runs for it: reopen the connection and request the name again.
 
  Sources: D-Bus specification, "Message Bus Specification": RequestName (flags,
  reply codes), ReleaseName, and the NameAcquired and NameLost signals.
@@ -33,6 +39,9 @@ struct OwnedName
 	Connection* connection;
 	DString name;
 	bool held;
+	// True while the connection's close watch is registered: the connection has not closed since
+	// the request was made, so the bus has not yet dropped the request or the name.
+	bool attached;
 	SubscriptionId acquired;
 	SubscriptionId lost;
 	NameHandler on_acquired;
@@ -43,12 +52,12 @@ struct OwnedName
 <*
  Ask the bus for `name`, with `flags` (any of `bus::NAME_ALLOW_REPLACEMENT`,
  `NAME_REPLACE_EXISTING`, `NAME_DO_NOT_QUEUE`). If the name is granted at once,
- `on_acquired` runs before this returns. If the bus queues the request,
+ `on_acquired` runs once, before this returns. If the bus queues the request,
  `on_acquired` runs later, when the name is handed over, and nothing is held
- meanwhile. `on_lost` may be null.
+ meanwhile. `on_lost` may be null. See the module note for what a close does.
 
  @param on_acquired : "Run when this connection holds the name"
- @param on_lost : "Run when this connection loses the name, or null"
+ @param on_lost : "Run when this connection loses the name (or the connection closes while it is held), or null"
  @param context : "Passed to both handlers"
  @return "The ownership; release it to give the name up"
  @return? error::INVALID_ARGUMENT : "Not a well-known bus name, or no `on_acquired` handler"
@@ -64,7 +73,10 @@ fn OwnedName*? Connection.own_name(
 	void* context
 )
 {
+	self.check_owner();
 	if (!names::is_bus_name(name) || name[0] == ':' || !on_acquired) return error::INVALID_ARGUMENT~;
+	begin_operation(self);
+	defer end_operation(self);
 	OwnedName* o = alloc::new(self.allocator, OwnedName);
 	*o = { .connection = self, .on_acquired = on_acquired, .on_lost = on_lost, .context = context };
 	o.name.init(self.allocator);
@@ -86,9 +98,10 @@ fn OwnedName*? Connection.own_name(
 	{
 		case PRIMARY_OWNER:
 		case ALREADY_OWNER:
-			o.held = true;
-			on_acquired(context, name);
+			attach_name(o);
+			grant(o, on_acquired);
 		case IN_QUEUE:
+			attach_name(o);
 			return o; // NameAcquired arrives when the bus hands the name over
 		case EXISTS:
 			o.unsubscribe_signals();
@@ -116,17 +129,22 @@ fn OwnedName*? Connection.own_name(
 
 <*
  Give the name up, if it is held or queued, stop the handlers, and free this value.
+ After the connection has closed there is nothing to give up, and nothing is sent.
 
  @return? error::DISCONNECTED : "The bus did not answer ReleaseName; the name is gone with the connection"
 *>
 fn void? OwnedName.release(&self)
 {
 	Connection* c = self.connection;
+	begin_operation(c);
+	defer end_operation(c);
 	defer free_owned(self);
 	self.unsubscribe_signals();
-	// A queued request is withdrawn too, so the bus does not grant the name later.
-	// A closed connection has no names left to give back.
-	if (c.is_open) c.release_name(self.name.str_view())!;
+	// Read before the registration is dropped: a registration that is gone means the
+	// connection has closed, and the bus has already let the name go.
+	bool live = self.attached;
+	detach_name(self);
+	if (live) c.release_name(self.name.str_view())!;
 }
 
 // Subscribes to NameAcquired and NameLost for the name, sent to this connection by the bus.
@@ -172,19 +190,53 @@ fn void? fill_rule(match::Match* rule, String member, String name) @private
 	rule.with_arg(0, name)!;
 }
 
-// The bus granted the name (to this connection, or to it from the queue).
+// Registers the name with the connection's close watches, so that a close reaches it.
+fn void attach_name(OwnedName* o) @private
+{
+	o.connection.watch_close(&on_connection_closed, o);
+	o.attached = true;
+}
+
+// Ends the registration made by `attach_name`, when it is still there.
+fn void detach_name(OwnedName* o) @private
+{
+	if (!o.attached) return;
+	o.connection.forget_close(o);
+	o.attached = false;
+}
+
+// The bus granted the name, to this connection or from the queue. `held` is set and
+// `on_acquired` runs once: a grant that was already announced (for example by a
+// NameAcquired that a nested operation dispatched first) is not announced again.
+fn void grant(OwnedName* o, NameHandler on_acquired) @private
+{
+	if (o.held) return;
+	o.held = true;
+	on_acquired(o.context, o.name.str_view());
+}
+
+// The bus granted the name from the queue, or to this connection directly.
 fn void on_name_acquired(void* context, Message* signal) @private
 {
 	OwnedName* o = (OwnedName*)context;
-	if (o.held) return;
-	o.held = true;
-	o.on_acquired(o.context, o.name.str_view());
+	grant(o, o.on_acquired);
 }
 
 // The bus took the name from this connection.
 fn void on_name_lost(void* context, Message* signal) @private
 {
 	OwnedName* o = (OwnedName*)context;
+	if (!o.held) return;
+	o.held = false;
+	if (o.on_lost) o.on_lost(o.context, o.name.str_view());
+}
+
+// The connection closed. A held name is lost with it: `held` clears, and on_lost runs.
+// A queued request died with the connection, and nothing runs for it.
+fn void on_connection_closed(void* context) @private
+{
+	OwnedName* o = (OwnedName*)context;
+	o.attached = false;
 	if (!o.held) return;
 	o.held = false;
 	if (o.on_lost) o.on_lost(o.context, o.name.str_view());

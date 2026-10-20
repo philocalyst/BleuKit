@@ -1,7 +1,7 @@
 // Unit tests for desktop entries: parsing, localisation, actions, visibility,
 // and scanning a real directory tree for precedence and desktop file IDs.
 module bleu::xdg::desktop_entry;
-import bleu::error, bleu::xdg::dirs, std::io, std::collections::list, std::core::test;
+import bleu::error, bleu::xdg::dirs, bleu::xdg::keyfile, std::io, std::collections::list, std::core::test;
 
 const String SAMPLE = `[Desktop Entry]
 Type=Application
@@ -192,4 +192,23 @@ fn void specification_example_parses_and_expands() @test
 	test::eq("fooview --gallery", entry.actions[0].exec);
 	test::eq(1, entry.mime_types.len);
 	test::eq("image/x-foo", entry.mime_types[0]);
+}
+
+// `Type=Link` names its target in `URL`, which the specification requires for links.
+fn void link_entries_need_a_url() @test
+{
+	test::@error(parse(mem, "[Desktop Entry]\nType=Link\nName=Docs\n", ""), error::PROTOCOL);
+	DesktopEntry* link = parse(mem, "[Desktop Entry]\nType=Link\nName=Docs\nURL=https://example.org/\n", "")!!;
+	defer link.release();
+	test::eq("https://example.org/", link.url);
+}
+
+// A desktop file over the reader's cap is refused by its size, before it is read.
+fn void oversized_desktop_files_are_refused() @test
+{
+	String path = string::tformat("%s/bleu-xdg-oversized.desktop", io::path::temp_directory(tmem)!!);
+	char[] big = alloc::new_array(tmem, char, (sz)keyfile::MAX_FILE_BYTES + 1);
+	io::file::save(path, big)!!;
+	defer (void)io::file::delete(path);
+	test::@error(load(mem, path, ""), error::OUT_OF_RANGE);
 }

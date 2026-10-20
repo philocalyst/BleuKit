@@ -6,15 +6,15 @@
  The bus connection is made when the sender is opened, on the opening thread.
 *>
 module bleu::notify::sender_fdo @feat(LINUX);
-import std::time, bleu::error, bleu::availability, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::proxy, bleu::notify, bleu::notify::sender;
+import std::time, bleu::error, bleu::availability, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::proxy, bleu::notify, bleu::notify::markup, bleu::notify::sender;
 
 const String DEST             = "org.freedesktop.Notifications";
 const String PATH             = "/org/freedesktop/Notifications";
 const String IFACE            = "org.freedesktop.Notifications";
 const String NOTIFY_SIGNATURE = "susssasa{sv}i";
 
-// How long a Notify call waits for the server to answer.
-const Duration CALL_TIMEOUT = (Duration)25_000_000; // 25 s, microseconds
+// How long a Notify call waits for the server to answer. A server answers at once; a longer wait means a hung centre.
+const Duration CALL_TIMEOUT = (Duration)5_000_000; // 5 s, microseconds
 
 struct FdoSender
 {
@@ -61,7 +61,11 @@ fn notify::NoteId? send_fdo(void* state, sender::Request* request)
 	w.append_u32(request.replaces_id)!;
 	w.append_string(request.app_icon)!;
 	w.append_string(request.summary)!;
-	w.append_string(request.body)!;
+	// The body is plain text (see `Request.body`): escaped, so no daemon reads it as markup.
+	@pool()
+	{
+		w.append_string(markup::escape(request.body, tmem))!;
+	};
 	w.begin_array("as")!;
 	foreach (action : request.actions)
 	{

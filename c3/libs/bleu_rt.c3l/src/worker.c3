@@ -67,11 +67,15 @@ fn void? Worker.init(&self, Allocator allocator, usz max_queue)
 	self.mailbox.init(allocator, max_queue)!;
 	self.lifecycle.init()!!;
 	self.stop_requested.store(false);
+	self.state = NEW;
 }
 
 <*
  Release the mailbox and the lifecycle lock. Call after `stop`, or on a worker
- that was never started.
+ that was never started. Nothing may use the worker afterwards, and no thread may
+ be posting to it.
+
+ @require self.state != RUNNING : "stop the worker before freeing it"
 *>
 fn void Worker.free(&self)
 {

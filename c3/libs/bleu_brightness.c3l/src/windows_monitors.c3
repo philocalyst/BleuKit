@@ -6,6 +6,8 @@
  `GetMonitorBrightness` (minimum, current, maximum) and `SetMonitorBrightness` read
  and set the luminance (DDC/CI VCP 0x10 underneath). Each display's monitors are
  released with `DestroyPhysicalMonitors` using the count they were fetched with.
+ A monitor's id is its display's device name and its position within that display
+ (`monitor_id`), so it does not change when another monitor appears or goes.
 
  COMPILED ONLY. Nothing here has run on Windows. Declarations as cited in
  docs/research/display.md section 2.3: MGW `highlevelmonitorconfigurationapi.h`
@@ -14,7 +16,7 @@
  declared with C types; the layouts of PHYSICAL_MONITOR are the Windows SDK's.
 *>
 module bleu::brightness::windows_monitors @feat(WIN32) @link("dxva2");
-import std::collections::list, std::collections::maybe, bleu::availability, bleu::brightness, bleu::error, bleu::unit;
+import std::collections::list, std::collections::maybe, std::os::win32, bleu::availability, bleu::brightness, bleu::error, bleu::unit;
 
 <* `WCHAR szPhysicalMonitorDescription[128]`. *>
 const usz DESCRIPTION_CHARS = 128;
@@ -24,6 +26,22 @@ struct PhysicalMonitor
 {
 	void* handle;
 	ushort[DESCRIPTION_CHARS] description;
+}
+
+// `WCHAR szDevice[CCHDEVICENAME]` in MONITORINFOEXW.
+const usz DEVICE_NAME_CHARS = 32;
+
+// `MONITORINFOEXW` (winuser.h): its size is 104 bytes on every Windows target, and that is the `cbSize` it must carry.
+const uint MONITOR_INFO_EX_SIZE = 104;
+
+<* `MONITORINFOEXW`: the display's rectangles, flags and device name (the DISPLAY1 style of name). *>
+struct MonitorInfoExW
+{
+	uint size;
+	int[4] monitor;
+	int[4] work;
+	uint flags;
+	ushort[DEVICE_NAME_CHARS] device;
 }
 
 // `BOOL CALLBACK MonitorEnumProc(HMONITOR, HDC, LPRECT, LPARAM)`.
@@ -52,9 +70,23 @@ extern fn int getMonitorBrightness(
 	uint* maximum
 ) @cname("GetMonitorBrightness");
 extern fn int setMonitorBrightness(void* handle, uint value) @cname("SetMonitorBrightness");
+extern fn int getMonitorInfoW(void* display, MonitorInfoExW* info) @cname("GetMonitorInfoW");
 
-// The monitors of one display, as fetched, so that they can be destroyed with the same count.
-alias Chunk = PhysicalMonitor[];
+<*
+ The physical monitors of one display, with the display's device name. The monitors are
+ destroyed with the count they were fetched with.
+*>
+struct Chunk
+{
+	String display;
+	PhysicalMonitor[] monitors;
+}
+
+<*
+ The id of the `index`th monitor of display `display` (its device name): stable while the
+ display stays attached, and it names the monitor a write must reach.
+*>
+fn String monitor_id(String display, sz index) => string::tformat("%s#%d", display, index);
 
 // Collect every display handle into the list that `data` points to.
 fn int collect_display(void* display, void* context, void* rect, long data)
@@ -76,17 +108,40 @@ fn void? enumerate(List{Chunk}* chunks)
 	displays.init(tmem);
 	if (!enumDisplayMonitors(null, null, &collect_display, (long)(usz)&displays))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "EnumDisplayMonitors failed")~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			(int)win32::getLastError(),
+			"EnumDisplayMonitors failed"
+		)~;
 	}
 	foreach (display : displays)
 	{
+		MonitorInfoExW info;
+		info.size = MONITOR_INFO_EX_SIZE;
+		// A display without a device name cannot be told apart from another, so it is skipped.
+		if (!getMonitorInfoW(display, &info)) continue;
 		uint count = 0;
 		if (!getNumberOfPhysicalMonitorsFromHMONITOR(display, &count) || count == 0) continue;
-		Chunk chunk = alloc::new_array(tmem, PhysicalMonitor, (sz)count);
+		PhysicalMonitor[] monitors = alloc::new_array(tmem, PhysicalMonitor, (sz)count);
 		// A display that refuses to list its monitors is skipped, not fatal.
-		if (!getPhysicalMonitorsFromHMONITOR(display, count, chunk.ptr)) continue;
-		chunks.push(chunk);
+		if (!getPhysicalMonitorsFromHMONITOR(display, count, monitors.ptr)) continue;
+		chunks.push({ .display = device_name(&info), .monitors = monitors });
 	}
+}
+
+// The display's device name, copied into temporary memory. Windows names displays in ASCII; any other character is written as '?'.
+fn String device_name(MonitorInfoExW* info) @private
+{
+	char[DEVICE_NAME_CHARS] buffer;
+	usz length = 0;
+	while (length < DEVICE_NAME_CHARS && info.device[length] != 0)
+	{
+		ushort code = info.device[length];
+		buffer[length] = code < 128 ? (char)code : '?';
+		length++;
+	}
+	return ((String)buffer[0:length]).copy(tmem);
 }
 
 // Destroy the monitors of every chunk.
@@ -94,7 +149,7 @@ fn void release_chunks(List{Chunk}* chunks)
 {
 	foreach (chunk : chunks)
 	{
-		(void)destroyPhysicalMonitors((uint)chunk.len, chunk.ptr);
+		(void)destroyPhysicalMonitors((uint)chunk.monitors.len, chunk.monitors.ptr);
 	}
 }
 
@@ -146,12 +201,25 @@ fn Applied? write_monitor(PhysicalMonitor* monitor, Level level)
 	long raw = level.to_raw((long)minimum, (long)maximum);
 	if (!setMonitorBrightness(monitor.handle, (uint)raw))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "SetMonitorBrightness refused %d", raw)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			(int)win32::getLastError(),
+			"SetMonitorBrightness refused %d",
+			raw
+		)~;
 	}
 	Maybe{Level} read_back = { };
 	if (getMonitorBrightness(monitor.handle, &minimum, &current, &maximum))
 	{
 		read_back = maybe::value(unit::from_raw((long)current, (long)minimum, (long)maximum));
 	}
+	brightness::confirm_read_back(
+		"external monitor",
+		raw,
+		(long)minimum,
+		(long)maximum,
+		read_back
+	)!;
 	return brightness::applied_at(Mechanism.DDC, level, raw, (long)minimum, (long)maximum, read_back);
 }

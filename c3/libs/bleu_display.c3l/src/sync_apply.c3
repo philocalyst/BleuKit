@@ -87,21 +87,21 @@ fn void? check_request(SyncNative* native, Config config, bool* changed)
 }
 
 // The layout as it is now, copied into `allocator`: the point a rollback returns to.
-fn Config previous_config(SyncNative* native, Allocator allocator)
+fn void? capture_previous(SyncNative* native, Allocator allocator, Config* previous)
 {
-	Config result;
 	@pool()
 	{
-		State state = native.read(native.backend, tmem)!!;
-		result = config_from_state(state, allocator);
+		State state = native.read(native.backend, tmem)!;
+		*previous = config_from_state(state, allocator);
 	};
-	return result;
+	return;
 }
 
 <*
- Carry out one apply command. A change made with APPLY_WITH_REVERT replaces the rollback point
- (the layout before this change), and a plain APPLY forgets the earlier one: the newest layout is
- the one a later rollback would return to.
+ Carry out one apply command. An APPLY_WITH_REVERT that changes something keeps the layout it
+ replaces as the rollback point, unless a rollback is already pending: then the point stays the last
+ confirmed layout, and only the deadline moves. A plain APPLY is a decision of its own and forgets
+ the pending rollback, even when it changes nothing.
 *>
 fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Clock now)
 {
@@ -115,16 +115,23 @@ fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Cloc
 	}
 	if (!changed)
 	{
+		if (command.mode == APPLY) forget_rollback(rollback);
 		op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = false });
 		op.release();
 		return;
 	}
+	bool captures = command.mode == APPLY_WITH_REVERT && !rollback.guard.armed;
 	ApplyOp* holder = null;
 	Config previous;
-	if (command.mode == APPLY_WITH_REVERT)
+	if (captures)
 	{
 		holder = operation::begin(native.allocator);
-		previous = previous_config(native, holder.allocator());
+		if (catch err = capture_previous(native, holder.allocator(), &previous))
+		{
+			holder.release();
+			reject(op, err);
+			return;
+		}
 	}
 	if (catch err = native.commit(native.backend, command.config, command.mode == TEST_ONLY, command.config.persistent))
 	{
@@ -134,16 +141,17 @@ fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Cloc
 	}
 	if (command.mode == APPLY_WITH_REVERT)
 	{
-		if (rollback.op) rollback.op.release();
-		rollback.op = holder;
-		rollback.config = previous;
+		if (captures)
+		{
+			if (rollback.op) rollback.op.release();
+			rollback.op = holder;
+			rollback.config = previous;
+		}
 		rollback.guard.arm(now, command.revert_after);
 	}
 	else if (command.mode == APPLY)
 	{
-		rollback.guard.disarm();
-		if (rollback.op) rollback.op.release();
-		rollback.op = null;
+		forget_rollback(rollback);
 	}
 	op.succeed(
 		{ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = command.mode == APPLY_WITH_REVERT }
@@ -151,31 +159,45 @@ fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Cloc
 	op.release();
 }
 
-// Keep the pending change: its rollback point is forgotten.
+<* Forget the pending rollback: the layout in effect is kept for good. *>
+fn void forget_rollback(Rollback* rollback)
+{
+	rollback.guard.disarm();
+	if (rollback.op) rollback.op.release();
+	rollback.op = null;
+}
+
+<* Keep the pending change: its rollback point is forgotten. *>
 fn void confirm_sync(Rollback* rollback, Clock now)
 {
-	if (rollback.guard.confirm(now))
-	{
-		if (rollback.op) rollback.op.release();
-		rollback.op = null;
-	}
+	if (rollback.guard.confirm(now)) forget_rollback(rollback);
 }
 
 <*
- Roll back the change nobody confirmed: apply the layout that was current before it. The outcome
- is reported as a REVERTED event; a rollback the platform refuses leaves the change in place, and the
- publish that follows says what the system now has.
+ Roll back the change nobody confirmed: apply the layout that was current before it. Returns
+ whether the platform accepted the rollback. A refused rollback leaves the change in place.
 *>
-fn void revert_sync(SyncNative* native, Rollback* rollback, DisplayHub* hub)
+fn bool revert_sync(SyncNative* native, Rollback* rollback)
 {
 	rollback.guard.disarm();
 	ApplyOp* holder = rollback.op;
 	Config previous = rollback.config;
 	rollback.op = null;
+	bool reverted = true;
 	if (catch err = native.commit(native.backend, previous, false, false))
 	{
-		// Nothing more can be done: the change stays, and the publish after this reports it.
+		reverted = false;
 	}
 	if (holder) holder.release();
-	emit(hub, REVERTED, "");
+	return reverted;
+}
+
+<*
+ Roll back and announce the outcome: REVERTED when the layout was restored, REVERT_FAILED when
+ the platform refused. The publish that follows shows what the system now has.
+*>
+fn void revert_and_announce(SyncNative* native, Rollback* rollback, DisplayHub* hub)
+{
+	EventKind kind = revert_sync(native, rollback) ? REVERTED : REVERT_FAILED;
+	emit(hub, kind, "");
 }

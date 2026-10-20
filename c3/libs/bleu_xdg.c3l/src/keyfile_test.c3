@@ -160,3 +160,17 @@ fn void permissive_keys_accept_mime_types() @test
 	test::eq("b.desktop", file.get_strings(tmem, "Default Applications", "image/x-foo+bar")!![0]);
 	test::@error(parse_with(mem, "[G]\nbad[key=1\n", PERMISSIVE), error::PROTOCOL);
 }
+
+// A file is UTF-8: bytes that are not well-formed UTF-8 are refused, as GLib refuses them,
+// so a name never reaches the UI with a broken sequence in it.
+fn void files_must_be_utf8() @test
+{
+	// Latin-1 e-acute, a byte no UTF-8 sequence uses, an overlong NUL, an encoded surrogate.
+	test::@error(parse(mem, "[Desktop Entry]\nName=Caf\xE9\n"), error::PROTOCOL);
+	test::@error(parse(mem, "[Desktop Entry]\nName=A\xFF\n"), error::PROTOCOL);
+	test::@error(parse(mem, "[Desktop Entry]\nName=\xC0\x80\n"), error::PROTOCOL);
+	test::@error(parse(mem, "[Desktop Entry]\nName=\xED\xA0\x80\n"), error::PROTOCOL);
+	KeyFile file = parse(mem, "[Desktop Entry]\nName=Caf\xC3\xA9 \xF0\x9F\x98\x80\n")!!;
+	defer file.free();
+	test::eq("Caf\xC3\xA9 \xF0\x9F\x98\x80", file.get_string(tmem, "Desktop Entry", "Name")!!);
+}
