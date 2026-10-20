@@ -14,16 +14,15 @@
 
  Threading: work submitted to a queue runs on a libdispatch thread, one item at a
  time for a serial queue. Native callbacks should enqueue onto a service's own
- worker, not run service logic directly.
+ worker, not run service logic directly. A `WorkFn` that uses Objective-C must
+ wrap its body in `objc::@objc_entry()` (bleu::objc), because libdispatch does
+ not create an autorelease pool for it.
 *>
 module bleu::cf::dispatch @feat(DARWIN);
 import std::time, bleu::error;
 
 <* A function run on a queue. `context` is the pointer given with the work or timer. *>
 alias WorkFn = fn void(void* context);
-
-<* Nanoseconds in a `Duration` (microseconds): the multiplier from `Duration.to_nano`. *>
-const ulong NANOS_PER_MICRO = 1000;
 
 <* `DISPATCH_TIME_NOW`: the current time, for `dispatch_time`. *>
 const ulong DISPATCH_TIME_NOW_VALUE = 0;
@@ -37,9 +36,22 @@ extern fn void dispatch_release(void* object) @cname("dispatch_release");
 extern fn void dispatch_set_context(void* object, void* context) @cname("dispatch_set_context");
 extern fn void dispatch_resume(void* object) @cname("dispatch_resume");
 extern fn ulong dispatch_time(ulong base, long offset) @cname("dispatch_time");
-extern fn void* dispatch_source_create(void* type, ulong handle, ulong mask, void* queue) @cname("dispatch_source_create");
-extern fn void dispatch_source_set_timer(void* source, ulong start, ulong interval, ulong leeway) @cname("dispatch_source_set_timer");
-extern fn void dispatch_source_set_event_handler_f(void* source, WorkFn handler) @cname("dispatch_source_set_event_handler_f");
+extern fn void* dispatch_source_create(
+	void* type,
+	ulong handle,
+	ulong mask,
+	void* queue
+) @cname("dispatch_source_create");
+extern fn void dispatch_source_set_timer(
+	void* source,
+	ulong start,
+	ulong interval,
+	ulong leeway
+) @cname("dispatch_source_set_timer");
+extern fn void dispatch_source_set_event_handler_f(
+	void* source,
+	WorkFn handler
+) @cname("dispatch_source_set_event_handler_f");
 extern fn void dispatch_source_cancel(void* source) @cname("dispatch_source_cancel");
 
 <* The address of the timer source type (`DISPATCH_SOURCE_TYPE_TIMER`). *>
@@ -59,7 +71,13 @@ struct SerialQueue
 fn SerialQueue? serial_queue(ZString label)
 {
 	void* queue = dispatch_queue_create(label, DISPATCH_QUEUE_SERIAL_ATTR);
-	if (!queue) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "dispatch_queue_create('%s') failed", label)~;
+	if (!queue) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"dispatch_queue_create('%s') failed",
+		label
+	)~;
 	return { .queue = queue };
 }
 
@@ -84,6 +102,7 @@ struct Timer
 {
 	void* source;
 	Duration interval;
+	bool armed;
 }
 
 <*
@@ -96,29 +115,41 @@ struct Timer
 fn Timer? repeating_timer(SerialQueue queue, Duration interval, WorkFn handler, void* context)
 {
 	void* source = dispatch_source_create((void*)&DISPATCH_SOURCE_TYPE_TIMER_SYMBOL, 0, 0, queue.queue);
-	if (!source) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "dispatch_source_create(timer) failed")~;
+	if (!source) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"dispatch_source_create(timer) failed"
+	)~;
 	dispatch_set_context(source, context);
 	dispatch_source_set_event_handler_f(source, handler);
-	return { .source = source, .interval = interval };
+	return { .source = source, .interval = interval, .armed = false };
 }
 
 <* Arm the timer: the first tick comes one interval from now. *>
 fn void Timer.start(&self)
 {
-	ulong period = (ulong)self.interval.to_nano() * NANOS_PER_MICRO / NANOS_PER_MICRO;
-	ulong first = dispatch_time(DISPATCH_TIME_NOW_VALUE, (long)period);
+	ulong period = (ulong)self.interval.to_nano();
+	ulong first  = dispatch_time(DISPATCH_TIME_NOW_VALUE, (long)period);
 	dispatch_source_set_timer(self.source, first, period, period / 10);
 	dispatch_resume(self.source);
+	self.armed = true;
 }
 
 <* Cancel the timer. No further ticks are delivered after this returns. *>
 fn void Timer.stop(&self) => dispatch_source_cancel(self.source);
 
-<* Release the timer, cancelling it first. Idempotent. *>
+<*
+ Release the timer, cancelling it first. Idempotent. A timer that was never
+ started is resumed once before cancelling, because libdispatch refuses to
+ release a suspended object.
+*>
 fn void Timer.close(&self)
 {
 	if (!self.source) return;
+	if (!self.armed) dispatch_resume(self.source);
 	dispatch_source_cancel(self.source);
 	dispatch_release(self.source);
 	self.source = null;
+	self.armed = false;
 }

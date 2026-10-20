@@ -40,7 +40,7 @@ struct Mailbox
 <*
  Create an empty, open mailbox.
 
- @param [&inout] allocator : "Allocator for the ring buffer"
+ @param allocator : "Allocator for the ring buffer"
  @param max_capacity : "Most commands the queue holds before `post` returns BUSY"
  @require max_capacity > 0 : "A mailbox needs room for at least one command"
  @return? error::BACKEND_FAILURE : "The wake-up could not be created"
@@ -162,9 +162,9 @@ fn usz Mailbox.pending(&self)
 <* The wake-up a worker's poller should wait on. Valid until `free`. *>
 fn Wakeup* Mailbox.wakeup(&self) @inline => &self.wake;
 
-// Double the ring (or grow to max_capacity), keeping the queue order. Entered with
-// the mutex held.
-fn void Mailbox.grow(&self) @private
+// Double the ring (or grow to max_capacity), keeping the queue order. Internal to
+// `post`: entered with the mutex held.
+fn void Mailbox.grow(&self)
 {
 	usz old_len = (usz)self.ring.len;
 	usz new_len = min(old_len * 2, self.max_capacity);

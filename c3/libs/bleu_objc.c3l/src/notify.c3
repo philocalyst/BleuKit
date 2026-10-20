@@ -3,10 +3,10 @@
  and NSWorkspace (sleep/wake, screen lock, appearance).
 
  Two styles, both delivered on the posting thread:
-   * block-based (`observe`): the handler is a C3 function plus a user pointer,
-     wrapped in an Objective-C block (`block.c3`);
-   * selector-based (`observe_selector`): the observer is an object of a class
-     built with `ClassBuilder` (`class.c3`) whose method receives the notification.
+ * block-based (`observe`): the handler is a C3 function plus a user pointer,
+ wrapped in an Objective-C block (`block.c3`);
+ * selector-based (`observe_selector`): the observer is an object of a class
+ built with `ClassBuilder` (`class.c3`) whose method receives the notification.
 
  Threading: the posting thread is AppKit's main thread for workspace
  notifications and an arbitrary thread for distributed ones. Handlers must
@@ -24,9 +24,9 @@ import std::os::darwin::objc, bleu::objc, bleu::objc::foundation, bleu::error;
 <* Which notification center a subscription uses. *>
 enum CenterKind : char
 {
-	DEFAULT,       // NSNotificationCenter for this process
-	DISTRIBUTED,   // NSDistributedNotificationCenter: all processes of this user
-	WORKSPACE,     // NSWorkspace's own center: sleep, wake, mounts, sessions
+	DEFAULT,     // NSNotificationCenter for this process
+	DISTRIBUTED, // NSDistributedNotificationCenter: all processes of this user
+	WORKSPACE,   // NSWorkspace's own center: sleep, wake, mounts, sessions
 }
 
 <* `NSWorkspaceWillSleepNotification`: the system is about to sleep. *>
@@ -35,7 +35,9 @@ extern const ObjId NS_WORKSPACE_WILL_SLEEP_NOTIFICATION @cname("NSWorkspaceWillS
 extern const ObjId NS_WORKSPACE_DID_WAKE_NOTIFICATION @cname("NSWorkspaceDidWakeNotification");
 <* `NSWorkspaceScreensDidSleepNotification`: the displays went to sleep. *>
 extern const ObjId NS_WORKSPACE_SCREENS_DID_SLEEP_NOTIFICATION @cname("NSWorkspaceScreensDidSleepNotification");
-<* `NSWorkspaceSessionDidResignActiveNotification`: the user session was switched away (fast user switching, lock screen). *>
+<*
+ `NSWorkspaceSessionDidResignActiveNotification`: the user session was switched away (fast user switching, lock screen).
+*>
 extern const ObjId NS_WORKSPACE_SESSION_DID_RESIGN_ACTIVE_NOTIFICATION @cname("NSWorkspaceSessionDidResignActiveNotification");
 
 <* Distributed notification posted when the system appearance (light/dark) changes. *>
@@ -47,7 +49,9 @@ const ZString DISTRIBUTED_APPEARANCE_CHANGED = "AppleInterfaceThemeChangedNotifi
 *>
 const ZString DISTRIBUTED_SCREEN_LOCKED = "com.apple.screenIsLocked";
 
-<* Distributed notification posted when the screen is unlocked. Same verification status as `DISTRIBUTED_SCREEN_LOCKED`. *>
+<*
+ Distributed notification posted when the screen is unlocked. Same verification status as `DISTRIBUTED_SCREEN_LOCKED`.
+*>
 const ZString DISTRIBUTED_SCREEN_UNLOCKED = "com.apple.screenIsUnlocked";
 
 <*
@@ -87,9 +91,14 @@ struct BlockSubscription
 fn BlockSubscription? observe(CenterKind kind, ObjId name, IdHandler handler, void* user)
 {
 	ObjId center = center_of(kind);
-	if (!center || !name) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "no notification center or name")~;
+	if (!center || !name) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"no notification center or name"
+	)~;
 	objc::Block block = objc::id_block(handler, user);
-	ObjId token = center.send(ObjId, "addObserverForName:object:queue:usingBlock:", name, null, null, block.id());
+	ObjId token       = center.send(ObjId, "addObserverForName:object:queue:usingBlock:", name, null, null, block.id());
 	return {
 		.center = objc::borrow(center),
 		.token = objc::borrow(token),
@@ -100,7 +109,7 @@ fn BlockSubscription? observe(CenterKind kind, ObjId name, IdHandler handler, vo
 <* Remove the observer, release the block, and become empty. Idempotent. *>
 fn void BlockSubscription.close(&self)
 {
-	if (self.token.ptr) self.center.ptr.send_void("removeObserver:", self.token.ptr);
+	if (self.token.ptr) self.center.send_void("removeObserver:", self.token.ptr);
 	self.token.close();
 	self.center.close();
 	self.block.release();
@@ -122,7 +131,12 @@ struct SelectorSubscription
 fn SelectorSubscription? observe_selector(CenterKind kind, ObjId observer, ObjSel selector, ObjId name)
 {
 	ObjId center = center_of(kind);
-	if (!center || !observer || !name) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "no notification center, observer or name")~;
+	if (!center || !observer || !name) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"no notification center, observer or name"
+	)~;
 	center.send_void("addObserver:selector:name:object:", observer, selector, name, null);
 	return { .center = objc::borrow(center), .observer = observer };
 }
@@ -130,7 +144,7 @@ fn SelectorSubscription? observe_selector(CenterKind kind, ObjId observer, ObjSe
 <* Remove every registration of the observer on the center, and release the center. Idempotent. *>
 fn void SelectorSubscription.close(&self)
 {
-	if (self.center.ptr && self.observer) self.center.ptr.send_void("removeObserver:", self.observer);
+	if (self.center.ptr && self.observer) self.center.send_void("removeObserver:", self.observer);
 	self.observer = null;
 	self.center.close();
 }

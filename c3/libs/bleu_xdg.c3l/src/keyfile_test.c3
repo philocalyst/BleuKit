@@ -139,4 +139,14 @@ fn void duplicates_and_structure_are_rejected() @test
 	test::@error(parse(mem, "[G]\nA[de=1\n"), error::PROTOCOL);
 	test::@error(parse(mem, "[G]\nA[]=1\n"), error::PROTOCOL);
 	test::@error(parse(mem, "[Gé]\n"), error::PROTOCOL);
+	test::@error(parse(mem, "[G]\ntext/plain=x\n"), error::PROTOCOL);
+}
+
+fn void permissive_keys_accept_mime_types() @test
+{
+	KeyFile file = parse_with(mem, "[Default Applications]\ntext/plain=a.desktop;\nimage/x-foo+bar=b.desktop;\n", PERMISSIVE)!!;
+	defer file.free();
+	test::eq("a.desktop", file.get_strings(tmem, "Default Applications", "text/plain")!![0]);
+	test::eq("b.desktop", file.get_strings(tmem, "Default Applications", "image/x-foo+bar")!![0]);
+	test::@error(parse_with(mem, "[G]\nbad[key=1\n", PERMISSIVE), error::PROTOCOL);
 }

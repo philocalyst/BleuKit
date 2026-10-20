@@ -167,7 +167,6 @@ fn Message*? signal(Allocator parent, String path, String iface, String member, 
 	if (!names::is_object_path(path) || !names::is_interface(iface) || !names::is_member(member)) return error::INVALID_ARGUMENT~;
 	if (destination.len > 0 && !names::is_bus_name(destination)) return error::INVALID_ARGUMENT~;
 	Message* m = create(parent, SIGNAL);
-	m.flags = FLAG_NO_REPLY_EXPECTED;
 	m.path = path.copy(&m.storage);
 	m.interface_name = iface.copy(&m.storage);
 	m.member = member.copy(&m.storage);
@@ -260,6 +259,220 @@ fn Reader? Message.reader(&self)
 
 <* True for an ERROR message. *>
 fn bool Message.is_error(&self) @inline => self.type == ERROR;
+
+<*
+ The total length of the message whose fixed header starts `prefix`, from its
+ body and field array lengths. Framing reads the first 16 bytes of a message
+ and then this many bytes in all.
+
+ @param prefix : "At least the first 16 bytes of a message"
+ @return? error::INVALID_ARGUMENT : "Fewer than 16 bytes"
+ @return? error::PROTOCOL : "Bad endianness flag or version, a field array over 2^26 bytes, or a message over 128 MiB"
+*>
+fn usz? frame_length(String prefix)
+{
+	if (prefix.len < FIXED_HEADER_LENGTH) return error::INVALID_ARGUMENT~;
+	bool big = endianness_of(prefix)!;
+	if (prefix[3] != PROTOCOL_VERSION) return error::PROTOCOL~;
+	usz body = fixed_uint(prefix, 4, big);
+	usz fields = fixed_uint(prefix, 12, big);
+	if (fields > marshal::MAX_ARRAY_LENGTH) return error::PROTOCOL~;
+	usz total = align8(FIXED_HEADER_LENGTH + fields) + body;
+	if (total > MAX_MESSAGE_LENGTH) return error::PROTOCOL~;
+	return total;
+}
+
+<*
+ Parse one complete message from `frame`, which must be exactly one message
+ (as framed by `frame_length`). The bytes are copied into the message, so
+ `frame` may be reused. Descriptors that arrived with the message are taken
+ over on success and closed by `release`; on failure they remain the caller's.
+
+ @param parent : "Allocator for the message"
+ @param frame : "The message bytes"
+ @param descriptors : "Descriptors received with the message, in order"
+ @return? error::PROTOCOL : "The bytes do not form a valid message"
+*>
+fn Message*? parse(Allocator parent, String frame, int[] descriptors = {})
+{
+	usz total = frame_length(frame)!;
+	if (frame.len != total) return error::PROTOCOL~;
+	Message* m = create(parent, INVALID);
+	if (catch err = fill(m, frame, descriptors.len))
+	{
+		m.release();
+		return err~;
+	}
+	m.fds.push_all(descriptors);
+	m.owns_fds = true;
+	return m;
+}
+
+<*
+ The text of an ERROR message: its first argument, when that is a string.
+
+ @return? error::INVALID_STATE : "The message does not carry a string argument"
+*>
+fn String? Message.error_text(&self)
+{
+	if (self.type != ERROR || self.signature.len == 0 || self.signature[0] != signature::STRING) return error::INVALID_STATE~;
+	Reader r = self.reader()!;
+	return r.read_string();
+}
+
+// Fills this message from `frame` (already length-checked) and validates it.
+fn void? fill(Message* self, String frame, usz descriptor_count) @private
+{
+	self.big_endian = endianness_of(frame)!;
+	String stored = frame.copy(&self.storage);
+	Reader r;
+	r.init(stored, HEADER_SIGNATURE, self.big_endian)!;
+	r.read_byte()!;
+	self.type = message_type(r.read_byte()!);
+	self.flags = r.read_byte()!;
+	r.read_byte()!;
+	usz body_length = (usz)r.read_u32()!;
+	self.serial = r.read_u32()!;
+	if (self.serial == 0) return error::PROTOCOL~;
+	read_fields(self, &r)!;
+	usz body_at = align8(r.position());
+	for (usz i = r.position(); i < body_at; i++)
+	{
+		if (stored[i] != 0) return error::PROTOCOL~;
+	}
+	if (body_at + body_length != stored.len) return error::PROTOCOL~;
+	self.body = stored[body_at:body_length];
+	if (self.unix_fds > descriptor_count) return error::PROTOCOL~;
+	return validate(self);
+}
+
+// Reads the header field array into `m`, rejecting duplicates and wrong types.
+fn void? read_fields(Message* m, Reader* r) @private
+{
+	r.begin_array()!;
+	ulong seen = 0;
+	while (r.has_more())
+	{
+		r.begin_struct()!;
+		char code = r.read_byte()!;
+		if (code == 0) return error::PROTOCOL~;
+		String type = r.begin_variant()!;
+		if (code < 64)
+		{
+			if ((seen & ((ulong)1 << code)) != 0) return error::PROTOCOL~;
+			seen |= (ulong)1 << code;
+		}
+		read_field(m, r, code, type)!;
+		r.end_variant()!;
+		r.end_struct()!;
+	}
+	r.end_array()!;
+}
+
+// One field's value, of the type the specification gives it.
+fn void? read_field(Message* m, Reader* r, char code, String type) @private
+{
+	switch (code)
+	{
+		case FIELD_PATH:
+			expect_type(type, "o")!;
+			m.path = r.read_object_path()!;
+		case FIELD_INTERFACE:
+			expect_type(type, "s")!;
+			m.interface_name = r.read_string()!;
+		case FIELD_MEMBER:
+			expect_type(type, "s")!;
+			m.member = r.read_string()!;
+		case FIELD_ERROR_NAME:
+			expect_type(type, "s")!;
+			m.error_name = r.read_string()!;
+		case FIELD_REPLY_SERIAL:
+			expect_type(type, "u")!;
+			m.reply_serial = r.read_u32()!;
+		case FIELD_DESTINATION:
+			expect_type(type, "s")!;
+			m.destination = r.read_string()!;
+		case FIELD_SENDER:
+			expect_type(type, "s")!;
+			m.sender = r.read_string()!;
+		case FIELD_SIGNATURE:
+			expect_type(type, "g")!;
+			m.signature = r.read_signature()!;
+		case FIELD_UNIX_FDS:
+			expect_type(type, "u")!;
+			m.unix_fds = r.read_u32()!;
+		default:
+			// Unknown fields are ignored, as the specification requires.
+			r.skip_value()!;
+	}
+}
+
+// PROTOCOL unless a known header field carries the type the specification gives it.
+fn void? expect_type(String got, String want) @private
+{
+	if (got != want) return error::PROTOCOL~;
+}
+
+// Checks the rules the specification gives for each message type.
+fn void? validate(Message* m) @private
+{
+	switch (m.type)
+	{
+		case METHOD_CALL:
+			if (m.path.len == 0 || m.member.len == 0) return error::PROTOCOL~;
+			if (m.path == LOCAL_PATH || m.interface_name == LOCAL_INTERFACE) return error::PROTOCOL~;
+		case SIGNAL:
+			if (m.path.len == 0 || m.interface_name.len == 0 || m.member.len == 0) return error::PROTOCOL~;
+			if (m.path == LOCAL_PATH || m.interface_name == LOCAL_INTERFACE) return error::PROTOCOL~;
+		case METHOD_RETURN:
+			if (m.reply_serial == 0) return error::PROTOCOL~;
+		case ERROR:
+			if (m.reply_serial == 0 || m.error_name.len == 0) return error::PROTOCOL~;
+		case INVALID:
+		case UNKNOWN:
+			return;
+	}
+}
+
+// The endianness flag of a message: true for big-endian.
+// @return? error::PROTOCOL : "The flag is neither 'l' nor 'B'"
+fn bool? endianness_of(String frame) @private
+{
+	switch (frame[0])
+	{
+		case LITTLE_ENDIAN_FLAG: return false;
+		case BIG_ENDIAN_FLAG: return true;
+		default: return error::PROTOCOL~;
+	}
+}
+
+// The message type of a header byte; codes this version does not define are UNKNOWN.
+fn MessageType message_type(char code)
+{
+	switch (code)
+	{
+		case 1: return METHOD_CALL;
+		case 2: return METHOD_RETURN;
+		case 3: return ERROR;
+		case 4: return SIGNAL;
+		default: return UNKNOWN;
+	}
+}
+
+// A 32-bit unsigned value at `at`, in the message's byte order.
+fn usz fixed_uint(String data, usz at, bool big) @private
+{
+	usz v = 0;
+	for (usz i = 0; i < 4; i++)
+	{
+		usz shift = big ? (3 - i) * 8 : i * 8;
+		v |= (usz)(char)data[at + i] << shift;
+	}
+	return v;
+}
+
+// Rounds up to a multiple of 8, the boundary the message body starts on.
+fn usz align8(usz n) @inline => (n + 7) & ~(usz)7;
 
 <*
  Send-side encoding: append the wire form of this message to `out`. The body

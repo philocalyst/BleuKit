@@ -22,7 +22,7 @@ fn void from_win32_matches_the_macro() @test
 
 fn void to_fault_maps_the_hresult_table() @test
 {
-	assert((Hresult)E_ACCESSDENIED == (Hresult)E_ACCESSDENIED && ((Hresult)E_ACCESSDENIED).to_fault() == error::PERMISSION_DENIED);
+	assert(((Hresult)E_ACCESSDENIED).to_fault() == error::PERMISSION_DENIED);
 	assert(((Hresult)E_OUTOFMEMORY).to_fault() == error::NO_MEMORY);
 	assert(((Hresult)E_INVALIDARG).to_fault() == error::INVALID_ARGUMENT);
 	assert(((Hresult)E_NOTIMPL).to_fault() == error::UNSUPPORTED);

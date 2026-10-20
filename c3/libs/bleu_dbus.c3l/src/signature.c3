@@ -136,6 +136,16 @@ fn usz? complete_end(String sig, usz start)
 	return scan(sig, start, 0, 0, false);
 }
 
+<*
+ Like `complete_end`, for the element type of an array. A dict entry is valid
+ there, and only there, so the element of an array of dict entries must be
+ scanned with this function.
+*>
+fn usz? element_end(String sig, usz start)
+{
+	return scan(sig, start, 0, 0, true);
+}
+
 // Recursive descent over one complete type. `arrays` and `structs` count the
 // containers enclosing `pos`; `array_element` is true only for the element of
 // an array, the only place a dict entry may appear.

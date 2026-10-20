@@ -54,7 +54,7 @@ struct Sleeper
  sleep interrupted by a signal returns early, and the loop waits the rest, so
  every delay the DDC/CI timing rules require is honoured in full.
 *>
-fn Sleeper real_sleeper() => { .sleep = sleep_at_least, .context = null };
+fn Sleeper real_sleeper() => { .sleep = &sleep_at_least, .context = null };
 
 fn void sleep_at_least(void* context, Duration duration) @private
 {

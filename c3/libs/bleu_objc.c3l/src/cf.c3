@@ -8,12 +8,12 @@
  with Objective-C `ObjId`s and raw C pointers at the boundary.
 
  Sources:
-   * Type sizes: CoreFoundation `CFBase.h`, where `CFIndex` is `signed long`,
-     `CFTypeID` and `CFOptionFlags` are `unsigned long` on LP64, and `Boolean` is `unsigned char`
-     (apple-oss-distributions/CF, repo root `CFBase.h`).
-   * Constants and prototypes: `CFNumber.h`, `CFString.h`, `CFData.h`, `CFArray.h`,
-     `CFDictionary.h`, `CFBase.h` in the same repository; the Rust `core-foundation-sys`
-     0.8.7 crate's `src/*.rs` (same names and values) is the second source.
+ * Type sizes: CoreFoundation `CFBase.h`, where `CFIndex` is `signed long`,
+ `CFTypeID` and `CFOptionFlags` are `unsigned long` on LP64, and `Boolean` is `unsigned char`
+ (apple-oss-distributions/CF, repo root `CFBase.h`).
+ * Constants and prototypes: `CFNumber.h`, `CFString.h`, `CFData.h`, `CFArray.h`,
+ `CFDictionary.h`, `CFBase.h` in the same repository; the Rust `core-foundation-sys`
+ 0.8.7 crate's `src/*.rs` (same names and values) is the second source.
 *>
 module bleu::cf @feat(DARWIN) @link("CoreFoundation.framework");
 import std::os::darwin::objc, bleu::error;
@@ -30,9 +30,9 @@ alias CFStringEncoding = uint;
 <* `kCFStringEncodingUTF8` (CFString.h). *>
 const CFStringEncoding CF_STRING_ENCODING_UTF8 = 0x08000100;
 <* `kCFNumberSInt64Type` (CFNumber.h): 64-bit signed integers. *>
-const CFIndex CF_NUMBER_SINT64 = 4;
+const CFIndex CF_NUMBER_SINT64                 = 4;
 <* `kCFNumberDoubleType` (CFNumber.h): 64-bit IEEE 754 floats. *>
-const CFIndex CF_NUMBER_DOUBLE = 13;
+const CFIndex CF_NUMBER_DOUBLE                 = 13;
 
 <* Room for the terminating NUL when copying a CFString to C. *>
 const CFIndex NUL_BYTES = 1;
@@ -50,10 +50,24 @@ extern fn CFTypeID cf_data_type_id() @cname("CFDataGetTypeID");
 extern fn CFTypeID cf_array_type_id() @cname("CFArrayGetTypeID");
 extern fn CFTypeID cf_dictionary_type_id() @cname("CFDictionaryGetTypeID");
 
-extern fn CFTypeRef cf_string_create_with_bytes(CFTypeRef allocator, char* bytes, CFIndex length, CFStringEncoding encoding, bool external) @cname("CFStringCreateWithBytes");
+extern fn CFTypeRef cf_string_create_with_bytes(
+	CFTypeRef allocator,
+	char* bytes,
+	CFIndex length,
+	CFStringEncoding encoding,
+	bool external
+) @cname("CFStringCreateWithBytes");
 extern fn CFIndex cf_string_length(CFTypeRef string) @cname("CFStringGetLength");
-extern fn CFIndex cf_string_max_size(CFIndex length, CFStringEncoding encoding) @cname("CFStringGetMaximumSizeForEncoding");
-extern fn bool cf_string_get_cstring(CFTypeRef string, char* buffer, CFIndex size, CFStringEncoding encoding) @cname("CFStringGetCString");
+extern fn CFIndex cf_string_max_size(
+	CFIndex length,
+	CFStringEncoding encoding
+) @cname("CFStringGetMaximumSizeForEncoding");
+extern fn bool cf_string_get_cstring(
+	CFTypeRef string,
+	char* buffer,
+	CFIndex size,
+	CFStringEncoding encoding
+) @cname("CFStringGetCString");
 
 extern fn CFTypeRef cf_number_create(CFTypeRef allocator, CFIndex type, void* value) @cname("CFNumberCreate");
 extern fn bool cf_number_get_value(CFTypeRef number, CFIndex type, void* value) @cname("CFNumberGetValue");
@@ -71,7 +85,11 @@ extern fn CFIndex cf_array_count(CFTypeRef array) @cname("CFArrayGetCount");
 extern fn CFTypeRef cf_array_value_at(CFTypeRef array, CFIndex index) @cname("CFArrayGetValueAtIndex");
 
 extern fn CFIndex cf_dictionary_count(CFTypeRef dictionary) @cname("CFDictionaryGetCount");
-extern fn void cf_dictionary_keys_and_values(CFTypeRef dictionary, CFTypeRef* keys, CFTypeRef* values) @cname("CFDictionaryGetKeysAndValues");
+extern fn void cf_dictionary_keys_and_values(
+	CFTypeRef dictionary,
+	CFTypeRef* keys,
+	CFTypeRef* values
+) @cname("CFDictionaryGetKeysAndValues");
 
 <*
  An owned CoreFoundation reference, or null. `close()` releases it.
@@ -119,7 +137,9 @@ fn CFTypeID dictionary_type_id() @inline => cf_dictionary_type_id();
 <*
  A new CFString holding a copy of `value` (UTF-8). Owned.
 *>
-fn Ref from_string(String value) => adopt(cf_string_create_with_bytes(null, value.ptr, (CFIndex)value.len, CF_STRING_ENCODING_UTF8, false));
+fn Ref from_string(
+	String value
+) => adopt(cf_string_create_with_bytes(null, value.ptr, (CFIndex)value.len, CF_STRING_ENCODING_UTF8, false));
 
 <*
  Copy a CFString into `allocator` as UTF-8.
@@ -128,14 +148,26 @@ fn Ref from_string(String value) => adopt(cf_string_create_with_bytes(null, valu
 *>
 fn String? string_value(CFTypeRef string, Allocator allocator)
 {
-	if (!string || cf_get_type_id(string) != cf_string_type_id()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a CFString")~;
+	if (!string || cf_get_type_id(
+		string
+	) != cf_string_type_id()) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a CFString"
+	)~;
 	CFIndex capacity = cf_string_max_size(cf_string_length(string), CF_STRING_ENCODING_UTF8) + NUL_BYTES;
 	@pool()
 	{
 		char[] buffer = alloc::new_array(tmem, char, (sz)capacity);
 		if (!cf_string_get_cstring(string, buffer.ptr, capacity, CF_STRING_ENCODING_UTF8))
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "CFString is not representable as UTF-8")~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"CFString is not representable as UTF-8"
+			)~;
 		}
 		return ((ZString)buffer.ptr).str_view().copy(allocator);
 	};
@@ -154,7 +186,14 @@ fn Ref from_double(double value) => adopt(cf_number_create(null, CF_NUMBER_DOUBL
 *>
 fn long? number_long(CFTypeRef number)
 {
-	if (!number || cf_get_type_id(number) != cf_number_type_id()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a CFNumber")~;
+	if (!number || cf_get_type_id(
+		number
+	) != cf_number_type_id()) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a CFNumber"
+	)~;
 	long value = 0;
 	cf_number_get_value(number, CF_NUMBER_SINT64, &value);
 	return value;
@@ -181,8 +220,10 @@ fn Ref from_bytes(char[] bytes) => adopt(cf_data_create(null, bytes.ptr, (CFInde
 *>
 fn char[]? data_bytes(CFTypeRef data, Allocator allocator)
 {
-	if (!data || cf_get_type_id(data) != cf_data_type_id()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not CFData")~;
-	sz length = (sz)cf_data_length(data);
+	if (!data || cf_get_type_id(
+		data
+	) != cf_data_type_id()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not CFData")~;
+	sz length   = (sz)cf_data_length(data);
 	char[] copy = alloc::new_array(allocator, char, length);
 	if (length) mem::copy(copy.ptr, cf_data_bytes(data), length);
 	return copy;
@@ -192,7 +233,10 @@ fn char[]? data_bytes(CFTypeRef data, Allocator allocator)
 fn sz array_count(CFTypeRef array) => array ? (sz)cf_array_count(array) : 0;
 
 <* The element at `index` of a CFArray, borrowed. Null when out of range or null. *>
-fn CFTypeRef array_at(CFTypeRef array, sz index) => index >= 0 && index < array_count(array) ? cf_array_value_at(array, (CFIndex)index) : null;
+fn CFTypeRef array_at(
+	CFTypeRef array,
+	sz index
+) => index >= 0 && index < array_count(array) ? cf_array_value_at(array, (CFIndex)index) : null;
 
 <* Number of entries of a CFDictionary. Null has none. *>
 fn sz dictionary_count(CFTypeRef dictionary) => dictionary ? (sz)cf_dictionary_count(dictionary) : 0;
@@ -217,14 +261,14 @@ fn void dictionary_entries(CFTypeRef dictionary, CFTypeRef[] keys, CFTypeRef[] v
 *>
 enum PlainKind : char
 {
-	NIL,       // no value (a null reference)
-	BOOLEAN,   // `boolean`
-	INTEGER,   // `integer`
-	REAL,      // `real`
-	TEXT,      // `text`
-	BYTES,     // `bytes`
-	LIST,      // `items`
-	MAP,       // `keys[i]` maps to `items[i]`
+	NIL,     // no value (a null reference)
+	BOOLEAN, // `boolean`
+	INTEGER, // `integer`
+	REAL,    // `real`
+	TEXT,    // `text`
+	BYTES,   // `bytes`
+	LIST,    // `items`
+	MAP,     // `keys[i]` maps to `items[i]`
 }
 
 <* One node of a converted property-list tree. *>
@@ -260,7 +304,13 @@ fn Plain? property_to_plain(CFTypeRef value, Allocator allocator)
 <* Convert one node at `depth` (see `property_to_plain`). *>
 fn Plain? plain_at(CFTypeRef value, Allocator allocator, int depth) @local
 {
-	if (depth > PLAIN_MAX_DEPTH) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "property list nested deeper than %d", PLAIN_MAX_DEPTH)~;
+	if (depth > PLAIN_MAX_DEPTH) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"property list nested deeper than %d",
+		PLAIN_MAX_DEPTH
+	)~;
 	if (!value) return { .kind = NIL };
 	CFTypeID type = cf_get_type_id(value);
 	if (type == cf_string_type_id()) return { .kind = TEXT, .text = string_value(value, allocator)! };
@@ -273,13 +323,19 @@ fn Plain? plain_at(CFTypeRef value, Allocator allocator, int depth) @local
 	if (type == cf_data_type_id()) return { .kind = BYTES, .bytes = data_bytes(value, allocator)! };
 	if (type == cf_array_type_id()) return list_to_plain(value, allocator, depth);
 	if (type == cf_dictionary_type_id()) return map_to_plain(value, allocator, depth);
-	return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "CoreFoundation type %d has no plain form", (int)type)~;
+	return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"CoreFoundation type %d has no plain form",
+		(int)type
+	)~;
 }
 
 <* Convert a CFArray at `depth`. *>
 fn Plain? list_to_plain(CFTypeRef array, Allocator allocator, int depth) @local
 {
-	sz count = array_count(array);
+	sz count      = array_count(array);
 	Plain[] items = alloc::new_array(allocator, Plain, count);
 	for (sz i = 0; i < count; i++)
 	{
@@ -291,19 +347,25 @@ fn Plain? list_to_plain(CFTypeRef array, Allocator allocator, int depth) @local
 <* Convert a CFDictionary at `depth`, refusing non-string keys. *>
 fn Plain? map_to_plain(CFTypeRef dictionary, Allocator allocator, int depth) @local
 {
-	sz count = dictionary_count(dictionary);
+	sz count      = dictionary_count(dictionary);
 	Plain[] items = alloc::new_array(allocator, Plain, count);
 	String[] keys = alloc::new_array(allocator, String, count);
 	@pool()
 	{
-		CFTypeRef[] raw_keys = alloc::new_array(tmem, CFTypeRef, count);
+		CFTypeRef[] raw_keys   = alloc::new_array(tmem, CFTypeRef, count);
 		CFTypeRef[] raw_values = alloc::new_array(tmem, CFTypeRef, count);
 		dictionary_entries(dictionary, raw_keys, raw_values);
 		for (sz i = 0; i < count; i++)
 		{
 			if (!raw_keys[i] || cf_get_type_id(raw_keys[i]) != cf_string_type_id())
 			{
-				return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "dictionary key %d is not a string", (int)i)~;
+				return error::raise(
+					error::INVALID_ARGUMENT,
+					error::Domain.INTERNAL,
+					0,
+					"dictionary key %d is not a string",
+					(int)i
+				)~;
 			}
 			keys[i] = string_value(raw_keys[i], allocator)!;
 			items[i] = plain_at(raw_values[i], allocator, depth + 1)!;

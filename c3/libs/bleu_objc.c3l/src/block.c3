@@ -3,20 +3,20 @@
 
  A block is a struct whose first fields are fixed by the ABI:
 
-     struct Block_literal {
-         void *isa;          // &_NSConcreteStackBlock, then the heap class after _Block_copy
-         int   flags;        // BLOCK_HAS_COPY_DISPOSE (1 << 25) is set here
-         int   reserved;     // 0
-         void *invoke;       // called with the block pointer as first argument
-         struct Block_descriptor *descriptor;
-         /* captured variables follow */
-     };
+ struct Block_literal {
+ void *isa;          // &_NSConcreteStackBlock, then the heap class after _Block_copy
+ int   flags;        // BLOCK_HAS_COPY_DISPOSE (1 << 25) is set here
+ int   reserved;     // 0
+ void *invoke;       // called with the block pointer as first argument
+ struct Block_descriptor *descriptor;
+ /* captured variables follow */
+ };
 
  Sources (cross-checked):
-   * Apple, "Block Implementation Specification", clang.llvm.org/docs/Block-ABI-Apple.html
-     (struct layout, flag bits, `_Block_copy`/`_Block_object_assign` helper contract).
-   * Rust `block2` 0.5.1, `src/abi.rs` (flag values, `_NSConcreteStackBlock`) and
-     `src/ffi.rs` (`_Block_copy`, `_Block_release` as libSystem exports).
+ * Apple, "Block Implementation Specification", clang.llvm.org/docs/Block-ABI-Apple.html
+ (struct layout, flag bits, `_Block_copy`/`_Block_object_assign` helper contract).
+ * Rust `block2` 0.5.1, `src/abi.rs` (flag values, `_NSConcreteStackBlock`) and
+ `src/ffi.rs` (`_Block_copy`, `_Block_release` as libSystem exports).
 
  Design: C3 cannot capture variables, so the captured state is a single
  `BlockContext` pointer holding a C3 function pointer and its user pointer.
@@ -25,13 +25,14 @@
  the heap block(s) that point at it.
 
  Lifetime, precisely:
-   * `void_block`, `id_block`, `bool_error_block`, `id_error_block` and `int_block` return a heap block with one reference (owned by the caller).
-   * Passing `block.id()` to an API that keeps the handler retains it (blocks
-     answer `copy`/`retain`), exactly as with a compiler-generated block.
-   * `block.release()` drops the caller's reference (`_Block_release`). When the
-     last reference goes, the runtime calls `block_dispose`, which frees the context.
-   * A handler runs on whatever thread the framework calls it from. Handlers
-     must not block and must only enqueue work (ARCHITECTURE.md: foreign callbacks).
+ * `void_block`, `id_block`, `bool_error_block`, `id_error_block` and `int_block` return a heap block with one reference
+ (owned by the caller).
+ * Passing `block.id()` to an API that keeps the handler retains it (blocks
+ answer `copy`/`retain`), exactly as with a compiler-generated block.
+ * `block.release()` drops the caller's reference (`_Block_release`). When the
+ last reference goes, the runtime calls `block_dispose`, which frees the context.
+ * A handler runs on whatever thread the framework calls it from. Handlers
+ must not block and must only enqueue work (ARCHITECTURE.md: foreign callbacks).
 
  Arguments delivered to a handler are borrowed for the duration of the call.
  Keep one with `Obj.borrow(...)`.
@@ -144,35 +145,50 @@ fn void block_dispose(void* src)
 fn void invoke_void(BlockLiteral* block)
 {
 	BlockContext* context = block.context;
-	((VoidHandler)context.callback)(context.user);
+	@objc_entry()
+	{
+		((VoidHandler)context.callback)(context.user);
+	};
 }
 
 <* Invoke for `void (^)(id)`. *>
 fn void invoke_id(BlockLiteral* block, ObjId value)
 {
 	BlockContext* context = block.context;
-	((IdHandler)context.callback)(context.user, value);
+	@objc_entry()
+	{
+		((IdHandler)context.callback)(context.user, value);
+	};
 }
 
 <* Invoke for `void (^)(BOOL, NSError *)`. *>
 fn void invoke_bool_error(BlockLiteral* block, bool success, ObjId error)
 {
 	BlockContext* context = block.context;
-	((BoolErrorHandler)context.callback)(context.user, success, error);
+	@objc_entry()
+	{
+		((BoolErrorHandler)context.callback)(context.user, success, error);
+	};
 }
 
 <* Invoke for `void (^)(id, NSError *)`. *>
 fn void invoke_id_error(BlockLiteral* block, ObjId value, ObjId error)
 {
 	BlockContext* context = block.context;
-	((IdErrorHandler)context.callback)(context.user, value, error);
+	@objc_entry()
+	{
+		((IdErrorHandler)context.callback)(context.user, value, error);
+	};
 }
 
 <* Invoke for `void (^)(int)`. *>
 fn void invoke_int(BlockLiteral* block, int value)
 {
 	BlockContext* context = block.context;
-	((IntHandler)context.callback)(context.user, value);
+	@objc_entry()
+	{
+		((IntHandler)context.callback)(context.user, value);
+	};
 }
 
 <*
@@ -205,10 +221,16 @@ fn Block void_block(VoidHandler handler, void* user) => make_block((void*)&invok
 fn Block id_block(IdHandler handler, void* user) => make_block((void*)&invoke_id, (void*)handler, user);
 
 <* A heap block for `void (^)(BOOL, NSError *)`. *>
-fn Block bool_error_block(BoolErrorHandler handler, void* user) => make_block((void*)&invoke_bool_error, (void*)handler, user);
+fn Block bool_error_block(
+	BoolErrorHandler handler,
+	void* user
+) => make_block((void*)&invoke_bool_error, (void*)handler, user);
 
 <* A heap block for `void (^)(id, NSError *)`. *>
-fn Block id_error_block(IdErrorHandler handler, void* user) => make_block((void*)&invoke_id_error, (void*)handler, user);
+fn Block id_error_block(
+	IdErrorHandler handler,
+	void* user
+) => make_block((void*)&invoke_id_error, (void*)handler, user);
 
 <* A heap block for `void (^)(int)`. *>
 fn Block int_block(IntHandler handler, void* user) => make_block((void*)&invoke_int, (void*)handler, user);

@@ -14,7 +14,7 @@
  apple-oss-distributions/CF. The `perform` callback signature is `void (*)(void *info)`.
 *>
 module bleu::cf::runloop @feat(DARWIN) @link("CoreFoundation.framework");
-import std::thread, std::atomic, bleu::error;
+import std::thread, std::atomic, bleu::error, bleu::objc;
 
 <* The default run-loop mode name (`kCFRunLoopDefaultMode`). *>
 extern const void* KCF_RUNLOOP_DEFAULT_MODE @cname("kCFRunLoopDefaultMode");
@@ -22,9 +22,17 @@ extern const void* KCF_RUNLOOP_DEFAULT_MODE @cname("kCFRunLoopDefaultMode");
 extern fn void* cf_run_loop_get_current() @cname("CFRunLoopGetCurrent");
 extern fn void cf_run_loop_add_source(void* loop, void* source, void* mode) @cname("CFRunLoopAddSource");
 extern fn void cf_run_loop_remove_source(void* loop, void* source, void* mode) @cname("CFRunLoopRemoveSource");
-extern fn int cf_run_loop_run_in_mode(void* mode, double seconds, bool return_after_source) @cname("CFRunLoopRunInMode");
+extern fn int cf_run_loop_run_in_mode(
+	void* mode,
+	double seconds,
+	bool return_after_source
+) @cname("CFRunLoopRunInMode");
 extern fn void cf_run_loop_wake_up(void* loop) @cname("CFRunLoopWakeUp");
-extern fn void* cf_run_loop_source_create(void* allocator, long order, RunLoopSourceContext* context) @cname("CFRunLoopSourceCreate");
+extern fn void* cf_run_loop_source_create(
+	void* allocator,
+	long order,
+	RunLoopSourceContext* context
+) @cname("CFRunLoopSourceCreate");
 extern fn void cf_run_loop_source_signal(void* source) @cname("CFRunLoopSourceSignal");
 extern fn void cf_run_loop_source_invalidate(void* source) @cname("CFRunLoopSourceInvalidate");
 extern fn void cf_release(void* value) @cname("CFRelease");
@@ -49,9 +57,6 @@ struct RunLoopSourceContext
 
 <* Seconds per `CFRunLoopRunInMode` slice. Wake-ups end a slice early, so this only bounds an idle loop. *>
 const double RUN_SLICE_SECONDS = 60.0;
-
-<* Return value of `CFRunLoopRunInMode` when a source was handled (CFRunLoop.h: kCFRunLoopRunHandledSource). *>
-const int RUN_HANDLED_SOURCE = 4;
 
 <* Called on the loop thread once the loop exists and before it first runs. `loop` is a `CFRunLoopRef`. *>
 alias RunLoopSetup = fn void(void* loop, void* context);
@@ -108,6 +113,7 @@ fn void? RunLoopThread.start(&self, RunLoopSetup setup, void* setup_context, Run
 *>
 fn void RunLoopThread.wake(&self)
 {
+	if (!self.source) return;
 	cf_run_loop_source_signal(self.source);
 	cf_run_loop_wake_up(self.loop);
 }
@@ -157,5 +163,8 @@ fn void run_loop_perform(void* info) @local
 {
 	RunLoopThread* self = (RunLoopThread*)info;
 	if (self.stop_requested.load() || !self.on_wake) return;
-	self.on_wake(self.wake_context);
+	objc::@objc_entry()
+	{
+		self.on_wake(self.wake_context);
+	};
 }

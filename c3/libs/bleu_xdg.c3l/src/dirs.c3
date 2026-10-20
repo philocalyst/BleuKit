@@ -142,7 +142,7 @@ fn String? state_home(Environment env, Allocator allocator) @inline
  @param [&inout] allocator : "Allocator for the returned path"
  @return? error::UNAVAILABLE : "The variable is not set, empty or relative"
 *>
-fn String? runtime_dir(Environment env, Allocator allocator) @inline => @pool()
+fn String? runtime_dir(Environment env, Allocator allocator) @inline
 {
 	if (try value = absolute_variable(env, tmem, "XDG_RUNTIME_DIR")) return value.copy(allocator);
 	return error::UNAVAILABLE~;
@@ -173,7 +173,7 @@ fn String[] config_dirs(Environment env, Allocator allocator) @inline
 }
 
 // `$variable` when it is set to an absolute path, else `$HOME/relative`.
-fn String? home_relative(Environment env, Allocator allocator, String variable, String relative) @local => @pool()
+fn String? home_relative(Environment env, Allocator allocator, String variable, String relative) @local
 {
 	if (try value = absolute_variable(env, tmem, variable)) return value.copy(allocator);
 	String home = home_directory(env)!;
@@ -201,12 +201,12 @@ fn String? absolute_variable(Environment env, Allocator allocator, String name) 
 fn String join(Allocator allocator, String base, String relative) @local
 {
 	bool has_separator = base[^1] == '/' || base[^1] == '\\';
-	return has_separator ? string::format(allocator, "%s%s", base, relative)
-	                     : string::format(allocator, "%s/%s", base, relative);
+	return has_separator ? string::tformat("%s%s", base, relative).copy(allocator)
+	                     : string::tformat("%s/%s", base, relative).copy(allocator);
 }
 
 // Split a colon-separated variable, keeping only absolute entries.
-fn String[] path_list(Environment env, Allocator allocator, String variable, String fallback) @local => @pool()
+fn String[] path_list(Environment env, Allocator allocator, String variable, String fallback) @local
 {
 	String value = env.get(tmem, variable) ?? "";
 	if (value.len == 0) value = fallback;

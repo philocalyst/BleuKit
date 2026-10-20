@@ -79,7 +79,7 @@ struct Poller
  Create a poller for at most `capacity` sources. The wake-up must already be
  open and must outlive the poller.
 
- @param [&inout] allocator : "Allocator for the fixed storage"
+ @param allocator : "Allocator for the fixed storage"
  @param wakeup : "The wake-up that every wait includes"
  @param capacity : "Maximum number of registered sources"
  @param window_messages : "Windows only: also return when window messages are queued"

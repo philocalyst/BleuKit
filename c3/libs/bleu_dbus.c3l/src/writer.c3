@@ -57,7 +57,7 @@ fn void Writer.free(&self) => self.buffer.free();
 fn String Writer.bytes(&self) @inline => self.buffer.str_view();
 
 <* Number of bytes written so far. *>
-fn usz Writer.size(&self) @inline => (usz)self.size();
+fn usz Writer.size(&self) @inline => (usz)self.buffer.len();
 
 <*
  Check that the whole signature has been written and no container is open.
@@ -351,7 +351,7 @@ fn String? expected_type(Writer* self, char code) @private
 {
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len || f.sig[f.cursor] != code) return error::INVALID_ARGUMENT~;
-	usz end = signature::complete_end(f.sig, f.cursor)!;
+	usz end = frame_end(f)!;
 	return f.sig[f.cursor:end - f.cursor];
 }
 
@@ -361,7 +361,7 @@ fn void? claim(Writer* w, String type) @private
 {
 	Frame* f = &w.frames[w.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
-	usz end = signature::complete_end(f.sig, f.cursor)!;
+	usz end = frame_end(f)!;
 	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,

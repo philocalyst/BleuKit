@@ -74,7 +74,7 @@ struct Word
  @return "One argument vector per invocation: usually one, more with %f or %u and several files or URLs"
  @return? error::PROTOCOL : "The command line is empty, has unbalanced quotes, an unknown or misplaced field code, or more than one of %f %u %F %U"
 *>
-fn String[][]? expand(Allocator allocator, String exec, Context context) => @pool()
+fn String[][]? expand(Allocator allocator, String exec, Context context)
 {
 	List{Word} words;
 	words.tinit();

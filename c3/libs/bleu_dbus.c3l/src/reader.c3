@@ -81,7 +81,7 @@ fn String? Reader.peek_type(&self)
 {
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
-	usz end = signature::complete_end(f.sig, f.cursor)!;
+	usz end = frame_end(f)!;
 	return f.sig[f.cursor:end - f.cursor];
 }
 
@@ -337,12 +337,12 @@ fn Value? decode(Reader* self, bool keep, Allocator allocator) @private
 			Value key = decode(self, keep, allocator)!;
 			Value val = decode(self, keep, allocator)!;
 			self.end_dict_entry()!;
-			v = { .kind = DICT_ENTRY, .sig = type, .items = keep ? { key, val } : {} };
+			v = { .kind = DICT_ENTRY, .sig = type, .items = keep ? pair(allocator, key, val) : {} };
 		case signature::VARIANT:
 			self.begin_variant()!;
 			Value inner = decode(self, keep, allocator)!;
 			self.end_variant()!;
-			v = { .kind = VARIANT, .sig = type, .items = keep ? { inner } : {} };
+			v = { .kind = VARIANT, .sig = type, .items = keep ? single(allocator, inner) : {} };
 		default: return malformed(self.pos, "unknown type code")~;
 	}
 	if (keep)
@@ -351,6 +351,23 @@ fn Value? decode(Reader* self, bool keep, Allocator allocator) @private
 		if (v.kind == STRING || v.kind == OBJECT_PATH || v.kind == SIGNATURE) v.text = v.text.copy(allocator);
 	}
 	return v;
+}
+
+// Two values in fresh memory from `allocator` (a dict entry's key and value).
+fn Value[] pair(Allocator allocator, Value first, Value second) @private
+{
+	Value[] items = alloc::new_array(allocator, Value, 2);
+	items[0] = first;
+	items[1] = second;
+	return items;
+}
+
+// One value in fresh memory from `allocator` (a variant's contents).
+fn Value[] single(Allocator allocator, Value only) @private
+{
+	Value[] items = alloc::new_array(allocator, Value, 1);
+	items[0] = only;
+	return items;
 }
 
 // Reads the elements of the innermost container. Without `keep` they are only
@@ -389,7 +406,7 @@ fn void? claim_read(Reader* self, String type) @private
 {
 	Frame* f = &self.frames[self.depth - 1];
 	if (f.cursor >= f.sig.len) return error::INVALID_STATE~;
-	usz end = signature::complete_end(f.sig, f.cursor)!;
+	usz end = frame_end(f)!;
 	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,

@@ -32,8 +32,8 @@ struct NSRange
 
  `Obj` never retains or releases on its own; the constructor says what the
  caller hands over:
-   * `Obj.adopt(id)`   takes an already +1 reference (`alloc`/`init`, `new`, `copy`, `create`).
-   * `Obj.borrow(id)`  retains a +0 reference (getters, autoreleased results).
+ * `Obj.adopt(id)`   takes an already +1 reference (`alloc`/`init`, `new`, `copy`, `create`).
+ * `Obj.borrow(id)`  retains a +0 reference (getters, autoreleased results).
  `close()` releases the owned reference and leaves the wrapper nil, so it is
  safe to call twice and works with `defer`.
 *>
@@ -73,12 +73,17 @@ fn ObjId Obj.autorelease(&self)
 <*
  Whether the object is an instance of `cls` or a subclass. Nil is never of any class.
 *>
-fn bool Obj.is_kind_of(self, ObjClass cls) => self.ptr ? self.ptr.send(bool, "isKindOfClass:", cls) : false;
+fn bool Obj.is_kind_of(self, ObjClass cls) => self.send_bool("isKindOfClass:", cls);
 
 <*
  Whether the object implements `sel` (an instance method). Nil responds to nothing.
 *>
-fn bool Obj.responds_to(self, ObjSel sel) => self.ptr ? self.ptr.send(bool, "respondsToSelector:", sel) : false;
+fn bool Obj.responds_to(self, ObjSel sel) => self.send_bool("respondsToSelector:", sel);
+
+<*
+ A new owned reference to a copy of the object (`-copy`). Nil copies to nil.
+*>
+fn Obj Obj.copy(self) => adopt(self.send_id("copy"));
 
 <* Register (or look up) a selector by name. *>
 fn ObjSel selector(ZString name) @inline => objc::sel_getUid(name);
@@ -92,12 +97,12 @@ fn ObjClass class_named(ZString name) @inline => objc::lookUpClass(name);
 
  Return-type rules (Apple objc4 `runtime/Messengers.subproj/objc-msg-x86_64.s`
  and `objc-msg-arm64.s`, and the objc2 crate):
-   * x86_64: a struct of at most 16 bytes is returned in registers, so plain
-     `objc_msgSend` is used; larger structs (CGRect, 32 bytes) go through
-     `objc_msgSend_stret`, which the stdlib selects for `size > 16`.
-   * arm64: there is no `objc_msgSend_stret`. Every struct return goes through
-     plain `objc_msgSend` because it is a tail jump that preserves `x8`
-     (the indirect-result register) and `v0`..`v3` (HFA returns).
+ * x86_64: a struct of at most 16 bytes is returned in registers, so plain
+ `objc_msgSend` is used; larger structs (CGRect, 32 bytes) go through
+ `objc_msgSend_stret`, which the stdlib selects for `size > 16`.
+ * arm64: there is no `objc_msgSend_stret`. Every struct return goes through
+ plain `objc_msgSend` because it is a tail jump that preserves `x8`
+ (the indirect-result register) and `v0`..`v3` (HFA returns).
 
  Arguments are passed as ordinary C3 values. Pass an `ObjId` for objects, an
  `ObjSel` for selectors, a C3 `bool` for a `BOOL` argument, and an `NSUInteger`
@@ -116,9 +121,9 @@ macro NSRange Obj.send_range(self, ZString $selector, ...) => self.ptr.send(NSRa
  Run `@body` inside an autorelease pool. Use it for Objective-C work that is
  not already covered by a callback entry point.
 
-     objc::@autorelease_pool() { ... };
+ objc::@autorelease_pool() { ... };
 *>
-macro void @autorelease_pool(;@body)
+macro void @autorelease_pool(; @body)
 {
 	void* pool = objc::pool_push();
 	defer objc::pool_pop(pool);
@@ -142,9 +147,9 @@ const usz CALLBACK_TEMP_BYTES = 256 * 1024;
  replace it once that library exists. It uses `@pool_init` from the standard
  library (`/opt/c3/c3/lib/std/core/mem.c3`) until then.
 
-     objc::@objc_entry() { ... };
+ objc::@objc_entry() { ... };
 *>
-macro void @objc_entry(;@body)
+macro void @objc_entry(; @body)
 {
 	void* pool = objc::pool_push();
 	defer objc::pool_pop(pool);

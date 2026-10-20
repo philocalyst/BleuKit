@@ -82,3 +82,20 @@ typedef Dbm = short;
  NetworkManager and Windows (-100 dBm = 0, -50 dBm = 1).
 *>
 fn Level Dbm.quality(self) @inline => level(((float)(short)self + 100.0f) / 50.0f);
+
+<*
+ A linear amplification ratio that may exceed 1.0 (PulseAudio allows about
+ 1.52 in its UI, 4.0 and more in the protocol). 1.0 is nominal full scale,
+ never clamped above; use `Level` when over-amplification is impossible.
+*>
+typedef Gain = float;
+
+<* Clamp to [0, ceiling]; NaN becomes zero. *>
+fn Gain gain(float value, float ceiling) @inline
+{
+	if (value != value || value < 0.0f) return (Gain)0.0f;
+	return (Gain)(value > ceiling ? ceiling : value);
+}
+
+<* The part of a gain up to nominal full scale, as a `Level`. *>
+fn Level Gain.nominal(self) @inline => level((float)self);

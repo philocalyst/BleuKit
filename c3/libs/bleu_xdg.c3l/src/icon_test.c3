@@ -33,8 +33,9 @@ fn Directory dir(DirectoryType type, int size, int scale, int threshold = 2) @in
 
 fn void index_defaults_and_types() @test
 {
-	Theme theme = parse_index(tmem, INDEX_A)!!;
-	test::eq("Theme A", theme.name);
+	Theme theme = parse_index(tmem, "theme-a", INDEX_A)!!;
+	test::eq("theme-a", theme.name);
+	test::eq("Theme A", theme.display_name);
 	test::eq(1, theme.inherits.len);
 	test::eq(4, theme.directories.len);
 	test::eq(DirectoryType.THRESHOLD, theme.directories[0].type);
@@ -49,12 +50,12 @@ fn void index_defaults_and_types() @test
 
 fn void index_needs_its_group_and_sizes() @test
 {
-	test::@error(parse_index(tmem, "[Other]\nName=x\n"), error::PROTOCOL);
-	test::@error(parse_index(tmem, "[Icon Theme]\nDirectories=a/b\n[a/b]\nContext=Apps\n"), error::PROTOCOL);
-	test::@error(parse_index(tmem, "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=ten\n"), error::PROTOCOL);
-	test::@error(parse_index(tmem, "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=4\nType=Stretchy\n"), error::PROTOCOL);
+	test::@error(parse_index(tmem, "t", "[Other]\nName=x\n"), error::PROTOCOL);
+	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nContext=Apps\n"), error::PROTOCOL);
+	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=ten\n"), error::PROTOCOL);
+	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=4\nType=Stretchy\n"), error::PROTOCOL);
 	// A listed directory with no section is skipped, not an error.
-	Theme theme = parse_index(tmem, "[Icon Theme]\nDirectories=missing/apps\n")!!;
+	Theme theme = parse_index(tmem, "t", "[Icon Theme]\nDirectories=missing/apps\n")!!;
 	test::eq(0, theme.directories.len);
 }
 

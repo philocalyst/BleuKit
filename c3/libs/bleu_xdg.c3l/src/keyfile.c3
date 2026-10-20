@@ -14,6 +14,10 @@
  add an entry to the current group. Spaces and tabs around names and values are
  not part of them. Group names are printable ASCII; key names are `A-Za-z0-9-`.
 
+ Key names are checked against the Desktop Entry alphabet by default. Files whose
+ keys are MIME types (`mimeapps.list`, `mimeinfo.cache`) are read with
+ `KeySyntax.PERMISSIVE` instead, which accepts any printable ASCII name.
+
  Malformed input is rejected, never guessed at. Every error carries the line
  number as its native code (`error::last().code`), so a message can point at
  the offending line. Duplicate groups and duplicate keys (same name and locale)
@@ -71,6 +75,16 @@ struct KeyFile
 }
 
 <*
+ How key names are checked. `STRICT` accepts `A-Za-z0-9-` (the Desktop Entry
+ rule); `PERMISSIVE` accepts any printable ASCII name, for MIME-type keys.
+*>
+enum KeySyntax : char
+{
+	STRICT,
+	PERMISSIVE,
+}
+
+<*
  A parsed locale: `lang_COUNTRY.ENCODING@MODIFIER` with the encoding dropped.
  Absent parts are empty strings.
 *>
@@ -82,14 +96,19 @@ struct Locale
 }
 
 <*
- Parse a key file.
+ Parse a key file with the Desktop Entry key rule (`KeySyntax.STRICT`).
 
  @param [&inout] allocator : "Allocator for the copy of the text and the entry lists"
  @param source : "The complete file contents, UTF-8"
  @return "A key file that the caller must `free`"
  @return? error::PROTOCOL : "A line is malformed, a group or key is duplicated, or an escape is invalid; the line number is the native code in `error::last()`"
 *>
-fn KeyFile? parse(Allocator allocator, String source)
+fn KeyFile? parse(Allocator allocator, String source) => parse_with(allocator, source, STRICT);
+
+<*
+ Parse a key file, checking key names as `syntax` says. See `parse`.
+*>
+fn KeyFile? parse_with(Allocator allocator, String source, KeySyntax syntax)
 {
 	KeyFile file = { .allocator = allocator, .text = source.copy(allocator) };
 	file.groups.init(allocator);
@@ -109,7 +128,7 @@ fn KeyFile? parse(Allocator allocator, String source)
 		}
 		else
 		{
-			add_entry(&file, line, line_no)!;
+			add_entry(&file, line, line_no, syntax)!;
 		}
 	}
 	return file;
@@ -323,12 +342,12 @@ fn void? open_group(KeyFile* file, String line, int line_no) @local
 }
 
 // Add `Key[locale]=Value` to the current group.
-fn void? add_entry(KeyFile* file, String line, int line_no) @local
+fn void? add_entry(KeyFile* file, String line, int line_no, KeySyntax syntax) @local
 {
 	if (file.groups.is_empty()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: entry before the first group", line_no)~;
 	if (!line.contains_char(KEY_VALUE_SEPARATOR)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: missing '='", line_no)~;
 	sz delimiter = line.index_of_char(KEY_VALUE_SEPARATOR)!!;
-	Entry entry = split_key(blank_trim(line[:delimiter]), line_no)!;
+	Entry entry = split_key(blank_trim(line[:delimiter]), line_no, syntax)!;
 	entry.raw = blank_trim(line[delimiter + 1:line.len - delimiter - 1]);
 	validate_escapes(entry.raw, line_no)!;
 	Group* current = file.groups.get_ref(file.groups.len() - 1);
@@ -344,7 +363,7 @@ fn void? add_entry(KeyFile* file, String line, int line_no) @local
 }
 
 // Split `Key` or `Key[locale]` into an entry whose value is still empty.
-fn Entry? split_key(String name, int line_no) @local
+fn Entry? split_key(String name, int line_no, KeySyntax syntax) @local
 {
 	String key = name;
 	String locale = "";
@@ -358,14 +377,16 @@ fn Entry? split_key(String name, int line_no) @local
 	if (key.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: empty key name", line_no)~;
 	foreach (c : key)
 	{
-		if (!is_key_char(c)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: key name holds '%c'", line_no, c)~;
+		if (!is_key_char(c, syntax)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: key name holds '%c'", line_no, c)~;
 	}
 	return { .key = key, .locale = locale };
 }
 
-// The characters allowed in key names: A-Za-z0-9-.
-fn bool is_key_char(char c) @inline
+// The characters allowed in key names: A-Za-z0-9- when strict; any printable ASCII
+// except the group brackets when permissive.
+fn bool is_key_char(char c, KeySyntax syntax) @inline
 {
+	if (syntax == PERMISSIVE) return c >= FIRST_PRINTABLE && c <= LAST_PRINTABLE && c != GROUP_OPEN && c != GROUP_CLOSE;
 	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
 }
 
@@ -424,7 +445,7 @@ fn char? decode_escape(String raw, sz* index) @local
 }
 
 <* Decode the escapes of a plain value. *>
-fn String? decode_string(String raw, Allocator allocator) @local => @pool()
+fn String? decode_string(String raw, Allocator allocator) @local
 {
 	DString out;
 	out.init(tmem, raw.len);
@@ -446,7 +467,7 @@ fn String? decode_string(String raw, Allocator allocator) @local => @pool()
  Decode a `;`-separated list. An element is kept when it holds any characters
  of the value, so a lone trailing separator adds nothing.
 *>
-fn String[]? decode_list(String raw, Allocator allocator) @local => @pool()
+fn String[]? decode_list(String raw, Allocator allocator) @local
 {
 	List{String} items;
 	items.tinit();

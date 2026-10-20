@@ -51,7 +51,7 @@ fn void TimerQueue.free(&self)
 *>
 fn void? TimerQueue.schedule(&self, usz id, Duration delay)
 {
-	return self.add(id, delay, time::DURATION_ZERO);
+	return timer_add(self, id, delay, time::DURATION_ZERO);
 }
 
 <*
@@ -64,7 +64,7 @@ fn void? TimerQueue.schedule(&self, usz id, Duration delay)
 *>
 fn void? TimerQueue.schedule_repeating(&self, usz id, Duration period)
 {
-	return self.add(id, period, period);
+	return timer_add(self, id, period, period);
 }
 
 <*
@@ -74,9 +74,9 @@ fn void? TimerQueue.schedule_repeating(&self, usz id, Duration period)
 *>
 fn void? TimerQueue.cancel(&self, usz id)
 {
-	sz index = self.find(id);
+	sz index = timer_find(self, id);
 	if (index < 0) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no timer with id %d", id)~;
-	self.remove_at((usz)index);
+	timer_remove_at(self, index);
 }
 
 <*
@@ -95,7 +95,7 @@ fn Duration TimerQueue.next_timeout(&self)
  return how many. One-shot timers leave the queue; repeating timers are rearmed.
  Timers that did not fit stay due, so the next call returns them.
 
- @param [&out] buffer : "Receives the expired ids"
+ @param buffer : "Receives the expired ids"
 *>
 fn usz TimerQueue.pop_expired(&self, usz[] buffer)
 {
@@ -107,76 +107,73 @@ fn usz TimerQueue.pop_expired(&self, usz[] buffer)
 		buffer[n++] = top.id;
 		if (top.period == time::DURATION_ZERO)
 		{
-			self.remove_at(0);
+			timer_remove_at(self, 0);
 			continue;
 		}
 		Clock next = top.due + top.period;
 		if (next <= now) next = now + top.period;
 		top.due = next;
 		self.heap.set(0, top);
-		self.sift_down(0);
+		timer_sift_down(self, 0);
 	}
 	return n;
 }
 
 // Insert a timer. `period` zero means one-shot.
-fn void? TimerQueue.add(&self, usz id, Duration delay, Duration period) @private
+fn void? timer_add(TimerQueue* self, usz id, Duration delay, Duration period) @private
 {
-	if (self.find(id) >= 0)
+	if (timer_find(self, id) >= 0)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "timer %d is already pending", id)~;
 	}
 	self.heap.push({ .id = id, .due = clock::now() + delay, .period = period });
-	self.sift_up((usz)self.heap.len() - 1);
+	timer_sift_up(self, self.heap.len() - 1);
 }
 
 // Index of the timer with this id, or -1.
-fn sz TimerQueue.find(&self, usz id) @private
+fn sz timer_find(TimerQueue* self, usz id) @private
 {
-	for (usz i = 0; i < self.heap.len(); i++)
+	for (sz i = 0; i < self.heap.len(); i++)
 	{
-		if (self.heap.get(i).id == id) return (sz)i;
+		if (self.heap.get(i).id == id) return i;
 	}
 	return -1;
 }
 
 // Remove the timer at `index` and restore the heap order.
-fn void TimerQueue.remove_at(&self, usz index) @private
+fn void timer_remove_at(TimerQueue* self, sz index) @private
 {
-	usz last = self.heap.len() - 1;
-	if (index != last)
-	{
-		self.heap.set(index, self.heap.get(last));
-	}
+	sz last = self.heap.len() - 1;
+	if (index != last) self.heap.set(index, self.heap.get(last));
 	self.heap.remove_last()!!;
 	if (index < self.heap.len())
 	{
-		self.sift_down(index);
-		self.sift_up(index);
+		timer_sift_down(self, index);
+		timer_sift_up(self, index);
 	}
 }
 
-fn void TimerQueue.sift_up(&self, usz index) @private
+fn void timer_sift_up(TimerQueue* self, sz index) @private
 {
-	usz i = index;
+	sz i = index;
 	while (i > 0)
 	{
-		usz parent = (i - 1) / 2;
+		sz parent = (i - 1) / 2;
 		if (self.heap.get(parent).due <= self.heap.get(i).due) return;
 		self.heap.swap(i, parent);
 		i = parent;
 	}
 }
 
-fn void TimerQueue.sift_down(&self, usz index) @private
+fn void timer_sift_down(TimerQueue* self, sz index) @private
 {
-	usz i = index;
-	usz count = self.heap.len();
+	sz i = index;
+	sz count = self.heap.len();
 	while (true)
 	{
-		usz smallest = i;
-		usz left = 2 * i + 1;
-		usz right = left + 1;
+		sz smallest = i;
+		sz left = 2 * i + 1;
+		sz right = left + 1;
 		if (left < count && self.heap.get(left).due < self.heap.get(smallest).due) smallest = left;
 		if (right < count && self.heap.get(right).due < self.heap.get(smallest).due) smallest = right;
 		if (smallest == i) return;

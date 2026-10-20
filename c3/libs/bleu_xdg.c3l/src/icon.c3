@@ -62,10 +62,15 @@ struct Directory
 	int threshold;
 }
 
-<* A parsed `index.theme`. Every string and array lives in the allocator given to `parse_index`. *>
+<*
+ A parsed `index.theme`. Every string and array lives in the allocator given to
+ `parse_index`. `name` is the theme's internal name (its directory name, which
+ paths are built from); `display_name` is the `Name` key.
+*>
 struct Theme
 {
 	String name;
+	String display_name;
 	String[] inherits;
 	Directory[] directories;
 }
@@ -116,9 +121,11 @@ fn int Directory.distance(self, int size, int scale)
  Parse the text of an `index.theme`.
 
  @param [&inout] allocator : "Allocator for the theme's strings and arrays"
+ @param name : "The theme's internal name, the directory it was found in"
+ @param source : "The complete file contents, UTF-8"
  @return? error::PROTOCOL : "The file has no [Icon Theme] group, a directory has no Size, or a value is malformed"
 *>
-fn Theme? parse_index(Allocator allocator, String source) => @pool()
+fn Theme? parse_index(Allocator allocator, String name, String source)
 {
 	KeyFile file = keyfile::parse(tmem, source)!;
 	if (!file.has_group(ICON_THEME_GROUP)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no [Icon Theme] group")~;
@@ -127,16 +134,17 @@ fn Theme? parse_index(Allocator allocator, String source) => @pool()
 	String[2] list_keys = { "Directories", "ScaledDirectories" };
 	foreach (list_key : list_keys)
 	{
-		String[] names = comma_list(&file, tmem, ICON_THEME_GROUP, list_key)!;
-		foreach (name : names)
+		String[] sections = comma_list(&file, tmem, ICON_THEME_GROUP, list_key)!;
+		foreach (section : sections)
 		{
 			// A listed directory without a section is skipped, as GTK does.
-			if (!file.has_group(name)) continue;
-			directories.push(parse_directory(&file, allocator, name)!);
+			if (!file.has_group(section)) continue;
+			directories.push(parse_directory(&file, allocator, section)!);
 		}
 	}
 	return {
-		.name = string_value(&file, allocator, ICON_THEME_GROUP, "Name")!,
+		.name = name.copy(allocator),
+		.display_name = string_value(&file, allocator, ICON_THEME_GROUP, "Name")!,
 		.inherits = comma_list(&file, allocator, ICON_THEME_GROUP, "Inherits")!,
 		.directories = directories.to_aligned_array(allocator),
 	};
@@ -186,7 +194,7 @@ fn void Finder.clear(&self)
  @param name : "An icon name without extension, or an absolute path"
  @return? NOT_FOUND : "No theme and no fallback holds the icon; the caller picks its own fallback"
 *>
-fn String? Finder.find(&self, Allocator allocator, String name, int size, int scale) => @pool()
+fn String? Finder.find(&self, Allocator allocator, String name, int size, int scale)
 {
 	if (dirs::is_absolute(name))
 	{
@@ -206,7 +214,7 @@ fn String? Finder.find(&self, Allocator allocator, String name, int size, int sc
 
  @param [&inout] allocator : "Allocator for the array and its strings"
 *>
-fn String[] default_base_dirs(Environment env, Allocator allocator) => @pool()
+fn String[] default_base_dirs(Environment env, Allocator allocator)
 {
 	List{String} bases;
 	bases.tinit();
@@ -304,7 +312,7 @@ fn Theme* Finder.load_theme(&self, String name)
 		char[]? bytes = io::file::load(tmem, index);
 		if (catch bytes) break;
 		// A malformed index.theme is treated as absent, so the search goes on to the parents.
-		if (try parsed = parse_index(&self.arena, (String)bytes))
+		if (try parsed = parse_index(&self.arena, name, (String)bytes))
 		{
 			theme = alloc::new(&self.arena, Theme);
 			*theme = parsed;
@@ -402,7 +410,7 @@ fn String? string_value(KeyFile* file, Allocator allocator, String group, String
 
 // A comma-separated list, as the Icon Theme specification defines every list.
 // Blank items are dropped and surrounding blanks trimmed.
-fn String[]? comma_list(KeyFile* file, Allocator allocator, String group, String key) @local => @pool()
+fn String[]? comma_list(KeyFile* file, Allocator allocator, String group, String key) @local
 {
 	String value = string_value(file, tmem, group, key)!;
 	List{String} items;

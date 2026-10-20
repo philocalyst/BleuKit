@@ -101,7 +101,7 @@ alias ScanVisitor = fn void? (void* context, DesktopFile file);
  @return "The entry, which the caller must `release`"
  @return? error::PROTOCOL : "The file is not a valid desktop entry: a missing or unknown Type or Name, a missing Exec for a non-D-Bus application, or a malformed line"
 *>
-fn DesktopEntry*? parse(Allocator allocator, String source, String locale) => @pool()
+fn DesktopEntry*? parse(Allocator allocator, String source, String locale)
 {
 	KeyFile file = keyfile::parse(tmem, source)!;
 	DesktopEntry* entry = alloc::new(allocator, DesktopEntry);
@@ -119,7 +119,7 @@ fn DesktopEntry*? parse(Allocator allocator, String source, String locale) => @p
  @return? error::PERMISSION_DENIED : "The file cannot be read"
  @return? error::PROTOCOL : "The file is not a valid desktop entry"
 *>
-fn DesktopEntry*? load(Allocator allocator, String path, String locale) => @pool()
+fn DesktopEntry*? load(Allocator allocator, String path, String locale)
 {
 	char[] bytes = read_file(path)!;
 	return parse(allocator, (String)bytes, locale);
@@ -159,7 +159,7 @@ fn bool DesktopEntry.show_in(&self, String[] current_desktops)
 
  @param [&inout] allocator : "Allocator for the array and its strings"
 *>
-fn String[] current_desktops(Environment env, Allocator allocator) => @pool()
+fn String[] current_desktops(Environment env, Allocator allocator)
 {
 	String value = env.get(tmem, CURRENT_DESKTOP_VARIABLE) ?? "";
 	List{String} names;
@@ -183,7 +183,7 @@ fn String[] current_desktops(Environment env, Allocator allocator) => @pool()
  @param data_dirs : "The XDG data directories in precedence order"
  @param context : "Passed to every visit"
 *>
-fn void? scan(String[] data_dirs, void* context, ScanVisitor visitor) => @pool()
+fn void? scan(String[] data_dirs, void* context, ScanVisitor visitor)
 {
 	HashSet{String} seen;
 	seen.tinit();

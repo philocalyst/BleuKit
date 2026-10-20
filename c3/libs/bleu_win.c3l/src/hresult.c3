@@ -105,10 +105,9 @@ fn fault Hresult.to_fault(self)
 	if (self.is_win32()) return win32_to_fault((uint)self & 0x0000ffff);
 	switch ((uint)self)
 	{
-		case E_NOTIMPL:        return error::UNSUPPORTED;
-		case E_NOINTERFACE:    return error::UNSUPPORTED;
+		case E_NOTIMPL:          return error::UNSUPPORTED;
 		case RPC_E_DISCONNECTED: return error::DISCONNECTED;
-		default:               return error::BACKEND_FAILURE;
+		default:                 return error::BACKEND_FAILURE;
 	}
 }
 

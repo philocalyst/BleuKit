@@ -38,22 +38,31 @@ extern const ObjId NS_APPLE_SCRIPT_ERROR_NUMBER @cname("NSAppleScriptErrorNumber
 *>
 fn String? run_script(String source, Allocator allocator)
 {
-	@pool()
+	objc::@autorelease_pool()
 	{
-		objc::Obj source_text = foundation::from_string(source);
-		defer source_text.close();
-		ObjId initialized = objc::class_named("NSAppleScript").alloc().send(ObjId, "initWithSource:", source_text.ptr);
-		objc::Obj script = objc::adopt(initialized);
-		defer script.close();
-		if (script.is_nil()) return error::raise(error::BACKEND_FAILURE, error::Domain.NS_ERROR, 0, "NSAppleScript could not be created")~;
-
-		ObjId error_info = null;
-		ObjId result = script.ptr.send(ObjId, "executeAndReturnError:", &error_info);
-		if (!result)
+		@pool()
 		{
-			return script_failure(error_info)~;
-		}
-		return foundation::to_string(result.send(ObjId, "stringValue"), allocator) ?? "";
+			objc::Obj source_text = foundation::from_string(source);
+			defer source_text.close();
+			ObjId initialized = objc::class_named("NSAppleScript").alloc()
+				.send(ObjId, "initWithSource:", source_text.ptr);
+			objc::Obj script = objc::adopt(initialized);
+			defer script.close();
+			if (script.is_nil()) return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.NS_ERROR,
+				0,
+				"NSAppleScript could not be created"
+			)~;
+
+			ObjId error_info = null;
+			ObjId result     = script.ptr.send(ObjId, "executeAndReturnError:", &error_info);
+			if (!result)
+			{
+				return script_failure(error_info)~;
+			}
+			return foundation::to_string(result.send(ObjId, "stringValue"), allocator) ?? "";
+		};
 	};
 }
 
@@ -64,13 +73,18 @@ fn String? run_script(String source, Allocator allocator)
 fn fault script_failure(ObjId error_info) @local
 {
 	foundation::NSInteger number = 0;
-	String message = "no error details";
+	String message               = "no error details";
 	if (error_info)
 	{
-		ObjId number_object = foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_NUMBER);
-		if (number_object) number = foundation::number_as_long(number_object);
-		message = foundation::to_string(foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_MESSAGE), tmem) ?? message;
+		objc::Obj number_object = objc::borrow(foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_NUMBER));
+		defer number_object.close();
+		number = foundation::number_as_long(number_object);
+		message = foundation::to_string(
+			foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_MESSAGE),
+			tmem
+		) ?? message;
 	}
-	fault f = number == foundation::OS_STATUS_AE_EVENT_NOT_PERMITTED ? error::PERMISSION_DENIED : error::BACKEND_FAILURE;
+	fault f = number == foundation::OS_STATUS_AE_EVENT_NOT_PERMITTED ? error::PERMISSION_DENIED
+		: error::BACKEND_FAILURE;
 	return error::raise(f, error::Domain.NS_ERROR, (int)number, "AppleScript: %s", message);
 }

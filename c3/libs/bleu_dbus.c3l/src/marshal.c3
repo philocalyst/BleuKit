@@ -70,6 +70,14 @@ struct Frame
 // Bytes of NUL padding that move `pos` up to the next multiple of `align`.
 fn usz padding_for(usz pos, usz align) @inline => (align - pos % align) % align;
 
+// Index just past the complete type a frame expects next. An array's element
+// may be a dict entry, which a standalone type may not be.
+fn usz? frame_end(Frame* f) @inline
+{
+	if (f.kind == ARRAY) return signature::element_end(f.sig, f.cursor);
+	return signature::complete_end(f.sig, f.cursor);
+}
+
 // The kind of value a complete type's first code describes.
 fn Kind? kind_of_code(char code)
 {
