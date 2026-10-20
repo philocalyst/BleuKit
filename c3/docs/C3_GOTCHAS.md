@@ -215,3 +215,5 @@
 * `std::os::win32` binds `GetKeyboardLayout`, `PostMessageW` and the HKL/HWND/LPARAM types but not `GetKeyboardLayoutList`, `GetForegroundWindow` or `LCIDToLocaleName` → declare those with `extern fn ... @link("user32")` and a `@cname`.
 * Testing an optional-returning function: `x.has_value` and `f() ?? false == x` do not compile → `if (try v = f()) {...} else { test::@check(false, "...") }` and `test::@error(f(), NOT_FOUND)`.
 * `c3c compile-test tools/empty.c3` with `--lib <lib>` runs the `@test`s of that library's `src/` too; no need to name the test files.
+* A zeroed enum is its FIRST value (e.g. a zeroed State reads as CONNECTED): put the safe/"unknown" value first, and set status fields explicitly on every snapshot.
+* `std::os::win32::dwmGetWindowAttribute` takes `HWND*` (wrong for the C API): declare your own extern. Declare missing user32 calls locally until they move into `bleu_win`.
