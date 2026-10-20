@@ -61,7 +61,11 @@ fn DString request_empty(Allocator allocator, PulseCommand command, uint tag)
 *>
 fn DString request_get_device_info(Allocator allocator, uint tag, bool is_source, uint index, String name)
 {
-	DString packet = begin_command(allocator, is_source ? PulseCommand.GET_SOURCE_INFO : PulseCommand.GET_SINK_INFO, tag);
+	DString packet = begin_command(
+		allocator,
+		is_source ? PulseCommand.GET_SOURCE_INFO : PulseCommand.GET_SINK_INFO,
+		tag
+	);
 	put_u32(&packet, index);
 	put_name_or_null(&packet, name);
 	return packet;

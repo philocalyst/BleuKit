@@ -7,7 +7,7 @@ module bleu::display;
 import bleu::error;
 
 <* The most outputs one layout is checked for. Larger layouts are refused rather than guessed at. *>
-const usz MAX_LAYOUT_OUTPUTS = 64;
+const sz MAX_LAYOUT_OUTPUTS = 64;
 
 <* A rectangle on the desktop in logical pixels. *>
 struct Rect
@@ -59,8 +59,8 @@ fn void? validate_layout(Rect[] rects)
 	if (rects.len > MAX_LAYOUT_OUTPUTS) {
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "more than %d outputs", (int)MAX_LAYOUT_OUTPUTS)~;
 	}
-	for (usz i = 0; i < rects.len; i++) {
-		for (usz j = i + 1; j < rects.len; j++) {
+	for (sz i = 0; i < rects.len; i++) {
+		for (sz j = i + 1; j < rects.len; j++) {
 			if (rects[i].overlaps(rects[j])) {
 				return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "outputs %d and %d overlap", (int)i, (int)j)~;
 			}
@@ -71,9 +71,9 @@ fn void? validate_layout(Rect[] rects)
 	bool grew = true;
 	while (grew) {
 		grew = false;
-		for (usz i = 0; i < rects.len; i++) {
+		for (sz i = 0; i < rects.len; i++) {
 			if (reached[i]) continue;
-			for (usz j = 0; j < rects.len; j++) {
+			for (sz j = 0; j < rects.len; j++) {
 				if (reached[j] && rects[i].touches(rects[j])) {
 					reached[i] = true;
 					grew = true;
@@ -82,7 +82,7 @@ fn void? validate_layout(Rect[] rects)
 			}
 		}
 	}
-	for (usz i = 0; i < rects.len; i++) {
+	for (sz i = 0; i < rects.len; i++) {
 		if (!reached[i]) {
 			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %d is cut off from the rest of the layout", (int)i)~;
 		}

@@ -1,0 +1,10 @@
+[
+  {"id":2,"name":"DP-1","make":"Dell","model":"U2720Q","serial":"ABC","active":true,"primary":true,
+   "scale":1.0,"transform":"normal","current_workspace":"1",
+   "modes":[{"width":2560,"height":1440,"refresh":59951}],
+   "current_mode":{"width":2560,"height":1440,"refresh":59951},
+   "rect":{"x":0,"y":0,"width":2560,"height":1440},"focus":[3],"focused":true},
+  {"id":5,"name":"HDMI-A-1","make":"Unknown","model":"Unknown","serial":"","active":false,"primary":false,
+   "scale":null,"transform":null,"current_workspace":null,"modes":[],"current_mode":null,
+   "rect":{"x":0,"y":0,"width":0,"height":0},"focus":[],"focused":false}
+]

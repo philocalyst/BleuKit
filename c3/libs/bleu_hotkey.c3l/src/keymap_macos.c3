@@ -110,3 +110,18 @@ fn uint? macos_keycode(keys::Key key)
 		case keys::Key.VOLUME_MUTE: return error::UNSUPPORTED~;
 	}
 }
+
+<*
+ The Carbon modifier bits of RegisterEventHotKey: cmdKey (LOGO), shiftKey, optionKey (ALT) and
+ controlKey (CTRL). Bit numbers from HIToolbox Events.h: cmdKeyBit 8, shiftKeyBit 9, optionKeyBit 11,
+ controlKeyBit 12 (MacOSX10.13 SDK header, read). Pure table.
+*>
+fn uint macos_modifiers(keys::Modifiers mods)
+{
+	uint bits = 0;
+	if (mods.logo) bits |= 1 << 8;
+	if (mods.shift) bits |= 1 << 9;
+	if (mods.alt) bits |= 1 << 11;
+	if (mods.ctrl) bits |= 1 << 12;
+	return bits;
+}

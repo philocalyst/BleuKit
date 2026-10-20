@@ -16,8 +16,7 @@
  com.canonical.dbusmenu.xml.
 *>
 module bleu::tray::sni @feat(LINUX);
-import std::collections::list, std::time, bleu::availability, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::dbus::marshal, bleu::error, bleu::observe, bleu::rt, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert;
-import libc;
+import std::collections::list, std::os::posix, std::time, bleu::availability, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::dbus::marshal, bleu::error, bleu::observe, bleu::rt, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert;
 
 // Names, paths and interfaces of the protocol (KDE copies of the freedesktop specification).
 const String WATCHER_NAME        = "org.kde.StatusNotifierWatcher";
@@ -274,7 +273,7 @@ fn void? setup(SniBackend* backend, Poller* poller)
 	int fd = backend.connection.fd()!;
 	poller.add({ .handle = (rt::Native)fd, .interest = { .readable = true }, .tag = CONNECTION_TAG })!;
 	backend.instance++;
-	int pid = libc::getpid();
+	int pid = (int)posix::getpid();
 	backend.host_bus = string::format(backend.allocator, "%s%d-%d", HOST_NAME_PREFIX, pid, backend.instance);
 	backend.own_bus = string::format(backend.allocator, "%s%d-%d", ITEM_NAME_PREFIX, pid, backend.instance);
 	backend.own_item_id = string::format(backend.allocator, "%s%s", backend.own_bus, ITEM_PATH);
@@ -351,7 +350,7 @@ fn void run_command(SniBackend* backend, tray::Command command)
 {
 	if (command.kind == REFRESH)
 	{
-		for (usz i = 0; i < backend.items.len(); i++) read_everything(backend, backend.items[i]);
+		for (sz i = 0; i < backend.items.len(); i++) read_everything(backend, backend.items[i]);
 		backend.dirty = true;
 		return;
 	}
@@ -367,26 +366,44 @@ fn void run_command(SniBackend* backend, tray::Command command)
 	if (command.item_id.len > 0) alloc::free(backend.allocator, command.item_id.ptr);
 }
 
-// Performs one command on a known item and completes its operation.
-fn void execute(SniBackend* backend, ItemRecord* record, tray::Command command)
+// Performs one command on a known item. Its value is the operation's value (true when the item
+// accepted, or when a submenu changed); its failure is the operation's failure.
+fn bool? perform(SniBackend* b, ItemRecord* record, tray::Command command)
 {
 	switch (command.kind)
 	{
 		case ACTIVATE:
-			complete_call(command.op, call_position(backend, record, "Activate", command.x, command.y));
+			call_position(b, record, "Activate", command.x, command.y)!;
+			return true;
 		case SECONDARY_ACTIVATE:
-			complete_call(command.op, call_position(backend, record, "SecondaryActivate", command.x, command.y));
+			call_position(b, record, "SecondaryActivate", command.x, command.y)!;
+			return true;
 		case CONTEXT_MENU:
-			complete_call(command.op, call_position(backend, record, "ContextMenu", command.x, command.y));
+			call_position(b, record, "ContextMenu", command.x, command.y)!;
+			return true;
 		case SCROLL:
-			complete_call(command.op, call_scroll(backend, record, command.delta, command.horizontal));
+			call_scroll(b, record, command.delta, command.horizontal)!;
+			return true;
 		case OPEN_SUBMENU:
-			open_submenu(backend, record, command.menu_id, command.op);
+			return open_submenu(b, record, command.menu_id);
 		case CLICK_MENU:
-			complete_call(command.op, call_menu_click(backend, record, command.menu_id));
+			call_menu_click(b, record, command.menu_id)!;
+			return true;
 		case REFRESH:
-			complete_fail(command.op, error::UNSUPPORTED);
+			return error::UNSUPPORTED~;
 	}
+}
+
+// Runs one command on a known item and completes its operation with the outcome.
+fn void execute(SniBackend* b, ItemRecord* record, tray::Command command)
+{
+	bool? outcome = perform(b, record, command);
+	if (catch err = outcome)
+	{
+		complete_fail(command.op, err);
+		return;
+	}
+	complete_ok(command.op, outcome);
 }
 
 // Completes an operation with a value and drops the worker's reference. A null operation is a
@@ -404,17 +421,6 @@ fn void complete_fail(CommandOp* op, fault failure)
 	if (op == null) return;
 	op.fail(failure);
 	op.release();
-}
-
-// Completes an operation from a bus call's outcome.
-fn void complete_call(CommandOp* op, void? outcome)
-{
-	if (catch err = outcome)
-	{
-		complete_fail(op, err);
-		return;
-	}
-	complete_ok(op, true);
 }
 
 // Ends the commands still queued when the worker stops, so no caller waits forever.

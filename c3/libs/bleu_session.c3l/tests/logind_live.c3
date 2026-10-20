@@ -48,7 +48,12 @@ fn void suspend_through_logind() @local
 	defer bus.free();
 	bus.open_system()!!;
 	defer bus.close();
-	proxy::Proxy manager = proxy::for_object(&bus, "org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager")!!;
+	proxy::Proxy manager = proxy::for_object(
+		&bus,
+		"org.freedesktop.login1",
+		"/org/freedesktop/login1",
+		"org.freedesktop.login1.Manager"
+	)!!;
 	Message* call = manager.new_call(mem, "Suspend")!!;
 	defer call.release();
 	call.body_writer("b")!!.append_bool(false)!!;
@@ -61,7 +66,8 @@ fn void drives_logind_end_to_end() @test
 	Session* service = session::open(mem, { .backend = LOGIND })!!;
 	defer service.close();
 	assert(service.backend_name() == "logind", "logind is the backend");
-	assert(service.capability(Cap.IDLE_WATCH).reason == availability::Reason.UNSUPPORTED_BACKEND, "idle is refused until bleu_wl lands");
+	assert(service.capability(Cap.IDLE_WATCH)
+		.reason == availability::Reason.UNSUPPORTED_BACKEND, "idle is refused until bleu_wl lands");
 	assert(service.capability(Cap.LOCK).ok(), "this process has a session to lock");
 
 	stream::Reader{Event}* events = service.subscribe()!!;
@@ -78,6 +84,7 @@ fn void drives_logind_end_to_end() @test
 	assert(state.current.type == WAYLAND, "the session type is wayland");
 	assert(state.current.active.has_value && state.current.active.value, "the session is active");
 	assert(state.current.remote.has_value && !state.current.remote.value, "the session is local");
+	assert(state.idle_hint.has_value && !state.idle_hint.value, "IdleHint is read from the session");
 	assert(state.seats.len == 1 && state.seats[0] == "seat0", "one seat");
 	assert(state.sessions.len == 2, "two sessions");
 	assert(state.sessions[1].id == "c1" && state.sessions[1].type == TTY, "the tty session c1 is listed");

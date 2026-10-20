@@ -1,0 +1,10 @@
+[
+  {"address":"0x55d1c0a4e2b0","mapped":true,"hidden":false,"at":[0,30],"size":[1280,1050],
+   "workspace":{"id":1,"name":"1"},"floating":false,"monitor":0,"class":"foot","title":"~/src",
+   "initialClass":"foot","initialTitle":"foot","pid":4242,"xwayland":false,"pinned":false,
+   "fullscreen":0,"fullscreenClient":0,"grouped":[],"focusHistoryID":0},
+  {"address":"0x55d1c0a50f70","mapped":true,"hidden":false,"at":[1280,30],"size":[640,1050],
+   "workspace":{"id":2,"name":"2"},"floating":true,"monitor":1,"class":"firefox","title":"Docs, part 2",
+   "initialClass":"firefox","initialTitle":"Mozilla Firefox","pid":5150,"xwayland":false,"pinned":false,
+   "fullscreen":2,"fullscreenClient":0,"grouped":[],"focusHistoryID":1}
+]

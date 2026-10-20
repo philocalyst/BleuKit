@@ -146,3 +146,15 @@
 * `Enum.MEMBER` in a `case` label of another module must be qualified, and two enums sharing a member name (Cap, Command) need the right one.
 * `c3c --libdir libs` fails while any half-created lib lacks manifest.json → use `tools/libdir.sh`.
 * `Type?` cannot be tested with `.has_value`; use `if (try ...)` or `@catch(...)` comparisons.
+* `extern fn AudioObjectGetPropertyData` → "A function name must start with lower case" → name it `audio_object_get_property_data` with `@cname("AudioObjectGetPropertyData")`.
+* `if (catch err = status_fn())` on a C function returning `int` → "not optional": compare with `!= 0` instead.
+* A constset member flowing into a `uint` (or compared with one) → "Implicitly casting ... not permitted": write `(uint)Enum.MEMBER`, or type the parameter as the constset.
+* `defer catch list.free();` on a non-fallible call is rejected → guard the defer with a flag: `bool handed_over = false; defer if (!handed_over) list.free();`.
+* `alias` is a keyword: a local named `alias` → "cannot use a keyword as variable name".
+* `@private` on a method is ignored with a warning → drop it (free functions take `@private`).
+* A struct field `balance` of a `Maybe{float}` type from another module → "Functions from other modules must be prefixed": qualify as `pulse::balance_of`, `pulse::TagReader` and so on.
+* `Gain` (a `bleu::unit` typedef) compared with a float literal → cast: `(float)gain`; literal arrays of it need `(Gain)0.5f`.
+* Fixed-size array in a struct literal with fewer elements than the array (`uint[32] values = {a, b}`) → "Too few elements": assign the elements one by one.
+* `c3c --sources "dir/*.c3"` does not expand the glob → pass the files through shell expansion (`$(ls dir/*.c3)`).
+* A PulseAudio proplist value includes its terminating NUL inside the blob → strip a trailing `\0` before comparing (`pulse_wire.c3`).
+* A `Duration` constant from an int literal (`const Duration T = 5_000_000;`) → cast: `(Duration)5_000_000`.

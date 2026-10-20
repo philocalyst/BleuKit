@@ -75,10 +75,12 @@ fn void IdleRegistry.advance(&self, Duration elapsed, List{Event}* pending)
 	for (sz i = 0; i < self.slots.len(); i++)
 	{
 		IdleSlot* slot = self.slots.get_ref(i);
-		bool now = reached(elapsed, slot.threshold);
+		bool now       = reached(elapsed, slot.threshold);
 		if (now == slot.idle) continue;
 		slot.idle = now;
-		pending.push({ .kind = now ? EventKind.IDLE : EventKind.RESUMED, .watch = slot.watch, .threshold = slot.threshold });
+		pending.push(
+			{ .kind = now ? EventKind.IDLE : EventKind.RESUMED, .watch = slot.watch, .threshold = slot.threshold }
+		);
 	}
 }
 
@@ -109,9 +111,9 @@ fn IdleStatus[] IdleRegistry.statuses(&self, Allocator allocator)
 	{
 		if (self.slots.get(i).configured) count++;
 	}
-	if (count == 0) return {};
+	if (count == 0) return { };
 	IdleStatus[] statuses = alloc::new_array(allocator, IdleStatus, count);
-	sz next = 0;
+	sz next               = 0;
 	for (sz i = 0; i < self.slots.len(); i++)
 	{
 		IdleSlot slot = self.slots.get(i);

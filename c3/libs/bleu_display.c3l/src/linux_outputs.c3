@@ -46,7 +46,7 @@ fn void on_geometry(
 	rec.y = y;
 	rec.physical_width = physical_width;
 	rec.physical_height = physical_height;
-	rec.transform = transform_from_wire((uint)transform);
+	rec.transform = wayland_convert::transform_from_wire((uint)transform);
 	set_text(rec, &rec.make, make);
 	set_text(rec, &rec.model, model);
 }
@@ -57,16 +57,16 @@ fn void on_mode(void* context, wayland::WlOutput* target, wayland::WlOutputMode 
 	OutputRecord* rec = (OutputRecord*)context;
 	uint bits = (uint)flags;
 	bool current = (bits & WL_MODE_CURRENT) != 0;
-	ModeRecord* mode = find_wl_mode(rec, (uint)width, (uint)height, refresh_from_wire(refresh));
+	ModeRecord* mode = find_wl_mode(rec, (uint)width, (uint)height, wayland_convert::refresh_from_wire(refresh));
 	if (!mode) {
 		mode = new_mode(rec);
 		mode.width = (uint)width;
 		mode.height = (uint)height;
-		mode.refresh = refresh_from_wire(refresh);
+		mode.refresh = wayland_convert::refresh_from_wire(refresh);
 	}
 	mode.preferred = (bits & WL_MODE_PREFERRED) != 0;
 	if (current) {
-		for (usz i = 0; i < rec.modes.len(); i++) rec.modes.get(i).current = false;
+		for (sz i = 0; i < rec.modes.len(); i++) rec.modes.get(i).current = false;
 	}
 	mode.current = current;
 }
@@ -145,9 +145,9 @@ fn void on_xdg_description(void* context, xdg_output::ZxdgOutputV1* target, Stri
 }
 
 // The record's mode with this size and refresh, if it has one.
-fn ModeRecord* find_wl_mode(OutputRecord* rec, uint width, uint height, display::RefreshMilliHz refresh) @private
+fn ModeRecord* find_wl_mode(OutputRecord* rec, uint width, uint height, display::RefreshMilliHz refresh)
 {
-	for (usz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++) {
 		ModeRecord* mode = rec.modes.get(i);
 		if (mode.width == width && mode.height == height && mode.refresh == refresh) return mode;
 	}
@@ -155,7 +155,7 @@ fn ModeRecord* find_wl_mode(OutputRecord* rec, uint width, uint height, display:
 }
 
 // Append an empty mode to the record and return it.
-fn ModeRecord* new_mode(OutputRecord* rec) @private
+fn ModeRecord* new_mode(OutputRecord* rec)
 {
 	ModeRecord* mode = alloc::new(rec.allocator, ModeRecord);
 	mode.owner = rec;

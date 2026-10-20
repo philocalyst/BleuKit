@@ -1,5 +1,5 @@
 module bleu::color::schedule_test;
-import bleu::color, bleu::color::schedule, bleu::error, std::math;
+import bleu::color, bleu::color::schedule, bleu::error, bleu::unit, std::time, std::math;
 
 // Instants, in Unix microseconds, at 00:00 UTC on the days the references are for.
 const long MAR_20_2026 = 1773964800000000;
@@ -36,13 +36,15 @@ fn void new_york_matches_the_published_equinox() @test
 	assert(within(e.sunset - MAR_20_2026, hms(23, 7, 57), 90 * SECOND), "sunset within 90 s of astral 23:07:57");
 }
 
-// Sydney is south of the equator: its sunrise on the local date 20 March is on the UTC date 19 March.
+// Sydney is east of Greenwich: the sunrise nearest solar noon on the UTC day of 20 March falls
+// at 19:58 UTC on 19 March, which is 19:56:52 UTC in the published record. The comparison is on
+// absolute instants because that sunrise lies before the day's start.
 fn void sydney_matches_the_published_equinox() @test
 {
-	DayEvents morning = schedule::day_events(-33.8688, 151.2093, MAR_19_2026);
-	assert(within(morning.sunrise - MAR_19_2026, hms(19, 56, 52), 3 * MINUTE), "sunrise within 3 min of 19:56:52 UTC");
-	DayEvents evening = schedule::day_events(-33.8688, 151.2093, MAR_20_2026);
-	assert(within(evening.sunset - MAR_20_2026, hms(8, 8, 36), 3 * MINUTE), "sunset within 3 min of 08:08:36 UTC");
+	DayEvents e = schedule::day_events(-33.8688, 151.2093, MAR_20_2026);
+	assert(e.crosses, "Sydney has a sunrise on the equinox");
+	assert(within(e.sunrise, MAR_19_2026 + hms(19, 56, 52), 3 * MINUTE), "sunrise within 3 min of 19:56:52 UTC on 19 March");
+	assert(within(e.sunset, MAR_20_2026 + hms(8, 8, 36), 3 * MINUTE), "sunset within 3 min of 08:08:36 UTC on 20 March");
 }
 
 fn void transition_is_centred_on_each_edge() @test
@@ -55,12 +57,12 @@ fn void transition_is_centred_on_each_edge() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), (Duration)0) == 4500, "night before the transition");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 50, 0)), (Duration)0) == 4648, "smoothstep 1/6 into the transition");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 0, 0)), (Duration)0) == 5500, "midway at sunrise");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 20, 0)), (Duration)0) == 6500, "day after the transition");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(18, 0, 0)), (Duration)0) == 5500, "midway at sunset");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(19, 0, 0)), (Duration)0) == 4500, "night after sunset");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), (Duration)0) == 4500, "night before the transition");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 50, 0)), (Duration)0) == 4648, "smoothstep 1/6 into the transition");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 0, 0)), (Duration)0) == 5500, "midway at sunrise");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 20, 0)), (Duration)0) == 6500, "day after the transition");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(18, 0, 0)), (Duration)0) == 5500, "midway at sunset");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(19, 0, 0)), (Duration)0) == 4500, "night after sunset");
 }
 
 fn void local_times_use_the_offset() @test
@@ -75,8 +77,8 @@ fn void local_times_use_the_offset() @test
 		.transition = (Duration)(30 * MINUTE),
 	};
 	Duration plus_one = (Duration)(3600 * SECOND);
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(4, 0, 0)), plus_one) == 4500, "05:00 local is still night");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), plus_one) == 5500, "06:00 local is midway");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(4, 0, 0)), plus_one) == 4500, "05:00 local is still night");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), plus_one) == 5500, "06:00 local is midway");
 }
 
 fn void sun_schedule_is_day_by_day_and_night_by_night() @test
@@ -89,8 +91,8 @@ fn void sun_schedule_is_day_by_day_and_night_by_night() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "noon in London is day");
-	assert(schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(23, 0, 0)), (Duration)0) == 4500, "23:00 UTC in London is night");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "noon in London is day");
+	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(23, 0, 0)), (Duration)0) == 4500, "23:00 UTC in London is night");
 }
 
 fn void polar_day_and_night_follow_the_sun() @test
@@ -106,8 +108,8 @@ fn void polar_day_and_night_follow_the_sun() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert(schedule::temperature_at(s, (Time)(JUN_21_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "midsummer at 80 N is day");
-	assert(schedule::temperature_at(s, (Time)(DEC_21_2026 + hms(12, 0, 0)), (Duration)0) == 4500, "midwinter at 80 N is night");
+	assert((int)schedule::temperature_at(s, (Time)(JUN_21_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "midsummer at 80 N is day");
+	assert((int)schedule::temperature_at(s, (Time)(DEC_21_2026 + hms(12, 0, 0)), (Duration)0) == 4500, "midwinter at 80 N is night");
 }
 
 fn void validation_refuses_out_of_range_values() @test

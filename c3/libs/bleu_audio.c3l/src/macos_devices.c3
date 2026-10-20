@@ -32,7 +32,7 @@ fn String? cf_text(macos_hal::ObjectId object, macos_hal::PropertyAddress addres
 <* Every device the HAL knows, with identity and stream directions. Strings go into `allocator`. *>
 fn HalDevice[]? list_devices(Allocator allocator)
 {
-	uint size                 = macos_hal::property_size(
+	uint size = macos_hal::property_size(
 		macos_hal::SYSTEM_OBJECT,
 		{ macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }
 	)!;

@@ -1,0 +1,8 @@
+{"Ok":{"Outputs":{
+  "eDP-1":{"name":"eDP-1","make":"BOE","model":"0x0800","serial":null,"physical_size":[290,180],
+   "modes":[{"width":1920,"height":1080,"refresh_rate":60000,"is_preferred":true}],"current_mode":0,
+   "is_custom_mode":false,"vrr_supported":false,"vrr_enabled":false,
+   "logical":{"x":0,"y":0,"width":1920,"height":1080,"scale":1.0,"transform":"Normal"}},
+  "HDMI-A-1":{"name":"HDMI-A-1","make":"Acme","model":"Off","serial":null,"physical_size":null,
+   "modes":[],"current_mode":null,"is_custom_mode":false,"vrr_supported":false,"vrr_enabled":false,"logical":null}
+}}}

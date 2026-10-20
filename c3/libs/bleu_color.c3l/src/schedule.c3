@@ -99,9 +99,11 @@ fn double julian_day(long unix_us) => (double)unix_us / (double)DAY_US + UNIX_EP
 fn long day_start(long unix_us) => unix_us - (((unix_us % DAY_US) + DAY_US) % DAY_US);
 
 <*
- Sunrise and sunset on the UTC day that starts at `day_start_us`, at `longitude` and `latitude`.
- The solar noon is refined twice, as the NOAA worksheet does, so the equations see the time of day
- they describe.
+ Sunrise and sunset of the UTC day that starts at `day_start_us`, at `longitude` and `latitude`:
+ the rise and set on either side of that day's solar noon. East of Greenwich the sunrise can fall
+ before `day_start_us`, on the previous UTC date, and west of it the sunset can fall after the day
+ ends; `daylight_at` reads the days either side for that reason. The solar noon is refined twice,
+ as the NOAA worksheet does, so the equations see the time of day they describe.
 
  @param latitude : "Degrees north, -90..90"
  @param longitude : "Degrees east, -180..180"

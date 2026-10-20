@@ -56,15 +56,10 @@ fn usz Buffer.pending(&self) @inline => self.filled - self.start;
 *>
 fn usz? Buffer.feed(&self, char[] bytes)
 {
-	self.compact();
-	usz room = self.capacity - self.filled;
-	if (room == 0)
-	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message exceeds %d bytes", self.capacity)~;
-	}
-	usz taken = min(room, (usz)bytes.len);
-	if (taken > 0) mem::copy(self.data.ptr + self.filled, bytes.ptr, (sz)taken);
-	self.filled += taken;
+	char[] room = self.tail()!;
+	usz taken = min((usz)room.len, (usz)bytes.len);
+	if (taken > 0) mem::copy(room.ptr, bytes.ptr, (sz)taken);
+	self.commit(taken);
 	return taken;
 }
 
@@ -88,17 +83,43 @@ fn String? Buffer.take_line(&self)
 }
 
 <*
- The next `count` bytes.
+ The next `count` bytes, without taking them: a view that stays valid until the
+ next `feed`, `tail` or `consume`.
 
- @return "Exactly `count` bytes"
  @return? NOT_FOUND : "Fewer than `count` bytes are buffered yet"
 *>
-fn String? Buffer.take_exact(&self, usz count)
+fn String? Buffer.peek_exact(&self, usz count)
 {
 	if (self.pending() < count) return NOT_FOUND~;
-	String bytes = (String)self.data[self.start : count];
+	return (String)self.data[self.start : count];
+}
+
+<* Drop `count` unread bytes. They must have been peeked. *>
+fn void Buffer.consume(&self, usz count) @inline
+{
 	self.start += count;
-	return bytes;
+}
+
+<*
+ The free room after the unread bytes, into which a socket receives directly.
+ Follow with `commit` for the number of bytes received.
+
+ @return? error::PROTOCOL : "The buffer is full: the unit being read exceeds its capacity"
+*>
+fn char[]? Buffer.tail(&self)
+{
+	self.compact();
+	if (self.filled == self.capacity)
+	{
+		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message exceeds %d bytes", self.capacity)~;
+	}
+	return self.data[self.filled : self.capacity - self.filled];
+}
+
+<* Record that `count` bytes were written into the `tail` slice. *>
+fn void Buffer.commit(&self, usz count) @inline
+{
+	self.filled += count;
 }
 
 // Move the unread bytes to the front, so that `feed` has the whole free tail.

@@ -1,0 +1,12 @@
+activewindowv2>>0x55d1c0a50f70
+openwindow>>0x55d1c0a53000,3,kitty,Log: a, b, c
+closewindow>>0x55d1c0a53000
+windowtitlev2>>0x55d1c0a50f70,Docs, part 3
+fullscreen>>1
+changefloatingmode>>0x55d1c0a4e2b0,1
+urgent>>0x55d1c0a4e2b0
+movewindowv2>>0x55d1c0a4e2b0,2,2
+activelayout>>main-keyboard,English (US)
+workspacev2>>3,3
+configreloaded>>
+notanevent

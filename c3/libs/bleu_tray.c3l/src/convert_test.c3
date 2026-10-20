@@ -2,7 +2,7 @@ module bleu::tray::convert_test;
 import bleu::error, bleu::tray, bleu::tray::convert;
 
 // Asserts that the expression fails with `expected`.
-macro expect_fault(#result, expected)
+macro @expect_fault(#result, expected)
 {
 	bool failed = false;
 	if (catch err = #result)
@@ -33,21 +33,21 @@ fn void rgba_of_a_tall_icon() @test
 fn void size_mismatch_is_refused() @test
 {
 	char[8] pixels;
-	expect_fault(convert::argb_to_rgba(pixels[..], 3, 1), error::INVALID_ARGUMENT);
-	expect_fault(convert::argb_to_rgba(pixels[..], 0, 2), error::INVALID_ARGUMENT);
+	@expect_fault(convert::argb_to_rgba(pixels[..], 3, 1), error::INVALID_ARGUMENT);
+	@expect_fault(convert::argb_to_rgba(pixels[..], 0, 2), error::INVALID_ARGUMENT);
 	assert(!convert::pixmap_fits(convert::MAX_ICON_EDGE + 1, 1, (usz)(convert::MAX_ICON_EDGE + 1) * 4));
 	assert(convert::pixmap_fits(2, 1, 8));
 }
 
 fn void mnemonics_follow_libdbusmenu() @test
 {
-	assert(convert::mnemonic_free("_Open", mem) == "Open");
-	assert(convert::mnemonic_free("Sa_ve", mem) == "Save");
-	assert(convert::mnemonic_free("A__B", mem) == "A_B");
-	assert(convert::mnemonic_free("__", mem) == "_");
-	assert(convert::mnemonic_free("_", mem) == "");
-	assert(convert::mnemonic_free("", mem) == "");
-	assert(convert::mnemonic_free("Plain", mem) == "Plain");
+	assert(convert::mnemonic_free("_Open", tmem) == "Open");
+	assert(convert::mnemonic_free("Sa_ve", tmem) == "Save");
+	assert(convert::mnemonic_free("A__B", tmem) == "A_B");
+	assert(convert::mnemonic_free("__", tmem) == "_");
+	assert(convert::mnemonic_free("_", tmem) == "");
+	assert(convert::mnemonic_free("", tmem) == "");
+	assert(convert::mnemonic_free("Plain", tmem) == "Plain");
 }
 
 fn void registrations_in_every_form() @test
@@ -58,15 +58,15 @@ fn void registrations_in_every_form() @test
 	assert(b.bus_name == ":1.72" && b.object_path == "/org/ayatana/NotificationItem/x");
 	convert::Registration c = convert::parse_registration("/StatusNotifierItem", ":1.9")!!;
 	assert(c.bus_name == ":1.9" && c.object_path == "/StatusNotifierItem");
-	expect_fault(convert::parse_registration("", ":1.9"), error::INVALID_ARGUMENT);
-	expect_fault(convert::parse_registration("bad name!/x", ":1.9"), error::INVALID_ARGUMENT);
-	expect_fault(convert::parse_registration("/StatusNotifierItem", ""), error::INVALID_ARGUMENT);
+	@expect_fault(convert::parse_registration("", ":1.9"), error::INVALID_ARGUMENT);
+	@expect_fault(convert::parse_registration("bad name!/x", ":1.9"), error::INVALID_ARGUMENT);
+	@expect_fault(convert::parse_registration("/StatusNotifierItem", ""), error::INVALID_ARGUMENT);
 }
 
 fn void registration_joins_as_the_watcher_stores_it() @test
 {
 	convert::Registration r = convert::parse_registration("org.app/Item", ":1.1")!!;
-	assert(convert::item_id(r, mem) == "org.app/Item");
+	assert(convert::item_id(r, tmem) == "org.app/Item");
 }
 
 fn void enumerated_text_is_read_with_defaults() @test

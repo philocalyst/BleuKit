@@ -1,0 +1,8 @@
+{"Ok":{"Windows":[
+  {"id":7,"title":"~/src - foot","app_id":"foot","pid":4242,"workspace_id":1,"is_focused":true,
+   "is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":[1,1],"tile_size":[960.0,1080.0],
+   "window_size":[956,1076],"tile_pos_in_workspace_view":[0.0,0.0],"window_offset_in_tile":[2.0,2.0]},"focus_timestamp":null},
+  {"id":9,"title":null,"app_id":null,"pid":null,"workspace_id":3,"is_focused":false,
+   "is_floating":true,"is_urgent":false,"layout":{"pos_in_scrolling_layout":null,"tile_size":[640.0,480.0],
+   "window_size":[640,480],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[0.0,0.0]},"focus_timestamp":null}
+]}}

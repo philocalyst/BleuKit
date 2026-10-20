@@ -106,6 +106,7 @@ fn Reader{Event}*? Hotkey.subscribe(&self) => self.hub.events.subscribe();
  @param description : "Text a settings UI shows for the shortcut"
  @return? error::INVALID_ARGUMENT : "The id is empty"
  @return? error::UNSUPPORTED : "This backend cannot bind shortcuts (see `Cap.REGISTER`)"
+ @return? error::UNAVAILABLE : "The backend is absent or stopped (see `Cap.REGISTER`)"
 *>
 fn Task*? Hotkey.register(&self, String id, String description, Chord chord)
 {
@@ -115,11 +116,13 @@ fn Task*? Hotkey.register(&self, String id, String description, Chord chord)
 }
 
 <*
- Remove the shortcut `id`. Its operation finishes with the binding that was removed.
+ Remove the shortcut `id`. Its operation finishes with the binding that was removed, or fails with
+ NOT_FOUND when no shortcut has that id.
 
  @param id : "The id given to `register`"
- @return? error::NOT_FOUND : "No shortcut has this id" (reported by the operation)
+ @return? error::INVALID_ARGUMENT : "The id is empty"
  @return? error::UNSUPPORTED : "This backend cannot remove shortcuts (see `Cap.UNREGISTER`)"
+ @return? error::UNAVAILABLE : "The backend is absent or stopped (see `Cap.UNREGISTER`)"
 *>
 fn Task*? Hotkey.unregister(&self, String id)
 {

@@ -84,9 +84,12 @@ typedef Dbm = short;
 fn Level Dbm.quality(self) @inline => level(((float)(short)self + 100.0f) / 50.0f);
 
 <*
- A linear amplification ratio that may exceed 1.0 (PulseAudio allows about
- 1.52 in its UI, 4.0 and more in the protocol). 1.0 is nominal full scale,
- never clamped above; use `Level` when over-amplification is impossible.
+ A volume slider position that may exceed 1.0 (PulseAudio's UI allows about
+ 1.52, its protocol far more). 1.0 is the nominal 100 % position. How a position
+ maps to amplitude is the platform's business (PulseAudio cubes it: 50 % is
+ -18 dB; other systems differ), so a `Gain` compares and moves like a slider
+ and is converted to decibels only by the backend that knows the curve. Never
+ clamped above; use `Level` when over-amplification is impossible.
 *>
 typedef Gain = float;
 

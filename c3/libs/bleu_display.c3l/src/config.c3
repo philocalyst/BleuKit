@@ -8,9 +8,9 @@ module bleu::display;
 import std::collections::maybe, bleu::error;
 
 <* The index of the output with this id, or empty. *>
-fn Maybe{usz} index_of_output(Output[] outputs, String id)
+fn Maybe{sz} index_of_output(Output[] outputs, String id)
 {
-	for (usz i = 0; i < outputs.len; i++) {
+	for (sz i = 0; i < outputs.len; i++) {
 		if (outputs[i].id == id) return maybe::value(i);
 	}
 	return { };
@@ -45,13 +45,13 @@ fn void? validate_config(Output[] outputs, Config config)
 		)~;
 	}
 	Rect[MAX_LAYOUT_OUTPUTS] rects;
-	usz enabled = 0;
-	for (usz i = 0; i < config.outputs.len; i++) {
+	sz enabled = 0;
+	for (sz i = 0; i < config.outputs.len; i++) {
 		OutputChange change = config.outputs[i];
 		if (!index_of_output(outputs, change.output_id).has_value) {
 			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "unknown output %s", change.output_id)~;
 		}
-		for (usz j = 0; j < i; j++) {
+		for (sz j = 0; j < i; j++) {
 			if (config.outputs[j].output_id == change.output_id) {
 				return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %s is named twice", change.output_id)~;
 			}
@@ -85,7 +85,7 @@ struct OutputDelta
 }
 
 <* True when any property differs. *>
-fn bool OutputDelta.any(self) @inline => self.enabled || self.mode || self.position || self.transform || self.scale;
+fn bool OutputDelta.differs(self) @inline => self.enabled || self.mode || self.position || self.transform || self.scale;
 
 <*
  Compare one output with its desired change. Only properties the change sets are compared: a
@@ -116,9 +116,9 @@ fn bool same_mode(Mode current, Mode wanted) @private
 fn bool config_changes(State state, Config config)
 {
 	foreach (change : config.outputs) {
-		Maybe{usz} index = index_of_output(state.outputs, change.output_id);
+		Maybe{sz} index = index_of_output(state.outputs, change.output_id);
 		if (!index.has_value) return true;
-		if (delta_of(state.outputs[index.value], change).any()) return true;
+		if (delta_of(state.outputs[index.value], change).differs()) return true;
 	}
 	return false;
 }
@@ -130,7 +130,7 @@ fn bool config_changes(State state, Config config)
 fn Config config_from_state(State state, Allocator allocator)
 {
 	OutputChange[] changes = alloc::new_array(allocator, OutputChange, state.outputs.len);
-	for (usz i = 0; i < state.outputs.len; i++) {
+	for (sz i = 0; i < state.outputs.len; i++) {
 		Output output = state.outputs[i];
 		Mode mode;
 		if (output.current.has_value) mode = output.current.value;

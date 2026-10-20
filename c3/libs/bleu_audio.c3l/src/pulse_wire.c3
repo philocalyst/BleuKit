@@ -46,18 +46,16 @@ const uint NO_INDEX    = 0xFFFFFFFF; // PA_INVALID_INDEX
  pulseaudio 0.3.2 src/protocol.rs defines DEFAULT_SINK and DEFAULT_SOURCE with
  these values, and the pipewire-pulse answer was observed in the integration test.
 *>
-const String DEFAULT_SINK_ALIAS = "@DEFAULT_SINK@";
+const String DEFAULT_SINK_ALIAS   = "@DEFAULT_SINK@";
 const String DEFAULT_SOURCE_ALIAS = "@DEFAULT_SOURCE@";
-const sz CHANNELS_MAX  = 32;      // sample.h:128 (PA_CHANNELS_MAX)
+const sz CHANNELS_MAX             = 32; // sample.h:128 (PA_CHANNELS_MAX)
 
-const uint REPLY_TAG_EVENT = 0xFFFFFFFF; // tag of server-pushed events (-1)
 
 // Tag bytes (pulsecore/tagstruct.h:36-75).
 const char TAG_STRING        = 't';
 const char TAG_STRING_NULL   = 'N';
 const char TAG_U32           = 'L';
 const char TAG_U8            = 'B';
-const char TAG_U64           = 'R';
 const char TAG_S64           = 'r';
 const char TAG_SAMPLE_SPEC   = 'a';
 const char TAG_ARBITRARY     = 'x';
@@ -78,17 +76,9 @@ const uint MASK_SOURCE_OUTPUT = 0x0008;
 const uint MASK_SERVER        = 0x0080;
 const uint MASK_CARD          = 0x0200;
 
-// Subscription event: low nibble facility, then the type bits (def.h:574-618).
-const uint EVENT_FACILITY_MASK    = 0x000F;
-const uint EVENT_TYPE_MASK        = 0x0030;
-const uint EVENT_CHANGE           = 0x0010;
-const uint EVENT_REMOVE           = 0x0020;
-const uint FACILITY_SINK          = 0x0000;
 const uint FACILITY_SOURCE        = 0x0001;
 const uint FACILITY_SINK_INPUT    = 0x0002;
 const uint FACILITY_SOURCE_OUTPUT = 0x0003;
-const uint FACILITY_SERVER        = 0x0007;
-const uint FACILITY_CARD          = 0x0009;
 
 <*
  Command numbers. native-common.h has one unnamed enum: the value of each name
@@ -103,9 +93,9 @@ constset PulseCommand : uint
 	AUTH                        = 8,
 	SET_CLIENT_NAME             = 9,
 	GET_SERVER_INFO             = 20,
-	GET_SINK_INFO = 21,
+	GET_SINK_INFO               = 21,
 	GET_SINK_INFO_LIST          = 22,
-	GET_SOURCE_INFO = 23,
+	GET_SOURCE_INFO             = 23,
 	GET_SOURCE_INFO_LIST        = 24,
 	GET_SINK_INPUT_INFO_LIST    = 30,
 	GET_SOURCE_OUTPUT_INFO_LIST = 32,
@@ -251,12 +241,6 @@ fn void put_u32(DString* out, uint value)
 	append_raw_u32(out, value);
 }
 
-<* A u8 value: 'B' then one byte. *>
-fn void put_u8(DString* out, char value)
-{
-	out.append_char(TAG_U8);
-	out.append_char(value);
-}
 
 <* A u64 microsecond value: 'U' then eight bytes. *>
 fn void put_usec(DString* out, ulong value)

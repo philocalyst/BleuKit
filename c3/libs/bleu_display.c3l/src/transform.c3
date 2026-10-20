@@ -3,7 +3,7 @@
  and what size that leaves on the desktop once the scale is applied. No platform code.
 *>
 module bleu::display;
-import std::math;
+import std::math, std::collections::maybe;
 
 <* A size in whole logical pixels. *>
 struct Extent

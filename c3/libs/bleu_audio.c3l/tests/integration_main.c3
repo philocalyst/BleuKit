@@ -94,7 +94,7 @@ fn bool stream_on_second(State* s) => s.streams.len > 0 && s.streams[0].device_i
 fn bool stream_quarter(State* s) => s.streams.len > 0 && near_gain(s.streams[0].volume[0], 0.25f);
 fn bool card_off(State* s) => s.cards.len == 1 && s.cards[0].active_profile == "off";
 fn bool no_outputs(State* s) => s.outputs.len == 0;
-fn bool has_outputs(State* s) => s.outputs.len > 0 && s.default_output.len > 0;
+fn bool has_outputs(State* s) => s.outputs.len > 0;
 
 // The mock's state is fixed, so its expectations are exact.
 fn void mock_state(Audio* audio)
@@ -241,73 +241,74 @@ fn void mock_disconnect(Audio* audio)
 	check(failed, "a command during the outage fails with UNAVAILABLE or DISCONNECTED");
 }
 
-// Against a real daemon: the checks that hold for any server state. The
-// default output's volume and mute are changed and then restored.
+// Against a real server: the checks that hold for any server state. The target
+// output's volume and mute are changed and then restored. The target is the
+// default output, or the first output when the server names no default
+// (pipewire-pulse 1.0.5 reports none through the protocol).
+String target_id = "";
+
+fn bool target_half(State* s)
+{
+	foreach (&d : s.outputs)
+	{
+		if (d.id == target_id) return near_gain(d.volume[0], 0.5f);
+	}
+	return false;
+}
+
+fn bool target_muted(State* s)
+{
+	foreach (&d : s.outputs)
+	{
+		if (d.id == target_id) return d.muted;
+	}
+	return false;
+}
+
+fn bool target_unmuted(State* s)
+{
+	foreach (&d : s.outputs)
+	{
+		if (d.id == target_id) return !d.muted;
+	}
+	return false;
+}
+
 fn void real_server(Audio* audio)
 {
-	check(await(audio, &has_outputs), "a real server publishes an output and a default");
-	if (try snapshot = audio.latest())
-	{
-		defer snapshot.release();
-		State* s    = &snapshot.value;
-		bool listed = false;
-		foreach (&d : s.outputs)
-		{
-			if (d.id == s.default_output) listed = true;
-		}
-		check(listed, "the default output is one of the listed outputs");
-	}
+	check(await(audio, &has_outputs), "a real server publishes at least one output");
 	Gain[] saved = { };
 	if (try snapshot = audio.latest())
 	{
 		defer snapshot.release();
-		foreach (&d : snapshot.value.outputs)
+		State* s    = &snapshot.value;
+		bool listed = s.default_output.len == 0;
+		foreach (&d : s.outputs)
 		{
-			if (d.is_default) saved = alloc::clone_slice(mem, d.volume);
+			if (d.id == s.default_output) listed = true;
+		}
+		check(listed, "the default output, when named, is one of the listed outputs");
+		target_id = s.default_output.len > 0 ? s.default_output.copy(mem) : s.outputs[0].id.copy(mem);
+		foreach (&d : s.outputs)
+		{
+			if (d.id == target_id) saved = alloc::clone_slice(mem, d.volume);
 		}
 	}
-	check(saved.len > 0, "the default output has a volume");
-	String id = "";
-	if (try snapshot = audio.latest())
-	{
-		defer snapshot.release();
-		id = snapshot.value.default_output.copy(mem);
-	}
+	check(saved.len > 0, "the target output has a volume");
 	Gain[2] half = { (Gain)0.5f, (Gain)0.5f };
-	check(completes(audio.set_device_volume(Flow.OUTPUT, id, half[..]) ?? null), "set the default output to 50 %");
-	check(await(audio, &default_half), "50 % is published for the default output");
-	check(completes(audio.set_device_mute(Flow.OUTPUT, id, true) ?? null), "mute the default output");
-	check(await(audio, &default_muted), "mute is published");
-	check(completes(audio.set_device_mute(Flow.OUTPUT, id, false) ?? null), "unmute the default output");
-	check(await(audio, &default_unmuted), "unmute is published");
-	check(completes(audio.set_device_volume(Flow.OUTPUT, id, saved) ?? null), "restore the default output volume");
-}
-
-fn bool default_half(State* s)
-{
-	foreach (&d : s.outputs)
-	{
-		if (d.id == s.default_output) return near_gain(d.volume[0], 0.5f);
-	}
-	return false;
-}
-
-fn bool default_muted(State* s)
-{
-	foreach (&d : s.outputs)
-	{
-		if (d.id == s.default_output) return d.muted;
-	}
-	return false;
-}
-
-fn bool default_unmuted(State* s)
-{
-	foreach (&d : s.outputs)
-	{
-		if (d.id == s.default_output) return !d.muted;
-	}
-	return false;
+	check(
+		completes(audio.set_device_volume(Flow.OUTPUT, target_id, half[..]) ?? null),
+		"set the target output to 50 %"
+	);
+	check(await(audio, &target_half), "50 % is published for the target output");
+	check(completes(audio.set_device_mute(Flow.OUTPUT, target_id, true) ?? null), "mute the target output");
+	check(await(audio, &target_muted), "mute is published");
+	check(completes(audio.set_device_mute(Flow.OUTPUT, target_id, false) ?? null), "unmute the target output");
+	check(await(audio, &target_unmuted), "unmute is published");
+	check(
+		completes(audio.set_device_volume(Flow.OUTPUT, target_id, saved) ?? null),
+		"restore the target output volume"
+	);
 }
 
 fn int main()

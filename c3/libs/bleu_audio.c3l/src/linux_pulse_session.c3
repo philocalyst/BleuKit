@@ -48,7 +48,7 @@ struct Session
 fn Session*? open_session(Allocator allocator, String socket_path, char[] cookie)
 {
 	UnixSocket socket = unix::connect(socket_path, unix::SocketKind.STREAM)!;
-	Session* session  = alloc::new(
+	Session* session = alloc::new(
 		allocator,
 		Session,
 		{ .allocator = allocator, .socket = socket, .version = pulse::PROTOCOL_VERSION }

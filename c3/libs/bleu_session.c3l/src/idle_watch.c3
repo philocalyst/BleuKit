@@ -34,7 +34,7 @@ fn EventKind? IdleWatch.next(&self, Duration timeout = time::FOREVER)
 	Deadline deadline = deadline::after(timeout);
 	while (true)
 	{
-		Duration left = timeout == time::FOREVER ? time::FOREVER : deadline.remaining();
+		Duration left           = timeout == time::FOREVER ? time::FOREVER : deadline.remaining();
 		Snapshot{Event}* packet = self.reader.next(left)!;
 		defer packet.release();
 		if (packet.value.watch != self.id) continue;

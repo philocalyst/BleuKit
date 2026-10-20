@@ -127,6 +127,7 @@ struct Connection
 	usz sent;
 	List{OutboundFds} outbound_fds;
 	DString inbox;
+	bool dispatching; // inside a handler: calls made now must not dispatch again
 	List{int} descriptors;
 	List{Message*} deferred;
 	List{PendingCall} pending;
@@ -320,7 +321,8 @@ fn uint? Connection.send(&self, Message* message)
 
 <*
  Send `message` and block until its reply arrives or `timeout` passes. Other
- messages read in the meantime are queued for the next `process()`.
+ messages read in the meantime are dispatched to their handlers before this returns
+ (except when called from inside a handler, where they wait for the next `process()`).
 
  @return "The METHOD_RETURN; the caller releases it"
  @return? error::DISCONNECTED : "The connection closed before the reply arrived"
@@ -330,7 +332,12 @@ fn uint? Connection.send(&self, Message* message)
 fn Message*? Connection.call(&self, Message* message, Duration timeout = time::ms(DEFAULT_TIMEOUT_MS))
 {
 	self.check_owner();
-	return call(self, message, timeout);
+	Message*? reply = call(self, message, timeout);
+	// Signals and calls that arrived while waiting would otherwise sit in the queue until the
+	// next process(), which a poller on fd() never triggers: run them now, unless this call was
+	// itself made from a handler (handlers are not re-entered).
+	if (!self.dispatching && self.is_open) dispatch(self);
+	return reply;
 }
 
 // The blocking call, shared with the handshake.
@@ -533,6 +540,9 @@ fn bool is_reply_to(Message* m, uint serial) @private
 // Runs the handlers of every queued message. Handlers may queue more; those run too.
 fn void dispatch(Connection* c) @private
 {
+	bool outer = c.dispatching;
+	c.dispatching = true;
+	defer c.dispatching = outer;
 	while (c.is_open && c.deferred.len() > 0)
 	{
 		Message* m = c.deferred.pop_first()!!;

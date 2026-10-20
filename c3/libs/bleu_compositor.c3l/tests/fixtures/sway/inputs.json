@@ -1,0 +1,5 @@
+[
+  {"identifier":"1:1:AT_Translated_Set_2_keyboard","name":"AT Translated Set 2 keyboard","type":"keyboard",
+   "xkb_active_layout_name":"English (US)","xkb_layout_names":["English (US)","German (Germany)"],"xkb_active_layout_index":0},
+  {"identifier":"1133:16505:Logitech_USB_Mouse","name":"Logitech USB Mouse","type":"pointer"}
+]

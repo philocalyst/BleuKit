@@ -45,15 +45,15 @@ fn void Polled.free(&self)
 *>
 fn void Polled.record(&self, EventKind kind)
 {
-	bool lock = kind == EventKind.LOCKED || kind == EventKind.UNLOCKED;
-	bool target = kind == EventKind.LOCKED || kind == EventKind.WILL_SLEEP;
-	bool known = lock ? self.locked.has_value : true;
+	bool lock    = kind == EventKind.LOCKED || kind == EventKind.UNLOCKED;
+	bool target  = kind == EventKind.LOCKED || kind == EventKind.WILL_SLEEP;
+	bool known   = lock ? self.locked.has_value : true;
 	bool current = lock ? self.locked.has_value && self.locked.value : self.sleeping;
 	// The latest recorded change of the same pair decides the value the state will have.
 	for (sz i = self.pending.len(); i > 0; i--)
 	{
 		EventKind recorded = self.pending.get(i - 1).kind;
-		bool same_pair = lock ? recorded == EventKind.LOCKED || recorded == EventKind.UNLOCKED
+		bool same_pair     = lock ? recorded == EventKind.LOCKED || recorded == EventKind.UNLOCKED
 			: recorded == EventKind.WILL_SLEEP || recorded == EventKind.DID_WAKE;
 		if (!same_pair) continue;
 		known = true;
@@ -82,7 +82,7 @@ fn void Polled.settle(&self, SessionHub* hub, String current_id)
 	snapshot.value = {
 		.locked = self.locked,
 		.sleeping = self.sleeping,
-		.current = { .id = current_id.copy(snapshot.allocator()) },
+		.current = { .id = current_id.len > 0 ? current_id.copy(snapshot.allocator()) : "" },
 		.idle = self.idle.statuses(snapshot.allocator()),
 	};
 	hub.publish_if_changed(snapshot);

@@ -1,0 +1,6 @@
+[
+  {"id":3,"num":1,"name":"1","visible":true,"focused":true,"urgent":false,"output":"DP-1",
+   "rect":{"x":0,"y":0,"width":2560,"height":1417},"layout":"splith","orientation":"horizontal","focus":[11,10]},
+  {"id":4,"num":2,"name":"2:web","visible":false,"focused":false,"urgent":true,"output":"DP-1",
+   "rect":{"x":0,"y":0,"width":2560,"height":1417},"layout":"splith","orientation":"horizontal","focus":[]}
+]

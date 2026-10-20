@@ -44,7 +44,6 @@ const uint V_SERVER_CHANNEL_MAP   = 15;
 
 // Device flags (def.h:801-832): HW_VOLUME_CTRL 0x1, HW_MUTE_CTRL 0x10.
 const uint FLAG_HW_VOLUME_CTRL = 0x0001;
-const uint FLAG_HW_MUTE_CTRL   = 0x0010;
 
 <* What the server says about itself and its defaults. *>
 struct ServerInfo

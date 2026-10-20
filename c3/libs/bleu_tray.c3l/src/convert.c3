@@ -14,13 +14,19 @@ const usz PIXEL_BYTES = 4;
 <* The object path an item uses when its registration names only the bus. *>
 const String DEFAULT_ITEM_PATH = "/StatusNotifierItem";
 
+<* Whether both edges of an icon are in 1..MAX_ICON_EDGE. *>
+fn bool dims_fit(int width, int height)
+{
+	return width > 0 && height > 0 && width <= MAX_ICON_EDGE && height <= MAX_ICON_EDGE;
+}
+
 <*
- Whether an icon of this size has exactly the bytes it claims: both edges in 1..MAX_ICON_EDGE and
+ Whether an icon of this size has exactly the bytes it claims: `dims_fit` and
  `length == width * height * 4`. Read the height from the height field, never the width.
 *>
 fn bool pixmap_fits(int width, int height, usz length)
 {
-	if (width <= 0 || height <= 0 || width > MAX_ICON_EDGE || height > MAX_ICON_EDGE) return false;
+	if (!dims_fit(width, height)) return false;
 	return length == (usz)width * (usz)height * PIXEL_BYTES;
 }
 
@@ -70,7 +76,7 @@ fn String mnemonic_free(String raw, Allocator allocator)
 		}
 		i++;
 	}
-	return (String)out[:n];
+	return (String)out[0:n];
 }
 
 <* A registration split into the bus name and the object path it names. Both are slices of the inputs. *>
@@ -107,8 +113,8 @@ fn Registration? parse_registration(String argument, String sender)
 		}
 		else
 		{
-			r.bus_name = argument[:slash];
-			r.object_path = argument[slash:];
+			r.bus_name = argument[0..slash - 1];
+			r.object_path = argument[slash..argument.len - 1];
 		}
 	}
 	if (!names::is_bus_name(r.bus_name) || !names::is_object_path(r.object_path)) return error::INVALID_ARGUMENT~;
@@ -121,15 +127,15 @@ fn Registration? parse_registration(String argument, String sender)
 *>
 fn String item_id(Registration r, Allocator allocator)
 {
-	usz bus_bytes = r.bus_name.len;
+	sz bus_bytes = r.bus_name.len;
 	char[] joined = alloc::new_array(allocator, char, bus_bytes + r.object_path.len);
-	mem::copy(&joined[0], r.bus_name.ptr, bus_bytes);
-	mem::copy(&joined[bus_bytes], r.object_path.ptr, r.object_path.len);
+	mem::copy(&joined[0], r.bus_name.ptr, (usz)bus_bytes);
+	mem::copy(&joined[bus_bytes], r.object_path.ptr, (usz)r.object_path.len);
 	return (String)joined;
 }
 
 <* The status from its `Status` text. Unknown text reads as PASSIVE. *>
-fn Status status_from(String text)
+fn tray::Status status_from(String text)
 {
 	if (text == "Active") return ACTIVE;
 	if (text == "NeedsAttention") return NEEDS_ATTENTION;
@@ -137,7 +143,7 @@ fn Status status_from(String text)
 }
 
 <* The category from its `Category` text. *>
-fn Category category_from(String text)
+fn tray::Category category_from(String text)
 {
 	if (text == "ApplicationStatus") return APPLICATION;
 	if (text == "Communications") return COMMUNICATIONS;
@@ -147,7 +153,7 @@ fn Category category_from(String text)
 }
 
 <* The check or radio mark from `toggle-type`. Unknown text means no mark. *>
-fn Toggle toggle_from(String text)
+fn tray::Toggle toggle_from(String text)
 {
 	if (text == "checkmark") return CHECKMARK;
 	if (text == "radio") return RADIO;
@@ -155,7 +161,7 @@ fn Toggle toggle_from(String text)
 }
 
 <* The state from `toggle-state`: 0 is off, 1 on, anything else (including the default -1) indeterminate. *>
-fn ToggleState toggle_state_from(int value)
+fn tray::ToggleState toggle_state_from(int value)
 {
 	if (value == 0) return OFF;
 	if (value == 1) return ON;
@@ -163,7 +169,7 @@ fn ToggleState toggle_state_from(int value)
 }
 
 <* The urgency from `disposition`. Unknown text reads as NORMAL. *>
-fn Disposition disposition_from(String text)
+fn tray::Disposition disposition_from(String text)
 {
 	if (text == "informative") return INFORMATIVE;
 	if (text == "warning") return WARNING;

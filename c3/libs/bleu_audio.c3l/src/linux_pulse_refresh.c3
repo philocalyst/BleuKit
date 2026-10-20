@@ -27,7 +27,7 @@ fn pulse::ServerInfo? Session.read_server(&self)
 <* One device by name, as the server resolves it (used for the default-device aliases). *>
 fn pulse::DeviceRecord? Session.read_device_info(&self, bool is_source, String name, Allocator allocator)
 {
-	uint tag = self.next_tag++;
+	uint tag        = self.next_tag++;
 	DString request = pulse::request_get_device_info(tmem, tag, is_source, pulse::NO_INDEX, name);
 	TagReader reply = self.call(&request, tag)!;
 	return pulse::read_device(&reply, self.version, is_source, allocator);
@@ -74,14 +74,21 @@ fn CardRecord[]? Session.read_cards(&self, Allocator allocator)
 
 <*
  The name of the default device. A server that reports the protocol's alias
- ("@DEFAULT_SINK@") is asked for the device it stands for. A server that gives a
+ ("@DEFAULT_SINK@") is asked for the device it stands for; when it cannot say (as
+ pipewire-pulse 1.0.5 does), the default is reported as none. A server that gives a
  name, or none, is taken as it is.
 *>
-fn String? Session.resolve_default(&self, String name, bool is_source) @private
+fn String? Session.resolve_default(&self, String name, bool is_source)
 {
-	String alias = is_source ? pulse::DEFAULT_SOURCE_ALIAS : pulse::DEFAULT_SINK_ALIAS;
-	if (name != alias) return name;
-	pulse::DeviceRecord device = self.read_device_info(is_source, name, tmem)!;
+	String placeholder = is_source ? pulse::DEFAULT_SOURCE_ALIAS : pulse::DEFAULT_SINK_ALIAS;
+	if (name != placeholder) return name;
+	pulse::DeviceRecord? device = self.read_device_info(is_source, name, tmem);
+	if (catch err = device)
+	{
+		// pipewire-pulse 1.0.5 answers NOENTITY to the alias: it cannot say which device is default.
+		if (err == NOT_FOUND) return "";
+		return err~;
+	}
 	return device.name;
 }
 

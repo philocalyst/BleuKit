@@ -303,7 +303,7 @@ fn void? fill_bind(Message* call, Backend* b, String token) @local
 // An `a{sv}` of string values.
 fn void? write_options(Writer* w, OptionText[] items) @local
 {
-	w.begin_array("{sv}")!;
+	w.begin_array("a{sv}")!;
 	foreach (item : items)
 	{
 		w.begin_dict_entry()!;
@@ -319,13 +319,13 @@ fn void? write_options(Writer* w, OptionText[] items) @local
 // The `a(sa{sv})` of BindShortcuts: each registration's id, description and preferred trigger.
 fn void? write_shortcuts(Writer* w, Backend* b) @local
 {
-	w.begin_array("(sa{sv})")!;
+	w.begin_array("a(sa{sv})")!;
 	for (sz i = 0; i < b.bindings.len(); i++)
 	{
 		Binding binding = b.bindings.get(i);
 		@pool()
 		{
-			String trigger = format_portal_trigger(binding.chord, tmem);
+			String trigger = hotkey::format_portal_trigger(binding.chord, tmem);
 			OptionText[2] props = { { "description", binding.description }, { "preferred_trigger", trigger } };
 			w.begin_struct()!;
 			w.append_string(binding.id)!;

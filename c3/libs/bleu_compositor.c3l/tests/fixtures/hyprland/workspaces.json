@@ -1,0 +1,6 @@
+[
+  {"id":1,"name":"1","monitor":"DP-1","monitorID":0,"windows":1,"hasfullscreen":false,
+   "lastwindow":"0x55d1c0a4e2b0","lastwindowtitle":"~/src","ispersistent":false},
+  {"id":2,"name":"2","monitor":"DP-2","monitorID":1,"windows":1,"hasfullscreen":true,
+   "lastwindow":"0x55d1c0a50f70","lastwindowtitle":"Docs, part 2","ispersistent":false}
+]

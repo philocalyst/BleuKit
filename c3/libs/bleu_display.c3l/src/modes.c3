@@ -5,11 +5,11 @@ module bleu::display;
 import std::collections::maybe;
 
 <*
- Largest difference, in millihertz, at which two refresh rates count as the same mode. 100 mHz
- (0.1 Hz) keeps 59.94 Hz and 60 Hz apart, and still matches a 59940 mHz request against a
- driver that reports 59.94 as 59940 with rounding noise.
+ Largest difference, in millihertz, at which two refresh rates count as the same mode. 50 mHz
+ keeps 59.94 Hz (59940) and 60 Hz (60000) apart, since they differ by 60 mHz, and still matches
+ rounding noise of a few millihertz.
 *>
-const RefreshMilliHz DEFAULT_REFRESH_TOLERANCE = 100;
+const RefreshMilliHz DEFAULT_REFRESH_TOLERANCE = 50;
 
 <* True when two refresh rates differ by no more than `tolerance` millihertz. *>
 fn bool refresh_matches(RefreshMilliHz a, RefreshMilliHz b, RefreshMilliHz tolerance) @inline
@@ -22,11 +22,11 @@ fn bool refresh_matches(RefreshMilliHz a, RefreshMilliHz b, RefreshMilliHz toler
  refresh of 0 selects the highest refresh rate of that size; otherwise the mode whose refresh is
  closest to the wanted one wins, provided it is within `tolerance`. Empty when nothing fits.
 *>
-fn Maybe{usz} find_mode(Mode[] modes, Mode wanted, RefreshMilliHz tolerance)
+fn Maybe{sz} find_mode(Mode[] modes, Mode wanted, RefreshMilliHz tolerance)
 {
 	bool found = false;
-	usz best = 0;
-	for (usz i = 0; i < modes.len; i++) {
+	sz best = 0;
+	for (sz i = 0; i < modes.len; i++) {
 		Mode candidate = modes[i];
 		if (candidate.width != wanted.width || candidate.height != wanted.height) continue;
 		if (wanted.refresh == 0) {

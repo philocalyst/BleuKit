@@ -9,13 +9,6 @@ import bleu::display, bleu::display::wayland_convert, bleu::error, bleu::observe
 import bleu::wl, bleu::wl::proto::wayland, bleu::wl::proto::xdg_output, bleu::wl::proto::wlr_output_management;
 import std::collections::list, std::collections::maybe, std::core::string, std::io::path;
 
-alias State = display::State;
-alias Output = display::Output;
-alias Mode = display::Mode;
-alias Event = display::Event;
-alias Config = display::Config;
-alias DisplayHub = display::DisplayHub;
-alias ApplyOp = display::ApplyOp;
 
 <* One advertised mode of an output. `object` is the wlr mode object; null for wl_output modes. *>
 struct ModeRecord
@@ -70,16 +63,17 @@ struct Session
 	wl::ClientListener listener;
 	String root;
 	bool wlr;
+	bool manager_gone; // the compositor finished the manager: no further configuration is possible
 	wlr_output_management::ZwlrOutputManagerV1* manager;
 	xdg_output::ZxdgOutputManagerV1* xdg_manager;
 	List{OutputRecord*} outputs;
 	uint serial;
 	bool dirty;
-	DisplayHub* hub;
+	display::DisplayHub* hub;
 	Pending* pending;
 	display::RevertGuard guard;
-	ApplyOp* guard_op;
-	Config guard_config;
+	display::ApplyOp* guard_op;
+	display::Config guard_config;
 }
 
 <*
@@ -107,25 +101,25 @@ fn Session*? attach(Allocator allocator, wl::Client* client, String root)
 }
 
 // Learn the globals, bind the manager (wlr) or every output (wl_output), then wait for the first state.
-fn void? bind_initial(Session* s) @private
+fn void? bind_initial(Session* s)
 {
 	s.client.roundtrip()!;
 	wl::Global[] globals = s.client.globals_view();
-	usz wlr_index = usz::max;
-	for (usz i = 0; i < globals.len; i++) {
+	sz wlr_index = -1;
+	for (sz i = 0; i < globals.len; i++) {
 		if (globals[i].interface_name == wlr_output_management::ZWLR_OUTPUT_MANAGER_V1.name) wlr_index = i;
 	}
-	for (usz i = 0; i < globals.len; i++) {
+	for (sz i = 0; i < globals.len; i++) {
 		if (globals[i].interface_name == xdg_output::ZXDG_OUTPUT_MANAGER_V1.name) {
 			s.xdg_manager = (xdg_output::ZxdgOutputManagerV1*)s.client.bind(globals[i], xdg_output::ZXDG_OUTPUT_MANAGER_V1)!;
 		}
 	}
-	if (wlr_index != usz::max) {
+	if (wlr_index >= 0) {
 		s.wlr = true;
 		s.manager = (wlr_output_management::ZwlrOutputManagerV1*)s.client.bind(globals[wlr_index], wlr_output_management::ZWLR_OUTPUT_MANAGER_V1)!;
 		s.manager.set_listener(&MANAGER_LISTENER, s);
 	} else {
-		for (usz i = 0; i < globals.len; i++) {
+		for (sz i = 0; i < globals.len; i++) {
 			if (globals[i].interface_name == wayland::WL_OUTPUT.name) add_output(s, globals[i])!;
 		}
 	}
@@ -165,7 +159,7 @@ fn void on_global_added(void* context, wl::Global global)
 fn void on_global_removed(void* context, uint name)
 {
 	Session* s = (Session*)context;
-	for (usz i = 0; i < s.outputs.len(); i++) {
+	for (sz i = 0; i < s.outputs.len(); i++) {
 		OutputRecord* rec = s.outputs.get(i);
 		if (rec.global == name) {
 			remove_record(s, rec);
@@ -176,7 +170,7 @@ fn void on_global_removed(void* context, uint name)
 }
 
 // Bind one wl_output (and its xdg-output, when the compositor has the manager) and start tracking it.
-fn void? add_output(Session* s, wl::Global global) @private
+fn void? add_output(Session* s, wl::Global global)
 {
 	OutputRecord* rec = new_record(s);
 	rec.global = global.name;
@@ -190,7 +184,7 @@ fn void? add_output(Session* s, wl::Global global) @private
 }
 
 // A record with empty fields, owned by the session and not yet in its list.
-fn OutputRecord* new_record(Session* s) @private
+fn OutputRecord* new_record(Session* s)
 {
 	OutputRecord* rec = alloc::new(s.allocator, OutputRecord);
 	rec.session = s;
@@ -200,9 +194,9 @@ fn OutputRecord* new_record(Session* s) @private
 }
 
 // Drop a record: release its objects, free its modes and text, and take it out of the session.
-fn void remove_record(Session* s, OutputRecord* rec) @private
+fn void remove_record(Session* s, OutputRecord* rec)
 {
-	for (usz i = 0; i < s.outputs.len(); i++) {
+	for (sz i = 0; i < s.outputs.len(); i++) {
 		if (s.outputs.get(i) == rec) {
 			s.outputs.remove_at(i);
 			break;
@@ -217,7 +211,7 @@ fn void remove_record(Session* s, OutputRecord* rec) @private
 	if (rec.head) {
 		if (catch rec.head.release()) {}
 	}
-	for (usz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++) {
 		ModeRecord* mode = rec.modes.get(i);
 		if (mode.object) {
 			if (catch mode.object.release()) {}
@@ -234,13 +228,13 @@ fn void remove_record(Session* s, OutputRecord* rec) @private
 }
 
 // Free a string the allocator handed out (an empty string owns nothing).
-fn void free_text(Allocator allocator, String text) @private
+fn void free_text(Allocator allocator, String text)
 {
 	if (text.len > 0) alloc::free(allocator, text.ptr);
 }
 
 // Replace a record's string with a copy of `value`. Events give strings that are valid only during the call.
-fn void set_text(OutputRecord* rec, String* field, String value) @private
+fn void set_text(OutputRecord* rec, String* field, String value)
 {
 	free_text(rec.allocator, *field);
 	*field = value.copy(rec.allocator);
@@ -258,41 +252,42 @@ fn String record_id(OutputRecord* rec, Allocator allocator)
  Connector directories are named `cardN-<connector>`; the first matching EDID that parses wins.
  Nothing is kept when no EDID is readable, which is the normal case for virtual outputs.
 *>
-fn void refresh_fingerprint(OutputRecord* rec) @private
+fn void refresh_fingerprint(OutputRecord* rec)
 {
 	rec.fingerprint = { };
 	if (rec.name.len == 0) return;
 	@pool()
 	{
 		String drm = string::tformat("%s/sys/class/drm", rec.session.root);
-		if (catch entries = fs::list_dir(tmem, drm)) return;
-		foreach (entry : entries) {
-			String dir_name = entry.str_view();
-			if (!dir_name.ends_with(string::tformat("-%s", rec.name))) continue;
-			String bytes = fs::read_file(tmem, string::tformat("%s/%s/edid", drm, dir_name)) ?? "";
-			if (bytes.len == 0) continue;
-			if (try identity = edid::parse((char[])bytes, tmem)) {
-				rec.fingerprint.set(identity.fingerprint());
-				return;
+		if (try entries = fs::list_dir(tmem, drm)) {
+			foreach (entry : entries) {
+				String dir_name = (String)entry;
+				if (!dir_name.ends_with(string::tformat("-%s", rec.name))) continue;
+				String bytes = fs::read_file(tmem, string::tformat("%s/%s/edid", drm, dir_name)) ?? "";
+				if (bytes.len == 0) continue;
+				if (try identity = edid::parse((char[])bytes, tmem)) {
+					rec.fingerprint.set(identity.fingerprint());
+					return;
+				}
 			}
 		}
 	};
 }
 
 // The published state of the session, allocated in `allocator`.
-fn State build_state(Session* s, Allocator allocator)
+fn display::State build_state(Session* s, Allocator allocator)
 {
-	Output[] outputs = alloc::new_array(allocator, Output, s.outputs.len());
-	for (usz i = 0; i < s.outputs.len(); i++) {
+	display::Output[] outputs = alloc::new_array(allocator, display::Output, s.outputs.len());
+	for (sz i = 0; i < s.outputs.len(); i++) {
 		outputs[i] = describe(s.outputs.get(i), allocator);
 	}
 	return { .outputs = outputs, .serial = s.serial };
 }
 
 // One record as an output, copying every string into `allocator`.
-fn Output describe(OutputRecord* rec, Allocator allocator) @private
+fn display::Output describe(OutputRecord* rec, Allocator allocator)
 {
-	Output out = {
+	display::Output out = {
 		.id = record_id(rec, allocator),
 		.name = rec.name.copy(allocator),
 		.make = rec.make.copy(allocator),
@@ -306,8 +301,8 @@ fn Output describe(OutputRecord* rec, Allocator allocator) @private
 	};
 	if (rec.physical_width > 0) out.width_mm.set((display::Millimetre)rec.physical_width);
 	if (rec.physical_height > 0) out.height_mm.set((display::Millimetre)rec.physical_height);
-	out.modes = alloc::new_array(allocator, Mode, rec.modes.len());
-	for (usz i = 0; i < rec.modes.len(); i++) {
+	out.modes = alloc::new_array(allocator, display::Mode, rec.modes.len());
+	for (sz i = 0; i < rec.modes.len(); i++) {
 		ModeRecord* mode = rec.modes.get(i);
 		out.modes[i] = { .width = mode.width, .height = mode.height, .refresh = mode.refresh, .preferred = mode.preferred };
 		if (mode.current && rec.enabled) out.current.set(out.modes[i]);
@@ -329,8 +324,8 @@ fn Output describe(OutputRecord* rec, Allocator allocator) @private
 *>
 fn void publish(Session* s)
 {
-	DisplayHub* hub = s.hub;
-	Snapshot{State}* snapshot = hub.begin();
+	display::DisplayHub* hub = s.hub;
+	Snapshot{display::State}* snapshot = hub.begin();
 	snapshot.value = build_state(s, snapshot.allocator());
 	if (try old = hub.latest())
 	{
@@ -341,10 +336,10 @@ fn void publish(Session* s)
 }
 
 // Emit one event per output that appeared, disappeared or changed between two states.
-fn void emit_changes(DisplayHub* hub, State before, State after) @private
+fn void emit_changes(display::DisplayHub* hub, display::State before, display::State after)
 {
 	foreach (output : after.outputs) {
-		Maybe{usz} previous = display::index_of_output(before.outputs, output.id);
+		Maybe{sz} previous = display::index_of_output(before.outputs, output.id);
 		if (!previous.has_value) {
 			emit(hub, display::EventKind.OUTPUT_ADDED, output.id);
 		} else if (!equal::deep(before.outputs[previous.value], output)) {
@@ -359,9 +354,9 @@ fn void emit_changes(DisplayHub* hub, State before, State after) @private
 }
 
 // Deliver one event with its own copy of the output id.
-fn void emit(DisplayHub* hub, display::EventKind kind, String output_id) @private
+fn void emit(display::DisplayHub* hub, display::EventKind kind, String output_id)
 {
-	Snapshot{Event}* packet = hub.emit_begin();
+	Snapshot{display::Event}* packet = hub.emit_begin();
 	packet.value = { .kind = kind, .output_id = output_id.copy(packet.allocator()) };
 	hub.emit(packet);
 }

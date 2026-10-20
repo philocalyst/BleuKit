@@ -161,7 +161,7 @@ fn void? require_cap(Display* display, Cap cap)
 fn Config copy_config(Config config, Allocator allocator)
 {
 	OutputChange[] outputs = alloc::new_array(allocator, OutputChange, config.outputs.len);
-	for (usz i = 0; i < config.outputs.len; i++) {
+	for (sz i = 0; i < config.outputs.len; i++) {
 		outputs[i] = config.outputs[i];
 		outputs[i].output_id = config.outputs[i].output_id.copy(allocator);
 	}

@@ -12,10 +12,14 @@
  loop. Sources and open items: docs/research/session_windows_input.md, section 2 "macOS".
 *>
 module bleu::session::macos @feat(DARWIN);
-import std::collections::maybe, std::time, bleu::availability, bleu::error, bleu::iokit::power, bleu::session, bleu::session::macos_lock, bleu::session::macos_native, bleu::rt::worker;
+import std::collections::maybe, std::thread, std::time, bleu::availability, bleu::error, bleu::iokit::power, bleu::session, bleu::session::macos_lock, bleu::session::macos_native, bleu::rt::worker;
 
 extern fn void* cf_run_loop_get_current() @cname("CFRunLoopGetCurrent");
-extern fn int cf_run_loop_run_in_mode(void* mode, double seconds, bool return_after_source) @cname("CFRunLoopRunInMode");
+extern fn int cf_run_loop_run_in_mode(
+	void* mode,
+	double seconds,
+	bool return_after_source
+) @cname("CFRunLoopRunInMode");
 
 <* Commands taken per batch. *>
 const usz COMMAND_BATCH = 8;
@@ -31,7 +35,6 @@ const Driver DRIVER = {
 
 struct Macos
 {
-	Allocator allocator;
 	Duration idle_poll;
 	Polled polled;
 	bool has_lock;
@@ -54,7 +57,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.IDLE_WATCH,
-		availability::no(availability::Reason.DEGRADED, "Polled every idle_poll, so an edge can come up to one poll late")
+		availability::no(
+			availability::Reason.DEGRADED,
+			"Polled every idle_poll, so an edge can come up to one poll late"
+		)
 	);
 	capabilities.set(
 		Cap.IDLE_HINT,
@@ -62,7 +68,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.UNLOCK,
-		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "No public API unlocks the screen: the lock screen authenticates")
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"No public API unlocks the screen: the lock screen authenticates"
+		)
 	);
 	capabilities.set(
 		Cap.LOCK_SESSION,
@@ -87,7 +96,6 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		);
 	}
 	Macos* mac = alloc::new(allocator, Macos);
-	mac.allocator = allocator;
 	mac.idle_poll = options.idle_poll;
 	mac.polled.init(allocator, options.idle_thresholds);
 	if (options.allow_private)
@@ -96,7 +104,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		{
 			capabilities.set(
 				Cap.LOCK,
-				availability::no(availability::Reason.UNSUPPORTED_BACKEND, "login.framework does not export SACLockScreenImmediate")
+				availability::no(
+					availability::Reason.UNSUPPORTED_BACKEND,
+					"login.framework does not export SACLockScreenImmediate"
+				)
 			);
 		}
 		else
@@ -104,7 +115,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			mac.has_lock = true;
 			capabilities.set(
 				Cap.LOCK,
-				availability::no(availability::Reason.DEGRADED, "Private API SACLockScreenImmediate: not verified on hardware")
+				availability::no(
+					availability::Reason.DEGRADED,
+					"Private API SACLockScreenImmediate: not verified on hardware"
+				)
 			);
 		}
 	}
@@ -178,8 +192,19 @@ fn void run(void* state, SessionHub* hub, Host{Command}* host)
 	Command[COMMAND_BATCH] commands;
 	while (!host.stopping())
 	{
-		// Runs the loop until the poll interval passes or a notification is delivered.
-		cf_run_loop_run_in_mode(power::KCF_RUNLOOP_DEFAULT_MODE, session::seconds_of(mac.idle_poll), false);
+		if (mac.system != null)
+		{
+			// Runs the loop until the poll interval passes or a notification is delivered.
+			cf_run_loop_run_in_mode(power::KCF_RUNLOOP_DEFAULT_MODE, session::seconds_of(mac.idle_poll), false);
+		}
+		else
+		{
+			// With no power source the run loop returns at once; wait for the tick instead.
+			if (catch thread::sleep(mac.idle_poll))
+			{
+				// An interrupted sleep ends the tick early: harmless, the next tick reads the state.
+			}
+		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(mac, &commands[i]);
 		settle_now(mac, hub);

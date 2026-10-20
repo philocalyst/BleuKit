@@ -15,7 +15,7 @@
  Priority 20; probed by asking the session bus for the portal and reading the interface `version`.
 *>
 module bleu::hotkey::portal @feat(LINUX);
-import std::time, std::collections::maybe, std::collections::list, bleu::availability, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::hotkey, bleu::hotkey::portal_path, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::time, std::collections::maybe, std::collections::list, bleu::availability, bleu::observe, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::hotkey, bleu::hotkey::portal_path, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 const String PORTAL_NAME = "org.freedesktop.portal.Desktop";
 const String PORTAL_PATH = "/org/freedesktop/portal/desktop";

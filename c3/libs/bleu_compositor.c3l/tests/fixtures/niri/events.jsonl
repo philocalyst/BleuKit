@@ -1,0 +1,8 @@
+{"WorkspaceActivated":{"id":3,"focused":true}}
+{"WindowFocusChanged":{"id":9}}
+{"WindowOpenedOrChanged":{"window":{"id":11,"title":"New, window","app_id":"kitty","pid":777,"workspace_id":3,"is_focused":false,"is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":null,"tile_size":[0.0,0.0],"window_size":[0,0],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[0.0,0.0]},"focus_timestamp":null}}}
+{"WindowUrgencyChanged":{"id":11,"urgent":true}}
+{"WindowClosed":{"id":7}}
+{"KeyboardLayoutSwitched":{"idx":1}}
+{"CastsChanged":{"casts":[]}}
+{"OverviewOpenedOrClosed":{"is_open":true}}

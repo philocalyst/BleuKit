@@ -64,7 +64,9 @@ fn String seat_of(Value props, Allocator allocator)
 	return "";
 }
 
-<* Read the session of this process: its fields, `LockedHint` and `IdleHint`. Records the lock state for the next change. *>
+<*
+ Read the session of this process: its fields, `LockedHint` and `IdleHint`. Records the lock state for the next change.
+*>
 fn State? read_state(Logind* b, Allocator allocator)
 {
 	if (!b.connected) return error::UNAVAILABLE~;
@@ -78,7 +80,6 @@ fn State? read_state(Logind* b, Allocator allocator)
 			state.locked = prop_bool(props, "LockedHint");
 			state.idle_hint = prop_bool(props, "IdleHint");
 			b.locked = state.locked;
-			b.idle_hint = state.idle_hint;
 		}
 		state.seats = read_seats(b, allocator)!;
 		state.sessions = read_sessions(b, allocator)!;
@@ -91,7 +92,7 @@ fn String[]? read_seats(Logind* b, Allocator allocator)
 {
 	@pool()
 	{
-		Value seats = call_list(b, "ListSeats", tmem)!;
+		Value seats  = call_list(b, "ListSeats", tmem)!;
 		String[] ids = alloc::new_array(allocator, String, (sz)seats.count());
 		for (usz i = 0; i < seats.count(); i++)
 		{
@@ -115,7 +116,7 @@ fn SessionInfo[]? read_sessions(Logind* b, Allocator allocator)
 		infos.init(tmem);
 		for (usz i = 0; i < sessions.count(); i++)
 		{
-			String path = sessions.at(i)!.at(4)!.as_object_path()!;
+			String path       = sessions.at(i)!.at(4)!.as_object_path()!;
 			SessionInfo? info = read_session(b, path, allocator);
 			if (catch err = info)
 			{
@@ -127,7 +128,7 @@ fn SessionInfo[]? read_sessions(Logind* b, Allocator allocator)
 				infos.push(info);
 			}
 		}
-		if (infos.is_empty()) return {};
+		if (infos.is_empty()) return { };
 		SessionInfo[] out = alloc::new_array(allocator, SessionInfo, infos.len());
 		for (sz i = 0; i < infos.len(); i++) out[i] = infos.get(i);
 		return out;
@@ -138,7 +139,7 @@ fn SessionInfo[]? read_sessions(Logind* b, Allocator allocator)
 fn SessionInfo? read_session(Logind* b, String path, Allocator allocator)
 {
 	proxy::Proxy object = proxy::for_object(&b.bus, LOGIND_BUS, path, LOGIND_SESSION)!;
-	Value props = object.get_all_properties(tmem)!;
+	Value props         = object.get_all_properties(tmem)!;
 	return session_info(props, allocator);
 }
 

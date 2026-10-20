@@ -32,14 +32,14 @@ const String SESSION_NEW       = "SessionNew";
 const String SESSION_REMOVED   = "SessionRemoved";
 
 <* The poller's tag for the bus connection. The worker's wake-up is not tagged (see bleu_rt). *>
-const usz BUS_TAG = 1;
+const usz BUS_TAG            = 1;
 <*
  Longest the loop sleeps when nothing happens. It bounds how late a missed signal is seen;
  the signals themselves are what normally wakes the loop.
 *>
 const Duration WAIT_INTERVAL = (Duration)5_000_000;
 <* Commands taken from the mailbox per batch. *>
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH      = 8;
 
 const Driver DRIVER = {
 	.info = { "logind", "systemd-logind over the system bus (org.freedesktop.login1)", 10 },
@@ -66,7 +66,6 @@ struct Logind
 	Proxy session;
 	String session_id; // copied; the logind id of `session`
 	Maybe{bool} locked; // LockedHint, as last read
-	Maybe{bool} idle_hint; // IdleHint, as last read
 	bool sleeping;
 	bool dirty; // a signal or a request says the state is stale
 	List{Event} pending; // PrepareForSleep edges, recorded by the handler
@@ -89,7 +88,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	capabilities.init(availability::YES);
 	capabilities.set(
 		Cap.LOCK_STATE,
-		availability::no(availability::Reason.DEGRADED, "Known only inside a logind session: a process outside one reads no lock state")
+		availability::no(
+			availability::Reason.DEGRADED,
+			"Known only inside a logind session: a process outside one reads no lock state"
+		)
 	);
 	capabilities.set(
 		Cap.LOCK,
@@ -97,13 +99,16 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.UNLOCK,
-		availability::no(availability::Reason.DEGRADED, "logind only signals the session's locker, which still authenticates; polkit may refuse")
+		availability::no(
+			availability::Reason.DEGRADED,
+			"logind only signals the session's locker, which still authenticates; polkit may refuse"
+		)
 	);
 	capabilities.set(
 		Cap.IDLE_WATCH,
 		availability::no(
 			availability::Reason.UNSUPPORTED_BACKEND,
-			"No idle source here: ext-idle-notify (bleu_wl) is not wired yet, and logind does not measure idle time"
+			"No idle source here: bleu_wl has the ext-idle-notify bindings, but no backend uses them yet, and logind does not measure idle time"
 		)
 	);
 	capabilities.set(
@@ -189,8 +194,7 @@ fn void disconnect(Logind* b, Poller* poller)
 	b.bus.close();
 	b.bus.free();
 	forget_session(b);
-	b.locked = {};
-	b.idle_hint = {};
+	b.locked = { };
 }
 
 <* Drop this process's session, so that the next connection finds it again. *>
@@ -285,7 +289,7 @@ fn void? find_session(Logind* b)
 	@pool()
 	{
 		Value props = b.session.get_all_properties(tmem)!;
-		String id = prop_text(props, "Id", tmem);
+		String id   = prop_text(props, "Id", tmem);
 		b.session_id = id.copy(b.allocator);
 	};
 	b.has_session = true;
@@ -304,7 +308,7 @@ fn void refresh(Logind* b, SessionHub* hub)
 	session::apply_pending(&b.pending, &b.locked, &b.sleeping);
 	for (sz i = 0; i < b.pending.len(); i++) changes.push(b.pending.get(i));
 	b.pending.clear();
-	Maybe{bool} before = b.locked;
+	Maybe{bool} before        = b.locked;
 	Snapshot{State}* snapshot = hub.begin();
 	if (try state = read_state(b, snapshot.allocator()))
 	{

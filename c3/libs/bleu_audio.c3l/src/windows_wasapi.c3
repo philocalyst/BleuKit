@@ -258,7 +258,7 @@ fn uint flow_code(Flow flow) @inline => flow == Flow.INPUT ? windows_com::E_CAPT
 <* Register the notification client; the returned shell is what unregistering needs. Null on failure. *>
 fn NotifyShell* register_notifications(windows_com::IMMDeviceEnumerator* enumerator, WasapiBackend* backend) @private
 {
-	NotifyShell* shell  = com_shell::create{windows_com::IMMNotificationClientVtbl}(
+	NotifyShell* shell = com_shell::create{windows_com::IMMNotificationClientVtbl}(
 		mem,
 		&NOTIFY_TABLE,
 		windows_com::IID_IMMNOTIFICATION_CLIENT,

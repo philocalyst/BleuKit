@@ -26,7 +26,7 @@ struct Options
 {
 	Backend backend; // AUTO tries every backend of the platform in priority order
 	String bus_address; // logind: the bus to use; "" for the system bus. Copied by `open`.
-	Duration[] idle_thresholds; // idle levels `State.idle` reports; copied by `open`
+	Duration[] idle_thresholds; // idle levels `State.idle` reports; copied by `open`. Empty where IDLE_WATCH is unavailable.
 	Duration idle_poll; // polling backends check idle time this often; 0 means DEFAULT_IDLE_POLL
 	bool allow_private; // macOS: resolve private system symbols (see `macos_lock_private.c3`); off by default
 }
@@ -144,7 +144,10 @@ fn SessionOperation*? Session.unlock(&self) => self.request(Request.UNLOCK, Cap.
  @return? error::UNSUPPORTED : "This backend cannot lock another session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
-fn SessionOperation*? Session.lock_session(&self, String session_id) => self.request(Request.LOCK_SESSION, Cap.LOCK_SESSION, session_id);
+fn SessionOperation*? Session.lock_session(
+	&self,
+	String session_id
+) => self.request(Request.LOCK_SESSION, Cap.LOCK_SESSION, session_id);
 
 <*
  End the session `session_id`: its processes are stopped and it is logged out.
@@ -153,7 +156,10 @@ fn SessionOperation*? Session.lock_session(&self, String session_id) => self.req
  @return? error::UNSUPPORTED : "This backend cannot end a session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
-fn SessionOperation*? Session.terminate_session(&self, String session_id) => self.request(Request.TERMINATE_SESSION, Cap.TERMINATE_SESSION, session_id);
+fn SessionOperation*? Session.terminate_session(
+	&self,
+	String session_id
+) => self.request(Request.TERMINATE_SESSION, Cap.TERMINATE_SESSION, session_id);
 
 <*
  Start watching for `threshold` of inactivity. The returned watch reports IDLE once the user
@@ -198,7 +204,7 @@ fn SessionOperation*? Session.request(&self, Request request, Cap cap, String se
 	Command command = {
 		.kind = CommandKind.REQUEST,
 		.request = request,
-		.session = session_id.copy(operation.allocator()),
+		.session = session_id.len > 0 ? session_id.copy(operation.allocator()) : "",
 		.operation = operation,
 	};
 	if (catch err = post_retained(self, command, operation))

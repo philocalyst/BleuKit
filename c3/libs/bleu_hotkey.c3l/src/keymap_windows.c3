@@ -110,3 +110,18 @@ fn uint windows_virtual_key(keys::Key key)
 		case keys::Key.VOLUME_MUTE: return 0xAD;
 	}
 }
+
+<*
+ The RegisterHotKey modifier flags of `mods` (winuser.h: MOD_ALT 0x0001, MOD_CONTROL 0x0002,
+ MOD_SHIFT 0x0004, MOD_WIN 0x0008; read in the MinGW-w64 header mirror and on the RegisterHotKey page).
+ MOD_NOREPEAT is added by the backend, not here.
+*>
+fn uint windows_modifiers(keys::Modifiers mods)
+{
+	uint bits = 0;
+	if (mods.alt) bits |= 0x0001;
+	if (mods.ctrl) bits |= 0x0002;
+	if (mods.shift) bits |= 0x0004;
+	if (mods.logo) bits |= 0x0008;
+	return bits;
+}

@@ -98,7 +98,10 @@ fn void set_client_name_encodes_the_proplist() @test
 fn void get_sink_info_by_name_request() @test
 {
 	DString packet = pulse::request_get_device_info(mem, 6, false, pulse::NO_INDEX, "@DEFAULT_SINK@");
-	assert(packet_is(&packet, "0000001f ffffffff 00000000 00000000 00000000 4c00000015 4c00000006 4cffffffff 744044454641554c545f53494e4b4000"));
+	assert(packet_is(
+		&packet,
+		"0000001f ffffffff 00000000 00000000 00000000 4c00000015 4c00000006 4cffffffff 744044454641554c545f53494e4b4000"
+	));
 }
 
 // SET_SINK_VOLUME by name: index NO_INDEX, the name, then one channel at 100 % (0x10000).

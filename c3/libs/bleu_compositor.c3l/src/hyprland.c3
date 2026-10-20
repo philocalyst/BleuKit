@@ -450,3 +450,23 @@ fn void clear_focus(compositor::Model* model) @private
 {
 	for (sz i = 0; i < model.windows.len; i++) model.windows[i].focused = false;
 }
+
+<*
+ The name of the main keyboard, as `switchxkblayout` takes it: the keyboard marked
+ main, or the first keyboard. "" when there is none.
+*>
+fn String main_keyboard_name(Object* devices, Allocator allocator)
+{
+	Object*? keyboards = wire::member(devices, "keyboards");
+	if (catch err = keyboards) return "";
+	if (!keyboards.is_array()) return "";
+	Object* first = null;
+	for (sz i = 0; i < keyboards.get_len(); i++)
+	{
+		Object* keyboard = wire::item(keyboards, i);
+		if (wire::flag_member(keyboard, "main")) return wire::text_member(keyboard, "name", allocator);
+		if (first == null) first = keyboard;
+	}
+	if (first == null) return "";
+	return wire::text_member(first, "name", allocator);
+}

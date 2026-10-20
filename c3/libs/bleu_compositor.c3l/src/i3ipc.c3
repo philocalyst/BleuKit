@@ -120,6 +120,30 @@ fn String event_name(uint event_type)
 	}
 }
 
+<* One complete message: its header and its payload (a view into the buffer). *>
+struct Frame
+{
+	Header header;
+	String payload;
+}
+
+<*
+ Take the next complete message from `buffer`, consuming it.
+
+ @return "The message; its payload is valid until the buffer is fed again"
+ @return? NOT_FOUND : "The message is not complete yet"
+ @return? error::PROTOCOL : "The magic is wrong, or the message is longer than the buffer"
+*>
+fn Frame? take_frame(wire::Buffer* buffer)
+{
+	String head = buffer.peek_exact(HEADER_SIZE)!;
+	Header header = decode_header(head)!;
+	check_length(header, buffer.capacity)!;
+	String whole = buffer.peek_exact(HEADER_SIZE + header.length)!;
+	buffer.consume(HEADER_SIZE + header.length);
+	return { .header = header, .payload = whole[HEADER_SIZE : header.length] };
+}
+
 <*
  Reject a payload length that cannot fit the buffer the reader uses for it.
 

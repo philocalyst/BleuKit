@@ -7,7 +7,7 @@
  Owner changes and lost names only queue work: `attach_watcher` runs from the worker.
 *>
 module bleu::tray::sni @feat(LINUX);
-import bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::dbus::marshal, bleu::error, bleu::tray, bleu::tray::convert;
+import std::collections::list, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::dbus::marshal, bleu::error, bleu::tray, bleu::tray::convert;
 
 // Asks for the watcher name, without queueing: it is ours only if nobody else holds it.
 fn void? subscribe_watcher_owner(SniBackend* b)
@@ -32,7 +32,7 @@ fn void on_watcher_owner(void* context, Message* signal)
 fn void on_watcher_lost(void* context, String name)
 {
 	SniBackend* b = (SniBackend*)context;
-	push_pending(b, RESYNC, 0, ID, "");
+	push_pending(b, WATCHER_LOST, 0, ID, "");
 }
 
 <*
@@ -186,7 +186,7 @@ fn bool add_registration(SniBackend* b, String item)
 // Remove `item` from the registry we serve and announce it. Returns false when it was not there.
 fn bool remove_registration(SniBackend* b, String item)
 {
-	for (usz i = 0; i < b.registry.len(); i++)
+	for (sz i = 0; i < b.registry.len(); i++)
 	{
 		if (b.registry[i] != item) continue;
 		alloc::free(b.allocator, b.registry[i].ptr);
@@ -199,18 +199,22 @@ fn bool remove_registration(SniBackend* b, String item)
 
 fn bool contains(List{String}* list, String item)
 {
-	for (usz i = 0; i < list.len(); i++)
+	for (sz i = 0; i < list.len(); i++)
 	{
 		if (list.get(i) == item) return true;
 	}
 	return false;
 }
 
-// One of the watcher's item signals, sent to the bus.
+// One of the watcher's item signals, sent to the bus. A signal that cannot be sent is not retried:
+// the registry is authoritative, and a host that missed it reads the registry again.
 fn void emit_watcher_signal(SniBackend* b, String member, String item)
 {
 	@pool()
 	{
-		if (catch b.server.emit_signal(WATCHER_PATH, WATCHER_INTERFACE, member, { value::str(tmem, item)! })) {}
+		if (try text = value::str(tmem, item))
+		{
+			if (catch b.server.emit_signal(WATCHER_PATH, WATCHER_INTERFACE, member, { text })) {}
+		}
 	};
 }

@@ -160,7 +160,7 @@ fn Device[]? endpoints_of(
 ) @local
 {
 	windows_com::IMMDeviceCollection* collection = null;
-	hresult::Hresult hr                          = enumerator.vtbl.enum_audio_endpoints(
+	hresult::Hresult hr = enumerator.vtbl.enum_audio_endpoints(
 		enumerator,
 		flow,
 		windows_com::DEVICE_STATE_ACTIVE,
@@ -252,7 +252,7 @@ fn Stream? session_stream(
 	if (query_ref(control, windows_com::IID_IAUDIO_SESSION_CONTROL2, (void**)&control2)
 		.failed()) return error::UNSUPPORTED~;
 	defer release_ref(control2);
-	Stream stream    = {
+	Stream stream = {
 		.flow = flow == windows_com::E_CAPTURE ? INPUT : OUTPUT,
 		.device_id = endpoint.copy(allocator),
 		.volume_writable = true
@@ -402,7 +402,7 @@ fn windows_com::ISimpleAudioVolume*? find_session_volume(
 )
 {
 	windows_com::IMMDeviceCollection* collection = null;
-	hresult::Hresult hr                          = enumerator.vtbl.enum_audio_endpoints(
+	hresult::Hresult hr = enumerator.vtbl.enum_audio_endpoints(
 		enumerator,
 		flow,
 		windows_com::DEVICE_STATE_ACTIVE,

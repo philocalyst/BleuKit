@@ -1,3 +1,5 @@
+> **CORRECTION (lead, from implementation):** the PulseAudio command numbers quoted in this note are line numbers of native-common.h, not command values (AUTH is 8, GET_SERVER_INFO 20, SUBSCRIBE_EVENT 66 ...). Use the verified table in `audio_impl.md` section 1 instead.
+
 # Audio service research spike
 
 Scope: the `audio` service as a shell mixer needs it: output and input devices

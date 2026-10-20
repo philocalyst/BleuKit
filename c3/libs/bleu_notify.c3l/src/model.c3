@@ -228,7 +228,10 @@ const Policy DEFAULT_POLICY = {
 	.normal_timeout = DEFAULT_NORMAL_TIMEOUT,
 };
 
-<* How `open` finds and tunes the centre. `replace` takes the bus name from another daemon. *>
+<*
+ How `open` finds and tunes the centre. `replace` takes the bus name from the daemon
+ that holds it, when that daemon allows replacement (a running centre always does).
+*>
 struct Options
 {
 	Backend backend;

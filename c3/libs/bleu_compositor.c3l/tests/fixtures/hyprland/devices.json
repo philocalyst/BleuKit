@@ -1,0 +1,10 @@
+{
+  "mice": [{"address":"0x1","name":"logitech-mx-master"}],
+  "keyboards": [
+    {"address":"0x2","name":"at-translated-set-2-keyboard","rules":"","model":"","layout":"us",
+     "variant":"","options":"","active_keymap":"English (US)","main":false},
+    {"address":"0x3","name":"main-keyboard","rules":"","model":"pc105","layout":"us,de",
+     "variant":",","options":"","active_keymap":"German","main":true}
+  ],
+  "tablets": []
+}
