@@ -29,6 +29,14 @@ const uint WM_CLIPBOARDUPDATE   = 0x031d;
 const uint FIRST_CUSTOM_MESSAGE = WM_APP + 2;
 <* The last id `Loop.allocate_message` hands out: 0xBFFF, the end of the application range. *>
 const uint LAST_CUSTOM_MESSAGE  = 0xbfff;
+<*
+ The first id `RegisterWindowMessageW` returns. Learn "RegisterWindowMessage": a registered
+ message is "in the range 0xC000 through 0xFFFF". (Single source for the range; mingw-w64
+ winuser.h and windows-sys 0.59.0 declare the function but do not state the range.)
+*>
+const uint FIRST_NAMED_MESSAGE  = 0xc000;
+<* The last id `RegisterWindowMessageW` returns: 0xFFFF (Learn "RegisterWindowMessage"). *>
+const uint LAST_NAMED_MESSAGE   = 0xffff;
 
 <*
  The application messages a loop has handed out. `next` is the id the next
@@ -65,6 +73,9 @@ fn uint? CustomMessages.allocate(&self)
 
 <* Whether `message` is one these allocations have handed out so far. *>
 fn bool CustomMessages.owns(self, uint message) => message >= FIRST_CUSTOM_MESSAGE && message < self.next;
+
+<* Whether `id` lies in the range `RegisterWindowMessageW` answers with, so it cannot clash with an application id. *>
+fn bool is_named_message(uint id) => id >= FIRST_NAMED_MESSAGE && id <= LAST_NAMED_MESSAGE;
 
 <* `LOWORD`: the low 16 bits of a packed word, such as the modifiers in a `WM_HOTKEY` lParam. *>
 fn uint low_word(iptr packed) @inline => (uint)packed & 0xffff;

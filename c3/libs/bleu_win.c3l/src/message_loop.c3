@@ -70,7 +70,7 @@ enum EventKind : char
 	SETTING_CHANGE,    // code: the SPI_* value; text: the changed section name, or empty
 	DPI_CHANGE,        // width, height: the new horizontal and vertical DPI
 	WAKE,              // `Loop.post_wake` was called, from any thread
-	CUSTOM_MESSAGE,    // message, wparam, lparam: a message from `Loop.allocate_message`, as posted
+	CUSTOM_MESSAGE,    // message, wparam, lparam: a message from `Loop.allocate_message` or `Loop.register_named_message`, as posted
 	CLIPBOARD_UPDATED, // the clipboard contents changed; after `Loop.add_clipboard_listener`
 	HOTKEY,            // hotkey_id, modifiers, vk: a hot key from `Loop.register_hotkey` was pressed
 }
@@ -88,12 +88,13 @@ struct Event
 	uint session;
 	Guid guid;
 	String text;
-	uint message; // CUSTOM_MESSAGE: the id `Loop.allocate_message` returned
+	uint message; // CUSTOM_MESSAGE: the id `Loop.allocate_message` or `Loop.register_named_message` returned
 	uptr wparam; // CUSTOM_MESSAGE: the WPARAM the message was posted with
 	iptr lparam; // CUSTOM_MESSAGE: the LPARAM the message was posted with
 	uint hotkey_id; // HOTKEY: the id given to `Loop.register_hotkey` (WM_HOTKEY wParam)
 	uint modifiers; // HOTKEY: the MOD_* flags held with the key (WM_HOTKEY lParam, low word)
 	uint vk; // HOTKEY: the virtual-key code (WM_HOTKEY lParam, high word)
+	uint time; // every event: the message time in milliseconds, see `current_message_time`
 }
 
 <*
@@ -118,6 +119,8 @@ struct Loop
 	bool clipboard_listening;
 	// The hot-key ids this loop registered and has not unregistered.
 	List{uint} hotkeys;
+	// The ids `register_named_message` returned: they lie outside the application range.
+	List{uint} named_messages;
 }
 
 <*
@@ -223,6 +226,7 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 	}
 	loop.window = window;
 	loop.hotkeys.init(allocator);
+	loop.named_messages.init(allocator);
 	if (catch failure = session::register(window))
 	{
 		loop.close();
@@ -257,6 +261,7 @@ fn void Loop.close(&self)
 	win32::unregisterClassW(self.class_name.as_wstring(), self.instance);
 	self.class_name.free();
 	self.hotkeys.free();
+	self.named_messages.free();
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
 }
@@ -310,6 +315,7 @@ fn Win32_LRESULT window_proc(void* window, uint message, uptr wparam, iptr lpara
 fn void dispatch(Loop* loop, uint message, uptr wparam, iptr lparam) @local
 {
 	Event event;
+	event.time = current_message_time();
 	switch (message)
 	{
 		case WM_POWERBROADCAST:
@@ -358,8 +364,8 @@ fn void dispatch(Loop* loop, uint message, uptr wparam, iptr lparam) @local
 		case message_codes::WM_WAKE:
 			event.kind = WAKE;
 		default:
-			// Only the ids this loop handed out are the owner's; anything else is not reported.
-			if (!loop.custom.owns(message)) return;
+			// Only the ids this loop handed out or registered are the owner's; anything else is not reported.
+			if (!loop.custom.owns(message) && !loop.owns_named(message)) return;
 			event.kind = CUSTOM_MESSAGE;
 			event.message = message;
 			event.wparam = wparam;

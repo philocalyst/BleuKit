@@ -46,6 +46,16 @@ fn void custom_messages_own_only_what_was_handed_out() @test
 	assert(!ids.owns(0xc000));
 }
 
+fn void named_messages_are_c000_through_ffff() @test
+{
+	assert(!is_named_message(LAST_CUSTOM_MESSAGE));
+	assert(!is_named_message(0));
+	assert(is_named_message(FIRST_NAMED_MESSAGE));
+	assert(is_named_message(LAST_NAMED_MESSAGE));
+	assert(!is_named_message(0x10000));
+	assert(LAST_CUSTOM_MESSAGE < FIRST_NAMED_MESSAGE);
+}
+
 fn void custom_messages_run_out_at_the_end_of_the_range() @test
 {
 	CustomMessages ids = { .next = LAST_CUSTOM_MESSAGE };

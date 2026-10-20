@@ -15,6 +15,7 @@ module bleu::json::envelope;
 import bleu::error;
 import bleu::json;
 import bleu::json::read;
+import std::encoding::json;
 import std::collections::object;
 
 <*
@@ -48,12 +49,12 @@ struct Request
 fn Request? parse_request(Allocator allocator, String line)
 {
 	if (line.len > MAX_FRAME) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request of %d bytes exceeds the %d byte limit", line.len, MAX_FRAME)~;
-	Object*? parsed = std::encoding::json::parse(allocator, line, std::encoding::json::JsonFlavor.JSON);
+	Object*? parsed = json::parse(allocator, line, json::JsonFlavor.JSON);
 	if (catch parsed) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not strict JSON")~;
 	Object* root = parsed;
 	if (!root.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not a JSON object")~;
 	long id = read::get_int(root, "id")!;
-	if (id > MAX_EXACT_INTEGER || id < -MAX_EXACT_INTEGER) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request id %d is not an exact JavaScript integer", id)~;
+	if (id > read::MAX_EXACT_INTEGER || id < -read::MAX_EXACT_INTEGER) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request id %d is not an exact JavaScript integer", id)~;
 	String method = read::get_string(root, "method")!;
 	Object* params = read::present(root, "params")!;
 	if (params && !params.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request params is not an object")~;

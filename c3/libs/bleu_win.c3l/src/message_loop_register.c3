@@ -19,7 +19,7 @@
 module bleu::win::message_loop @feat(WIN32) @link("user32");
 import std::os::win32;
 import bleu::error;
-import bleu::win::errors, bleu::win::hresult;
+import bleu::win::errors, bleu::win::hresult, bleu::win::message_codes, bleu::win::text;
 
 <* `MOD_ALT`: the Alt key must be held with the key. winuser.h. *>
 const uint MOD_ALT       = 0x0001;
@@ -38,6 +38,7 @@ extern fn Win32_BOOL addClipboardFormatListener(void* window) @cname("AddClipboa
 extern fn Win32_BOOL removeClipboardFormatListener(void* window) @cname("RemoveClipboardFormatListener");
 extern fn Win32_BOOL registerHotKey(void* window, int id, uint modifiers, uint key) @cname("RegisterHotKey");
 extern fn Win32_BOOL unregisterHotKey(void* window, int id) @cname("UnregisterHotKey");
+extern fn uint registerWindowMessageW(WString name) @cname("RegisterWindowMessageW");
 
 <*
  Ask for `CLIPBOARD_UPDATED` events whenever the clipboard contents change. Undo
@@ -126,6 +127,52 @@ fn void Loop.release_hotkeys(&self)
 {
 	foreach (id : self.hotkeys) (void)unregisterHotKey(self.window, (int)id);
 	self.hotkeys.clear();
+}
+
+<*
+ Register a window message by name, the same id in every process that registers the name
+ (`RegisterWindowMessageW`). The shell broadcasts `TaskbarCreated` this way when Explorer starts
+ again. A message sent to this loop's window with the id arrives as a `CUSTOM_MESSAGE` event. The
+ registration lasts until the session ends. Call it on the thread that opened the loop.
+
+ Sources: Learn "RegisterWindowMessage" (the return value is in 0xC000 through 0xFFFF; zero on failure);
+ mingw-w64 winuser.h line 1504 and windows-sys 0.59.0 (`RegisterWindowMessageW(PCWSTR) -> u32`).
+
+ @param name : "The message name, such as \"TaskbarCreated\""
+ @return "The message id, in 0xC000 through 0xFFFF"
+ @return? error::BACKEND_FAILURE : "RegisterWindowMessageW failed, or returned an id outside that range"
+*>
+fn uint? Loop.register_named_message(&self, String name)
+{
+	uint id = 0;
+	@pool()
+	{
+		WideZ wide = text::to_wide(tmem, name)!;
+		id = registerWindowMessageW(wide.as_wstring());
+	};
+	if (id == 0) return errors::raise_last("RegisterWindowMessageW")~;
+	if (!message_codes::is_named_message(id))
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			(int)id,
+			"RegisterWindowMessageW returned 0x%x, outside 0xC000 to 0xFFFF",
+			id
+		)~;
+	}
+	if (!self.owns_named(id)) self.named_messages.push(id);
+	return id;
+}
+
+<* Whether `message` is an id `register_named_message` has handed out. *>
+fn bool Loop.owns_named(&self, uint message)
+{
+	foreach (id : self.named_messages)
+	{
+		if (id == message) return true;
+	}
+	return false;
 }
 
 <* The id as the `int` that `RegisterHotKey` takes, once it is checked against the range Learn gives. *>

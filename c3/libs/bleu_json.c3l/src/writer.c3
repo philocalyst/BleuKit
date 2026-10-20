@@ -14,6 +14,10 @@
 *>
 module bleu::json;
 import bleu::error;
+import std::encoding::json;
+
+<* The four bytes JSON allows as insignificant whitespace between tokens. *>
+const String JSON_WHITESPACE = " \t\n\r";
 
 <* Deepest container nesting the writer accepts. *>
 const usz MAX_DEPTH = 64;
@@ -280,4 +284,33 @@ fn void? JsonWriter.key(&self, String name)
 	self.emit_quoted(name)!;
 	self.emit(self.indent > 0 ? ": " : ":")!;
 	frame.key_open = true;
+}
+
+<*
+ Whether `text` is exactly one JSON value, surrounded by optional whitespace.
+ Checked with the standard parser in temporary memory, so nothing is retained.
+*>
+fn bool is_json_value(String text)
+{
+	@pool()
+	{
+		if (catch json::tparse(text, json::JsonFlavor.JSON)) return false;
+		return true;
+	};
+}
+
+<*
+ Write a pre-serialised JSON value, such as a snapshot already rendered for
+ many clients. The fragment is validated first, so the output stays JSON.
+
+ @param fragment : "One complete JSON value"
+ @return? error::INVALID_ARGUMENT : "The fragment is not exactly one JSON value"
+*>
+fn void? JsonWriter.put_raw(&self, String fragment)
+{
+	String value = fragment.trim(JSON_WHITESPACE);
+	if (!is_json_value(value)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "raw JSON fragment of %d bytes is not one JSON value", fragment.len)~;
+	self.begin_value()!;
+	self.emit(value)!;
+	self.end_value();
 }

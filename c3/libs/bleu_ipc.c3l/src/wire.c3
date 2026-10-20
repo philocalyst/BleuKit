@@ -289,6 +289,43 @@ fn String service_frame(Allocator allocator, long id, String service, String dat
 }
 
 <*
+ The handshake line a client reads first: the `ServerInfo` value followed by a
+ newline (dankgo ipc/server.go:143-153).
+
+ @param capabilities : "Capability names; each is escaped"
+ @return "The line, owned by the caller"
+*>
+fn String handshake_frame(Allocator allocator, int api_version, String[] capabilities)
+{
+	Writer w;
+	w.init(allocator, 64);
+	put_server_info(&w, api_version, capabilities);
+	w.put("\n");
+	return w.finish();
+}
+
+<*
+ A request line: `{"id":N,"method":"<method>","params":<params_json>}` followed by
+ a newline. The client uses it; dankgo's client sends the same shape.
+
+ @param params_json : "One JSON value, written as it is; `null` for none"
+ @return "The line, owned by the caller"
+*>
+fn String request_frame(Allocator allocator, long id, String method, String params_json)
+{
+	Writer w;
+	w.init(allocator, method.len + params_json.len + 48);
+	w.put("{\"id\":");
+	w.put_long(id);
+	w.put(",\"method\":\"");
+	w.put_escaped(method);
+	w.put("\",\"params\":");
+	w.put(params_json);
+	w.put("}\n");
+	return w.finish();
+}
+
+<*
  The `ServerInfo` value: `{"apiVersion":N,"capabilities":["a","b"]}`, with no
  newline. It is the handshake line (minus the newline) and the `data` of the
  `server` service.
@@ -300,6 +337,13 @@ fn String server_info(Allocator allocator, int api_version, String[] capabilitie
 {
 	Writer w;
 	w.init(allocator, 64);
+	put_server_info(&w, api_version, capabilities);
+	return w.finish();
+}
+
+// Write the `ServerInfo` object into `w`.
+fn void put_server_info(Writer* w, int api_version, String[] capabilities) @private
+{
 	w.put("{\"apiVersion\":");
 	w.put_long(api_version);
 	w.put(",\"capabilities\":[");
@@ -311,5 +355,4 @@ fn String server_info(Allocator allocator, int api_version, String[] capabilitie
 		w.put("\"");
 	}
 	w.put("]}");
-	return w.finish();
 }

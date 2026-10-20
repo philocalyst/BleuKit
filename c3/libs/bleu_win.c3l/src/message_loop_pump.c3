@@ -30,6 +30,19 @@ extern fn uint msgWaitForMultipleObjectsEx(
 	uint flags
 ) @cname("MsgWaitForMultipleObjectsEx");
 extern fn Win32_LRESULT dispatchMessageW(win32::Win32_MSG* message) @cname("DispatchMessageW");
+extern fn int getMessageTime() @cname("GetMessageTime");
+
+<*
+ The time of the message being dispatched, in milliseconds since the system started: the
+ `time` member of the MSG the pump retrieved (winuser.h; Learn "MSG": hwnd, message, wParam,
+ lParam, time, pt). Learn "GetMessageTime" returns that value for the last message retrieved from
+ the queue. A message that was sent rather than posted gets the time of the last retrieved message,
+ not the time it was sent.
+*>
+fn uint current_message_time()
+{
+	return (uint)getMessageTime();
+}
 
 <* Dispatch every message already queued on the calling thread. Returns when the queue is empty. *>
 fn void dispatch_pending()
