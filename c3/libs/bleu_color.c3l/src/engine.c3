@@ -11,7 +11,7 @@
  their new state: a refused display stays refused, and the others are not rolled back.
 *>
 module bleu::color::engine;
-import bleu::color, bleu::color::kelvin, bleu::color::ramp, bleu::color::schedule, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::unit, std::collections::maybe, std::time, std::time::datetime, std::math, std::core::mem;
+import bleu::color, bleu::color::kelvin, bleu::color::ramp, bleu::color::schedule, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::unit, std::collections::maybe, std::thread, std::time, std::time::datetime, std::math, std::core::mem;
 
 <*
  Writes a ramp to display `index`, acquiring the display's gamma control when it does not hold it.
@@ -475,9 +475,10 @@ fn void serve_timed(Engine* engine, Host{Command}* host, Duration tick)
 	engine.publish();
 	while (!host.stopping())
 	{
-		// TIMEOUT is the normal tick; a command wakes the wait early.
-		if (catch poller.wait(tick))
+		// TIMEOUT is the normal tick; a command wakes the wait early. Any other failure would spin: pause a tick.
+		if (catch err = poller.wait(tick))
 		{
+			if (err != TIMEOUT) thread::sleep(tick);
 		}
 		engine.drain(host);
 		engine.tick();

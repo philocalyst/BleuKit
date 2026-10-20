@@ -1,5 +1,5 @@
 module bleu::power::convert_test;
-import bleu::power, bleu::power::convert, bleu::availability, bleu::error;
+import std::time, bleu::power, bleu::power::convert, bleu::availability, bleu::error;
 
 fn void profile_names_round_trip() @test
 {
@@ -48,4 +48,22 @@ fn void actions_and_inhibitors_name_their_capability() @test
 	assert(power::inhibit_cap(SLEEP_DELAY) == Cap.DELAY_SLEEP_HOOK);
 	assert(power::inhibit_cap(SHUTDOWN_BLOCK) == Cap.BLOCK_SHUTDOWN);
 	assert(power::inhibit_cap(KEEP_AWAKE_DISPLAY) == Cap.KEEP_AWAKE_DISPLAY);
+}
+
+fn void only_refusals_for_good_are_refused_at_open() @test
+{
+	assert(convert::refused_at_open("na"), "no hardware");
+	assert(convert::refused_at_open("no"), "forbidden by configuration");
+	assert(!convert::refused_at_open("challenge"), "polkit asks the user");
+	assert(!convert::refused_at_open("inhibitor-blocked"), "blocked only for now");
+	assert(!convert::refused_at_open("yes"));
+}
+
+fn void reconnects_back_off_to_a_ceiling() @test
+{
+	assert(convert::reconnect_delay(0) == (Duration)1_000_000);
+	assert(convert::reconnect_delay(1) == (Duration)2_000_000);
+	assert(convert::reconnect_delay(4) == (Duration)16_000_000);
+	assert(convert::reconnect_delay(5) == (Duration)30_000_000, "capped at 30 s");
+	assert(convert::reconnect_delay(100) == (Duration)30_000_000);
 }

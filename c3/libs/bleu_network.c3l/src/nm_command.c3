@@ -82,7 +82,7 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 	String secret      = (String)c.secret.bytes[0:c.secret.len];
 	Profile[] profiles = load_profiles(&b.bus, tmem)!;
 	Profile saved;
-	bool known = false;
+	bool known         = false;
 	if (try found = find_profile(profiles, ssid))
 	{
 		saved = found;

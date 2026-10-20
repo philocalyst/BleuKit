@@ -8,7 +8,7 @@
  login1 manual page (the `Can*` answers, section "Methods").
 *>
 module bleu::power::convert;
-import bleu::power, bleu::availability, bleu::error;
+import std::time, bleu::power, bleu::availability, bleu::error;
 
 <* The daemon's name for a profile. `UNKNOWN` has none. *>
 fn String? profile_name(Profile profile)
@@ -100,4 +100,31 @@ fn Availability? availability_from_can(String answer)
 		default:
 			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "unknown Can* answer '%s'", answer)~;
 	}
+}
+
+<*
+ Whether a logind `Can*` answer refuses the action for good, so that the capability is
+ refused when the mechanism opens: "na" (the hardware or kernel lacks it) and "no" (the
+ configuration forbids it). The other answers leave the action to polkit, or are blocked
+ only for now ("inhibitor-blocked"), and stay available; `can()` still reports them.
+*>
+fn bool refused_at_open(String answer)
+{
+	return answer == "na" || answer == "no";
+}
+
+<* The first reconnect waits this long; each failure doubles the wait. *>
+const long RECONNECT_FIRST_US = 1_000_000;
+<* The longest wait between reconnects. *>
+const long RECONNECT_MAX_US   = 30_000_000;
+
+<*
+ How long to wait before the next reconnect after `failed_attempts` failures in a row:
+ 1 s, then 2 s, 4 s, ... capped at 30 s.
+*>
+fn Duration reconnect_delay(uint failed_attempts)
+{
+	long wait = RECONNECT_FIRST_US;
+	for (uint i = 0; i < failed_attempts && wait < RECONNECT_MAX_US; i++) wait *= 2;
+	return (Duration)(wait < RECONNECT_MAX_US ? wait : RECONNECT_MAX_US);
 }

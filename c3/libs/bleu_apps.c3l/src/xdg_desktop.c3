@@ -217,7 +217,7 @@ fn void? visit(void* context, DesktopFile file) @private
  found in `$PATH`. An empty `TryExec` always passes. With a fake `root`, an absolute path is looked
  up under it; a bare name is still searched in the host's `$PATH`.
 *>
-fn bool try_exec_found(String program, String root) @local
+fn bool try_exec_found(String program, String root)
 {
 	if (program.len == 0) return true;
 	if (dirs::is_absolute(program))

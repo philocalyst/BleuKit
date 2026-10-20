@@ -58,8 +58,8 @@ fn State? read_state(Backend* b, Allocator out, State* previous, Reading* r)
 		r.wifi_known = true;
 		for (usz i = 0; i < paths.count(); i++)
 		{
-			String path  = paths.at(i)!.as_object_path()!;
-			Proxy device = object_proxy(&b.bus, path, NM_DEVICE_IFACE)!;
+			String path     = paths.at(i)!.as_object_path()!;
+			Proxy device    = object_proxy(&b.bus, path, NM_DEVICE_IFACE)!;
 			Value? props_or = device.get_all_properties(tmem);
 			if (catch err = props_or)
 			{
@@ -146,8 +146,8 @@ fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 	WifiScan scan;
 	for (usz i = 0; i < aps.count(); i++)
 	{
-		String ap_path = aps.at(i)!.as_object_path()!;
-		Proxy ap       = object_proxy(&b.bus, ap_path, NM_AP_IFACE)!;
+		String ap_path  = aps.at(i)!.as_object_path()!;
+		Proxy ap        = object_proxy(&b.bus, ap_path, NM_AP_IFACE)!;
 		Value? props_or = ap.get_all_properties(tmem);
 		if (catch err = props_or)
 		{
@@ -155,8 +155,8 @@ fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 			if (err == NOT_FOUND) continue;
 			return err~;
 		}
-		Value props = props_or;
-		char[] bytes   = bytes_of(tmem, props, "Ssid");
+		Value props  = props_or;
+		char[] bytes = bytes_of(tmem, props, "Ssid");
 		if (bytes.len == 0) continue;
 		uint strength = byte_of(props, "Strength");
 		uint mhz      = uint_of(props, "Frequency");

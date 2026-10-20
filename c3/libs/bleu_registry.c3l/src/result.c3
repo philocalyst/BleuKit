@@ -2,7 +2,7 @@
  Helpers every command uses to write its reply and to wait for its operation.
 *>
 module bleu::registry;
-import std::time, bleu::error, bleu::json, bleu::operation;
+import std::time, std::collections::maybe, std::core::string, bleu::error, bleu::json, bleu::operation;
 
 <* Write the success object `{"ok": true}`. Commands add their own fields before it when they need to. *>
 fn void? write_ok(json::JsonWriter* out)
@@ -76,4 +76,15 @@ fn bool same_name(String upper, String text) @private
 		if ((upper[i] | 0x20) != (text[i] | 0x20)) return false;
 	}
 	return true;
+}
+
+<*
+ The string member `key`, or `fallback` when the request leaves it out.
+
+ @return? error::INVALID_ARGUMENT : "The member is present but not a string"
+*>
+fn String string_or(json::read::Params params, String key, String fallback)
+{
+	Maybe{String} given = params.optional_string(key)!;
+	return given.has_value ? given.value : fallback;
 }

@@ -239,6 +239,8 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	b.hub = hub;
 	if (catch err = open_bus(b))
 	{
+		// No bus, no agent: the passphrase must come up front, whatever `create` offered.
+		withdraw_prompt(b, "NetworkManager is not reachable on the bus: the passphrase must be given up front");
 		network::publish_empty(hub);
 		return;
 	}
@@ -248,12 +250,9 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	if (catch err = start_agent(b))
 	{
 		// `create` offered the prompt; NetworkManager refused the agent, so the passphrase must come up front.
-		b.capabilities.set(
-			Cap.WIFI_SECRET_PROMPT,
-			availability::no(
-				availability::Reason.PERMISSION_NEEDED,
-				"NetworkManager refused the secret agent (bus policy): the passphrase must be given up front"
-			)
+		withdraw_prompt(
+			b,
+			"NetworkManager refused the secret agent (bus policy): the passphrase must be given up front"
 		);
 	}
 	Poller poller;
@@ -310,6 +309,12 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	abandon_pending(b);
 	abandon_prompts(b);
 	if (b.agent_registered) unregister_agent(b);
+}
+
+// Say that the secret prompt does not work: `create` offered it before the bus was used.
+fn void withdraw_prompt(Backend* b, String note) @local
+{
+	b.capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::no(availability::Reason.PERMISSION_NEEDED, note));
 }
 
 <*

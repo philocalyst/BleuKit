@@ -72,7 +72,7 @@ const int AUTH_OWE        = 10;
 const int AUTH_WPA3_ENT   = 11;
 
 <* Win32 error codes. *>
-const uint ERROR_ACCESS_DENIED       = 5; // winerror.h; WlanSetProfile returns it for a profile the caller may not write (Learn: nf-wlanapi-wlansetprofile)
+const uint ERROR_ACCESS_DENIED      = 5; // winerror.h; WlanSetProfile returns it for a profile the caller may not write (Learn: nf-wlanapi-wlansetprofile)
 const uint ERROR_NOT_FOUND          = 1168;
 const uint ERROR_SERVICE_NOT_ACTIVE = 1062;
 

@@ -24,10 +24,12 @@ enum Profile : char
 
 <*
  Why the active profile is held back. `OTHER` keeps a reason this library does
- not name yet; the daemon's text is not lost to `NONE`.
+ not name yet; the daemon's text is not lost to `NONE`. `UNKNOWN` is the zero value:
+ no daemon, or it could not be read, so `NONE` (not degraded) is never a guess.
 *>
 enum Degraded : char
 {
+	UNKNOWN,
 	NONE,
 	LAP_DETECTED,
 	HIGH_TEMPERATURE,
@@ -151,7 +153,7 @@ alias ActionOperation = Operation{Action};
 struct ProfileHold
 {
 	uint cookie;
-	Power* owner;
+	Link* link; // the reference this handle owns; see link.c3
 }
 
 <*
@@ -161,7 +163,7 @@ struct ProfileHold
 struct Inhibitor
 {
 	uint id;
-	Power* owner;
+	Link* link; // the reference this handle owns; see link.c3
 }
 
 <*
@@ -190,7 +192,7 @@ struct Command
 	uint number; // RELEASE_PROFILE: the cookie; RELEASE_INHIBITOR: the id; ACK_SLEEP: the ticket
 	String who;
 	String why;
-	Power* owner;
+	Link* link; // the handle's link: the worker takes the handle's reference on it
 	ProfileOperation* profile_op;
 	HoldOperation* hold_op;
 	InhibitOperation* inhibit_op;

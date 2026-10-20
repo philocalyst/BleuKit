@@ -48,7 +48,10 @@ fn void a_withheld_name_is_a_permission_problem() @test
 {
 	assert(corewlan_convert::missing_network_fault(LocationAccess.DENIED, true) == error::PERMISSION_DENIED);
 	assert(corewlan_convert::missing_network_fault(LocationAccess.NOT_DETERMINED, true) == error::PERMISSION_DENIED);
-	assert(corewlan_convert::missing_network_fault(LocationAccess.AUTHORIZED, true) == NOT_FOUND, "authorized: not there");
+	assert(corewlan_convert::missing_network_fault(
+		LocationAccess.AUTHORIZED,
+		true
+	) == NOT_FOUND, "authorized: not there");
 	assert(corewlan_convert::missing_network_fault(LocationAccess.DENIED, false) == NOT_FOUND, "nothing withheld");
 }
 

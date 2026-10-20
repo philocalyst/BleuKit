@@ -53,11 +53,15 @@ fn Brightness*? open(Allocator allocator, Options options = { })
 {
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
 	if (options.transition_step == time::DURATION_ZERO) options.transition_step = DEFAULT_TRANSITION_STEP;
-	Driver* driver   = select_driver(options)!;
-	Brightness* self = alloc::new(allocator, Brightness);
+	Driver* driver = select_driver(options)!;
+	// The backend is created before the service is allocated, so a failed create leaves nothing behind.
+	Capabilities capabilities;
+	void* driver_state = driver.create(allocator, options, &capabilities)!;
+	Brightness* self   = alloc::new(allocator, Brightness);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
+	self.driver_state = driver_state;
+	self.capabilities = capabilities;
 	if (catch err = self.hub.start(
 		allocator,
 		"brightness",

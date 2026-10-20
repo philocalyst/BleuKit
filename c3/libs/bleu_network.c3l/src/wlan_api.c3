@@ -16,9 +16,9 @@ module bleu::network::wlan_api @feat(WIN32);
 import std::time, std::collections::maybe, bleu::availability, bleu::observe, bleu::deadline, bleu::error, bleu::network, bleu::network::nm_convert, bleu::network::wlan_native, bleu::network::wlan_profile, bleu::rt::mailbox, bleu::rt::poller, bleu::rt::worker, bleu::unit, bleu::win::errors, bleu::win::guid, bleu::win::text;
 
 <* Longest wait for a connection to finish, from the request. *>
-const Duration CONNECT_TIMEOUT = (Duration)60_000_000;
+const Duration CONNECT_TIMEOUT    = (Duration)60_000_000;
 <* Longest wait for a scan to report completion (its ACM notification), from the request. *>
-const Duration SCAN_TIMEOUT = (Duration)20_000_000;
+const Duration SCAN_TIMEOUT       = (Duration)20_000_000;
 <* Longest wait for the interface to leave the network, from the request. *>
 const Duration DISCONNECT_TIMEOUT = (Duration)15_000_000;
 
@@ -237,8 +237,8 @@ fn void unregister(Backend* b) @local
 fn void on_notification(L2NotificationData* data, void* context)
 {
 	Mailbox{Command}* box = (Mailbox{Command}*)context;
-	CommandKind kind = data.source == wlan_native::NOTIFICATION_SOURCE_ACM && data.code == wlan_native::ACM_SCAN_COMPLETE
-		? SCAN_FINISHED
+	CommandKind kind      = data.source == wlan_native::NOTIFICATION_SOURCE_ACM
+		&& data.code == wlan_native::ACM_SCAN_COMPLETE ? SCAN_FINISHED
 		: REFRESH;
 	// A full queue already holds a refresh, so a refused post changes nothing.
 	if (catch err = box.post({ .kind = kind }))
@@ -289,7 +289,7 @@ fn void? scan(Backend* b, SettleOp* op)
 	if (b.scan != null) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "a scan is already running")~;
 	uint code = wlan_native::wlan_scan(b.handle, &b.interface_guid, null, null, null);
 	if (code != 0) return errors::raise_win32(code, "starting a scan")~;
-	b.scan          = op;
+	b.scan = op;
 	b.scan_deadline = deadline::after(SCAN_TIMEOUT);
 }
 
@@ -326,10 +326,15 @@ fn void? disconnect(Backend* b, SettleOp* op)
 		settle_now(op, Settled.ALREADY);
 		return;
 	}
-	if (b.disconnect != null) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "a disconnect is already running")~;
+	if (b.disconnect != null) return error::raise(
+		error::BUSY,
+		error::Domain.INTERNAL,
+		0,
+		"a disconnect is already running"
+	)~;
 	uint code = wlan_native::wlan_disconnect(b.handle, &b.interface_guid, null);
 	if (code != 0) return errors::raise_win32(code, "disconnecting")~;
-	b.disconnect          = op;
+	b.disconnect = op;
 	b.disconnect_deadline = deadline::after(DISCONNECT_TIMEOUT);
 }
 
@@ -448,9 +453,9 @@ fn void? join(Backend* b, NetworkHub* hub, Command* c) @local
 *>
 fn void? write_profile(Backend* b, char[] ssid, Security security, String passphrase, bool autoconnect) @local
 {
-	String xml      = wlan_profile::profile_xml(tmem, ssid, security, passphrase, autoconnect)!;
-	WideZ xml_wide  = text::to_wide(tmem, xml)!!;
-	uint reason     = 0;
+	String xml     = wlan_profile::profile_xml(tmem, ssid, security, passphrase, autoconnect)!;
+	WideZ xml_wide = text::to_wide(tmem, xml)!!;
+	uint reason    = 0;
 	uint code = wlan_native::wlan_set_profile(
 		b.handle,
 		&b.interface_guid,
@@ -523,9 +528,10 @@ fn void settle_connect(Backend* b, State* state) @local
 		b.connect_saw_busy = true;
 	}
 	// A stale Wi-Fi block says nothing about the network now: only a fresh read can join the request.
-	bool joined = !state.stale.wifi
-		&& phase_state == wlan_native::INTERFACE_STATE_CONNECTED
-		&& network::same_ssid(state.wifi.connected_ssid.bytes, b.connect_ssid[0:b.connect_ssid_len]);
+	bool joined = !state.stale.wifi && phase_state == wlan_native::INTERFACE_STATE_CONNECTED && network::same_ssid(
+		state.wifi.connected_ssid.bytes,
+		b.connect_ssid[0:b.connect_ssid_len]
+	);
 	if (joined)
 	{
 		b.connect.succeed(
@@ -575,7 +581,7 @@ fn State? read_state(Backend* b, Allocator out, State* previous)
 		if (!first_interface(b.handle, &info)!) return { };
 		b.interface_guid = info.guid;
 		b.interface_state = info.state;
-		String name = text::from_wide_units(out, info.description[..]) ?? "";
+		String name            = text::from_wide_units(out, info.description[..]) ?? "";
 		Interface[] interfaces = alloc::new_array(out, Interface, 1);
 		interfaces[0] = { .name = name.copy(out), .kind = WIFI, .link = UNKNOWN };
 		Wifi wifi = {

@@ -169,7 +169,7 @@ fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 	backend.startup.succeed();
 	backend.notifier.mutex.lock()!!;
 	backend.notifier.mailbox = host.mailbox();
-	backend.notifier.mutex.unlock()!!;
+	backend.notifier.mutex.unlock();
 	bool notifying = true;
 	if (catch backend.loop.start(&attach_notifications, &backend.notifier, null, null))
 	{
@@ -192,7 +192,7 @@ fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 	// Closing first stops the callback from touching the mailbox, which the hub frees once this returns.
 	backend.notifier.mutex.lock()!!;
 	backend.notifier.closed = true;
-	backend.notifier.mutex.unlock()!!;
+	backend.notifier.mutex.unlock();
 	if (notifying)
 	{
 		if (catch backend.loop.stop_and_join())

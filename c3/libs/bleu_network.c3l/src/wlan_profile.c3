@@ -38,8 +38,8 @@ fn uint profile_scope_flags() @inline => PROFILE_SCOPE_USER;
 *>
 enum ConnectRoute : char
 {
-	WRITE_PROFILE,      // write the profile from the passphrase (or keyless) and connect by its name
-	USE_SAVED_PROFILE,  // connect by the saved profile's name; nothing is written
+	WRITE_PROFILE,     // write the profile from the passphrase (or keyless) and connect by its name
+	USE_SAVED_PROFILE, // connect by the saved profile's name; nothing is written
 }
 
 <*

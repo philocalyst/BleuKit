@@ -51,10 +51,14 @@ fn Color*? open(Allocator allocator, Options options = { })
 {
 	if (options.tick == time::DURATION_ZERO) options.tick = DEFAULT_TICK;
 	Driver* driver = select_driver(options)!;
-	Color* self    = alloc::new(allocator, Color);
+	// The backend is created before the service is allocated, so a failed create leaves nothing behind.
+	Capabilities capabilities;
+	void* driver_state = driver.create(allocator, options, &capabilities)!;
+	Color* self        = alloc::new(allocator, Color);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
+	self.driver_state = driver_state;
+	self.capabilities = capabilities;
 	if (catch err = self.hub.start(
 		allocator,
 		"color",

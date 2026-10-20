@@ -25,11 +25,12 @@ fn void only_a_scanned_network_with_a_known_class_is_joined() @test
 		assert(network::security_in(scanned, (char[])"Office")!! == WPA2_PSK);
 		assert(@catch(network::security_in(scanned, (char[])"Nowhere")) == NOT_FOUND, "not in the last scan");
 		assert(network::joinable_in(scanned, (char[])"Office")!! == WPA2_PSK);
-		assert(@catch(network::joinable_in(scanned, (char[])"Nowhere")) == NOT_FOUND, "not in the last scan: NOT_FOUND");
-		assert(
-			@catch(network::joinable_in(scanned, (char[])"Mystery")) == error::UNSUPPORTED,
-			"a class that is not known is refused: nothing is saved for it"
-		);
+		assert(@catch(
+			network::joinable_in(scanned, (char[])"Nowhere")
+		) == NOT_FOUND, "not in the last scan: NOT_FOUND");
+		assert(@catch(
+			network::joinable_in(scanned, (char[])"Mystery")
+		) == error::UNSUPPORTED, "a class that is not known is refused: nothing is saved for it");
 	};
 }
 

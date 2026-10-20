@@ -152,3 +152,60 @@ fn void state_from_real_replies() @test
 		assert(state.default_output == "bleu_test" && state.default_input == "bleu_test.monitor");
 	};
 }
+// A count the packet cannot hold is refused before anything is allocated for it.
+// The records here are written with the codec's own encoders, so these tests
+// check the bounds only; the layouts are checked by the golden tests above.
+fn void hostile_port_count_is_refused() @test
+{
+	@pool()
+	{
+		DString packet;
+		packet.init(tmem, 16);
+		pulse::put_u32(&packet, 0xFFFFFFFF);
+		pulse::TagReader r = { .data = (char[])packet.str_view() };
+		test::@error(pulse::read_ports(&r, 15, tmem), error::PROTOCOL);
+	};
+}
+
+fn void hostile_profile_count_is_refused() @test
+{
+	@pool()
+	{
+		DString packet;
+		packet.init(tmem, 32);
+		pulse::put_u32(&packet, 1);
+		pulse::put_string(&packet, "card");
+		pulse::put_u32(&packet, pulse::NO_INDEX);
+		pulse::put_string(&packet, "alsa");
+		pulse::put_u32(&packet, 0xFFFFFFFF);
+		pulse::TagReader r = { .data = (char[])packet.str_view() };
+		test::@error(pulse::read_card(&r, 35, tmem), error::PROTOCOL);
+	};
+}
+
+// A count larger than the bytes that follow is refused; the same list with a count
+// that fits decodes (a control for the refusal above).
+fn void port_count_must_fit_the_packet() @test
+{
+	@pool()
+	{
+		DString packet;
+		packet.init(tmem, 32);
+		pulse::put_u32(&packet, 3);
+		pulse::put_null_string(&packet);
+		pulse::put_null_string(&packet);
+		pulse::put_u32(&packet, 7);
+		pulse::TagReader short_list = { .data = (char[])packet.str_view() };
+		test::@error(pulse::read_ports(&short_list, 15, tmem), error::PROTOCOL);
+
+		DString one;
+		one.init(tmem, 32);
+		pulse::put_u32(&one, 1);
+		pulse::put_string(&one, "a");
+		pulse::put_string(&one, "b");
+		pulse::put_u32(&one, 7);
+		pulse::TagReader fits = { .data = (char[])one.str_view() };
+		PortRecord[] ports = pulse::read_ports(&fits, 15, tmem)!!;
+		assert(fits.at_end() && ports.len == 1 && ports[0].name == "a" && ports[0].priority == 7);
+	};
+}

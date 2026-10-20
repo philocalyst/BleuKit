@@ -192,7 +192,12 @@ fn Value? with_secret(Allocator allocator, Value settings, KeyManagement key_mgm
 		Value[] none = { };
 		current = value::array(allocator, "{sv}", none)!!;
 	}
-	Value updated = dict_with(allocator, current, "key-mgmt", value::variant(allocator, value::str(allocator, key_mgmt_name(key_mgmt))!!))!;
+	Value updated = dict_with(
+		allocator,
+		current,
+		"key-mgmt",
+		value::variant(allocator, value::str(allocator, key_mgmt_name(key_mgmt))!!)
+	)!;
 	if ((key_mgmt == WPA_PSK || key_mgmt == SAE) && psk.len > 0)
 	{
 		updated = dict_with(allocator, updated, "psk", value::variant(allocator, value::str(allocator, psk)!!))!;

@@ -92,8 +92,14 @@ fn void a_keyed_network_without_a_passphrase_uses_its_saved_profile() @test
 {
 	assert(wlan_profile::connect_route(WPA2_PSK, false) == wlan_profile::ConnectRoute.USE_SAVED_PROFILE);
 	assert(wlan_profile::connect_route(WPA3_SAE, false) == wlan_profile::ConnectRoute.USE_SAVED_PROFILE);
-	assert(wlan_profile::connect_route(WPA2_PSK, true) == wlan_profile::ConnectRoute.WRITE_PROFILE, "a passphrase is written");
-	assert(wlan_profile::connect_route(OPEN, false) == wlan_profile::ConnectRoute.WRITE_PROFILE, "an open network is keyless");
+	assert(wlan_profile::connect_route(
+		WPA2_PSK,
+		true
+	) == wlan_profile::ConnectRoute.WRITE_PROFILE, "a passphrase is written");
+	assert(wlan_profile::connect_route(
+		OPEN,
+		false
+	) == wlan_profile::ConnectRoute.WRITE_PROFILE, "an open network is keyless");
 }
 
 // D22, D23: a control character in the SSID never reaches the XML; the octets stay the identity.

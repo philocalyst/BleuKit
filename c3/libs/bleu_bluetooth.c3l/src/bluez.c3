@@ -22,7 +22,7 @@
  at the master revision; docs/research/bluetooth.md, section 2.1).
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::collections::list, std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server, bleu::deadline, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 <* The well-known name of BlueZ on the system bus. *>
 const BLUEZ_NAME               = "org.bluez";
@@ -36,6 +36,10 @@ const SYSTEM_BUS_SOCKET        = "/run/dbus/system_bus_socket";
 const SYSTEM_BUS_SOCKET_LEGACY = "/var/run/dbus/system_bus_socket";
 <* How many commands one pass of the worker takes from the mailbox. *>
 const usz COMMAND_BATCH        = 8;
+<* How long an ordinary request may wait for BlueZ's reply: the bus's own default for a call. *>
+const Duration DEFAULT_CALL_TIMEOUT    = (Duration)25_000_000;
+<* How long a pairing may take, the user's answers to its prompts included. *>
+const Duration DEFAULT_PAIRING_TIMEOUT = (Duration)120_000_000;
 <* Poller tag of the bus socket; the wake-up has its own tag. *>
 const usz BUS_TAG              = 1;
 <* Native sources the worker waits on: the bus socket only. *>
@@ -56,6 +60,9 @@ struct Bluez
 	bool agent_ready; // BlueZ accepted the registration, so prompts will arrive
 	ulong next_prompt; // the id of the most recent prompt
 	Prompt[MAX_PROMPTS] prompts;
+	Duration call_timeout; // the reply deadline of an ordinary request
+	Duration pairing_timeout; // the reply deadline of a pairing, prompts included
+	List{Pending*} waiting; // asynchronous calls whose reply has not arrived; the worker wakes at the earliest deadline
 }
 
 const Driver DRIVER = {
@@ -97,6 +104,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			.allocator = allocator,
 			.bus_address = bluetooth::copy_text(options.bus_address, allocator),
 			.root = bluetooth::copy_text(options.root, allocator),
+			.call_timeout = options.call_timeout == time::DURATION_ZERO ? DEFAULT_CALL_TIMEOUT : options.call_timeout,
+			.pairing_timeout = options.pairing_timeout == time::DURATION_ZERO
+				? DEFAULT_PAIRING_TIMEOUT
+				: options.pairing_timeout,
 		}
 	);
 	return self;
@@ -135,6 +146,9 @@ fn void? open_bus(Connection* bus, String address) @private
 fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 {
 	Bluez* self = (Bluez*)state;
+	// Declared first, so it is freed last: the bus may complete waiting calls while it is freed.
+	self.waiting.init(self.allocator);
+	defer self.waiting.free();
 	self.bus.init(self.allocator);
 	defer self.bus.free();
 	self.hub = hub;
@@ -196,8 +210,10 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	bluetooth::publish_empty(hub);
 }
 
-// Waits until the bus socket is readable (or writable, while output waits) or a command arrives.
-// Returns false when the socket cannot be watched any more.
+// Waits until the bus socket is readable (or writable, while output waits), a command arrives, or the
+// earliest deadline of a waiting call passes. The bus expires calls only when it is processed, so the
+// wait must end by that deadline even when nothing else happens. Returns false when the socket cannot
+// be watched any more.
 fn bool wait_for_bus(Bluez* self, Poller* poller) @private
 {
 	int fd = self.bus.fd() ?? -1;
@@ -206,12 +222,22 @@ fn bool wait_for_bus(Bluez* self, Poller* poller) @private
 	interest.readable = true;
 	interest.writable = self.bus.has_pending_output();
 	if (catch poller.add({ .handle = (Native)fd, .interest = interest, .tag = BUS_TAG })) return false;
-	// A wait without a timeout returns on socket activity or on the wake-up; TIMEOUT cannot occur.
-	if (catch poller.wait(time::FOREVER))
-	{
-	}
+	// A wait that ends by timeout returns no ready source, and the loop then processes the bus.
+	if (catch poller.wait(next_wait(self))) {}
 	if (catch poller.remove(BUS_TAG)) return false;
 	return true;
+}
+
+// The time until the earliest deadline of a waiting call; FOREVER when no call is waiting.
+fn Duration next_wait(Bluez* self) @private
+{
+	Duration wait = time::FOREVER;
+	foreach (pending : self.waiting)
+	{
+		Duration left = pending.deadline.remaining();
+		if (left < wait) wait = left;
+	}
+	return wait;
 }
 
 // Every request still queued fails as cancelled, because the service is stopping.

@@ -72,7 +72,7 @@ fn void a_name_that_leaves_the_class_directory_is_not_read() @test
 {
 	@pool()
 	{
-		String root          = fake_tree("traverse");
+		String root       = fake_tree("traverse");
 		Interface escaped = sysfs::read_interface(tmem, root, "../net/eth0", ETHERNET);
 		assert(escaped.link == UNKNOWN, "the traversal is refused, so nothing is read");
 		assert(!escaped.carrier.has_value && !escaped.speed.has_value);

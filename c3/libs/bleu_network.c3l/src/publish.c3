@@ -1,5 +1,5 @@
 // Publishing a picture, and copying the parts of an earlier one.
-//
+// 
 // A read that fails for one part keeps that part's value from the previous
 // picture (`Stale`), so the copies here must be deep: the previous snapshot is
 // released as soon as the new one is built.
@@ -86,8 +86,8 @@ fn AccessPoint[] clone_access_points(Allocator out, AccessPoint[] source)
 	AccessPoint[] found = alloc::new_array(out, AccessPoint, source.len);
 	foreach (i, entry : source)
 	{
-		found[i]       = entry;
-		found[i].ssid  = clone_ssid(out, entry.ssid);
+		found[i] = entry;
+		found[i].ssid = clone_ssid(out, entry.ssid);
 		found[i].bssid = copy_text(out, entry.bssid);
 	}
 	return found;
@@ -100,7 +100,7 @@ fn Interface[] clone_interfaces(Allocator out, Interface[] source)
 	Interface[] found = alloc::new_array(out, Interface, source.len);
 	foreach (i, iface : source)
 	{
-		found[i]      = iface;
+		found[i] = iface;
 		found[i].name = copy_text(out, iface.name);
 	}
 	return found;
@@ -112,7 +112,7 @@ fn Wifi clone_wifi(Allocator out, Wifi* source)
 	Wifi copy = *source;
 	copy.interface_name = copy_text(out, source.interface_name);
 	copy.connected_ssid = clone_ssid(out, source.connected_ssid);
-	copy.networks       = clone_access_points(out, source.networks);
+	copy.networks = clone_access_points(out, source.networks);
 	return copy;
 }
 

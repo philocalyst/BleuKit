@@ -144,3 +144,43 @@ fn void diff_reports_added_removed_and_changed() @test
 	assert(events[1].kind == APP_CHANGED && events[1].app_id == "a.desktop");
 	assert(events[2].kind == APP_ADDED && events[2].app_id == "c.desktop");
 }
+fn void empty_query_ignores_the_ranker() @test
+{
+	State state = sample_state();
+	// The bonus orders matches of a query; an empty query keeps the catalogue order (Firefox first, XTerm second).
+	SearchHit[] boosted = rank(&state, "", &prefer_xterm, null, mem);
+	defer alloc::free(mem, boosted.ptr);
+	assert(boosted[0].index == 0, "the empty query keeps catalogue order");
+}
+
+fn void fuzzy_takes_the_tightest_span() @test
+{
+	// "a" at 0 and "b" at 3 span 4; "a" at 4 and "b" at 6 span 3, and the score follows the tighter one.
+	assert(match_score("axxbaxb", "ab") == 66, "the tightest match, span 3");
+}
+
+fn void rescan_waits_for_quiet_but_not_past_the_cap() @test
+{
+	Clock start = (Clock)1_000_000_000_000;
+	Duration settle = (Duration)200_000;
+	// Quiet for the whole settle period: due now.
+	assert(rescan_wait(start, start, start + (Clock)200_000_000, settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
+	// Changing all the time: the first change is a full cap old, so the rescan is due although the last change was just now.
+	assert(rescan_wait(start, start + (Clock)1_990_000_000, start + (Clock)2_000_000_000, settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
+	// Changed 10 ms ago, first changed 1 s ago: wait for the rest of the quiet period, 190 ms.
+	Clock now = start + (Clock)1_000_000_000;
+	assert(rescan_wait(start, now - (Clock)10_000_000, now, settle, MAX_CHANGE_DELAY) == (Duration)190_000);
+}
+
+fn void listing_order_does_not_change_the_fingerprint() @test
+{
+	@pool()
+	{
+		String[2] forward  = { "b.desktop", "a.desktop" };
+		String[2] backward = { "a.desktop", "b.desktop" };
+		String first       = listing_text(forward[..], tmem);
+		String second      = listing_text(backward[..], tmem);
+		assert(first == second, "the same names give the same text");
+		assert(first == "a.desktop\nb.desktop\n", "names in byte order, one per line");
+	};
+}

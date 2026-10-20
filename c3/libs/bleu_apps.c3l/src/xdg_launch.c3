@@ -87,7 +87,7 @@ fn String[] child_environment(LaunchRequest* request, Allocator allocator) @loca
 }
 
 // Whether `entry` (NAME=value) sets the variable `name`: the whole name must match, not a prefix of it.
-fn bool is_variable(String entry, String name) @local
+fn bool is_variable(String entry, String name)
 {
 	return entry.starts_with(name) && entry.len > name.len && entry[name.len] == '=';
 }

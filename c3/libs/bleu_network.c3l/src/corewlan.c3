@@ -18,7 +18,10 @@ import std::io, std::time, std::collections::list, std::collections::maybe, std:
 <* Commands taken from the mailbox per pass of the loop. *>
 const usz COMMAND_BATCH = 16;
 
-<* What to do when the names are withheld: the reason a connect fails with PERMISSION_DENIED (kept under the detail limit). *>
+<*
+ What to do when the names are withheld: the reason a connect fails with PERMISSION_DENIED (kept under the detail
+ limit).
+*>
 const String LOCATION_REMEDY = "Wi-Fi names are withheld: grant Location Services to this app (System Settings > Privacy & Security > Location Services); the app must request it itself";
 
 <* The backend's state. The worker thread owns it. *>
@@ -365,11 +368,11 @@ fn State read_state(Backend* b, Allocator out)
 {
 	Wifi wifi = { .present = true, .interface_name = b.interface_name.copy(out) };
 	wifi.radio_enabled = b.iface.send_bool("powerOn");
-	ObjId ssid        = b.iface.send_id("ssid");
-	ObjId bssid       = b.iface.send_id("bssid");
-	bool linked       = associated(b);
-	char[] octets    = data_or_empty(b.iface.send_id("ssidData"), out);
-	bool named        = ssid != (ObjId)null && octets.len > 0;
+	ObjId ssid    = b.iface.send_id("ssid");
+	ObjId bssid   = b.iface.send_id("bssid");
+	bool linked   = associated(b);
+	char[] octets = data_or_empty(b.iface.send_id("ssidData"), out);
+	bool named    = ssid != (ObjId)null && octets.len > 0;
 	if (named) wifi.connected_ssid = network::make_ssid(out, octets);
 	wifi.ssid_visible = !linked || named;
 	wifi.phase = linked ? CONNECTED : IDLE;

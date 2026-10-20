@@ -41,14 +41,14 @@ struct Power
 	void* driver_state;
 	Capabilities capabilities;
 	Startup startup;
+	Link* link; // shared with every hold and inhibitor; outlives `close` while a handle lives
 }
 
 <*
  Open the first working mechanism of this platform (or the one in `options`).
  Blocks until the mechanism has connected and read its first state.
 
- @param allocator : "Allocator for the service and its snapshots"
- @return? error::UNAVAILABLE : "No mechanism works here (no power management service is running)"
+ @return? error::UNAVAILABLE : "No mechanism works here (no power management service is running), or the chosen one failed to start"
  @return? error::UNSUPPORTED : "The requested mechanism does not exist on this platform"
 *>
 fn Power*? open(Allocator allocator, Options options = { })
@@ -59,17 +59,28 @@ fn Power*? open(Allocator allocator, Options options = { })
 	self.driver = driver;
 	self.capabilities.init(availability::no(availability::Reason.BACKEND_STOPPED, "the mechanism has not started"));
 	self.startup.init();
+	self.link = link_create(allocator, &self.hub);
 	void*? state = driver.create(allocator, options, &self.capabilities, &self.startup);
 	if (catch err = state)
 	{
+		self.link.drop();
 		self.startup.free();
 		alloc::free(allocator, self);
 		return err~;
 	}
 	self.driver_state = state;
-	if (catch err = self.hub.start(allocator, "power", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"power",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		service::DEFAULT_QUEUE{State, Command, Event},
+		&abandon
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
+		self.link.drop();
 		self.startup.free();
 		alloc::free(allocator, self);
 		return err~;
@@ -82,14 +93,28 @@ fn Power*? open(Allocator allocator, Options options = { })
 	return self;
 }
 
-<* Stop the worker, release everything, and fail every request still queued. *>
+<*
+ Stop the worker, release everything, and fail every request still queued. Holds and
+ inhibitors still alive are spent: their releases are refused from now on.
+*>
 fn void Power.close(&self)
 {
+	self.link.shut();
 	self.hub.stop();
 	self.driver.destroy(self.allocator, self.driver_state);
 	self.startup.free();
+	self.link.drop();
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
+}
+
+<*
+ Called for each command still queued when the worker stops: its request fails with
+ DISCONNECTED, so no waiter is left behind.
+*>
+fn void abandon(void* backend, Command* command) @local
+{
+	abort_command(command, error::DISCONNECTED);
 }
 
 <* Name of the mechanism in use, for diagnostics ("logind", "macos", "win32"). *>
@@ -124,14 +149,19 @@ fn WatchId{State} Power.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Power.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Power.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (lid, external power, sleep and resume). *>
 fn Reader{Event}*? Power.subscribe(&self) => self.hub.events.subscribe();
 
 <*
- Select a profile. The operation's value is the profile the daemon accepted.
+ Select a profile. The operation's value is the profile the request wrote. The daemon's
+ own answer is its `ActiveProfile`, which reaches `latest()` once it has changed.
 
  @return? error::UNSUPPORTED : "This mechanism has no power profiles"
  @return? error::UNAVAILABLE : "The profile daemon is not running"
@@ -181,7 +211,7 @@ fn HoldOperation*? Power.hold_profile(&self, Profile profile, String reason)
 		.kind = HOLD_PROFILE,
 		.profile = profile,
 		.why = copy_into(reason, operation.allocator()),
-		.owner = self,
+		.link = self.link,
 		.hold_op = operation,
 	};
 	if (catch err = post_retained{ProfileHold}(self, command, operation))
@@ -215,7 +245,7 @@ fn InhibitOperation*? Power.inhibit(&self, InhibitKind kind, String who, String 
 		.inhibit = kind,
 		.who = copy_into(who, operation.allocator()),
 		.why = copy_into(why, operation.allocator()),
-		.owner = self,
+		.link = self.link,
 		.inhibit_op = operation,
 	};
 	if (catch err = post_retained{Inhibitor}(self, command, operation))
@@ -275,16 +305,6 @@ fn ActionOperation*? Power.perform(&self, Action action)
  @return? error::BUSY : "The worker's queue is full"
 *>
 fn void? Power.ack(&self, uint ticket) => self.hub.post({ .kind = ACK_SLEEP, .number = ticket });
-
-<* Release the profile hold. The release is queued; a hold that the daemon no longer knows is already gone. *>
-fn void? ProfileHold.release(
-	&self
-) => self.owner.hub.post({ .kind = RELEASE_PROFILE, .number = self.cookie, .owner = self.owner });
-
-<* Release the inhibitor. The release is queued and cannot fail: closing the descriptor is what releases it. *>
-fn void? Inhibitor.release(
-	&self
-) => self.owner.hub.post({ .kind = RELEASE_INHIBITOR, .number = self.id, .owner = self.owner });
 
 <*
  Complete `operation` with `value` and drop the worker's reference to it.

@@ -9,11 +9,13 @@ fn void destroy_frees_the_transitions_still_queued() @test
 	b.transitions.init(mem);
 	b.pending.init(mem);
 	b.prompts.init(mem);
-	b.transitions.push({
-		.sequence = 1,
-		.device = "/org/freedesktop/NetworkManager/Devices/1".copy(mem),
-		.state = 30,
-		.reason = 0,
-	});
+	b.transitions.push(
+		{
+			.sequence = 1,
+			.device = "/org/freedesktop/NetworkManager/Devices/1".copy(mem),
+			.state = 30,
+			.reason = 0,
+		}
+	);
 	networkmanager::destroy(mem, b);
 }

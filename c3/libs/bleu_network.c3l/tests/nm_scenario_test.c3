@@ -265,7 +265,8 @@ fn void set_fault(String name, String value) @local
 	fs::write_text(string::tformat("%s/%s", environment("BLEU_NETWORK_TEST_FAULTS"), name), value)!!;
 }
 
-fn String eth_rx_path() @local => string::tformat("%s/sys/class/net/eth0/statistics/rx_bytes", environment("BLEU_NETWORK_TEST_ROOT"));
+fn String eth_rx_path(
+) @local => string::tformat("%s/sys/class/net/eth0/statistics/rx_bytes", environment("BLEU_NETWORK_TEST_ROOT"));
 
 fn bool eth_rx_is_20001(State* state)
 {
@@ -377,11 +378,11 @@ fn void a_superseded_prompt_is_withdrawn() @test
 	defer first.release();
 	Reader{Event}* events = net.subscribe()!!;
 	defer events.release();
-	ConnectOp* first_try = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
-	ulong older = await_prompt(events, "Guest-SAE");
+	ConnectOp* first_try  = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
+	ulong older           = await_prompt(events, "Guest-SAE");
 	ConnectOp* second_try = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
 	assert(await_event(events, CREDENTIALS_WITHDRAWN, older), "the superseded prompt is withdrawn");
-	ulong newer = await_prompt(events, "Guest-SAE");
+	ulong newer      = await_prompt(events, "Guest-SAE");
 	SettleOp* answer = net.supply_credentials(newer, "sae-password")!!;
 	assert(answer.wait(time::sec(10))!! == CHANGED, "the answer is delivered");
 	answer.release();
@@ -403,7 +404,8 @@ fn void a_refused_agent_withdraws_the_prompt_capability() @test
 	Network* net = open_fixture();
 	defer net.close();
 	assert(!net.capability(WIFI_SECRET_PROMPT).ok(), "no prompt is offered");
-	assert(net.capability(WIFI_SECRET_PROMPT).reason == availability::Reason.PERMISSION_NEEDED, "and the reason is given");
+	assert(net.capability(WIFI_SECRET_PROMPT)
+		.reason == availability::Reason.PERMISSION_NEEDED, "and the reason is given");
 }
 
 // D16: forgetting a network deletes every saved profile of it, so a second forget finds none.
