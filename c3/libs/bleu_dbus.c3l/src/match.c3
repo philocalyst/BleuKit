@@ -11,7 +11,7 @@
  `path_namespace` and `argN` semantics), "Method: org.freedesktop.DBus.AddMatch".
 *>
 module bleu::dbus::match;
-import bleu::error, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::signature;
+import bleu::error, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::signature, bleu::dbus::names;
 
 <* Number of argument positions a rule can constrain (arg0 .. arg7). *>
 const MAX_ARGUMENTS = 8;
@@ -217,8 +217,14 @@ fn void append_key(Match* self, String key, String value) @private
 	self.text.append_char('\'');
 	foreach (c : value)
 	{
-		if (c == '\'') self.text.append_string("'\\''");
-		else self.text.append_char(c);
+		if (c == '\'')
+		{
+			self.text.append_string("'\\''");
+		}
+		else
+		{
+			self.text.append_char(c);
+		}
 	}
 	self.text.append_char('\'');
 }
