@@ -116,7 +116,6 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 		}
 		refresh(hub);
 	}
-	appearance::cancel_pending(host);
 }
 
 // Runs on whatever thread posts the notification: only the mailbox is touched.
@@ -276,11 +275,14 @@ fn void? set_wallpaper(String path) @private
 				(ObjId)null,
 				(ObjId)null
 			);
+			// Screens before `i` already show the picture; the message says so, because nothing undoes them.
 			if (!done) return error::raise(
 				error::BACKEND_FAILURE,
 				error::Domain.NS_ERROR,
 				(int)i,
-				"setDesktopImageURL failed on screen %d",
+				"setDesktopImageURL failed on screen %d of %d; the %d screen(s) before it were set",
+				i,
+				count,
 				i
 			)~;
 		}

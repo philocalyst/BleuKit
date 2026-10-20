@@ -32,6 +32,7 @@ fn fault for_name(String name)
 	if (name == "org.freedesktop.DBus.Error.UnknownMethod" || name == "org.freedesktop.DBus.Error.UnknownObject"
 		|| name == "org.freedesktop.DBus.Error.UnknownInterface"
 		|| name == "org.freedesktop.DBus.Error.UnknownProperty") return NOT_FOUND;
+	if (name == "org.freedesktop.DBus.Error.NoMemory") return error::NO_MEMORY;
 	if (name == "org.freedesktop.DBus.Error.NotSupported") return error::UNSUPPORTED;
 	if (name == "org.freedesktop.DBus.Error.InvalidArgs") return error::INVALID_ARGUMENT;
 	if (name == "org.freedesktop.DBus.Error.NoReply" || name == "org.freedesktop.DBus.Error.Timeout") return TIMEOUT;

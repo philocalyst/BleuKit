@@ -15,6 +15,8 @@ struct GsettingsBackend
 	Allocator allocator;
 	Duration poll;
 	String[] wallpaper_command;
+	ColorScheme scheme; // the last reading that worked: kept when a read fails
+	bool reduced_motion; // likewise
 }
 
 const Driver DRIVER = {
@@ -71,7 +73,7 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 0)) return;
 	defer poller.free();
-	publish_state(hub);
+	publish_state(backend, hub);
 	Command[8] commands;
 	while (!host.stopping())
 	{
@@ -84,17 +86,19 @@ fn void run(void* state, AppearanceHub* hub, Host{Command}* host)
 		{
 			for (usz i = 0; i < count; i++) execute(backend, &commands[i]);
 		}
-		publish_state(hub);
+		publish_state(backend, hub);
 	}
-	appearance::cancel_pending(host);
 }
 
-fn void publish_state(AppearanceHub* hub) @private
+// Read the desktop and publish it. A key that cannot be read keeps its last reading; nothing is guessed.
+fn void publish_state(GsettingsBackend* backend, AppearanceHub* hub) @private
 {
+	if (try scheme = gnome::read_color_scheme()) backend.scheme = scheme;
+	if (try enabled = gnome::animations_enabled()) backend.reduced_motion = !enabled;
 	StateSnapshot* snapshot = hub.begin();
 	State state = {
-		.color_scheme = gnome::read_color_scheme(),
-		.reduced_motion = !(gnome::animations_enabled() ?? true),
+		.color_scheme = backend.scheme,
+		.reduced_motion = backend.reduced_motion,
 	};
 	gnome::read_desktop(snapshot.allocator(), &state);
 	snapshot.value = state;

@@ -470,12 +470,6 @@ fn void? write_profile(Backend* b, char[] ssid, Security security, String passph
 	if (code != 0) return errors::raise_win32(code, "writing the network profile")~;
 }
 
-// The security class of the network in the last published scan.
-fn Security security_on_air(NetworkHub* hub, char[] ssid) @local
-{
-	return network::security_on_air(hub, ssid);
-}
-
 // Give up a connection that is still in progress when the service stops.
 fn void abandon_connect(Backend* b) @local
 {

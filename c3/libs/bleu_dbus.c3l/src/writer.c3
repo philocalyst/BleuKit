@@ -197,6 +197,8 @@ fn void? Writer.append_signature(&self, String sig)
 fn void? Writer.begin_array(&self, String array_sig)
 {
 	if (!signature::is_single(array_sig) || array_sig[0] != signature::ARRAY) return error::INVALID_ARGUMENT~;
+	// Room for the frame is checked before anything is written, so a refusal writes nothing.
+	if (self.depth >= MAX_FRAMES) return error::INVALID_ARGUMENT~;
 	claim(self, array_sig)!;
 	put_fixed(self, 0, 4);
 	usz length_at  = self.size() - 4;
@@ -208,8 +210,11 @@ fn void? Writer.begin_array(&self, String array_sig)
 <*
  Close the innermost array and fill in its length.
 
+ A refusal for length (more than 2^26 bytes) is not a clean one: the elements are
+ already written and the array stays open, so the writer cannot be finished. Discard it.
+
  @return? error::INVALID_STATE : "The innermost open container is not an array"
- @return? error::INVALID_ARGUMENT : "The elements take more than 2^26 bytes"
+ @return? error::INVALID_ARGUMENT : "The elements take more than 2^26 bytes; the writer must be discarded"
 *>
 fn void? Writer.end_array(&self)
 {

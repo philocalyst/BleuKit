@@ -18,6 +18,8 @@ import std::os::process, bleu::appearance, bleu::appearance::convert, bleu::erro
 const String INTERFACE_SCHEMA  = "org.gnome.desktop.interface";
 const String BACKGROUND_SCHEMA = "org.gnome.desktop.background";
 const sz VALUE_CAPACITY        = 1024;
+<* Room for the key list of one schema, which is a few hundred bytes. *>
+const usz KEY_LIST_CAPACITY    = 4096;
 
 <*
  The text `gsettings get` printed for one key, trimmed. It is a view into
@@ -51,11 +53,17 @@ fn bool available()
 	return printed.len > 0;
 }
 
-<* The GNOME colour scheme. NO_PREFERENCE when it cannot be read. *>
-fn ColorScheme read_color_scheme()
+<*
+ The GNOME colour scheme. A key that cannot be read (the command fails or prints nothing) is an error, so the
+ caller keeps its last reading; "default" is NO_PREFERENCE.
+
+ @return? error::UNAVAILABLE : "gsettings printed nothing for the key"
+*>
+fn ColorScheme? read_color_scheme()
 {
 	char[VALUE_CAPACITY] buffer;
 	String printed = printed_text(buffer[..], INTERFACE_SCHEMA, "color-scheme") ?? "";
+	if (printed.len == 0) return error::UNAVAILABLE~;
 	@pool()
 	{
 		return convert::scheme_from_gnome(convert::unquote(tmem, printed) ?? "");
@@ -127,11 +135,34 @@ fn void? set_color_scheme(ColorScheme scheme)
 	};
 }
 
-<*
- Point GNOME's picture keys at the file at `path`. `picture-uri-dark` exists from
- GNOME 42; on an older release only `picture-uri` is written.
+<* The key of the dark picture: GNOME 42 and later have it; earlier releases have only the light one. *>
+const String PICTURE_DARK_KEY = "picture-uri-dark";
 
- @return? error::BACKEND_FAILURE : "gsettings refused the light picture"
+<*
+ Whether the schema has the key `key`: `gsettings list-keys` prints one key per line.
+
+ @return? error::BACKEND_FAILURE : "gsettings could not list the keys of the schema"
+*>
+fn bool? has_key(String schema, String key)
+{
+	char[KEY_LIST_CAPACITY] buffer;
+	String[3] argv = { "gsettings", "list-keys", schema };
+	String listed  = process::run_capture_stdout(buffer[..], argv[..], process::SpawnOptions.INHERIT_ENV)!;
+	sz start = 0;
+	for (sz i = 0; i <= listed.len; i++)
+	{
+		if (i < listed.len && listed[i] != '\n') continue;
+		if (listed[start:i - start].trim() == key) return true;
+		start = i + 1;
+	}
+	return false;
+}
+
+<*
+ Point GNOME's picture keys at the file at `path`. The light picture is required. The dark one is written when
+ the schema has it (GNOME 42 and later); on an older release only the light picture exists.
+
+ @return? error::BACKEND_FAILURE : "gsettings refused a picture, or could not list the keys"
 *>
 fn void? set_wallpaper(String path)
 {
@@ -139,9 +170,7 @@ fn void? set_wallpaper(String path)
 	{
 		String uri = convert::quote(tmem, convert::file_uri(tmem, path));
 		set_text(BACKGROUND_SCHEMA, "picture-uri", uri)!;
-		if (catch set_text(BACKGROUND_SCHEMA, "picture-uri-dark", uri))
-		{
-			// GNOME before 42 has no dark picture key; the light picture is the one that counts.
-		}
+		bool has_dark = has_key(BACKGROUND_SCHEMA, PICTURE_DARK_KEY)!;
+		if (has_dark) set_text(BACKGROUND_SCHEMA, PICTURE_DARK_KEY, uri)!;
 	};
 }

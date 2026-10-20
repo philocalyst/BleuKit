@@ -1,5 +1,5 @@
 module bleu::brightness::engine_test;
-import std::collections::maybe, std::time, bleu::availability, bleu::brightness, bleu::error, bleu::observe, bleu::operation, bleu::rt::worker, bleu::service, bleu::stream, bleu::unit;
+import std::atomic, std::collections::maybe, std::thread, std::time, bleu::availability, bleu::brightness, bleu::error, bleu::observe, bleu::operation, bleu::rt::worker, bleu::service, bleu::stream, bleu::unit;
 
 // A platform in memory: one panel with a backlight and a gamma ramp.
 struct World
@@ -8,6 +8,8 @@ struct World
 	float gamma;
 	bool hardware_writable;
 	bool hardware_fails;
+	bool unreadable;
+	bool read_fails;
 	int hardware_writes;
 	Platform platform;
 }
@@ -20,7 +22,8 @@ const float TOLERANCE    = 0.01f;
 
 fn State? world_read(void* context, Allocator allocator)
 {
-	World* world       = (World*)context;
+	World* world = (World*)context;
+	if (world.read_fails) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "test: unreadable")~;
 	Control[] controls = alloc::new_array(allocator, Control, 2);
 	Availability state = world.hardware_writable ? availability::YES
 		: availability::no(availability::Reason.PERMISSION_NEEDED, "test: read-only");
@@ -34,6 +37,11 @@ fn State? world_read(void* context, Allocator allocator)
 		.raw_min = 0,
 		.raw_max = 100,
 	};
+	if (world.unreadable)
+	{
+		Maybe{Level} none = { };
+		controls[0].level = none;
+	}
 	controls[1] = {
 		.mechanism = Mechanism.GAMMA,
 		.readable = true,
@@ -256,4 +264,98 @@ fn void a_level_change_is_announced_as_an_event() @test
 	assert(packet.value.kind == EventKind.LEVEL_CHANGED, "the level moved");
 	assert(packet.value.device_id == "panel"
 		&& packet.value.mechanism == Mechanism.BACKLIGHT, "it names the device and the control");
+}
+
+// A run that waits until the test releases it, then returns: the early return of a backend that stopped by itself.
+struct Gate
+{
+	Atomic{bool} released;
+}
+
+fn void early_run(void* state, BrightnessHub* hub, Host{Command}* host)
+{
+	Gate* gate = (Gate*)state;
+	while (!gate.released.load()) thread::sleep(time::ms(1));
+}
+
+fn void a_request_queued_when_the_backend_returns_early_fails() @test
+{
+	Gate gate;
+	BrightnessHub hub;
+	hub.start(mem, "test", "early", &early_run, &gate, brightness::COMMAND_QUEUE, &brightness::abandon_command)!!;
+	defer hub.stop();
+	SetOperation* op = operation::begin{Applied}(mem);
+	defer op.release();
+	Command command = {
+		.kind = SET_LEVEL,
+		.device_len = 5,
+		.level = (Level)0.4f,
+		.policy = brightness::prefer_hardware(),
+		.operation = op
+	};
+	mem::copy(&command.device, "panel".ptr, 5);
+	op.retain();
+	hub.post(command)!!;
+	gate.released.store(true);
+	if (catch err = op.wait(WAIT))
+	{
+		assert(err == error::DISCONNECTED, "a request the backend never ran fails DISCONNECTED");
+	}
+	else
+	{
+		assert(false, "a request the backend never ran must not succeed");
+	}
+}
+
+fn void the_state_is_published_before_its_event() @test
+{
+	World world = make_world(true, false);
+	world.platform.context = &world;
+	BrightnessHub hub;
+	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.stop();
+	stream::Reader{Event}* reader = hub.events.subscribe()!!;
+	defer reader.release();
+	request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
+	Snapshot{Event}* packet = reader.next(WAIT)!!;
+	defer packet.release();
+	Snapshot{State}* latest = hub.latest()!!;
+	defer latest.release();
+	assert(latest.value.devices[0].controls[0].raw.value == 40, "a listener woken by the event reads the new state");
+}
+
+fn void an_unreadable_platform_keeps_the_last_state() @test
+{
+	World world = make_world(true, false);
+	world.platform.context = &world;
+	BrightnessHub hub;
+	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.stop();
+	request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
+	world.read_fails = true;
+	hub.post({ .kind = REFRESH })!!;
+	// Queued after the refresh, so the worker has run the refresh by the time this completes.
+	request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
+	Snapshot{State}* latest = hub.latest()!!;
+	defer latest.release();
+	assert(latest.value.devices.len == 1, "a failed read keeps the last published devices");
+}
+
+fn void a_transition_needs_a_readable_start_level() @test
+{
+	World world = make_world(true, false);
+	world.unreadable = true;
+	world.platform.context = &world;
+	BrightnessHub hub;
+	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.stop();
+	if (catch err = request(&hub, brightness::prefer_hardware(), (Level)0.4f, (Duration)100_000))
+	{
+		assert(err == error::UNAVAILABLE, "a ramp with no readable start level is refused, not jumped");
+	}
+	else
+	{
+		assert(false, "a ramp that cannot start from a level must not succeed");
+	}
+	assert(world.hardware_writes == 0, "nothing was written");
 }

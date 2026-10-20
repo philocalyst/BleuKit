@@ -16,6 +16,7 @@ import std::collections::list, std::time, bleu::availability, bleu::battery, ble
 struct Backend
 {
 	Duration poll;
+	Startup* startup;
 	Notifier notifier;
 }
 
@@ -45,7 +46,7 @@ fn bool probe(Options* options)
 	return get_system_power_status(&status) != 0;
 }
 
-fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
+fn void*? create(Allocator allocator, Options options, Capabilities* capabilities, Startup* startup)
 {
 	capabilities.init(availability::YES);
 	capabilities.set(
@@ -71,33 +72,21 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.HEALTH,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"Design and full capacity come from the battery class IOCTLs; without them only the summary is published"
-		)
+		battery::degraded("Design and full capacity come from the battery class IOCTLs; without them only the summary is published")
 	);
 	capabilities.set(
 		Cap.CYCLES,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"Cycle count comes from the battery class IOCTLs; without them it is unknown"
-		)
+		battery::degraded("Cycle count comes from the battery class IOCTLs; without them it is unknown")
 	);
 	capabilities.set(
 		Cap.POWER,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"Flow comes from the battery class IOCTLs (Rate); the summary has no rate"
-		)
+		battery::degraded("Flow comes from the battery class IOCTLs (Rate); the summary has no rate")
 	);
 	capabilities.set(
 		Cap.TIME_ESTIMATE,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"Computed from capacity and rate; the summary uses BatteryLifeTime"
-		)
+		battery::degraded("Computed from capacity and rate; the summary uses BatteryLifeTime")
 	);
-	Backend* backend = alloc::new(allocator, Backend, { .poll = options.poll });
+	Backend* backend = alloc::new(allocator, Backend, { .poll = options.poll, .startup = startup });
 	return backend;
 }
 
@@ -166,21 +155,18 @@ fn void close_watches(message_loop::Loop* loop, Watches* watches)
 	loop.close();
 }
 
-<* Read the hardware once and publish the result if it differs from the last. *>
+<* Read the hardware once and publish the result. A failed read keeps the last good state, marked stale. *>
 fn void refresh(BatteryHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
 	State? state              = read_all(snapshot.allocator());
 	if (catch err = state)
 	{
-		// Unreadable summary: nothing is known, so publish an empty state.
-		snapshot.value = { };
+		battery::publish_failure(hub, snapshot);
+		return;
 	}
-	else
-	{
-		snapshot.value = state;
-	}
-	hub.publish_if_changed(snapshot);
+	snapshot.value = state;
+	battery::publish_reading(hub, snapshot);
 }
 
 <*
@@ -195,6 +181,7 @@ fn State? read_all(Allocator allocator)
 		bool on_mains             = summary_on_mains((uint)summary.ac_line_status);
 		List{battery::Source} sources;
 		sources.init(tmem);
+		usz skipped = 0;
 		if (try set = battery_devices())
 		{
 			defer set.close();
@@ -204,20 +191,34 @@ fn State? read_all(Allocator allocator)
 				String? path = set.path(index);
 				if (catch err = path)
 				{
-					// The end of the list ends the loop; a device that cannot be named is skipped.
+					// The end of the list ends the loop; a device that cannot be named is counted as skipped.
 					if (err == NO_MORE_ELEMENT) break;
+					skipped++;
 					index++;
 					continue;
 				}
-				if (try source = read_device(allocator, path)) sources.push(source);
+				if (try source = read_device(allocator, path))
+				{
+					sources.push(source);
+				}
+				else
+				{
+					skipped++;
+				}
 				index++;
 			}
+		}
+		else
+		{
+			// SetupAPI could not list the batteries: the summary below stands in, and the reading says so.
+			skipped++;
 		}
 		if (sources.array_view().len == 0 && summary_has_battery((uint)summary.battery_flag))
 		{
 			sources.push(summary_source(allocator, &summary, on_mains));
 		}
 		State state = { .on_mains = on_mains };
+		state.reading = battery::reading_after(skipped);
 		if (sources.array_view().len > 0)
 		{
 			state.sources = alloc::clone_slice(allocator, sources.array_view());
@@ -230,8 +231,13 @@ fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 {
 	Backend* backend = (Backend*)state;
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 0, true)) return;
+	if (catch err = poller.init(mem, host.wakeup(), 0, true))
+	{
+		backend.startup.fail(err);
+		return;
+	}
 	defer poller.free();
+	backend.startup.succeed();
 	backend.notifier.mailbox = host.mailbox();
 	Watches watches;
 	message_loop::Loop* loop = null;

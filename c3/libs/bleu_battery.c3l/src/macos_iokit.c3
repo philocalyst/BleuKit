@@ -11,21 +11,29 @@
  `bleu::iokit::power`, cited there); the registry keys in `iokit_read.c3`.
 *>
 module bleu::battery::iokit @feat(DARWIN);
-import std::time, bleu::availability, bleu::battery, bleu::cf, bleu::cf::runloop, bleu::iokit::power, bleu::observe, bleu::rt::mailbox, bleu::rt::poller, bleu::rt::worker;
+import std::thread, std::time, bleu::availability, bleu::battery, bleu::cf, bleu::cf::runloop, bleu::iokit::power, bleu::observe, bleu::rt::mailbox, bleu::rt::poller, bleu::rt::worker;
 
 struct Backend
 {
 	Duration poll;
+	Startup* startup;
 	Notifier notifier;
 	RunLoopThread loop;
+	// Set when the run loop thread could not be joined: it may still call the callback, which reads
+	// the notifier, so the backend is deliberately not freed.
+	bool orphaned;
 }
 
 <*
  What the power-source callback needs: the mailbox to enqueue into, and the
- IOPS source it is attached through (owned, closed by `run`).
+ IOPS source it is attached through (owned, closed by `run`). The mutex guards
+ `mailbox` and `closed`: once `closed` is set the callback enqueues nothing, so the
+ mailbox may be freed while the run loop thread is still alive.
 *>
 struct Notifier
 {
+	Mutex mutex;
+	bool closed;
 	Mailbox{Command}* mailbox;
 	cf::Ref source;
 }
@@ -60,7 +68,7 @@ fn bool has_battery_record() @local
 	return false;
 }
 
-fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
+fn void*? create(Allocator allocator, Options options, Capabilities* capabilities, Startup* startup)
 {
 	capabilities.init(availability::YES);
 	bool registry = has_battery_record();
@@ -90,12 +98,16 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		Cap.PERIPHERALS,
 		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "Peripheral batteries are not read on macOS in v1")
 	);
-	Backend* backend = alloc::new(allocator, Backend, { .poll = options.poll });
+	Backend* backend = alloc::new(allocator, Backend, { .poll = options.poll, .startup = startup });
+	backend.notifier.mutex.init()!!;
 	return backend;
 }
 
 fn void destroy(Allocator allocator, void* state)
 {
+	Backend* backend = (Backend*)state;
+	if (backend.orphaned) return;
+	backend.notifier.mutex.destroy();
 	alloc::free(allocator, state);
 }
 
@@ -120,6 +132,9 @@ fn void attach_notifications(void* loop, void* context) @local
 fn void on_power_source_changed(void* context) @local
 {
 	Notifier* notifier = (Notifier*)context;
+	notifier.mutex.lock()!!;
+	defer notifier.mutex.unlock();
+	if (notifier.closed) return;
 	if (catch notifier.mailbox.post(REFRESH))
 	{
 		// Full (a refresh is already queued) or closed (the service is stopping).
@@ -138,16 +153,23 @@ fn void refresh(BatteryHub* hub)
 		return;
 	}
 	snapshot.value = state;
-	hub.publish_if_changed(snapshot);
+	battery::publish_reading(hub, snapshot);
 }
 
 fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 {
 	Backend* backend = (Backend*)state;
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 0)) return;
+	if (catch err = poller.init(mem, host.wakeup(), 0))
+	{
+		backend.startup.fail(err);
+		return;
+	}
 	defer poller.free();
+	backend.startup.succeed();
+	backend.notifier.mutex.lock()!!;
 	backend.notifier.mailbox = host.mailbox();
+	backend.notifier.mutex.unlock()!!;
 	bool notifying = true;
 	if (catch backend.loop.start(&attach_notifications, &backend.notifier, null, null))
 	{
@@ -167,11 +189,16 @@ fn void run(void* state, BatteryHub* hub, Host{Command}* host)
 		(void)count;
 		refresh(hub);
 	}
+	// Closing first stops the callback from touching the mailbox, which the hub frees once this returns.
+	backend.notifier.mutex.lock()!!;
+	backend.notifier.closed = true;
+	backend.notifier.mutex.unlock()!!;
 	if (notifying)
 	{
 		if (catch backend.loop.stop_and_join())
 		{
-			// The loop thread could not be joined; it exits with the process.
+			// The loop thread may still run the callback, which reads the notifier: keep the backend alive.
+			backend.orphaned = true;
 		}
 	}
 	backend.notifier.source.close();

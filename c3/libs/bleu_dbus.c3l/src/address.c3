@@ -24,8 +24,6 @@ const SESSION_BUS_VARIABLE = "DBUS_SESSION_BUS_ADDRESS";
 <* Environment variable naming the system bus. *>
 const SYSTEM_BUS_VARIABLE = "DBUS_SYSTEM_BUS_ADDRESS";
 
-<* Environment variable that names the per-user runtime directory. *>
-const RUNTIME_DIR_VARIABLE = "XDG_RUNTIME_DIR";
 
 <* Well-known socket of the system bus. *>
 const SYSTEM_BUS_ADDRESS = "unix:path=/var/run/dbus/system_bus_socket";
@@ -155,9 +153,9 @@ fn void? parse_entry(Allocator allocator, String entry, List{Endpoint}* found) @
 				endpoint = { .abstract = true, .path = value };
 				selectors++;
 			case "runtime":
+				// Listen-only, as the specification says: a client connects to the `path` address of the bus.
 				if (value != "yes") return error::INVALID_ARGUMENT~;
-				String runtime_dir = env::get_var(allocator, RUNTIME_DIR_VARIABLE)!;
-				endpoint = { .abstract = false, .path = string::format(allocator, "%s/bus", runtime_dir) };
+				listen_only = true;
 				selectors++;
 			case "dir":
 			case "tmpdir":
