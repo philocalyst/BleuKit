@@ -6,7 +6,11 @@
  (https://specifications.freedesktop.org/desktop-entry-spec/latest/), sections
  "Basic format", "Entries", "Value types", "Localized values for keys" and
  "Locale matching". Cross-checked against GLib's `gkeyfile.c`
- (https://github.com/GNOME/glib/blob/main/glib/gkeyfile.c).
+ (https://github.com/GNOME/glib/blob/main/glib/gkeyfile.c): its escape table
+ (`\s \n \t \r \\`, an error for any other escape and for a trailing backslash)
+ and its key-name rule (anything except `=`, `[` and `]`), which is why
+ `KeySyntax.PERMISSIVE` exists. GLib refuses `\;` outside lists; this module
+ accepts it everywhere.
 
  A file is UTF-8, optionally starting with a byte-order mark. Lines end in LF,
  or CRLF (the CR is dropped). Blank lines and lines starting with `#` are
@@ -21,7 +25,7 @@
  Malformed input is rejected, never guessed at. Every error carries the line
  number as its native code (`error::last().code`), so a message can point at
  the offending line. Duplicate groups and duplicate keys (same name and locale)
- in one group are errors, as the specification requires.
+ in one group are errors, as the specification's "Basic format" section requires.
 
  Values are stored undecoded and decoded on access: the string escapes `\s \n
  \t \r \\` are decoded, and list values are split on unescaped `;`. The escape

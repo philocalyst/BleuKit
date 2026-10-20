@@ -3,9 +3,8 @@
 
  Source: The Unicode Standard, chapter 3 (UTF-16 surrogate pairs and UTF-8
  bit patterns, https://www.unicode.org/versions/latest/); RFC 3629 for UTF-8.
- Cross-checked against Apple's CFString UTF-16 and UTF-8 converters in
- CoreFoundation (https://github.com/apple-oss-distributions/CF,
- `CFString.c`, `CFStringEncodingConverter`-based UTF-16 decoding).
+ The surrogate arithmetic is checked by the golden fixture `sample.bplist`, whose
+ `Unicode` value holds U+1F600 and was encoded by Python's `plistlib`.
 
  Surrogates that are unpaired, and code points above U+10FFFF, are errors: the
  readers never produce invalid UTF-8.

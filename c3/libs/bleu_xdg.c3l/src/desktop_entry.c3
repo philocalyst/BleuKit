@@ -5,8 +5,9 @@
  Source: Desktop Entry Specification 1.5
  (https://specifications.freedesktop.org/desktop-entry-spec/latest/): "Desktop
  File ID", "Basic format", "OnlyShowIn, NotShowIn", "Application actions" and
- the key table. Cross-checked against GLib's `gdesktopappinfo.c` and against the
- `xdg` tests of freedesktop-desktop-entry (crates.io, version 0.7).
+ the key table. The desktop-file-ID rule and the directory walk are from that
+ text. The precedence of `applications/` directories follows GLib's
+ `desktop_file_dir` handling in `gio/gdesktopappinfo.c`, which was read, not run.
 
  A `DesktopEntry` owns its strings in a private arena: `release` frees them all.
  Localized keys (`Name`, `GenericName`, `Comment`, `Icon`) are resolved for the

@@ -47,6 +47,8 @@ struct WtsInfoEx
 	int session_flags;
 }
 
+$assert(WtsInfoEx::size == 20);
+
 <*
  Ask `wnd` to receive `WM_WTSSESSION_CHANGE` for its own session. Undo with
  `unregister`. A window may be registered only once.
@@ -74,7 +76,9 @@ fn void? unregister(void* window)
 }
 
 <*
- Whether the workstation of `session` is locked.
+ Whether the workstation of `session` is locked. Supported on Windows 8 and
+ later: Windows 7 and Server 2008 R2 reverse the two `WTS_SESSIONSTATE` flags
+ (Learn, "WTSINFOEX_LEVEL1_W"), so this check must not be used there.
 
  @param session : "A session id, such as `WTS_CURRENT_SESSION`"
  @return "True when the session is locked, false when unlocked"

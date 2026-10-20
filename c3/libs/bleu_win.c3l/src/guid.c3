@@ -27,6 +27,8 @@ struct Guid
 	char[8] data4;
 }
 
+$assert(Guid::size == 16);
+
 <* The all-zero GUID. *>
 const Guid NIL = { .data1 = 0, .data2 = 0, .data3 = 0, .data4 = { 0, 0, 0, 0, 0, 0, 0, 0 } };
 

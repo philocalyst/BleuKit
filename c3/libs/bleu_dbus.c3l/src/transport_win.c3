@@ -17,6 +17,12 @@ fn int? connect_unix(String path, bool abstract)
 	return error::UNSUPPORTED~;
 }
 
+<*
+ Most descriptors one message may carry. Same value as the POSIX file: the
+ kernel limit SCM_MAX_FD on Linux, used on every platform.
+*>
+const MAX_DESCRIPTORS = 253;
+
 <* Nothing to close: no descriptor can exist on this platform. *>
 fn void close_fd(int fd) {}
 

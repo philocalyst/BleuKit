@@ -14,8 +14,8 @@
  include/uapi/linux/un.h (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/un.h),
  unix(7) for abstract names (leading NUL byte)
  - SOL_SOCKET 1, SO_PEERCRED 17, SCM_RIGHTS 1: include/uapi/asm-generic/socket.h line 30 (SO_PEERCRED 17),
- include/uapi/linux/socket.h lines 192-193, libc 0.2.170 src/unix/linux_like/linux/arch/generic/mod.rs:40
- - struct ucred { __u32 pid, uid, gid; }: include/uapi/linux/socket.h line 197
+ include/linux/socket.h line 192, libc 0.2.170 src/unix/linux_like/linux/arch/generic/mod.rs:40
+ - struct ucred { __u32 pid, uid, gid; }: include/linux/socket.h line 197
  - MSG_CTRUNC 0x08, MSG_TRUNC 0x20, MSG_NOSIGNAL 0x4000, MSG_CMSG_CLOEXEC 0x40000000:
  libc 0.2.170 src/unix/linux_like/mod.rs:834-848
  - F_GETFL 3, F_SETFL 4: include/uapi/asm-generic/fcntl.h; F_DUPFD_CLOEXEC 1030: libc 0.2.170 linux_like/mod.rs:509

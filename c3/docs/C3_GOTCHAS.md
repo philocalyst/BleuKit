@@ -23,5 +23,12 @@
 * `Mutex` needs `init()` at run time, so a zero-initialised global cannot hold one.
 * `constset` values are typed: compare/assign to `char` needs a cast; from another module write `Type.MEMBER`.
 * `NOT_FOUND` is bare in `@return?` contracts (built-in); struct doc comments cannot carry `@param`.
-* `String` has no `+` and no `==`: use `string::tformat` or `mem::equals`. `mem::copy` traps on a null/empty source: guard empty copies.
+* `String` has no `+` (use `string::tformat`); `String == "literal"` does compare contents. `mem::copy` traps on a null/empty source: guard empty copies.
 * Slices: `a[s : len]`, `a[x..y]` inclusive, `a[..]` full; `a[:n]` and `a[:]` are rejected. `ubyte` is not a C3 type (use `char`).
+* `$if` cannot wrap top-level declarations → split files by `@feat`. All-uppercase struct names are rejected.
+* `typedef` makes a distinct type; use `alias` for handle wrappers. `ulong.sizeof` is invalid → `ulong::size`.
+* Domain values: `error::Domain.ERRNO`. errno: `libc::Errno.ENOENT`, not `libc::ENOENT`.
+* `std::thread` threads also need `@foreign_entry`/`@pool_init` before using tmem/tformat.
+* After `if (catch e = v)`, `!`/`!!` on `v` is rejected; just `return v;`. `$else` has no colon.
+* String/char[] need explicit casts; ZString needs `.str_view()`; `test::eq` needs identical types.
+* `std::io::path::rmdir(String)` does not compile from another module (stdlib defect) → use `Path`.

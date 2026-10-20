@@ -4,8 +4,11 @@
 
  Source: XDG Base Directory Specification 0.8
  (https://specifications.freedesktop.org/basedir-spec/latest/), section
- "Environment variables". Cross-checked against GLib's `g_get_user_data_dir`
- family (`glib/gutils.c`, https://github.com/GNOME/glib).
+ "Environment variables". Cross-checked against GLib (`glib/gutils.c`,
+ https://github.com/GNOME/glib): GLib uses the same defaults and the same
+ `XDG_DATA_DIRS` default, and treats an empty variable as unset. Two points
+ where GLib differs and this module follows the specification: GLib accepts a
+ relative `XDG_*_HOME` value, and on Windows GLib uses `LocalAppData`.
 
  Every function takes an `Environment`, so tests and embedding applications can
  supply their own variables. Results are copied into the caller's allocator.
@@ -18,8 +21,9 @@
  * The home directory is `$HOME`, and when that is not set (typical on
    Windows) `%USERPROFILE%`. A drive-letter path such as `C:\Users\me` counts as
    absolute.
- * macOS and Windows use the XDG defaults below, not `~/Library` or `%APPDATA%`.
-   Code that needs native locations must not use this module for them.
+ * macOS and Windows use the XDG defaults below, not `~/Library` or `%APPDATA%`
+   (GLib uses `LocalAppData` on Windows). Code that needs native locations must
+   not use this module for them.
 *>
 module bleu::xdg::dirs;
 import bleu::error, std::os::env, std::collections::list;

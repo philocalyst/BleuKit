@@ -3,9 +3,16 @@
  expansion into one argument vector per program invocation.
 
  Source: Desktop Entry Specification 1.5, section "The Exec key" (quoting rules,
- reserved characters, field code table, deprecated and unknown codes). Cross-
- checked against GLib's `gdesktopappinfo.c` (`expand_macro`, `parse_argv`,
- https://github.com/GNOME/glib/blob/main/gio/gdesktopappinfo.c).
+ reserved characters, field code table, deprecated and unknown codes).
+
+ Cross-checked against GLib's `expand_application_parameters` and `expand_macro`
+ (`gio/gdesktopappinfo.c`, https://github.com/GNOME/glib). They agree on `%%`,
+ on `%i` becoming `--icon` and the icon, on `%c` and `%k`, and on deprecated
+ codes being dropped. They differ in two places this module follows the
+ specification on: GLib drops an unknown code silently (this module refuses the
+ command line), and GLib appends `%f` to a command with no file code (this module
+ does not). GLib also parses the expanded text with shell rules; this module
+ splits the command line before inserting values, so a value is never re-split.
 
  Input is the Exec value as `DesktopEntry.exec` holds it, that is after the
  general string escapes (`\s \n \t \r \\`) have been decoded. Quoting is undone

@@ -223,6 +223,9 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 *>
 fn void Loop.close(&self)
 {
+	// Clear the owner pointer first: messages sent while the window is destroyed
+	// must not reach a loop that is about to be freed.
+	win32::setWindowLongPtrW(self.window, win32::GWLP_USERDATA, 0);
 	// A failed unregister leaves nothing behind that the destroyed window could
 	// still receive, so the failure is not worth stopping the teardown for.
 	if (catch session::unregister(self.window))

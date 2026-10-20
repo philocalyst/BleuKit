@@ -14,6 +14,22 @@ import std::os::win32;
 import bleu::error;
 import bleu::win::errors, bleu::win::guid;
 
+<*
+ Power settings that can be watched (winnt.h; Learn, "Power setting GUIDs",
+ which lists the same values). `GUID_ACDC_POWER_SOURCE`: a DWORD, 0 AC, 1 battery, 2 UPS.
+*>
+const Guid GUID_ACDC_POWER_SOURCE            = guid::guid("5d3e9a59-e9d5-4b00-a6bd-ff34ff516548");
+<* `GUID_BATTERY_PERCENTAGE_REMAINING`: remaining charge: a DWORD from 0 to 100 percent. *>
+const Guid GUID_BATTERY_PERCENTAGE_REMAINING = guid::guid("a7ad8041-b45a-4cae-87a3-eecbb468a9e1");
+<* `GUID_CONSOLE_DISPLAY_STATE`: the console monitor changed: a DWORD, 0 off, 1 on, 2 dimmed (MONITOR_DISPLAY_STATE). *>
+const Guid GUID_CONSOLE_DISPLAY_STATE        = guid::guid("6fe69556-704a-47a0-8f24-c28d936fda47");
+<*
+ `GUID_SESSION_DISPLAY_STATUS`: the session's display changed: a DWORD MONITOR_DISPLAY_STATE, 0 off, 1 on, 2 dimmed.
+*>
+const Guid GUID_SESSION_DISPLAY_STATUS       = guid::guid("2b84c20e-ad23-4ddf-93db-05ffbd7efca5");
+<* `GUID_SESSION_USER_PRESENCE`: the user's presence in the session changed; the DWORD is documented in Learn. *>
+const Guid GUID_SESSION_USER_PRESENCE        = guid::guid("3c0f4548-c03f-4c4d-b9f2-237ede686376");
+
 <* `DEVICE_NOTIFY_WINDOW_HANDLE` (winuser.h): notifications are posted to a window handle. *>
 const uint DEVICE_NOTIFY_WINDOW_HANDLE = 0x00000000;
 

@@ -69,7 +69,7 @@ const ulong SIGN_EXTENSION = 0xFFFFFFFFFFFFFFFF;
  @param [&inout] allocator : "Allocator for the value tree"
  @param data : "The complete file, starting with `bplist0`"
  @return? error::PROTOCOL : "The trailer, offsets or an object are malformed, or the file is nested or holds more values than the readers accept"
- @return? error::OUT_OF_RANGE : "An integer does not fit in 64 bits, or the document holds too many values"
+ @return? error::OUT_OF_RANGE : "An integer does not fit in 64 bits, or the document holds more than `MAX_DECODED_VALUES` values"
 *>
 fn Value? parse(Allocator allocator, char[] data)
 {
@@ -78,8 +78,7 @@ fn Value? parse(Allocator allocator, char[] data)
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not a binary property list")~;
 	}
 	Parser parser = trailer_parser(allocator, data)!;
-	usz top = parser.offset_index(parser.top_object)!;
-	return parser.object(top, 0)!;
+	return parser.object(parser.top_object, 0)!;
 }
 
 // A refusal of the trailer, with the reason.
@@ -107,7 +106,7 @@ fn Parser? trailer_parser(Allocator allocator, char[] data) @local
 	usz table_offset = read_word(data, trailer_at + TRAILER_TABLE_OFFSET);
 	usz offset_size = (usz)(data[trailer_at + TRAILER_OFFSET_SIZE] & 0xFF);
 	usz ref_size = (usz)(data[trailer_at + TRAILER_REF_SIZE] & 0xFF);
-	if (object_count < 1 || object_count > MAX_OBJECTS) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "object count %d is out of range", object_count)~;
+	if (object_count < 1 || object_count > MAX_OBJECTS) return bad_trailer("the object count is out of range")~;
 	if (top_object >= object_count) return bad_trailer("the top object is not an object")~;
 	if (table_offset < MAGIC_LENGTH + 1 || table_offset > trailer_at) return bad_trailer("the offset table is outside the file")~;
 	if (offset_size < 1 || offset_size > MAX_ID_BYTES || ref_size < 1 || ref_size > MAX_ID_BYTES) return bad_trailer("offset or reference width is invalid")~;
@@ -220,6 +219,7 @@ fn usz? Parser.length_at(&self, usz* position, uint low)
 // Copy `length` bytes of the object region at `start` into `allocator`.
 fn char[]? Parser.copy_bytes(&self, usz start, usz length)
 {
+	if (length == 0) return {};
 	self.checked(start, length)!;
 	char[] copy = alloc::new_array(self.allocator, char, (sz)length);
 	mem::copy(copy.ptr, self.data.ptr + start, (sz)length);

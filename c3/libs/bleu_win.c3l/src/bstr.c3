@@ -22,14 +22,14 @@ extern fn uint sysStringLen(Char16* bstr) @cname("SysStringLen");
 <*
  Allocate a BSTR holding a copy of `text`.
 
- @param text : "UTF-8 text"
+ @param content : "UTF-8 text"
  @return "The owned BSTR; release it with `Bstr.close`"
  @return? error::INVALID_ARGUMENT : "If `text` is not valid UTF-8"
  @return? error::NO_MEMORY : "If the system could not allocate the string"
 *>
-fn Bstr? create(String text)
+fn Bstr? create(String content)
 {
-	WideZ wide  = text::to_wide(tmem, text)!;
+	WideZ wide  = text::to_wide(tmem, content)!;
 	Char16* ptr = sysAllocStringLen(wide.units.ptr, (uint)wide.len());
 	if (!ptr && wide.len() > 0) return error::raise(
 		error::NO_MEMORY,

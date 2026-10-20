@@ -8,7 +8,7 @@ fn void sample_matches_plistlib() @test
 	String text = $embed("../fixtures/sample.plist");
 	String expected = $embed("../fixtures/sample.plist.canon");
 	Value root = parse(tmem, text)!!;
-	test::eq(expected.trim("\n"), canonical(tmem, &root));
+	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
 }
 
 fn void handwritten_document_matches_plistlib() @test
@@ -16,7 +16,7 @@ fn void handwritten_document_matches_plistlib() @test
 	String text = $embed("../fixtures/handwritten.plist");
 	String expected = $embed("../fixtures/handwritten.plist.canon");
 	Value root = parse(tmem, text)!!;
-	test::eq(expected.trim("\n"), canonical(tmem, &root));
+	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
 }
 
 fn void byte_order_mark_is_skipped() @test
@@ -68,7 +68,7 @@ fn void writer_round_trips_the_sample() @test
 	Value first = parse(tmem, text)!!;
 	String written = write(tmem, &first)!!;
 	Value second = parse(tmem, written)!!;
-	test::eq(canonical(tmem, &first), canonical(tmem, &second));
+	test::eq(value::canonical(tmem, &first), value::canonical(tmem, &second));
 }
 
 fn void writer_escapes_and_formats() @test
@@ -86,6 +86,7 @@ fn void writer_refuses_what_xml_cannot_hold() @test
 {
 	Value control = { .kind = STRING, .text = "bell\x07" };
 	test::@error(write(tmem, &control), error::INVALID_ARGUMENT);
-	Value nan = { .kind = REAL, .real = double.nan };
+	// The quiet NaN bit pattern; the standard library has no NaN constant.
+	Value nan = { .kind = REAL, .real = bitcast((ulong)0x7FF8000000000000, double) };
 	test::@error(write(tmem, &nan), error::INVALID_ARGUMENT);
 }

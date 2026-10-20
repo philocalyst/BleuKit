@@ -61,7 +61,6 @@ const uint ERROR_OUTOFMEMORY          = 14;
 const uint ERROR_MORE_DATA            = 234;
 const uint ERROR_NO_MORE_ITEMS        = 259;
 const uint ERROR_CANCELLED            = 1223;
-const uint ERROR_CLASS_ALREADY_EXISTS = 1410;
 const uint ERROR_TIMEOUT              = 1460;
 const uint ERROR_NOT_FOUND            = 1168;
 const uint ERROR_NONE_MAPPED          = 1332;

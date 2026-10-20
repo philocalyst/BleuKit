@@ -23,14 +23,14 @@ extern fn Char16* windowsGetStringRawBuffer(void* handle, uint* length) @cname("
 <*
  Create an HSTRING holding a copy of `text`.
 
- @param text : "UTF-8 text"
+ @param content : "UTF-8 text"
  @return "The owned handle; release it with `Hstring.close`"
  @return? error::INVALID_ARGUMENT : "If `text` is not valid UTF-8"
  @return? error::NO_MEMORY : "If the runtime could not allocate the string"
 *>
-fn Hstring? create(String text)
+fn Hstring? create(String content)
 {
-	WideZ wide          = text::to_wide(tmem, text)!;
+	WideZ wide          = text::to_wide(tmem, content)!;
 	void* handle        = null;
 	hresult::Hresult hr = (hresult::Hresult)windowsCreateString(wide.units.ptr, (uint)wide.len(), &handle);
 	if (hr.failed()) return errors::raise_hresult(hr, "WindowsCreateString")~;

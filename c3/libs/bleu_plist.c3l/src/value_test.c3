@@ -33,14 +33,11 @@ fn void malformed_dates_are_refused() @test
 	test::eq(-86400.0 * 365.0 * 0 + parse_date("2000-02-29T00:00:00Z")!!, parse_date("2000-02-29T00:00:00Z")!!);
 }
 
-fn Value tree() @local
-{
-	return { .kind = DICT, .members = { { .key = "n", .value = { .kind = INTEGER, .integer = 5 } }, { .key = "list", .value = { .kind = ARRAY, .items = { { .kind = STRING, .text = "a\"b" } } } } } };
-}
-
 fn void accessors_report_missing_and_mismatched_values() @test
 {
-	Value root = tree();
+	Value[] list_items = { { .kind = STRING, .text = "a\"b" } };
+	Member[] members = { { .key = "n", .value = { .kind = INTEGER, .integer = 5 } }, { .key = "list", .value = { .kind = ARRAY, .items = list_items } } };
+	Value root = { .kind = DICT, .members = members };
 	test::eq(5, root.get("n")!!.as_integer()!!);
 	test::@error(root.get("absent"), NOT_FOUND);
 	test::@error(root.get("n")!!.as_string(), NOT_FOUND);
@@ -52,7 +49,9 @@ fn void accessors_report_missing_and_mismatched_values() @test
 
 fn void canonical_form_is_stable() @test
 {
-	Value root = tree();
+	Value[] list_items = { { .kind = STRING, .text = "a\"b" } };
+	Member[] members = { { .key = "n", .value = { .kind = INTEGER, .integer = 5 } }, { .key = "list", .value = { .kind = ARRAY, .items = list_items } } };
+	Value root = { .kind = DICT, .members = members };
 	test::eq("{\"n\":i5,\"list\":[s\"a\\\"b\"]}", canonical(tmem, &root));
 	Value flags = { .kind = DICT, .members = { { .key = "t", .value = { .kind = BOOL, .boolean = true } }, { .key = "u", .value = { .kind = UID, .integer = 9 } } } };
 	test::eq("{\"t\":true,\"u\":u9}", canonical(tmem, &flags));

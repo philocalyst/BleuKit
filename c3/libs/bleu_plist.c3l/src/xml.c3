@@ -3,15 +3,17 @@
 
  Source: Apple "PropertyList-1.0.dtd" (the element set, the required
  `<plist version="1.0">` root and the `<dict>` key/value pairing) and the
- "Property List Programming Guide". The reader uses the standard library's XML
- DOM (`std::encoding::xml`, a port of yxml), which resolves the five predefined
- entities and character references, merges CDATA into text, and ignores the
- DOCTYPE and comments. Cross-checked against CoreFoundation's
- `CFOldStylePList.c` and against Python's `plistlib` (the golden fixtures).
+ "Property List Programming Guide". Cross-checked against CoreFoundation's
+ `CFPropertyList.c` (https://github.com/apple-oss-distributions/CF), which
+ rejects `<data>` that is not base64, parses ISO dates, reads a one-key
+ `CF$UID` dictionary as a UID, and whose writer refuses UIDs; and against
+ Python's `plistlib` (the golden fixtures). The reader uses the standard
+ library's XML DOM (`std::encoding::xml`, a port of yxml), which resolves the
+ five predefined entities and character references, merges CDATA into text, and
+ ignores the DOCTYPE and comments.
 
- Not done: the writer does not emit UID values (a plain dictionary with `CF$UID`
- is written instead, which is how XML archives carry them), and it writes dates
- without fractional seconds, as the format requires.
+ Not done: the writer writes dates without fractional seconds, as the format
+ requires, and it refuses UIDs, as Apple's writer does.
 *>
 module bleu::plist::xml;
 import bleu::error, bleu::plist::value, std::encoding::base64, std::encoding::xml, std::collections::list, std::collections::set, std::math;
@@ -122,7 +124,13 @@ fn Value? dict_value(Allocator allocator, std::encoding::xml::XmlNode* node, int
 		expecting_value = false;
 	}
 	if (expecting_value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "dictionary key '%s' has no value", key)~;
-	return { .kind = DICT, .members = members.to_aligned_array(allocator) };
+	Member[] found = members.to_aligned_array(allocator);
+	// A dictionary whose only key is CF$UID with an integer is a UID, as in Apple's reader.
+	if (found.len == 1 && found[0].key == UID_KEY && found[0].value.kind == INTEGER)
+	{
+		return { .kind = UID, .integer = found[0].value.integer };
+	}
+	return { .kind = DICT, .members = found };
 }
 
 fn Value? array_value(Allocator allocator, std::encoding::xml::XmlNode* node, int depth) @local
@@ -208,7 +216,7 @@ fn void? emit(DString* out, Value* value, int depth) @local
 		case DATE:    emit_text(out, depth, "date", value::format_date(tmem, value.date))!;
 		case DATA:    emit_text(out, depth, "data", base64::tencode(value.bytes))!;
 		case BOOL:    emit_empty(out, depth, value.boolean ? TRUE_NAME : FALSE_NAME);
-		case UID:     emit_uid(out, depth, value.integer)!;
+		case UID:     return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "XML property lists cannot hold UIDs")~;
 	}
 }
 
