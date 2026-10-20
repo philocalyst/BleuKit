@@ -2,13 +2,14 @@
 // Run by tests/run.sh with two arguments: the bus address and an rfkill root.
 // Prints one PASS or FAIL line per check and exits non-zero when any check fails.
 module bluez_integration @feat(LINUX);
-import std::io, std::time, bleu::bluetooth, bleu::error, bleu::observe, bleu::operation, bleu::rt::fs, bleu::stream;
+import std::io, std::thread, std::time, bleu::bluetooth, bleu::error, bleu::observe, bleu::operation, bleu::rt::fs, bleu::stream;
 
 alias State = bluetooth::State;
 alias Device = bluetooth::Device;
 alias Task = bluetooth::Task;
 alias Bluetooth = bluetooth::Bluetooth;
 alias Event = bluetooth::Event;
+alias Phase = operation::Phase;
 
 const String HEADSET   = "AA:BB:CC:DD:EE:01";
 const String MOUSE     = "AA:BB:CC:DD:EE:02";
@@ -18,6 +19,13 @@ const ulong WAIT_MS    = 200;
 const int WAIT_ROUNDS  = 50;
 const ulong TASK_MS    = 10000;
 const int EVENT_ROUNDS = 25;
+// The pairing deadline of the completion checks: short, so that an unanswered pairing ends quickly.
+const ulong PAIRING_MS = 2000;
+// How long a check waits for a task that must end by its deadline.
+const ulong FINISH_MS  = 6000;
+// Requests posted at once when a service is stopped, and how many times the stop is repeated.
+const int BURST        = 50;
+const int BURST_ROUNDS = 20;
 
 alias Check = fn bool(State* state);
 
@@ -160,13 +168,14 @@ fn bool catch_timeout(Task* task)
 
 fn int main(String[] args)
 {
-	if (args.len < 3)
+	if (args.len < 4)
 	{
-		io::printfn("usage: bluez_integration <bus address> <rfkill root>");
+		io::printfn("usage: bluez_integration <bus address> <rfkill root> <fail-tree marker file>");
 		return 2;
 	}
 	String address = args[1];
 	String root    = args[2];
+	String fail_tree = args[3];
 	Bluetooth* bt  = bluetooth::open(
 		mem,
 		{ .backend = bluetooth::Backend.BLUEZ, .bus_address = address, .root = root }
@@ -375,6 +384,30 @@ fn int main(String[] args)
 	}
 	expect(settle(bt, &dev_unblocked), "clearing the switch in sysfs is seen");
 
+	// A failed read of BlueZ's objects keeps the last state: the headset stays known.
+	write_file(fail_tree, "1");
+	Task* failing = bt.refresh() ?? null;
+	if (failing)
+	{
+		succeeded(failing);
+		failing.release();
+	}
+	thread::sleep(time::ms(WAIT_MS * 3))!!;
+	Snapshot{State}* kept = bt.latest() ?? null;
+	if (kept)
+	{
+		defer kept.release();
+		expect(has_device(&kept.value, HEADSET) && kept.value.adapters.len == 1, "a failed tree read keeps the last state");
+	}
+	else
+	{
+		expect(false, "a failed tree read keeps the last state");
+	}
+	write_file(fail_tree, "0");
+
+	deadline_checks(address, root);
+	stopping_completes_queued(address, root);
+
 	if (failures == 0)
 	{
 		io::printfn("ALL CHECKS PASSED");
@@ -382,4 +415,133 @@ fn int main(String[] args)
 	}
 	io::printfn("%d CHECK(S) FAILED", failures);
 	return 1;
+}
+// True once the task has reached a terminal phase.
+fn bool is_done(Task* task)
+{
+	Phase phase = task.phase();
+	return phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED;
+}
+
+// Waits up to `ms` for the task, and says whether it has ended by then.
+fn bool ends_within(Task* task, ulong ms)
+{
+	if (catch task.wait(time::ms(ms))) {}
+	return is_done(task);
+}
+
+// True when the event stream carries the end of prompt `id`.
+fn bool prompt_ended(stream::Reader{Event}* events, ulong id)
+{
+	for (int i = 0; i < EVENT_ROUNDS; i++)
+	{
+		if (try packet = events.next(time::ms(WAIT_MS)))
+		{
+			defer packet.release();
+			if (packet.value.kind == bluetooth::EventKind.PAIRING_ENDED && packet.value.request.id == id) return true;
+		}
+	}
+	return false;
+}
+
+// Pairings with a short deadline, against the mock's behaviour. Each check fails on the code before the
+// deadline and completion fixes: a tolerated AlreadyExists must not make a later timeout a success (B1); a
+// pairing that is never answered must end at its deadline while nothing else wakes the worker (B3); its
+// unanswered prompt must close with it, so that a late answer is refused (B4, B5).
+fn void deadline_checks(String address, String root)
+{
+	Bluetooth* bt = bluetooth::open(
+		mem,
+		{
+			.backend = bluetooth::Backend.BLUEZ,
+			.bus_address = address,
+			.root = root,
+			.pairing_timeout = time::ms(PAIRING_MS),
+		}
+	) ?? null;
+	if (!bt)
+	{
+		expect(false, "open with a short pairing timeout");
+		return;
+	}
+	defer bt.close();
+	stream::Reader{Event}* events = bt.subscribe() ?? null;
+	if (!events)
+	{
+		expect(false, "subscribe for the deadline checks");
+		return;
+	}
+	defer events.release();
+
+	// The headset is already paired, so BlueZ answers AlreadyExists: that is success.
+	Task* again = bt.pair(HEADSET) ?? null;
+	if (again)
+	{
+		expect(succeeded(again), "pairing a paired headset again is success");
+		again.release();
+	}
+
+	// The keyboard's pairing waits for a CancelPairing that never comes: its deadline ends it.
+	Task* hang = bt.pair(KEYBOARD) ?? null;
+	if (hang)
+	{
+		defer hang.release();
+		expect(
+			ends_within(hang, FINISH_MS) && hang.failure == TIMEOUT,
+			"an unanswered pairing ends at its deadline while the worker is idle"
+		);
+	}
+
+	// The phone asks for a passkey that nobody answers: the pairing ends, and its prompt closes with it.
+	Task* phone = bt.pair(PHONE) ?? null;
+	if (phone)
+	{
+		defer phone.release();
+		PromptSeen prompt = wait_for_prompt(events, bluetooth::PromptKind.PASSKEY_ENTRY, PHONE);
+		expect(prompt.found, "phone asks for a passkey");
+		expect(
+			ends_within(phone, FINISH_MS) && phone.failure == TIMEOUT,
+			"an unanswered pairing ends at its deadline"
+		);
+		expect(prompt_ended(events, prompt.id), "the prompt of an ended pairing is closed");
+		Task* late = bt.reply_pairing(prompt.id, true, "123456") ?? null;
+		if (late)
+		{
+			defer late.release();
+			expect(!succeeded(late) && late.failure == error::INVALID_STATE, "an answer after the deadline is refused");
+		}
+	}
+}
+
+// Stopping a service with requests still queued completes every one of them: none is left waiting
+// forever. Each round posts a burst and stops at once, so some requests are still queued.
+fn void stopping_completes_queued(String address, String root)
+{
+	int unfinished = 0;
+	int posted     = 0;
+	for (int round = 0; round < BURST_ROUNDS; round++)
+	{
+		Bluetooth* bt = bluetooth::open(
+			mem,
+			{ .backend = bluetooth::Backend.BLUEZ, .bus_address = address, .root = root }
+		) ?? null;
+		if (!bt) break;
+		Task*[BURST] tasks;
+		usz count = 0;
+		for (int i = 0; i < BURST; i++)
+		{
+			if (try task = bt.set_discoverable("", i % 2 == 0))
+			{
+				tasks[count++] = task;
+			}
+		}
+		bt.close();
+		for (usz i = 0; i < count; i++)
+		{
+			posted++;
+			if (!is_done(tasks[i])) unfinished++;
+			tasks[i].release();
+		}
+	}
+	expect(posted > 0 && unfinished == 0, "every request queued at stop is completed");
 }

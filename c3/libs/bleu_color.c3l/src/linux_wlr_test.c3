@@ -351,7 +351,7 @@ fn void losing_the_control_later_is_reported() @test
 	Seam seam = { .fd = pair.first.fd.release() };
 	Thread t;
 	t.create(&lost_scenario, &server)!!;
-	Color* color            = open_on(&seam)!!;
+	Color* color                  = open_on(&seam)!!;
 	stream::Reader{Event}* events = color.subscribe()!!;
 	defer events.release();
 	Snapshot{State}* before = color.wait_after(0, time::sec(5))!!;

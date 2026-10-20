@@ -214,12 +214,6 @@ fn Applied? write_monitor(PhysicalMonitor* monitor, Level level)
 	{
 		read_back = maybe::value(unit::from_raw((long)current, (long)minimum, (long)maximum));
 	}
-	brightness::confirm_read_back(
-		"external monitor",
-		raw,
-		(long)minimum,
-		(long)maximum,
-		read_back
-	)!;
+	brightness::confirm_read_back("external monitor", raw, (long)minimum, (long)maximum, read_back)!;
 	return brightness::applied_at(Mechanism.DDC, level, raw, (long)minimum, (long)maximum, read_back);
 }

@@ -146,7 +146,7 @@ fn ApplyOp*? Display.apply(&self, Config config, ApplyMode mode, Duration revert
 	Duration window     = revert_window(revert_after)!;
 	ApplyMode effective = mode == APPLY_WITH_REVERT && window == time::FOREVER ? APPLY : mode;
 	ApplyOp* op         = operation::begin(self.allocator);
-	Command command     = {
+	Command command = {
 		.kind = APPLY,
 		.op = op,
 		.config = copy_config(config, op.allocator()),

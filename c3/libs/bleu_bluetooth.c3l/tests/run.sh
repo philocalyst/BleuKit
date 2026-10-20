@@ -50,8 +50,9 @@ for _ in $(seq 1 100); do [ -s "$work/address" ] && break; sleep 0.05; done
 address="$(head -n1 "$work/address")"
 export DBUS_SESSION_BUS_ADDRESS="$address"
 
-# 2. The mock org.bluez.
-"$PYTHON" -I "$here/mock_bluez.py" >"$work/mock.out" 2>"$work/mock.err" &
+# 2. The mock org.bluez. Its GetManagedObjects fails while $work/fail-tree says 1 (set by the C3 test).
+echo 0 >"$work/fail-tree"
+BLEU_MOCK_FAIL_TREE="$work/fail-tree" "$PYTHON" -I "$here/mock_bluez.py" >"$work/mock.out" 2>"$work/mock.err" &
 pids+=("$!")
 for _ in $(seq 1 200); do grep -q READY "$work/mock.out" 2>/dev/null && break; sleep 0.05; done
 grep -q READY "$work/mock.out" || { echo "mock did not start:"; cat "$work/mock.err"; exit 2; }
@@ -67,7 +68,7 @@ bin="$work/bluez_integration"
 c3c --libdir "${BLEU_BLUETOOTH_LIBDIR:-$(bash "$repo/tools/libdir.sh")}" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus \
   --lib bleu_dl --lib bleu_objc --lib bleu_win --lib bleu_bluetooth \
   compile "$here/bluez_integration.c3" -o "$bin" >"$work/compile.log" 2>&1 || { cat "$work/compile.log"; exit 2; }
-timeout 180 "$bin" "$address" "$work/root"
+timeout 180 "$bin" "$address" "$work/root" "$work/fail-tree"
 status=$?
 echo "exit status: $status"
 exit "$status"

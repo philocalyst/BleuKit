@@ -26,13 +26,16 @@ const usz COMMAND_BATCH           = 8;
 // The `size` member every Win32 structure carries: the byte size of the structure in x64 layout.
 // BLUETOOTH_FIND_RADIO_PARAMS: one DWORD. BLUETOOTH_RADIO_INFO: DWORD, 8-byte address, 248 WCHAR, ULONG,
 // USHORT x2 = 520 bytes. BLUETOOTH_DEVICE_SEARCH_PARAMS: DWORD, five BOOLs, UCHAR, pointer = 40 bytes.
-// BLUETOOTH_DEVICE_INFO: DWORD, 8-byte address, ULONG, four BOOL-sized fields, two SYSTEMTIME, 248 WCHAR = 560 bytes.
+// BLUETOOTH_DEVICE_INFO: DWORD, 8-byte address, ULONG, three BOOL fields (fConnected, fRemembered,
+// fAuthenticated), two SYSTEMTIME, 248 WCHAR = 560 bytes.
 const uint FIND_RADIO_PARAMS_SIZE = 4;
 const uint RADIO_INFO_SIZE        = 520;
 const uint SEARCH_PARAMS_SIZE     = 40;
 const uint DEVICE_INFO_SIZE       = 560;
 <* ERROR_SUCCESS: the Win32 functions return zero on success. *>
 const uint ERROR_SUCCESS          = 0;
+<* ERROR_NO_MORE_ITEMS (winerror.h): a find function that found nothing; a null handle with any other error is a failure. *>
+const uint ERROR_NO_MORE_ITEMS    = 259;
 
 <* The state of the backend: the allocator for snapshots and the poll interval. *>
 struct Session
@@ -213,7 +216,13 @@ fn void? read_state(Allocator allocator, State* state) @private
 		FindRadioParams params = { .size = FIND_RADIO_PARAMS_SIZE };
 		void* radio            = null;
 		void* find             = api.find_first_radio(&params, &radio);
-		if (find != null)
+		if (find == null)
+		{
+			// No radio is an empty search; any other error is a failure of the search itself.
+			uint code = win32::getLastError();
+			if (code != ERROR_NO_MORE_ITEMS) return errors::raise_win32(code, "BluetoothFindFirstRadio")~;
+		}
+		else
 		{
 			defer api.find_radio_close(find);
 			do
@@ -274,8 +283,13 @@ fn void? read_devices(
 	DeviceInfo info;
 	info.size = DEVICE_INFO_SIZE;
 	void* find = api.find_first_device(&params, &info);
-	// No device is an empty search; the Win32 functions signal that with a null handle.
-	if (find == null) return;
+	// No device is an empty search, signalled by a null handle and ERROR_NO_MORE_ITEMS; any other error is a failure.
+	if (find == null)
+	{
+		uint code = win32::getLastError();
+		if (code == ERROR_NO_MORE_ITEMS) return;
+		return errors::raise_win32(code, "BluetoothFindFirstDevice")~;
+	}
 	defer api.find_device_close(find);
 	do
 	{

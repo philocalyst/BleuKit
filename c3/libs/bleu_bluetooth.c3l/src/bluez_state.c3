@@ -3,7 +3,7 @@
  two states. Everything here runs on the worker thread.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::collections::list, std::collections::maybe, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
+import std::collections::list, std::collections::maybe, std::io, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
 
 // Which adapter object path belongs to which adapter address, for resolving a device's adapter.
 struct AdapterLink
@@ -12,13 +12,19 @@ struct AdapterLink
 	String address;
 }
 
-<* Read the whole tree and publish it, unless nothing changed. An unreadable tree is an empty one. *>
+<*
+ Read the whole tree and publish it, unless nothing changed. An unreadable tree leaves the state as it
+ was: a failed read says nothing about the devices, so no removal is announced for them. The next change
+ reads the tree again.
+*>
 fn void refresh(Bluez* self, BluetoothHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
 	if (catch read_tree(self, snapshot.allocator(), &snapshot.value))
 	{
-		snapshot.value = { };
+		io::eprintfn("bleu: bluetooth: could not read BlueZ's objects (%s); keeping the last state", error::last().message());
+		snapshot.release();
+		return;
 	}
 	bluetooth::publish_changes(hub, snapshot);
 }

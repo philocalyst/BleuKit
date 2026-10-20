@@ -53,7 +53,7 @@ fn Brightness*? open(Allocator allocator, Options options = { })
 {
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
 	if (options.transition_step == time::DURATION_ZERO) options.transition_step = DEFAULT_TRANSITION_STEP;
-	Driver* driver = select_driver(options)!;
+	Driver* driver     = select_driver(options)!;
 	// The backend is created before the service is allocated, so a failed create leaves nothing behind.
 	Capabilities capabilities;
 	void* driver_state = driver.create(allocator, options, &capabilities)!;
@@ -120,8 +120,12 @@ fn WatchId{State} Brightness.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Brightness.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Brightness.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (level changes, devices added or removed). *>
 fn Reader{Event}*? Brightness.subscribe(&self) => self.hub.events.subscribe();

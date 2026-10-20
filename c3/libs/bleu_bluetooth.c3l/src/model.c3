@@ -12,7 +12,7 @@
  upper case, and are the identity of an adapter or device across snapshots.
 *>
 module bleu::bluetooth;
-import std::collections::maybe, bleu::unit;
+import std::collections::maybe, std::time, bleu::unit;
 
 <* One controller (an adapter, in BlueZ terms). *>
 struct Adapter

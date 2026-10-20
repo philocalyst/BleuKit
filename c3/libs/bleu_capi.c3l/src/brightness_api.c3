@@ -520,3 +520,29 @@ fn brightness::Applied* bleu_brightness_set_result(capi::COperation* operation) 
 		return (brightness::Applied*)operation.ops.value(operation.native);
 	};
 }
+
+<*
+ The device at `index` of a brightness state, or NULL when `index` is out of range.
+ The pointer is borrowed like the state it came from.
+*>
+fn brightness::Device* bleu_brightness_device_at(brightness::State* state, usz index) @export("bleu_brightness_device_at")
+{
+	foreign::@foreign_entry()
+	{
+		if (!state || index >= state.devices.len) return null;
+		return &state.devices[index];
+	};
+}
+
+<*
+ The control at `index` of a device, or NULL when `index` is out of range. Controls are
+ in preference order: the order a request tries them in.
+*>
+fn brightness::Control* bleu_brightness_control_at(brightness::Device* device, usz index) @export("bleu_brightness_control_at")
+{
+	foreign::@foreign_entry()
+	{
+		if (!device || index >= device.controls.len) return null;
+		return &device.controls[index];
+	};
+}

@@ -414,3 +414,16 @@ fn battery::Event* bleu_battery_packet_event(capi::CPacket* packet) @export("ble
 		return &event.value;
 	};
 }
+
+<*
+ The source at `index` of a battery state, or NULL when `index` is out of range. The
+ `sources` slice of the state holds these; the pointer is borrowed like the state.
+*>
+fn battery::Source* bleu_battery_source_at(battery::State* state, usz index) @export("bleu_battery_source_at")
+{
+	foreign::@foreign_entry()
+	{
+		if (!state || index >= state.sources.len) return null;
+		return &state.sources[index];
+	};
+}

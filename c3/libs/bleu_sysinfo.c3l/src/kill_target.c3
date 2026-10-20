@@ -40,6 +40,11 @@ fn void? check_kill_target(uint pid, KillMode mode, uint own_pid)
 	}
 	if (pid == INIT_PID && mode != FORCE)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "process 1 is init: only FORCE may end it")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"process 1 is init: only FORCE may end it"
+		)~;
 	}
 }

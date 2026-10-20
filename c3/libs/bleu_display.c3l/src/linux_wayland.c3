@@ -115,7 +115,7 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 	while (!host.stopping())
 	{
 		if (catch s.client.flush()) break;
-		Clock now = clock::now();
+		Clock now      = clock::now();
 		Ready[]? ready = poller.wait(next_wake(s, now));
 		if (catch err = ready)
 		{
@@ -179,5 +179,7 @@ fn void shutdown(Session* s)
 		if (s.pending) release_pending(s.pending);
 	}
 	// Best effort: the connection is closing, so a failed flush has nobody left to report it to.
-	if (catch s.client.flush()) {}
+	if (catch s.client.flush())
+	{
+	}
 }

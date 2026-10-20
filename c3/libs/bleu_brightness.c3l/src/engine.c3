@@ -85,7 +85,7 @@ fn void Engine.publish(&self)
 {
 	Snapshot{State}* snapshot = self.hub.begin();
 	State? state              = self.platform.read(self.platform.context, snapshot.allocator());
-	self.published            = clock::now();
+	self.published = clock::now();
 	if (catch err = state)
 	{
 		snapshot.release();

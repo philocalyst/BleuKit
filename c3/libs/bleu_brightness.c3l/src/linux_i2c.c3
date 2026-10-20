@@ -132,14 +132,19 @@ fn void? I2cBus.write(&self, char[] bytes) @dynamic
 			return errno_fault("i2c", "write")~;
 		}
 		// A write that accepts nothing would loop forever: the bus is not taking the bytes.
-		if (n == 0) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "i2c write made no progress")~;
+		if (n == 0) return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"i2c write made no progress"
+		)~;
 		done += (usz)n;
 	}
 }
 
 fn usz? I2cBus.read(&self, char[] buffer, Duration timeout) @dynamic
 {
-	Pollfd waiting = { .fd = self.fd, .events = POLLIN, .revents = 0 };
+	Pollfd waiting    = { .fd = self.fd, .events = POLLIN, .revents = 0 };
 	long milliseconds = (long)timeout / 1000;
 	int ready         = poll(&waiting, 1, (int)(milliseconds > MAX_POLL_MS ? MAX_POLL_MS : milliseconds));
 	if (ready < 0)

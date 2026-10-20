@@ -205,13 +205,13 @@ fn void killing_a_child_this_test_spawned_ends_it() @test
 		std::os::process::Process child = process::spawn(
 			{ "sleep", "30" },
 			process::SpawnOptions.INHERIT_ENV,
-			{},
+			{ },
 			process::INHERIT,
 			process::INHERIT,
 			process::INHERIT
 		)!!;
 		defer (void)child.destroy();
-		uint target = (uint)child.child;
+		uint target                       = (uint)child.child;
 		Operation{KillReceipt}* operation = service.kill(target, TERMINATE)!!;
 		defer operation.release();
 		KillReceipt receipt = operation.wait(time::sec(5))!!;

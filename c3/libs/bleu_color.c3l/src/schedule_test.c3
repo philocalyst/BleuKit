@@ -247,6 +247,14 @@ fn void overlapping_edges_stay_continuous() @test
 	}
 	float bound = 2.0f * 1.5f / 3600.0f + 0.0001f;
 	assert(largest <= bound, "no second-to-second step is larger than the two windows allow");
-	assert(schedule::daylight_at(overlap, MAR_20_2026 + hms(6, 10, 0), 0) > 0.0f, "the day is light inside the overlap");
-	assert(schedule::daylight_at(overlap, MAR_20_2026 + hms(12, 0, 0), 0) == 0.0f, "the day is over after both windows");
+	assert(schedule::daylight_at(
+		overlap,
+		MAR_20_2026 + hms(6, 10, 0),
+		0
+	) > 0.0f, "the day is light inside the overlap");
+	assert(schedule::daylight_at(
+		overlap,
+		MAR_20_2026 + hms(12, 0, 0),
+		0
+	) == 0.0f, "the day is over after both windows");
 }

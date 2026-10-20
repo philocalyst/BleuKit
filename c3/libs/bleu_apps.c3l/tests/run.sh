@@ -63,6 +63,13 @@ Actions=second;
 Name=Second
 Exec=/bin/sh -c "echo exec > $work/activatable-exec-action" sh
 DESKTOP
+cat >"$tree/usr/share/applications/org.example.Hang.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Hang
+DBusActivatable=true
+Exec=/bin/sh -c "echo exec > $work/hang-exec"
+DESKTOP
 cat >"$tree/usr/share/applications/org.example.Missing.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
@@ -80,6 +87,7 @@ grep -q '^Activate startup=startup-1 token=token-1$' "$work/mock.log" || fail "A
 grep -q '^Open file:///tmp/a.txt$' "$work/mock.log" || fail "Open with the URI"
 grep -q '^ActivateAction second$' "$work/mock.log" || fail "ActivateAction"
 [ ! -e "$work/activatable-exec" ] || fail "Exec ran although the bus activated the app"
+[ ! -e "$work/hang-exec" ] || fail "Exec ran after an activation the bus did not answer"
 [ -e "$work/missing-exec" ] || fail "Exec did not run as the fallback"
 echo "mock calls:"; cat "$work/mock.log"
 echo "PASS: D-Bus activation over a private session bus"

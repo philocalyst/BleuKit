@@ -5,7 +5,7 @@ module bleu::input::service_test;
 import std::thread, std::time, bleu::availability, bleu::error, bleu::observe, bleu::operation, bleu::rt::worker, bleu::service, bleu::stream, bleu::input;
 
 // The id length that broke the old fixed buffer (ID_CAPACITY was 128 bytes).
-const usz LONG_ID = 200;
+const usz LONG_ID   = 200;
 const Duration STEP = (Duration)3_000_000;
 
 // The id length the last switch carried, as the fake backend saw it.
@@ -17,7 +17,7 @@ usz refreshes;
 fn void publish_layouts(input::InputHub* hub, String first, usz count) @local
 {
 	Snapshot{input::State}* snapshot = hub.begin();
-	input::Layout[] layouts = alloc::new_array(snapshot.allocator(), input::Layout, (sz)count);
+	input::Layout[] layouts          = alloc::new_array(snapshot.allocator(), input::Layout, (sz)count);
 	for (usz i = 0; i < count; i++)
 	{
 		String id = i == 0 ? first : "us";
@@ -81,7 +81,7 @@ fn void switch_carries_an_id_longer_than_the_old_command_field() @test
 	seen_id_length = 0;
 	input::Input svc;
 	open_with(&svc, &serves_commands);
-	defer svc.hub.stop();
+	defer svc.hub.free();
 	char[LONG_ID] long_id;
 	for (usz i = 0; i < LONG_ID; i++) long_id[i] = 'a';
 	publish_layouts(&svc.hub, (String)long_id[..], 2);
@@ -98,7 +98,7 @@ fn void events_follow_the_state_they_announce() @test
 	refreshes = 0;
 	input::Input svc;
 	open_with(&svc, &serves_commands);
-	defer svc.hub.stop();
+	defer svc.hub.free();
 	publish_layouts(&svc.hub, "us", 1);
 	stream::Reader{input::Event}* reader = svc.subscribe()!!;
 	defer reader.release();
@@ -117,6 +117,7 @@ fn void switch_queued_when_the_backend_stops_is_cancelled() @test
 {
 	input::Input svc;
 	open_with(&svc, &waits_without_taking);
+	defer svc.hub.free();
 	publish_layouts(&svc.hub, "us", 2);
 	input::SwitchOperation* operation = svc.next()!!;
 	defer operation.release();

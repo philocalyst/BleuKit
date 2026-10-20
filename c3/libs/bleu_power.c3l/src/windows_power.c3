@@ -48,6 +48,7 @@ struct Win
 	PowerHub* hub;
 	Capabilities* capabilities;
 	Startup* startup;
+	Poller poller; // waits for the poll interval or a request, while `run` is serving
 	List{Hold} holds;
 	uint next_hold;
 	Maybe{bool} last_external;
@@ -75,9 +76,18 @@ fn void run(void* state, PowerHub* hub, Host{Command}* host)
 	win.hub = hub;
 	win.holds.init(win.allocator);
 	fill_capabilities(win.capabilities);
-	refresh(win);
-	win.startup.succeed();
-	serve(win, host);
+	// The poller is made before the start is reported, so a failure to make it is an error of `open`.
+	if (catch err = win.poller.init(win.allocator, host.wakeup(), 0))
+	{
+		win.startup.fail(err);
+	}
+	else
+	{
+		refresh(win);
+		win.startup.succeed();
+		serve(win, host);
+		win.poller.free();
+	}
 	shutdown(win, host);
 }
 
@@ -135,14 +145,11 @@ fn void fill_capabilities(Capabilities* caps)
 
 fn void serve(Win* win, Host{Command}* host)
 {
-	Poller poller;
-	poller.init(win.allocator, host.wakeup(), 0)!!;
-	defer poller.free();
 	Command[COMMAND_BATCH] batch;
 	while (!host.stopping())
 	{
 		// Sleeps until the poll is due or a request wakes the worker; TIMEOUT is the normal tick.
-		if (catch err = poller.wait(POLL_INTERVAL))
+		if (catch err = win.poller.wait(POLL_INTERVAL))
 		{
 		}
 		drain(win, host, batch[..]);
@@ -160,17 +167,23 @@ fn void drain(Win* win, Host{Command}* host, Command[] batch)
 	}
 }
 
-// Read the power status and publish it. A failed read leaves the fields it feeds unknown.
+// Read the power status and publish it. A failed read publishes the fields it feeds as unknown.
 fn void refresh(Win* win)
 {
 	windows_api::SystemPowerStatus status;
-	if (catch err = read_status(&status)) return;
 	Snapshot{State}* snapshot = win.hub.begin();
 	State* state              = &snapshot.value;
-	if (status.ac_line_status == AC_LINE_ONLINE) state.on_external_power.set(true);
-	if (status.ac_line_status == AC_LINE_OFFLINE) state.on_external_power.set(false);
-	if (status.system_status_flag == BATTERY_SAVER_ON) state.battery_saver.set(true);
-	if (status.system_status_flag == BATTERY_SAVER_OFF) state.battery_saver.set(false);
+	if (catch err = read_status(&status))
+	{
+		// Nothing was read: the fields stay unknown.
+	}
+	else
+	{
+		if (status.ac_line_status == AC_LINE_ONLINE) state.on_external_power.set(true);
+		if (status.ac_line_status == AC_LINE_OFFLINE) state.on_external_power.set(false);
+		if (status.system_status_flag == BATTERY_SAVER_ON) state.battery_saver.set(true);
+		if (status.system_status_flag == BATTERY_SAVER_OFF) state.battery_saver.set(false);
+	}
 	Maybe{bool} external = state.on_external_power;
 	win.hub.publish_if_changed(snapshot);
 	if (external.has_value)
@@ -252,7 +265,7 @@ fn Inhibitor? take_request(Win* win, Command* command)
 		}
 		uint id = ++win.next_hold;
 		win.holds.push({ .id = id, .request = request, .type = type });
-		return { .id = id, .owner = command.owner };
+		return make_inhibitor(command, id);
 	};
 }
 

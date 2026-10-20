@@ -207,11 +207,23 @@ fn Applied? MacOS.write_native(&self, String device_id, Level level)
 	)) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
 	// The display number is every character after "cg-", and each must be a digit.
 	uint display = 0;
-	if (device_id.len == 3) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' names no display", device_id)~;
+	if (device_id.len == 3) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"'%s' names no display",
+		device_id
+	)~;
 	for (usz i = 3; i < device_id.len; i++)
 	{
 		char c = device_id[i];
-		if (c < '0' || c > '9') return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
+		if (c < '0' || c > '9') return error::raise(
+			NOT_FOUND,
+			error::Domain.INTERNAL,
+			0,
+			"'%s' is not a display",
+			device_id
+		)~;
 		display = display * 10 + (uint)(c - '0');
 	}
 	if (self.native.api.set_brightness(display, (float)level) != 0)

@@ -82,7 +82,7 @@ fn Appearance*? open(Allocator allocator, Options options = { })
 <* Stop the backend and release everything. Queued requests fail with CANCELLED. *>
 fn void Appearance.close(&self)
 {
-	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -160,7 +160,9 @@ fn Operation{bool}*? Appearance.set_wallpaper(&self, String path)
 {
 	Availability availability = self.capability(WALLPAPER_SET);
 	if (!availability.ok()) return availability.refusal()~;
-	if (!is_absolute_path(path)) return error::raise(
+	if (!is_absolute_path(
+		path
+	)) return error::raise(
 		error::INVALID_ARGUMENT,
 		error::Domain.INTERNAL,
 		0,

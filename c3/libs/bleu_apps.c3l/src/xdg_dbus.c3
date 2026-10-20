@@ -73,9 +73,9 @@ fn Launched? dbus_launch(XdgBackend* backend, App* app, AppAction* action, Launc
 // The method call that activates `app`, with its arguments written; nothing is sent.
 fn message::Message*? prepare_call(XdgBackend* backend, App* app, AppAction* action, LaunchRequest* request) @local
 {
-	String stem            = apps::desktop_id_stem(app.id);
-	proxy::Proxy remote    = proxy::for_object(&backend.bus, stem, object_path_for(stem), APPLICATION_INTERFACE)!;
-	Value platform         = platform_data(request)!;
+	String stem         = apps::desktop_id_stem(app.id);
+	proxy::Proxy remote = proxy::for_object(&backend.bus, stem, object_path_for(stem), APPLICATION_INTERFACE)!;
+	Value platform      = platform_data(request)!;
 	return build_call(&remote, action, request, platform)!;
 }
 
@@ -148,7 +148,9 @@ fn String file_uri(String path, Allocator allocator)
 // The RFC 3986 unreserved characters: letters, digits, and `-._~`.
 fn bool is_unreserved(char c) @local
 {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~';
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
+		|| c == '_'
+		|| c == '~';
 }
 
 <*

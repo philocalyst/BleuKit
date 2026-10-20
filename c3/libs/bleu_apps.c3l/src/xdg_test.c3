@@ -173,7 +173,10 @@ fn void file_uris_percent_encode_the_path() @test
 
 fn void only_the_exact_variable_name_is_filtered() @test
 {
-	test::@check(xdg_desktop::is_variable("DESKTOP_STARTUP_ID=abc", xdg_desktop::ENV_STARTUP_ID), "the variable itself");
+	test::@check(
+		xdg_desktop::is_variable("DESKTOP_STARTUP_ID=abc", xdg_desktop::ENV_STARTUP_ID),
+		"the variable itself"
+	);
 	test::@check(
 		!xdg_desktop::is_variable("DESKTOP_STARTUP_IDENTITY=abc", xdg_desktop::ENV_STARTUP_ID),
 		"a longer name is kept"
@@ -184,7 +187,10 @@ fn void try_exec_under_a_fake_root_is_looked_up_in_the_root() @test
 {
 	// /bin/sh exists on the host, but not under this root: with a root, an absolute TryExec is not the host's file.
 	test::@check(xdg_desktop::try_exec_found("/bin/sh", ""), "without a root the host file counts");
-	test::@check(!xdg_desktop::try_exec_found("/bin/sh", "/nonexistent-bleu-root"), "under a root it is looked up there");
+	test::@check(
+		!xdg_desktop::try_exec_found("/bin/sh", "/nonexistent-bleu-root"),
+		"under a root it is looked up there"
+	);
 }
 
 fn void dbus_activation_is_offered() @test
@@ -192,5 +198,8 @@ fn void dbus_activation_is_offered() @test
 	Capabilities caps;
 	void* state = xdg_desktop::create(mem, { .root = "/nonexistent-bleu-root" }, &caps)!!;
 	defer xdg_desktop::destroy(mem, state);
-	test::@check(caps.values[Cap.DBUS_ACTIVATE.ordinal].ok(), "the bus route is reported, not refused as unimplemented");
+	test::@check(
+		caps.values[Cap.DBUS_ACTIVATE.ordinal].ok(),
+		"the bus route is reported, not refused as unimplemented"
+	);
 }

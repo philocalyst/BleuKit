@@ -8,7 +8,7 @@
  Module-specific shapes live in the module file.
 *>
 module dmsd::wire;
-import bleu::json, bleu::error;
+import bleu::json, bleu::error, bleu::ipc;
 
 <*
  A JSON value being written into temporary memory. Declare it in place and call
@@ -144,4 +144,12 @@ fn fault invalid_param(String key) @private
 {
 	return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "missing or invalid '%s' parameter", key);
 }
-</content>
+
+<*
+ Answer `call` with the DMS success result for `message`.
+ @return? error::INVALID_STATE : "The request was already answered"
+*>
+fn void? respond_success(ipc::Call* call, String message)
+{
+	call.respond_raw(success_result(tmem, message)!);
+}

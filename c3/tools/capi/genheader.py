@@ -351,7 +351,9 @@ def generate(header, src_dir, libs_dir):
         raise Fail("core.c3 has no `const uint ABI_VERSION = N;`")
 
     decls, order = {}, []
-    for it in items:
+    # Exported names first, so that a mangled internal type with the same C name never wins.
+    ordered = sorted(enumerate(items), key=lambda p: 0 if p[1].get("c3") == clean_type(p[1].get("c3", "")) else 1)
+    for index, it in ordered:
         k = it["kind"]
         if k in ("forward", "constant", "other"):
             continue
@@ -380,7 +382,8 @@ def generate(header, src_dir, libs_dir):
             deps = set()
         elif k == "fnptr":
             ret = namer.text(it["ret"])
-            params = namer.text(it["params"])
+            # A callback receives borrowed data: struct pointers in its parameters are const.
+            params = re.sub(r"(bleu_\w+_t)\*(\s*\w+)", r"const \1*\2", namer.text(it["params"]))
             body = "typedef %s(*%s)(%s);" % (ret, clean, params)
             deps = set(IDENT.findall(ret + " " + params))
         elif k == "struct":
@@ -404,12 +407,12 @@ def generate(header, src_dir, libs_dir):
             continue  # a mangled internal type with the same name as an export: the export wins
         if clean in decls:
             raise Fail("two C3 types map to %s" % clean)
-        decls[clean] = {"kind": k, "body": body, "deps": deps, "doc": doc,
+        decls[clean] = {"index": index, "kind": k, "body": body, "deps": deps, "doc": doc,
                         "opaque": clean in opaque_names or c3 in opaque_names,
                         "service": service_of(clean), "members": it.get("members", []),
                         "base": it.get("base")}
-        order.append(clean)
 
+    order = sorted(decls, key=lambda n: decls[n]["index"])  # c3c's order is dependency order: keep it
     structs = {n for n, d in decls.items() if d["kind"] == "struct"}
     opaque = {n for n, d in decls.items() if d["opaque"]}
 

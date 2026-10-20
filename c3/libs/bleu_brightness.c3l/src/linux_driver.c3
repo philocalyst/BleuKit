@@ -145,13 +145,9 @@ fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices)
 	{
 		List{Control} controls;
 		controls.init(tmem);
-		controls.push(sysfs::knob_control(
-			BACKLIGHT,
-			self.root,
-			sysfs::BACKLIGHT_CLASS,
-			name,
-			self.logind_up(&self.panel_route)
-		));
+		controls.push(
+			sysfs::knob_control(BACKLIGHT, self.root, sysfs::BACKLIGHT_CLASS, name, self.logind_up(&self.panel_route))
+		);
 		brightness::add_device(allocator, devices, name, "panel backlight", PANEL, controls.array_view());
 	}
 }
@@ -166,13 +162,9 @@ fn void Linux.read_leds(&self, Allocator allocator, List{Device}* devices)
 			if (!sysfs::is_keyboard_backlight(name)) continue;
 			List{Control} controls;
 			controls.init(tmem);
-			controls.push(sysfs::knob_control(
-				KEYBOARD_LED,
-				self.root,
-				sysfs::LED_CLASS,
-				name,
-				self.logind_up(&self.led_route)
-			));
+			controls.push(
+				sysfs::knob_control(KEYBOARD_LED, self.root, sysfs::LED_CLASS, name, self.logind_up(&self.led_route))
+			);
 			brightness::add_device(allocator, devices, name, "keyboard backlight", KEYBOARD, controls.array_view());
 		}
 	}
@@ -236,12 +228,12 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 			"'%s' has no maximum brightness",
 			device_id
 		)~;
-		long raw       = level.to_raw(0, max);
-		Route* route   = panel ? &self.panel_route : &self.led_route;
-		Duration now   = self.uptime();
-		bool asked     = false;
-		bool carried   = false;
-		fault refusal  = error::UNAVAILABLE;
+		long raw      = level.to_raw(0, max);
+		Route* route  = panel ? &self.panel_route : &self.led_route;
+		Duration now  = self.uptime();
+		bool asked    = false;
+		bool carried  = false;
+		fault refusal = error::UNAVAILABLE;
 		if (self.bus.is_open && route.usable(now))
 		{
 			asked = true;

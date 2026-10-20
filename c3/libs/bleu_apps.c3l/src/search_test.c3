@@ -146,7 +146,7 @@ fn void diff_reports_added_removed_and_changed() @test
 }
 fn void empty_query_ignores_the_ranker() @test
 {
-	State state = sample_state();
+	State state         = sample_state();
 	// The bonus orders matches of a query; an empty query keeps the catalogue order (Firefox first, XTerm second).
 	SearchHit[] boosted = rank(&state, "", &prefer_xterm, null, mem);
 	defer alloc::free(mem, boosted.ptr);
@@ -159,17 +159,21 @@ fn void fuzzy_takes_the_tightest_span() @test
 	assert(match_score("axxbaxb", "ab") == 66, "the tightest match, span 3");
 }
 
+// The instant `nanos` after `from`, on the monotonic clock.
+fn Clock after_nanos(Clock from, long nanos) => (Clock)((ulong)from + (ulong)nanos);
+
 fn void rescan_waits_for_quiet_but_not_past_the_cap() @test
 {
-	Clock start = (Clock)1_000_000_000_000;
+	Clock start     = (Clock)1_000_000_000_000;
 	Duration settle = (Duration)200_000;
 	// Quiet for the whole settle period: due now.
-	assert(rescan_wait(start, start, start + (Clock)200_000_000, settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
+	assert(rescan_wait(start, start, after_nanos(start, 200_000_000), settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
 	// Changing all the time: the first change is a full cap old, so the rescan is due although the last change was just now.
-	assert(rescan_wait(start, start + (Clock)1_990_000_000, start + (Clock)2_000_000_000, settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
+	Clock later = after_nanos(start, 2_000_000_000);
+	assert(rescan_wait(start, after_nanos(later, -10_000_000), later, settle, MAX_CHANGE_DELAY) == time::DURATION_ZERO);
 	// Changed 10 ms ago, first changed 1 s ago: wait for the rest of the quiet period, 190 ms.
-	Clock now = start + (Clock)1_000_000_000;
-	assert(rescan_wait(start, now - (Clock)10_000_000, now, settle, MAX_CHANGE_DELAY) == (Duration)190_000);
+	Clock now = after_nanos(start, 1_000_000_000);
+	assert(rescan_wait(start, after_nanos(now, -10_000_000), now, settle, MAX_CHANGE_DELAY) == (Duration)190_000);
 }
 
 fn void listing_order_does_not_change_the_fingerprint() @test

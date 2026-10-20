@@ -8,6 +8,11 @@
  then publishes state and events and runs queued requests, so no handler ever
  blocks on a method call.
 
+ A lost bus (the daemon restarted, the connection failed, the poller failed) is
+ not final: the loop reconnects with a backoff (`convert::reconnect_delay`), and
+ the capabilities found at open are kept. Releases of inhibitors and of the sleep
+ barrier act on descriptors this process holds, so they work while the bus is down.
+
  Sources (see docs/research/battery_power.md, L-P1 and L-P3, for the verified
  signatures):
  * login1 manual page, org.freedesktop.login1(5): Manager methods and
@@ -18,7 +23,7 @@
  ActiveProfile, PerformanceDegraded, Profiles.
 *>
 module bleu::power::logind @feat(LINUX);
-import std::collections::list, std::collections::maybe, std::io::path, std::os::env, std::time, bleu::availability, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::power, bleu::power::convert, bleu::rt::poller, bleu::rt::unix, bleu::observe, bleu::service, bleu::rt::worker;
+import std::collections::list, std::collections::maybe, std::io::path, std::os::env, std::time, std::time::clock, bleu::availability, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::power, bleu::power::convert, bleu::rt::poller, bleu::rt::unix, bleu::observe, bleu::service, bleu::rt::worker;
 
 extern fn int getpid() @cname("getpid");
 
@@ -80,9 +85,12 @@ struct Logind
 	Capabilities* capabilities;
 	Startup* startup;
 	PowerHub* hub;
+	Poller poller; // watches the bus connection and the wake-up, while `run` is serving
 	Connection bus;
 	bool bus_alive;
-	bool bus_registered;
+	bool bus_registered; // the poller holds the bus descriptor
+	Clock retry_at; // no reconnect before this moment
+	uint failed_attempts; // reconnects that failed in a row; the backoff grows with it
 	Proxy manager;
 	bool has_session;
 	Proxy session;
@@ -133,10 +141,10 @@ fn void destroy(Allocator allocator, void* state)
 	alloc::free(allocator, backend);
 }
 
-<* Record a failed call. A lost connection ends the bus for good; other failures leave their fields unknown. *>
+<* Record a failed call. A lost connection stops the bus until the next reconnect; other failures leave their fields unknown. *>
 fn void Logind.note_failure(&self, fault failure)
 {
-	if (failure == error::DISCONNECTED) self.bus_alive = false;
+	if (failure == error::DISCONNECTED) lose_bus(self);
 }
 
 fn void run(void* state, PowerHub* hub, Host{Command}* host)
@@ -144,20 +152,46 @@ fn void run(void* state, PowerHub* hub, Host{Command}* host)
 	Logind* backend = (Logind*)state;
 	backend.hub = hub;
 	backend.bus.init(backend.allocator);
-	if (catch err = start(backend))
+	// The poller is made before the start is reported, so a failure to make it is an error of `open`.
+	if (catch err = backend.poller.init(backend.allocator, host.wakeup(), 1))
 	{
 		backend.startup.fail(err);
 	}
 	else
 	{
-		backend.startup.succeed();
-		serve(backend, host);
+		if (catch err = start(backend))
+		{
+			backend.startup.fail(err);
+		}
+		else
+		{
+			backend.startup.succeed();
+			serve(backend, host);
+		}
+		backend.poller.free();
 	}
 	shutdown(backend, host);
 }
 
-<* Connect, find what is there, subscribe to changes, and read the first state. *>
+<*
+ Connect, find what is there, subscribe to changes, take the sleep barrier, and read the
+ first state. The capabilities are decided here and not changed afterwards.
+*>
 fn void? start(Logind* b)
+{
+	connect_bus(b)!;
+	b.bus_alive = true;
+	if (b.sleep_barrier) take_barrier(b)!;
+	fill_capabilities(b)!;
+	refresh(b);
+}
+
+<*
+ Open the bus and find what is there: the manager, this process's session and the profile
+ daemon; then subscribe to the signals. Used at start and on every reconnect. Does not mark
+ the bus alive: the caller does, once everything else it needs is in place.
+*>
+fn void? connect_bus(Logind* b)
 {
 	if (b.bus_address.len > 0)
 	{
@@ -167,16 +201,15 @@ fn void? start(Logind* b)
 	{
 		b.bus.open_system()!;
 	}
-	b.bus_alive = true;
 	b.manager = proxy::for_object(&b.bus, LOGIND_BUS, LOGIND_PATH, LOGIND_MANAGER)!;
 	// Probe logind before anything else: when it is absent, nothing below can work.
 	b.manager.get_all_properties(b.allocator)!;
+	b.has_session         = false;
+	b.has_profiles        = false;
+	b.has_modern_profiles = false;
 	find_session(b)!;
 	find_profiles(b)!;
 	subscribe(b)!;
-	if (b.sleep_barrier) take_barrier(b)!;
-	fill_capabilities(b);
-	refresh(b);
 }
 
 <* Watch the properties and the sleep signal. The handlers only record what happened. *>
@@ -229,6 +262,7 @@ fn void? find_session(Logind* b)
 	}
 	defer reply.release();
 	String path = reply.reader()!.read_object_path()!;
+	if (b.session_path.len > 0) alloc::free(b.allocator, b.session_path.ptr);
 	b.session_path = path.copy(b.allocator);
 	b.session = proxy::for_object(&b.bus, LOGIND_BUS, b.session_path, LOGIND_SESSION)!;
 	b.has_session = true;
@@ -268,8 +302,8 @@ fn bool? daemon_answers(Proxy* proxy)
 	};
 }
 
-// Each capability the Linux mechanism offers, decided by what was found above.
-fn void fill_capabilities(Logind* b)
+// Each capability the Linux mechanism offers, decided by what was found above and by logind's own answers.
+fn void? fill_capabilities(Logind* b)
 {
 	Capabilities* caps    = b.capabilities;
 	Availability profiles = b.has_profiles ? availability::YES
@@ -313,11 +347,11 @@ fn void fill_capabilities(Logind* b)
 			)
 	);
 	caps.set(BLOCK_SHUTDOWN, availability::YES);
-	caps.set(SUSPEND, availability::YES);
-	caps.set(HIBERNATE, availability::YES);
-	caps.set(HYBRID_SLEEP, availability::YES);
-	caps.set(POWER_OFF, availability::YES);
-	caps.set(REBOOT, availability::YES);
+	caps.set(SUSPEND, action_availability(b, "CanSuspend")!);
+	caps.set(HIBERNATE, action_availability(b, "CanHibernate")!);
+	caps.set(HYBRID_SLEEP, action_availability(b, "CanHybridSleep")!);
+	caps.set(POWER_OFF, action_availability(b, "CanPowerOff")!);
+	caps.set(REBOOT, action_availability(b, "CanReboot")!);
 	Availability session = b.has_session ? availability::YES
 		: availability::no(availability::Reason.BACKEND_MISSING, "this process is not in a logind session");
 	caps.set(LOCK, session);
@@ -327,43 +361,105 @@ fn void fill_capabilities(Logind* b)
 	caps.set(AC_EVENTS, availability::YES);
 }
 
+<*
+ Close the bus, unregistering it first: the poller must never hold a closed descriptor.
+ Safe when the bus is not open.
+*>
+fn void drop_bus(Logind* b)
+{
+	b.bus_alive = false;
+	sync_bus_source(b);
+	b.bus.close();
+}
+
+<*
+ The bus is lost: stop using it, and try again once the backoff has passed. The backoff
+ starts from the failures so far, so a bus that keeps failing is retried ever more slowly.
+*>
+fn void lose_bus(Logind* b)
+{
+	b.bus_alive = false;
+	b.retry_at = clock::now().add_duration(convert::reconnect_delay(b.failed_attempts));
+}
+
+<* Reconnect a lost bus once its backoff has passed. A failed attempt waits longer before the next. *>
+fn void retry_bus(Logind* b)
+{
+	if (b.bus_alive) return;
+	if (clock::now().nano_diff(b.retry_at) < (NanoDuration)0) return;
+	drop_bus(b);
+	if (catch err = reconnect(b))
+	{
+		b.failed_attempts++;
+		b.retry_at = clock::now().add_duration(convert::reconnect_delay(b.failed_attempts));
+		return;
+	}
+	b.failed_attempts = 0;
+}
+
+<*
+ Open the bus again, as `start` does, and take the sleep barrier back if it is not held.
+ The bus is alive only when all of it succeeded.
+*>
+fn void? reconnect(Logind* b)
+{
+	connect_bus(b)!;
+	if (b.sleep_barrier && !b.barrier.is_open()) take_barrier(b)!;
+	b.bus_alive = true;
+	b.dirty = true;
+}
+
 <* The loop: wait for the bus or a request, then do what is waiting. Runs until the service stops. *>
 fn void serve(Logind* b, Host{Command}* host)
 {
-	Poller poller;
-	poller.init(b.allocator, host.wakeup(), 1)!!;
-	defer poller.free();
 	Command[COMMAND_BATCH] batch;
 	while (!host.stopping())
 	{
-		sync_bus_source(b, &poller);
-		// A wait that fails is not retried in a loop: the bus is treated as lost.
-		if (catch err = poller.wait(WAIT_INTERVAL))
+		sync_bus_source(b);
+		// A wait that fails other than by timing out means the poller can no longer watch the bus.
+		if (catch err = b.poller.wait(WAIT_INTERVAL))
 		{
-			if (err != TIMEOUT) b.bus_alive = false;
+			if (err != TIMEOUT) lose_bus(b);
 		}
 		pump(b);
 		drain(b, host, batch[..]);
 		pump(b);
+		retry_bus(b);
+		sync_bus_source(b);
 		react(b);
 	}
 }
 
-// Keep the bus connection registered with the poller exactly while it is alive.
-fn void sync_bus_source(Logind* b, Poller* poller)
+<*
+ Keep the bus registered with the poller exactly while it is alive. A bus whose descriptor
+ cannot be registered is lost.
+*>
+fn void sync_bus_source(Logind* b)
 {
-	bool wanted = b.bus_alive;
-	if (wanted == b.bus_registered) return;
-	if (wanted)
+	if (b.bus_alive == b.bus_registered) return;
+	if (!b.bus_alive)
 	{
-		poller::Source source = { .handle = b.bus.fd()!!, .interest = { .readable = true }, .tag = BUS_TAG };
-		poller.add(source)!!;
+		// The poller keeps the descriptor until it is removed; this runs before the descriptor closes.
+		if (catch err = b.poller.remove(BUS_TAG))
+		{
+			// Not registered: nothing to remove.
+		}
+		b.bus_registered = false;
+		return;
 	}
-	else
+	int? fd = b.bus.fd();
+	if (catch err = fd)
 	{
-		poller.remove(BUS_TAG)!!;
+		lose_bus(b);
+		return;
 	}
-	b.bus_registered = wanted;
+	poller::Source source = { .handle = fd, .interest = { .readable = true }, .tag = BUS_TAG };
+	if (catch err = b.poller.add(source))
+	{
+		lose_bus(b);
+		return;
+	}
+	b.bus_registered = true;
 }
 
 // Read whatever the bus has, dispatching signals to their handlers.
@@ -373,7 +469,7 @@ fn void pump(Logind* b)
 	if (catch err = b.bus.process())
 	{
 		// process() reports DISCONNECTED or PROTOCOL once the connection is unusable.
-		b.bus_alive = false;
+		lose_bus(b);
 	}
 }
 
@@ -438,9 +534,9 @@ fn void end_sleep(Logind* b)
 	power::publish_event(b.hub, RESUMED, 0);
 	if (b.sleep_barrier)
 	{
-		// A refused retake leaves no barrier, so the next PREPARE_SLEEP carries no ticket
-		// and nothing waits for an acknowledgement that cannot come.
-		if (catch err = take_barrier(b)) b.note_failure(err);
+		// Without the lock, the next PREPARE_SLEEP carries no ticket and nothing waits. The bus is treated as lost,
+		// so the reconnect takes the lock again; until then the barrier is simply not held.
+		if (catch err = take_barrier(b)) lose_bus(b);
 	}
 }
 

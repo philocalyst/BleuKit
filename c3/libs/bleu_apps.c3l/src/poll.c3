@@ -44,7 +44,7 @@ fn String listing_text(String[] names, Allocator allocator)
 	for (usz i = 1; i < sorted.len; i++)
 	{
 		String current = sorted[i];
-		usz j = i;
+		usz j          = i;
 		while (j > 0 && sorted[j - 1].compare_to(current) > 0)
 		{
 			sorted[j] = sorted[j - 1];

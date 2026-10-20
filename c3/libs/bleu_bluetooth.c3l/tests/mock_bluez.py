@@ -30,6 +30,7 @@ served at /org/bluez; the agent's sender and path are kept for the callbacks.
 Prints READY on stdout once it owns the name.
 """
 import asyncio
+import os
 import sys
 
 from dbus_next import DBusError, Message, MessageType, Variant
@@ -312,10 +313,21 @@ def managed_objects():
             for path, ifaces in OBJECTS.items()}
 
 
+def tree_read_fails():
+    """True while the file named by BLEU_MOCK_FAIL_TREE says 1: the test makes GetManagedObjects fail."""
+    path = os.environ.get('BLEU_MOCK_FAIL_TREE', '')
+    if not path or not os.path.exists(path):
+        return False
+    with open(path) as f:
+        return f.read().strip() == '1'
+
+
 def answer_object_manager(msg):
     """Serves GetManagedObjects at / by hand: dbus-next's own ObjectManager ignores undecorated properties."""
     if (msg.message_type == MessageType.METHOD_CALL and msg.path == '/'
             and msg.interface == OBJECT_MANAGER_IFACE and msg.member == 'GetManagedObjects'):
+        if tree_read_fails():
+            return Message.new_error(msg, 'org.freedesktop.DBus.Error.Failed', 'mock: the tree read is failing')
         return Message.new_method_return(msg, 'a{oa{sa{sv}}}', [managed_objects()])
     return None
 

@@ -82,7 +82,7 @@ fn Session*? open(Allocator allocator, Options options = { })
 <* Stop the backend and release everything. Close every `IdleWatch` first. *>
 fn void Session.close(&self)
 {
-	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -163,10 +163,7 @@ fn SessionOperation*? Session.unlock(&self) => self.request(Request.UNLOCK, Cap.
  @return? error::UNSUPPORTED : "This backend cannot lock another session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
-fn SessionOperation*? Session.lock_session(
-	&self,
-	String session_id
-)
+fn SessionOperation*? Session.lock_session(&self, String session_id)
 {
 	check_session_id(session_id)!;
 	return self.request(Request.LOCK_SESSION, Cap.LOCK_SESSION, session_id);
@@ -181,10 +178,7 @@ fn SessionOperation*? Session.lock_session(
  @return? error::UNSUPPORTED : "This backend cannot end a session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
-fn SessionOperation*? Session.terminate_session(
-	&self,
-	String session_id
-)
+fn SessionOperation*? Session.terminate_session(&self, String session_id)
 {
 	check_session_id(session_id)!;
 	return self.request(Request.TERMINATE_SESSION, Cap.TERMINATE_SESSION, session_id);

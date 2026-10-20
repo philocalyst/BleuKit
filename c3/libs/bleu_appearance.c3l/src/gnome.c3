@@ -148,7 +148,7 @@ fn bool? has_key(String schema, String key)
 	char[KEY_LIST_CAPACITY] buffer;
 	String[3] argv = { "gsettings", "list-keys", schema };
 	String listed  = process::run_capture_stdout(buffer[..], argv[..], process::SpawnOptions.INHERIT_ENV)!;
-	sz start = 0;
+	sz start       = 0;
 	for (sz i = 0; i <= listed.len; i++)
 	{
 		if (i < listed.len && listed[i] != '\n') continue;

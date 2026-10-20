@@ -2,9 +2,10 @@
 """Mock D-Bus Application service for tests/run.sh, written with python-dbus-next.
 
 It owns org.example.Activatable and exports org.freedesktop.Application at
-/org/example/Activatable. Every call is appended to the file named by the
-BLEU_MOCK_LOG environment variable, one line per call, so the test can check
-which method was called with which arguments.
+/org/example/Activatable. It also owns org.example.Hang, whose Activate never
+answers, so a launch must time out instead of running the Exec line. Every call is
+appended to the file named by the BLEU_MOCK_LOG environment variable, one line per
+call, so the test can check which method was called with which arguments.
 """
 import asyncio
 import os
@@ -15,6 +16,8 @@ from dbus_next.service import ServiceInterface, method
 
 PATH = '/org/example/Activatable'
 NAME = 'org.example.Activatable'
+HANG_PATH = '/org/example/Hang'
+HANG_NAME = 'org.example.Hang'
 LOG = os.environ['BLEU_MOCK_LOG']
 
 
@@ -46,10 +49,23 @@ class Application(ServiceInterface):
         log(f'ActivateAction {action_name}')
 
 
+class Hanging(ServiceInterface):
+    def __init__(self):
+        super().__init__('org.freedesktop.Application')
+
+    @method()
+    async def Activate(self, platform_data: 'a{sv}'):
+        log('Hang Activate')
+        # Accepted, never answered: the client's call must time out.
+        await asyncio.get_running_loop().create_future()
+
+
 async def main():
     bus = await MessageBus(negotiate_unix_fd=True).connect()
     bus.export(PATH, Application())
+    bus.export(HANG_PATH, Hanging())
     await bus.request_name(NAME)
+    await bus.request_name(HANG_NAME)
     print('READY', flush=True)
     await asyncio.get_running_loop().create_future()
 

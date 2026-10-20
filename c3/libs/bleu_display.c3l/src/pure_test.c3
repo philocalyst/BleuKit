@@ -226,11 +226,20 @@ fn void logical_size_and_scale_bounds_are_checked() @test
 	display::OutputChange[2] changes = { };
 	changes[1] = { .output_id = "HDMI-1", .enabled = false };
 	// A 1x1 mode at scale 4 has no logical pixels at all: refused, not accepted with a 0x0 size.
-	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = { .width = 1, .height = 1, .refresh = 60000 }, .scale = maybe::value(4.0) };
+	changes[0] = {
+		.output_id = "DP-1",
+		.enabled = true,
+		.mode = { .width = 1, .height = 1, .refresh = 60000 },
+		.scale = maybe::value(4.0)
+	};
 	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
 	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = fhd60(), .scale = maybe::value(11.0) };
 	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
-	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = { .width = 100000, .height = 1080, .refresh = 60000 } };
+	changes[0] = {
+		.output_id = "DP-1",
+		.enabled = true,
+		.mode = { .width = 100000, .height = 1080, .refresh = 60000 }
+	};
 	test::@error(display::validate_config(outputs[..], { .outputs = changes[..] }), error::INVALID_ARGUMENT);
 	changes[0] = { .output_id = "DP-1", .enabled = true, .mode = fhd60(), .scale = maybe::value(2.0) };
 	display::validate_config(outputs[..], { .outputs = changes[..] })!!;

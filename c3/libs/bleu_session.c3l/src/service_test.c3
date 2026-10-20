@@ -20,6 +20,7 @@ fn void queued_requests_are_completed_when_the_backend_stops() @test
 	svc.allocator = mem;
 	svc.capabilities.init(availability::YES);
 	svc.hub.start(mem, "session", "fake", &waits_without_taking, null, abandon: &session::abandon_command)!!;
+	defer svc.hub.free();
 	SessionOperation* operation = svc.lock()!!;
 	defer operation.release();
 	// The request is queued and never taken: stopping the backend must hand it to abandon.

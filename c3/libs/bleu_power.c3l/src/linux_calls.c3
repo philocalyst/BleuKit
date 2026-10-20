@@ -10,6 +10,26 @@ import bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::value, bleu::dbus::
 <* One request dispatched by the worker. Requests with no operation report nothing. *>
 fn void dispatch(Logind* b, Command* command)
 {
+	// Releases and the sleep acknowledgement act on descriptors this process holds: they need no bus.
+	if (command.kind == RELEASE_INHIBITOR)
+	{
+		release_inhibitor(b, command.number);
+		return;
+	}
+	if (command.kind == ACK_SLEEP)
+	{
+		acknowledge(b, command.number);
+		return;
+	}
+	// A profile hold lives with its bus connection: once the bus is lost, the daemon has dropped it already.
+	if (command.kind == RELEASE_PROFILE)
+	{
+		if (b.bus_alive)
+		{
+			if (catch err = release_profile(b, command.number)) b.note_failure(err);
+		}
+		return;
+	}
 	if (!b.bus_alive)
 	{
 		power::abort_command(command, error::DISCONNECTED);
@@ -37,9 +57,6 @@ fn void dispatch(Logind* b, Command* command)
 			{
 				power::finish{ProfileHold}(command.hold_op, hold);
 			}
-		case RELEASE_PROFILE:
-			// The hold dies with this connection anyway, so a refused release changes nothing for the caller.
-			if (catch err = release_profile(b, command.number)) b.note_failure(err);
 		case INHIBIT:
 			Inhibitor? inhibitor = inhibit(b, command);
 			if (catch err = inhibitor)
@@ -51,7 +68,8 @@ fn void dispatch(Logind* b, Command* command)
 				power::finish{Inhibitor}(command.inhibit_op, inhibitor);
 			}
 		case RELEASE_INHIBITOR:
-			release_inhibitor(b, command.number);
+		case RELEASE_PROFILE:
+		case ACK_SLEEP: return;
 		case CAN:
 			Availability? answer = can(b, command.action);
 			if (catch err = answer)
@@ -72,8 +90,6 @@ fn void dispatch(Logind* b, Command* command)
 			{
 				power::finish{Action}(command.action_op, performed);
 			}
-		case ACK_SLEEP:
-			acknowledge(b, command.number);
 	}
 }
 
@@ -107,7 +123,7 @@ fn ProfileHold? hold_profile(Logind* b, Command* command)
 	}
 	String name = convert::profile_name(command.profile)!;
 	uint cookie = hold_call(b, name, command.why)!;
-	return { .cookie = cookie, .owner = command.owner };
+	return make_hold(command, cookie);
 }
 
 fn uint? hold_call(Logind* b, String profile, String reason)
@@ -160,7 +176,7 @@ fn Inhibitor? inhibit(Logind* b, Command* command)
 	unix::Fd fd            = inhibit_fd(b, request.what, command.who, command.why, request.mode)!;
 	uint id                = ++b.next_lock;
 	b.locks.push({ .id = id, .fd = fd });
-	return { .id = id, .owner = command.owner };
+	return make_inhibitor(command, id);
 }
 
 // Inhibit(what, who, why, mode): the reply's descriptor is duplicated, because the reply owns the original.
@@ -211,14 +227,38 @@ fn Availability? can(Logind* b, Action action)
 	}
 }
 
-fn Availability? can_answer(Logind* b, String member)
+// The text of a `Can*` answer, copied into temporary memory (the caller opens the pool).
+fn String? can_text(Logind* b, String member)
 {
 	Message* call = b.manager.new_call(b.allocator, member)!;
 	defer call.release();
 	Message* reply = b.bus.call(call)!;
 	defer reply.release();
-	String answer = reply.reader()!.read_string()!;
-	return convert::availability_from_can(answer);
+	return reply.reader()!.read_string()!.copy(tmem);
+}
+
+fn Availability? can_answer(Logind* b, String member)
+{
+	@pool()
+	{
+		String answer = can_text(b, member)!;
+		return convert::availability_from_can(answer);
+	};
+}
+
+<*
+ The capability of an action from its `Can*` answer read at open: refused for good when
+ logind says the hardware lacks it or the configuration forbids it, otherwise available
+ (polkit may still ask the user, and an inhibitor may block it for now).
+*>
+fn Availability? action_availability(Logind* b, String member)
+{
+	@pool()
+	{
+		String answer = can_text(b, member)!;
+		if (convert::refused_at_open(answer)) return convert::availability_from_can(answer);
+		return availability::YES;
+	};
 }
 
 // Perform the action. Manager methods get `interactive = true`, so polkit may ask the user; nothing is bypassed.

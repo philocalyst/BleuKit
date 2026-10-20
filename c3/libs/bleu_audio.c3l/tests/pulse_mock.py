@@ -11,9 +11,19 @@ tagstruct.c, master branch; see the field comments below). It is written
 independently of the C3 codec so that the two can disagree.
 
 Control socket (<socket>.ctl), one line per command, used by the C3 test:
-  add-sink NAME     create a sink and send a NEW sink event
-  remove-sink NAME  remove a sink and send a REMOVE sink event
-  exit              close every client and stop the server
+  add-sink NAME       create a sink and send a NEW sink event
+  remove-sink NAME    remove a sink and send a REMOVE sink event
+  silent-volume NAME GAIN
+                      set a sink's volume to GAIN (slider scale) with NO event
+  handshake-fault MODE
+                      the next AUTH reply is cut after its first 10 bytes: MODE
+                      "stall" keeps the connection open, "cut" closes it
+  corrupt-cards MODE  the card list is malformed: MODE "count" writes a profile
+                      count of 0xFFFFFFFF, "tag" writes a 'L' where the proplist
+                      'P' belongs
+  fix-cards           the card list is well formed again
+  timeout-next        the next volume, mute or port command gets an ERROR TIMEOUT reply
+  exit                close every client and stop the server
 
 Usage: pulse_mock.py SOCKET COOKIE_FILE
 """
@@ -52,6 +62,7 @@ CMD_SET_SINK_PORT, CMD_SET_SOURCE_PORT = 96, 97
 CMD_SET_SOURCE_OUTPUT_VOLUME, CMD_SET_SOURCE_OUTPUT_MUTE = 98, 99
 
 ERR_ACCESS, ERR_COMMAND, ERR_INVALID, ERR_NOENTITY = 1, 2, 3, 5
+ERR_TIMEOUT = 8
 
 MASK_SINK, MASK_SOURCE, MASK_SINK_INPUT, MASK_SOURCE_OUTPUT = 1, 2, 4, 8
 MASK_CARD, MASK_SERVER = 0x200, 0x80
@@ -279,15 +290,18 @@ class Server:
             out += enc_format_info()
         return out
 
-    def card_record(self, c, version):
+    def card_record(self, c, version, fault=None):
         out = enc_u32(c.index) + enc_string(c.name) + enc_u32(NO_INDEX) + enc_string("alsa")
+        if fault == "count":
+            return out + enc_u32(0xFFFFFFFF)
         out += enc_u32(len(c.profiles))
         for name, description, available in c.profiles:
             out += enc_string(name) + enc_string(description)
             out += enc_u32(1) + enc_u32(1) + enc_u32(100)
             if version >= 29:
                 out += enc_u32(1 if available else 0)
-        out += enc_string(c.active) + enc_proplist({"device.description": "Test Card"})
+        out += enc_string(c.active)
+        out += enc_u32(0) if fault == "tag" else enc_proplist({"device.description": "Test Card"})
         if version >= 26:
             out += enc_u32(0)  # no ports in the mock
         return out
@@ -347,6 +361,9 @@ class Mock:
         self.sel.register(self.ctl, selectors.EVENT_READ, "ctl")
         self.connections = {}
         self.running = True
+        self.handshake_fault = None
+        self.card_fault = None
+        self.timeout_next = False
 
     def send(self, conn, data):
         try:
@@ -414,6 +431,20 @@ class Mock:
                 if d.name == parts[1]:
                     self.server.sinks.remove(d)
                     self.broadcast_event(EV_REMOVE, FAC_SINK, d.index)
+        elif parts[0] == "silent-volume":
+            name, gain = parts[1].split(" ")
+            for d in self.server.sinks:
+                if d.name == name:
+                    raw = round(float(gain) ** (1.0 / 3.0) * VOLUME_NORM)
+                    d.volume = [raw] * len(d.volume)
+        elif parts[0] == "handshake-fault":
+            self.handshake_fault = parts[1]
+        elif parts[0] == "corrupt-cards":
+            self.card_fault = parts[1]
+        elif parts[0] == "fix-cards":
+            self.card_fault = None
+        elif parts[0] == "timeout-next":
+            self.timeout_next = True
         elif parts[0] == "exit":
             self.running = False
 
@@ -443,6 +474,11 @@ class Mock:
             return
         if not conn.authorized:
             self.send(conn, error(tag, ERR_ACCESS))
+            return
+        if self.timeout_next and cmd in (CMD_SET_SINK_VOLUME, CMD_SET_SOURCE_VOLUME, CMD_SET_SINK_MUTE,
+                                         CMD_SET_SOURCE_MUTE, CMD_SET_SINK_PORT, CMD_SET_SOURCE_PORT):
+            self.timeout_next = False
+            self.send(conn, error(tag, ERR_TIMEOUT))
             return
         handler(conn, tag, args)
 
@@ -479,7 +515,17 @@ class Mock:
             self.send(conn, error(tag, ERR_ACCESS))
             return
         conn.authorized = True
-        self.send(conn, reply(tag, enc_u32(PROTOCOL_VERSION)))
+        answer = reply(tag, enc_u32(PROTOCOL_VERSION))
+        if self.handshake_fault is not None:
+            fault, self.handshake_fault = self.handshake_fault, None
+            try:
+                conn.sock.sendall(answer[:10])
+            except OSError:
+                pass
+            if fault == "cut":
+                self.drop(conn)
+            return
+        self.send(conn, answer)
 
     def h_set_client_name(self, conn, tag, args):
         args.proplist()
@@ -505,7 +551,7 @@ class Mock:
         self.send(conn, reply(tag, body))
 
     def h_list_cards(self, conn, tag, args):
-        body = b"".join(self.server.card_record(c, conn.version) for c in self.server.cards)
+        body = b"".join(self.server.card_record(c, conn.version, self.card_fault) for c in self.server.cards)
         self.send(conn, reply(tag, body))
 
     def h_subscribe(self, conn, tag, args):

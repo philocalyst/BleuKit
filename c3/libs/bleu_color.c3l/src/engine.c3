@@ -352,7 +352,7 @@ fn void? Engine.follow(&self, Kelvin target)
 	for (usz i = 0; i < self.displays.len; i++)
 	{
 		Control* control = &self.displays[i].output.control;
-		bool moved = !control.temperature.has_value || control.temperature.value != target;
+		bool moved       = !control.temperature.has_value || control.temperature.value != target;
 		if (!moved && !control.refused) continue;
 		if (moved)
 		{

@@ -50,7 +50,7 @@ struct Color
 fn Color*? open(Allocator allocator, Options options = { })
 {
 	if (options.tick == time::DURATION_ZERO) options.tick = DEFAULT_TICK;
-	Driver* driver = select_driver(options)!;
+	Driver* driver     = select_driver(options)!;
 	// The backend is created before the service is allocated, so a failed create leaves nothing behind.
 	Capabilities capabilities;
 	void* driver_state = driver.create(allocator, options, &capabilities)!;
@@ -120,8 +120,12 @@ fn WatchId{State} Color.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Color.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Color.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (gamma control taken or lost, the schedule moved the temperature). *>
 fn Reader{Event}*? Color.subscribe(&self) => self.hub.events.subscribe();

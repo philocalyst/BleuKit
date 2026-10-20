@@ -75,16 +75,20 @@ static void battery_state_through_the_struct(bleu_battery_t *battery)
     CHECK(state != NULL);
     CHECK(state->on_mains);                       /* AC is online in the fake tree */
     CHECK(state->sources.len == 2);
-    const bleu_battery_source_t *sources = (const bleu_battery_source_t *)state->sources.ptr;
-    CHECK(slice_equals(sources[1].id, "BAT0"));
-    CHECK(sources[1].kind == BLEU_BATTERY_KIND_BATTERY);
-    CHECK(sources[1].state == BLEU_BATTERY_CHARGE_STATE_CHARGING);
-    CHECK(sources[1].charge.has_value);
-    CHECK(sources[1].charge.value > 0.49f && sources[1].charge.value < 0.51f);
-    CHECK(sources[1].cycles.has_value && sources[1].cycles.value == 212);
-    CHECK(slice_equals(sources[1].vendor, "ACME"));
-    CHECK(sources[1].chemistry == BLEU_BATTERY_CHEMISTRY_LITHIUM_ION);
-    CHECK(sources[1].health.has_value && sources[1].health.value > 0.79f && sources[1].health.value < 0.81f);
+    CHECK(bleu_battery_source_at(state, 2) == NULL);          /* out of range is NULL, not a crash */
+    const bleu_battery_source_t *battery = bleu_battery_source_at((bleu_battery_state_t *)state, 1);
+    CHECK(battery != NULL);
+    if (battery) {
+        CHECK(slice_equals(battery->id, "BAT0"));
+        CHECK(battery->kind == BLEU_BATTERY_KIND_BATTERY);
+        CHECK(battery->state == BLEU_BATTERY_CHARGE_STATE_CHARGING);
+        CHECK(battery->charge.has_value);
+        CHECK(battery->charge.value > 0.49f && battery->charge.value < 0.51f);
+        CHECK(battery->cycles.has_value && battery->cycles.value == 212);
+        CHECK(slice_equals(battery->vendor, "ACME"));
+        CHECK(battery->chemistry == BLEU_BATTERY_CHEMISTRY_LITHIUM_ION);
+        CHECK(battery->health.has_value && battery->health.value > 0.79f && battery->health.value < 0.81f);
+    }
 
     uint64_t generation = 0;
     CHECK(bleu_snapshot_generation(snapshot, &generation) == BLEU_STATUS_OK);
@@ -113,8 +117,6 @@ static void battery_json_and_backend(bleu_battery_t *battery)
     CHECK(name != NULL && strcmp(name, "sysfs") == 0 && name_length == 5);
     bleu_free(name);
 
-    bleu_availability_t *unused = NULL;
-    (void)unused;
     bleu_capability_t capability;
     CHECK(bleu_battery_capability(battery, BLEU_BATTERY_CAP_CHARGE, &capability) == BLEU_STATUS_OK);
     CHECK(capability.reason == BLEU_AVAILABILITY_REASON_AVAILABLE);
@@ -156,13 +158,18 @@ static void battery_watch_from_another_thread(bleu_battery_t *battery)
     pthread_cond_init(&state.changed, NULL);
     state.battery = battery;
 
-    uint64_t id = 0;
-    CHECK(bleu_battery_watch(battery, on_battery, &state, &id) == BLEU_STATUS_OK);
-    CHECK(id != 0);
-
+    /* Start unplugged, let the poll see it, then listen; plugging in must reach the listener. */
     write_file("sys/class/power_supply/AC/online", "0\n");
     struct timespec pause = { 0, 300 * 1000 * 1000 };
     nanosleep(&pause, NULL);
+
+    uint64_t id = 0;
+    CHECK(bleu_battery_watch(battery, on_battery, &state, &id) == BLEU_STATUS_OK);
+    CHECK(id != 0);
+    pthread_mutex_lock(&state.mutex);
+    state.id = id;
+    pthread_mutex_unlock(&state.mutex);
+
     write_file("sys/class/power_supply/AC/online", "1\n");
 
     struct timespec deadline;
@@ -321,9 +328,10 @@ static void brightness_state_and_json(bleu_brightness_t *brightness)
     const bleu_brightness_state_t *state = bleu_brightness_snapshot_state(snapshot);
     CHECK(state != NULL);
     if (state) {
-        CHECK(state->devices.len >= 1);
-        const bleu_brightness_device_t *devices = (const bleu_brightness_device_t *)state->devices.ptr;
-        CHECK(slice_equals(devices[0].id, "intel_backlight"));
+        const bleu_brightness_device_t *device = bleu_brightness_device_at((bleu_brightness_state_t *)state, 0);
+        CHECK(device != NULL);
+        if (device) CHECK(slice_equals(device->id, "intel_backlight"));
+        CHECK(bleu_brightness_device_at((bleu_brightness_state_t *)state, 99) == NULL);
     }
     bleu_snapshot_release(snapshot);
 

@@ -288,13 +288,15 @@ fn void serve_until_stopped(XdgBackend* backend, AppsHub* hub, AppsHost* host) @
 	defer poller.free();
 	if (backend.watcher.is_open())
 	{
-		if (catch poller.add({ .handle = backend.watcher.fd, .interest = { .readable = true }, .tag = WATCH_TAG })) return;
+		if (catch poller.add(
+			{ .handle = backend.watcher.fd, .interest = { .readable = true }, .tag = WATCH_TAG }
+		)) return;
 	}
 	backend.bus_available = open_bus(backend);
 	refresh(backend, hub);
-	bool dirty      = false;
-	Clock first     = clock::now();
-	Clock last      = first;
+	bool dirty  = false;
+	Clock first = clock::now();
+	Clock last  = first;
 	while (!host.stopping())
 	{
 		Duration timeout = time::FOREVER;
@@ -317,12 +319,18 @@ fn void serve_until_stopped(XdgBackend* backend, AppsHub* hub, AppsHost* host) @
 		{
 			if (!dirty) first = now;
 			dirty = true;
-			last  = now;
+			last = now;
 		}
 		bool refresh_now = false;
 		apps::serve(backend, hub, host, &launch, &refresh_now);
 		reap(backend);
-		bool due = dirty && apps::rescan_wait(first, last, clock::now(), backend.settle, apps::MAX_CHANGE_DELAY) == time::DURATION_ZERO;
+		bool due = dirty && apps::rescan_wait(
+			first,
+			last,
+			clock::now(),
+			backend.settle,
+			apps::MAX_CHANGE_DELAY
+		) == time::DURATION_ZERO;
 		if (refresh_now || due)
 		{
 			refresh(backend, hub);

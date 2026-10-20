@@ -5,7 +5,7 @@
 // daemon mode: modern, legacy or none. Each check prints PASS or FAIL; the exit
 // status is the number of failures.
 module bleu::power::integration_test;
-import std::io, std::thread, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::power, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy;
+import std::io, std::io::path, std::os::env, std::thread, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::power, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::rt::fs;
 
 <* Failed checks so far. *>
 int failures = 0;
@@ -98,6 +98,27 @@ fn bool got(Reader{Event}* reader, EventKind wanted, uint* ticket)
 fn int main(String[] args)
 {
 	String mode = args.len > 1 ? args[1] : "modern";
+	// Never run against a real system bus: the checks call Suspend, Lock and friends on the bus they reach.
+	// run.sh points DBUS_SYSTEM_BUS_ADDRESS at a private socket named bus-socket.
+	if (try address = env::tget_var("DBUS_SYSTEM_BUS_ADDRESS"))
+	{
+		if (!address.contains("bus-socket"))
+		{
+			io::printfn("refusing: DBUS_SYSTEM_BUS_ADDRESS does not name the private bus socket");
+			return 2;
+		}
+	}
+	else
+	{
+		io::printfn("refusing: DBUS_SYSTEM_BUS_ADDRESS is not set");
+		return 2;
+	}
+	if (mode == "bounce")
+	{
+		run_bounce_checks();
+		io::printfn("%d check(s) failed", failures);
+		return failures;
+	}
 	Connection bus;
 	bus.init(mem);
 	defer bus.free();
@@ -122,6 +143,7 @@ fn int main(String[] args)
 		run_barrier_checks(&bus, &control);
 	}
 	run_failure_checks();
+	run_after_close_checks(mode);
 	io::printfn("%d check(s) failed", failures);
 	return failures;
 }
@@ -169,9 +191,14 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 	{
 		check(svc.capability(Cap.PROFILE_SET)
 			.reason == availability::Reason.BACKEND_MISSING, "profiles are missing without the daemon");
-		if (catch err = svc.set_profile(
-			Profile.POWER_SAVER
-		)) check(err == error::UNAVAILABLE, "set_profile fails without the daemon");
+		if (catch err = svc.set_profile(Profile.POWER_SAVER))
+		{
+			check(err == error::UNAVAILABLE, "set_profile fails without the daemon");
+		}
+		else
+		{
+			check(false, "set_profile fails without the daemon");
+		}
 		return;
 	}
 
@@ -180,12 +207,20 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 		defer op.release();
 		check((op.wait() ?? Profile.UNKNOWN) == Profile.POWER_SAVER, "set_profile reports the profile written");
 	}
+	else
+	{
+		check(false, "set_profile is accepted");
+	}
 	check(profile_eventually(svc, Profile.POWER_SAVER), "the state shows the new profile");
 	check(control_has(bus, control, "Calls", "SetActiveProfile(power-saver)"), "the daemon received ActiveProfile");
 
 	if (catch err = svc.hold_profile(Profile.BALANCED, "not holdable"))
 	{
 		check(err == error::INVALID_ARGUMENT, "only power-saver and performance can be held");
+	}
+	else
+	{
+		check(false, "only power-saver and performance can be held");
 	}
 	if (holds)
 	{
@@ -209,13 +244,21 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 				check(false, "hold_profile succeeds");
 			}
 		}
+		else
+		{
+			check(false, "hold_profile is accepted by the modern interface");
+		}
 	}
 	else
 	{
-		if (catch err = svc.hold_profile(
-			Profile.PERFORMANCE,
-			"x"
-		)) check(err == error::UNSUPPORTED, "holds are refused without the modern interface");
+		if (catch err = svc.hold_profile(Profile.PERFORMANCE, "x"))
+		{
+			check(err == error::UNSUPPORTED, "holds are refused without the modern interface");
+		}
+		else
+		{
+			check(false, "holds are refused without the modern interface");
+		}
 	}
 
 	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "testing"))
@@ -249,6 +292,10 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 		defer op.release();
 		check((op.wait() ?? availability::no(availability::Reason.BACKEND_STOPPED, "")).ok(), "can(SUSPEND) is yes");
 	}
+	else
+	{
+		check(false, "can(SUSPEND) is asked");
+	}
 	if (try op = svc.can(Action.HIBERNATE))
 	{
 		defer op.release();
@@ -256,6 +303,10 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 			(op.wait() ?? availability::YES).reason == availability::Reason.PERMISSION_NEEDED,
 			"can(HIBERNATE) is challenge"
 		);
+	}
+	else
+	{
+		check(false, "can(HIBERNATE) is asked");
 	}
 	if (try op = svc.can(Action.HYBRID_SLEEP))
 	{
@@ -265,13 +316,22 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 			"can(HYBRID_SLEEP) is na"
 		);
 	}
+	else
+	{
+		check(false, "can(HYBRID_SLEEP) is asked");
+	}
 
 	if (try op = svc.perform(Action.SUSPEND))
 	{
 		defer op.release();
 		check((op.wait() ?? Action.HIBERNATE) == Action.SUSPEND, "perform(SUSPEND) is accepted");
 	}
+	else
+	{
+		check(false, "perform(SUSPEND) is accepted by the service");
+	}
 	check(control_eventually(bus, control, "Calls", "Suspend(true)"), "Suspend reaches logind with interactive set");
+	// Hibernate is available (the polkit check is the daemon's), so the request reaches logind and polkit answers.
 	if (try op = svc.perform(Action.HIBERNATE))
 	{
 		defer op.release();
@@ -284,10 +344,18 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 			check(false, "a polkit refusal is reported");
 		}
 	}
+	else
+	{
+		check(false, "perform(HIBERNATE) reaches polkit");
+	}
 	if (try op = svc.perform(Action.LOCK))
 	{
 		defer op.release();
 		check((op.wait() ?? Action.SUSPEND) == Action.LOCK, "perform(LOCK) is accepted");
+	}
+	else
+	{
+		check(false, "perform(LOCK) is accepted by the service");
 	}
 	check(control_eventually(bus, control, "Calls", "Session.Lock()"), "lock reaches the session object");
 
@@ -308,6 +376,10 @@ fn void run_event_checks(Power* svc, Connection* bus, Proxy* control)
 				snapshot.value.lid_closed.has_value && snapshot.value.lid_closed.value,
 				"the state says the lid is closed"
 			);
+		}
+		else
+		{
+			check(false, "the state is published after the lid closes");
 		}
 		control_bool(bus, control, "SetLidClosed", false);
 		check(got(reader, EventKind.LID_OPENED, null), "opening the lid is reported");
@@ -368,6 +440,10 @@ fn void run_barrier_checks(Connection* bus, Proxy* control)
 				),
 				"the delay lock is retaken after resume"
 			);
+		}
+		else
+		{
+			check(false, "subscribe to the barrier's events");
 		}
 	}
 	else

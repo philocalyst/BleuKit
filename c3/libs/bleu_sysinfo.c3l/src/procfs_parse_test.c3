@@ -92,7 +92,7 @@ fn void malformed_net_line_is_skipped() @test
 {
 	@pool()
 	{
-		String text = "Inter-|   Receive\n face |bytes\n  eth0: 1000 0 0 0 0 0 0 0 2000 0 0 0 0 0 0 0\n  eth1: junk\n  eth2: 5 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0\n";
+		String text                     = "Inter-|   Receive\n face |bytes\n  eth0: 1000 0 0 0 0 0 0 0 2000 0 0 0 0 0 0 0\n  eth1: junk\n  eth2: 5 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0\n";
 		delta::NetCounters[] interfaces = procfs::parse_net_dev(text, tmem)!!;
 		test::eq(interfaces.len, 2);
 		test::@check(interfaces[1].name == "eth2", "the line after the bad one is kept");
@@ -103,7 +103,10 @@ fn void short_mount_line_is_skipped() @test
 {
 	@pool()
 	{
-		RawMount[] mounts = procfs::parse_mounts("/dev/a /mnt/a ext4 rw 0 0\nshort\n/dev/b /mnt/b ext4 rw 0 0\n", tmem)!!;
+		RawMount[] mounts = procfs::parse_mounts(
+			"/dev/a /mnt/a ext4 rw 0 0\nshort\n/dev/b /mnt/b ext4 rw 0 0\n",
+			tmem
+		)!!;
 		test::eq(mounts.len, 2);
 		test::@check(mounts[1].mount_point == "/mnt/b", "the line after the bad one is kept");
 	};

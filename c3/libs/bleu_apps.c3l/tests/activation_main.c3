@@ -35,6 +35,14 @@ fn int main()
 	LaunchOperation* fallback = apps.launch("org.example.Missing.desktop")!!;
 	defer fallback.release();
 	assert(fallback.wait(time::ms(5000))!!.route == SPAWN, "the Exec fallback ran");
+	// 5. An activation the bus never answers: the launch fails, and Exec is not run as a second start.
+	LaunchOperation* hang = apps.launch("org.example.Hang.desktop")!!;
+	defer hang.release();
+	if (try launched = hang.wait(time::sec(30)))
+	{
+		io::printfn("an unanswered activation was retried through Exec: route %d", (int)launched.route);
+		return 1;
+	}
 	io::printn("activation checks passed");
 	return 0;
 }

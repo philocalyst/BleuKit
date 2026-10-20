@@ -79,7 +79,7 @@ fn void detach_leaves_an_injected_bus_alone() @test
 	MockMonitor monitor = mock::new_monitor("(vcp(10))");
 	monitor.add_feature(vcp::VcpCode.LUMINANCE, 30, 100);
 	DdcDisplay display = attached_display(&monitor);
-	int before = fcntl(0, F_GETFD);
+	int before         = fcntl(0, F_GETFD);
 	assert(before >= 0, "the test process has its standard input open");
 	display.detach();
 	assert(!display.opened, "the display is unopened after detach");
@@ -93,7 +93,7 @@ fn void a_monitor_that_ignores_the_write_is_an_error() @test
 	monitor.add_feature(vcp::VcpCode.LUMINANCE, 30, 100);
 	monitor.lag_reads = 1000;
 	DdcDisplay display = attached_display(&monitor);
-	Control first = display.read();
+	Control first      = display.read();
 	assert(first.readable, "the luminance is read before the write");
 	if (catch err = display.write((Level)0.5f))
 	{

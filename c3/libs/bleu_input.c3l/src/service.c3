@@ -75,7 +75,7 @@ fn Input*? open(Allocator allocator, Options options = { })
 <* Stop the backend and release everything. *>
 fn void Input.close(&self)
 {
-	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -185,7 +185,8 @@ fn SwitchOperation*? Input.next(&self)
 fn SwitchOperation*? Input.post_switch(&self, String layout_id)
 {
 	SwitchOperation* operation = operation::begin{SwitchOutcome}(self.allocator);
-	Command command = { .kind = SWITCH_TO, .id = layout_id.copy(operation.allocator()), .operation = operation };
+	String id                  = layout_id.copy(operation.allocator());
+	Command command            = { .kind = SWITCH_TO, .id = id, .operation = operation };
 	// The worker holds its own reference until it completes the operation.
 	operation.retain();
 	if (catch err = self.hub.post(command))

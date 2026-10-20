@@ -238,4 +238,3 @@ fn void StatePump.publish_latest(&self) @private
 		}
 	};
 }
-</content>

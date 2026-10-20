@@ -200,6 +200,8 @@ fn void serve(Mac* mac, Host{Command}* host)
 }
 
 // Sleep and wake are events, not barriers: the sleep is acknowledged by bleu::iokit::power.
+// Every queued message is looked at. Only WILL_SLEEP and HAS_POWERED_ON are published; the
+// others are skipped with `continue`, so a CAN_SLEEP before them does not hold WILL_SLEEP back.
 fn void deliver_sleep(Mac* mac)
 {
 	foreach (event : mac.sleep_events)
@@ -213,7 +215,7 @@ fn void deliver_sleep(Mac* mac)
 			case PowerEvent.WILL_POWER_ON:
 			case PowerEvent.WILL_POWER_OFF:
 			case PowerEvent.WILL_RESTART:
-			case PowerEvent.OTHER: return;
+			case PowerEvent.OTHER: continue;
 		}
 	}
 	mac.sleep_events.clear();
@@ -340,7 +342,7 @@ fn Inhibitor? take_assertion(Mac* mac, String type, Command* command)
 	if (result != 0) return mach::raise_code(result, "IOPMAssertionCreateWithName")~;
 	uint id = ++mac.next_hold;
 	mac.holds.push({ .id = id, .assertion = assertion });
-	return { .id = id, .owner = command.owner };
+	return make_inhibitor(command, id);
 }
 
 // Release the assertion with `id`. IOPMAssertionRelease is idempotent for the caller here: an id is removed once.

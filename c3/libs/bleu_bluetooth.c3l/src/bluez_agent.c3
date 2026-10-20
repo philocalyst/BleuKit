@@ -140,9 +140,11 @@ fn void? unregister_agent(Bluez* self) @private
 	};
 }
 
-// BlueZ releases the agent: nothing waits for it any more.
+// BlueZ releases the agent: nothing waits for it any more, so every waiting prompt is closed.
 fn void? on_release(void* context, Call* call) @private
 {
+	Bluez* self = (Bluez*)context;
+	close_prompts(self, "");
 	return call.reply(none_values());
 }
 
@@ -183,7 +185,8 @@ fn void? on_authorize_service(void* context, Call* call) @private
 	return park(context, call, AUTHORIZE, { });
 }
 
-// BlueZ shows a PIN the user must type on the device. The PIN is reported when it is numeric.
+// BlueZ shows a PIN the user must type on the device. The text is reported as BlueZ sent it, so leading
+// zeros and letters survive; the passkey is set only when the text is exactly six decimal digits.
 fn void? on_display_pin(void* context, Call* call) @private
 {
 	Bluez* self = (Bluez*)context;
@@ -192,10 +195,12 @@ fn void? on_display_pin(void* context, Call* call) @private
 		Reader r          = call.reader()!;
 		String device     = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
 		String pin        = r.read_string()!;
-		uint passkey      = parse_passkey(pin) ?? 0;
 		Maybe{uint} shown = { };
-		if (pin.len == PASSKEY_DIGITS) shown = maybe::value(passkey);
-		report_display(self, device, shown);
+		if (pin.len == PASSKEY_DIGITS)
+		{
+			if (try passkey = parse_passkey(pin)) shown = maybe::value(passkey);
+		}
+		report_display(self, device, pin, shown);
 	};
 	return call.reply(none_values());
 }
@@ -210,7 +215,7 @@ fn void? on_display_passkey(void* context, Call* call) @private
 		String device  = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
 		uint passkey   = r.read_u32()!;
 		ushort entered = r.read_u16()!;
-		if (entered == 0) report_display(self, device, maybe::value(passkey));
+		if (entered == 0) report_display(self, device, "", maybe::value(passkey));
 	};
 	return call.reply(none_values());
 }
@@ -219,16 +224,26 @@ fn void? on_display_passkey(void* context, Call* call) @private
 fn void? on_cancel(void* context, Call* call) @private
 {
 	Bluez* self = (Bluez*)context;
+	close_prompts(self, "");
+	return call.reply(none_values());
+}
+
+<*
+ Closes the waiting prompts of `device` ("" closes every prompt): each is marked answered, and BlueZ
+ gets a Canceled error for its parked call.
+*>
+fn void close_prompts(Bluez* self, String device) @private
+{
 	foreach (&prompt : self.prompts)
 	{
 		if (!prompt.waiting) continue;
+		if (device.len > 0 && (String)prompt.device[0:prompt.device_length] != device) continue;
 		close_prompt(self, prompt);
 		// The reply is best effort: the bus may have dropped the parked call already.
 		if (catch self.server.reply_error(prompt.token, AGENT_CANCELED, "pairing was cancelled"))
 		{
 		}
 	}
-	return call.reply(none_values());
 }
 
 // Parks a request that needs the user's answer, and tells the panel about it.
@@ -249,7 +264,7 @@ fn void? park(void* context, Call* call, PromptKind kind, Maybe{uint} passkey) @
 	slot.waiting = true;
 	slot.id = ++self.next_prompt;
 	slot.kind = kind;
-	emit_request(self, kind, slot.id, (String)slot.device[0:slot.device_length], passkey);
+	emit_request(self, kind, slot.id, (String)slot.device[0:slot.device_length], "", passkey);
 }
 
 // An unused prompt slot, or NOT_FOUND when every slot is waiting.
@@ -272,6 +287,8 @@ fn Prompt*? free_slot(Bluez* self) @private
 *>
 fn void? answer_prompt(Bluez* self, Request* r) @private
 {
+	// The answer text is the user's PIN or passkey: it is zeroed when the request is done with it.
+	defer wipe_text(r.text);
 	Prompt* prompt = find_prompt(self, r.ticket) ?? null;
 	if (prompt == null) return error::INVALID_STATE~;
 	if (!r.flag)
@@ -296,6 +313,12 @@ fn void? answer_prompt(Bluez* self, Request* r) @private
 			return error::INVALID_STATE~;
 	}
 	return close_prompt(self, prompt);
+}
+
+// Overwrites the bytes of `text` with zeros. Volatile, so the stores are not dropped as dead.
+fn void wipe_text(String text) @private
+{
+	if (text.len > 0) mem::set((void*)text.ptr, 0, text.len, 0, true);
 }
 
 // The waiting prompt with `id`, or NOT_FOUND.
@@ -335,8 +358,8 @@ fn Value[] none_values() @private
 	return none;
 }
 
-// A request that waits for the user. `device` is copied into the event.
-fn void emit_request(Bluez* self, PromptKind kind, ulong id, String device, Maybe{uint} passkey) @private
+// A request that waits for the user. `device` and `text` are copied into the event.
+fn void emit_request(Bluez* self, PromptKind kind, ulong id, String device, String text, Maybe{uint} passkey) @private
 {
 	Snapshot{Event}* packet = self.hub.emit_begin();
 	Allocator arena         = packet.allocator();
@@ -344,15 +367,16 @@ fn void emit_request(Bluez* self, PromptKind kind, ulong id, String device, Mayb
 	packet.value = {
 		.kind = EventKind.PAIRING_REQUEST,
 		.address = address,
+		.text = bluetooth::copy_text(text, arena),
 		.request = { .id = id, .device = address, .kind = kind, .passkey = passkey },
 	};
 	self.hub.emit(packet);
 }
 
-// A passkey shown to the user: a request with nothing to answer.
-fn void report_display(Bluez* self, String device, Maybe{uint} passkey) @private
+// A code shown to the user: a request with nothing to answer. `text` is the code as BlueZ sent it.
+fn void report_display(Bluez* self, String device, String text, Maybe{uint} passkey) @private
 {
-	emit_request(self, PASSKEY_DISPLAY, 0, device, passkey);
+	emit_request(self, PASSKEY_DISPLAY, 0, device, text, passkey);
 }
 
 // The end of a waiting prompt.

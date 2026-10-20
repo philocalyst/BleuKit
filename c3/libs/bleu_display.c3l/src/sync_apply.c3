@@ -120,7 +120,7 @@ fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Cloc
 		op.release();
 		return;
 	}
-	bool captures = command.mode == APPLY_WITH_REVERT && !rollback.guard.armed;
+	bool captures   = command.mode == APPLY_WITH_REVERT && !rollback.guard.armed;
 	ApplyOp* holder = null;
 	Config previous;
 	if (captures)

@@ -225,7 +225,7 @@ fn float daylight_at(Schedule schedule, long unix_us, long utc_offset_us)
 	}
 	if (count == 0) return sun_is_up(schedule.latitude, schedule.longitude, unix_us) ? 1.0f : 0.0f;
 	sort_edges(edges[0:count]);
-	long half = (long)schedule.transition / 2;
+	long half   = (long)schedule.transition / 2;
 	// Before the first edge the daylight state is the opposite of what that edge sets.
 	float level = edges[0].rising ? 0.0f : 1.0f;
 	for (usz i = 0; i < count; i++)

@@ -167,7 +167,7 @@ fn Layout layout_of(Win32_HKL handle, Allocator allocator) @private
 	String language = locale_tag(hkl::lcid_of(value), buffer[..], allocator);
 	// The display name is read from the buffer the tag lookup filled. After a failed lookup that buffer holds
 	// no locale, so the name is not looked up at all.
-	String name = language.len > 0 ? locale_display_name(&buffer[0], allocator) : "";
+	String name     = language.len > 0 ? locale_display_name(&buffer[0], allocator) : "";
 	return {
 		.id = hkl::klid_text(value, allocator),
 		.name = name.len > 0 ? name : language.copy(allocator),

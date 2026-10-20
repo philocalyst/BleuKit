@@ -131,8 +131,8 @@ fn String? unquote(Allocator allocator, String printed)
 {
 	String text = printed.trim();
 	if (text.len < 2 || text[0] != '\'' || text[text.len - 1] != '\'') return error::PROTOCOL~;
-	String inner = text[1:text.len - 2];
-	char[] out   = alloc::new_array(allocator, char, inner.len);
+	String inner     = text[1:text.len - 2];
+	char[] out       = alloc::new_array(allocator, char, inner.len);
 	// The buffer is released when an escape is refused, so an error leaves nothing allocated.
 	bool handed_over = false;
 	defer if (!handed_over) alloc::free(allocator, out.ptr);
@@ -250,8 +250,8 @@ fn String? path_from_file_uri(Allocator allocator, String uri)
 		rest = rest[LOCAL_HOST.len:rest.len - LOCAL_HOST.len];
 		if (!rest.starts_with("/")) return error::INVALID_ARGUMENT~;
 	}
-	char[] out  = alloc::new_array(allocator, char, rest.len);
-	usz n       = 0;
+	char[] out = alloc::new_array(allocator, char, rest.len);
+	usz n      = 0;
 	for (usz i = 0; i < rest.len; i++)
 	{
 		if (rest[i] == '%' && i + 2 < rest.len)

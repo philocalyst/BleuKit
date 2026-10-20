@@ -5,15 +5,20 @@ import bleu::error, bleu::operation, std::core::test, std::time, std::time::cloc
 
 struct FakePlatform
 {
-	int x;          // where the one output is
+	int x; // where the one output is
 	int reads_left; // reads that succeed before every read fails; a negative count never fails
-	bool refuses;   // the next commits are refused
+	bool refuses; // the next commits are refused
 }
 
 fn State? fake_read(void* backend, Allocator allocator)
 {
 	FakePlatform* platform = (FakePlatform*)backend;
-	if (platform.reads_left == 0) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "read refused")~;
+	if (platform.reads_left == 0) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"read refused"
+	)~;
 	platform.reads_left--;
 	Output[] outputs = alloc::new_array(allocator, Output, 1);
 	Mode mode        = { .width = 1920, .height = 1080, .refresh = 60000 };
@@ -47,7 +52,12 @@ fn ApplyOp* run_sync(SyncNative* native, Rollback* rollback, int x, ApplyMode mo
 {
 	ApplyOp* op = operation::begin(mem);
 	op.retain();
-	apply_sync(native, rollback, { .kind = APPLY, .op = op, .config = moved_to(op, x), .mode = mode, .revert_after = (Duration)15_000_000 }, now);
+	apply_sync(
+		native,
+		rollback,
+		{ .kind = APPLY, .op = op, .config = moved_to(op, x), .mode = mode, .revert_after = (Duration)15_000_000 },
+		now
+	);
 	return op;
 }
 
@@ -57,7 +67,7 @@ fn void a_failed_read_while_capturing_the_rollback_rejects_the_change() @test
 	FakePlatform platform = { .x = 0, .reads_left = 1 };
 	SyncNative native     = { .backend = &platform, .allocator = mem, .read = &fake_read, .commit = &fake_commit };
 	Rollback rollback;
-	ApplyOp* op = run_sync(&native, &rollback, 100, APPLY_WITH_REVERT, clock::now());
+	ApplyOp* op           = run_sync(&native, &rollback, 100, APPLY_WITH_REVERT, clock::now());
 	test::@error(op.wait(time::sec(1)), error::BACKEND_FAILURE);
 	op.release();
 	assert(platform.x == 0 && !rollback.guard.armed);
@@ -68,11 +78,11 @@ fn void a_plain_apply_that_changes_nothing_forgets_the_pending_rollback() @test
 	FakePlatform platform = { .x = 0, .reads_left = -1 };
 	SyncNative native     = { .backend = &platform, .allocator = mem, .read = &fake_read, .commit = &fake_commit };
 	Rollback rollback;
-	Clock now = clock::now();
+	Clock now             = clock::now();
 	run_sync(&native, &rollback, 100, APPLY_WITH_REVERT, now).release();
 	assert(rollback.guard.armed && platform.x == 100);
 	// The caller accepts the layout that is live: nothing to change, and the rollback must not undo it.
-	ApplyOp* accepted = run_sync(&native, &rollback, 100, APPLY, now);
+	ApplyOp* accepted  = run_sync(&native, &rollback, 100, APPLY, now);
 	ApplyResult result = accepted.wait(time::sec(1))!!;
 	accepted.release();
 	assert(result.live && !result.revert_armed);
@@ -86,7 +96,7 @@ fn void a_second_unconfirmed_change_keeps_the_last_confirmed_layout() @test
 	FakePlatform platform = { .x = 0, .reads_left = -1 };
 	SyncNative native     = { .backend = &platform, .allocator = mem, .read = &fake_read, .commit = &fake_commit };
 	Rollback rollback;
-	Clock now = clock::now();
+	Clock now             = clock::now();
 	run_sync(&native, &rollback, 100, APPLY_WITH_REVERT, now).release();
 	run_sync(&native, &rollback, 200, APPLY_WITH_REVERT, now).release();
 	assert(platform.x == 200 && rollback.guard.armed);

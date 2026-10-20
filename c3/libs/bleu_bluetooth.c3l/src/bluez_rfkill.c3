@@ -25,24 +25,19 @@ fn bool rfkill_blocked(String root)
 			foreach (entry : entries)
 			{
 				String switch_dir = string::tformat("%s/%s", dir, (String)entry);
-				if (rfkill_text(switch_dir, "type") != RFKILL_BLUETOOTH_TYPE) continue;
-				if (rfkill_flag(switch_dir, "soft") || rfkill_flag(switch_dir, "hard")) return true;
+				if (!rfkill_is(switch_dir, "type", RFKILL_BLUETOOTH_TYPE)) continue;
+				if (rfkill_is(switch_dir, "soft", "1") || rfkill_is(switch_dir, "hard", "1")) return true;
 			}
 		}
 		return false;
 	};
 }
 
-// One sysfs attribute as text, or "" when it cannot be read.
-fn String rfkill_text(String switch_dir, String attribute) @private
+// True when a sysfs attribute reads exactly `expected`. The text is read into this frame's buffer and
+// compared here: a String into that buffer must not outlive the call.
+fn bool rfkill_is(String switch_dir, String attribute, String expected) @private
 {
 	char[RFKILL_TEXT_CAPACITY] buffer;
 	String text = fs::read_trimmed(string::tformat("%s/%s", switch_dir, attribute), buffer[..]) ?? "";
-	return text;
-}
-
-// A sysfs attribute that reads 1 when the switch is set.
-fn bool rfkill_flag(String switch_dir, String attribute) @private
-{
-	return rfkill_text(switch_dir, attribute) == "1";
+	return text == expected;
 }

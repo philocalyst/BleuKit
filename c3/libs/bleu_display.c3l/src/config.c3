@@ -83,7 +83,8 @@ fn void? validate_config(Output[] outputs, Config config)
 		}
 		scale_check(change)!;
 		if (!change.enabled) continue;
-		if (change.mode.width == 0 || change.mode.height == 0 || change.mode.width > MAX_MODE_DIMENSION || change.mode.height > MAX_MODE_DIMENSION)
+		if (change.mode.width == 0 || change.mode.height == 0 || change.mode.width > MAX_MODE_DIMENSION
+			|| change.mode.height > MAX_MODE_DIMENSION)
 		{
 			return error::raise(
 				error::INVALID_ARGUMENT,

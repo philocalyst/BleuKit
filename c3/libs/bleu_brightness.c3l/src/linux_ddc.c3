@@ -124,7 +124,10 @@ fn Control DdcDisplay.read(&self)
 	{
 		return {
 			.mechanism = DDC,
-			.availability = availability::no(HARDWARE_ABSENT, "the DDC/CI bus is busy: another process holds its lock"),
+			.availability = availability::no(
+				HARDWARE_ABSENT,
+				"the DDC/CI bus is busy: another process holds its lock"
+			),
 		};
 	}
 	defer self.unlock_bus();
