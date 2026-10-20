@@ -8,12 +8,12 @@
    TISCopyCurrentKeyboardInputSource(void) -> TISInputSourceRef (a Copy: owned)
    TISGetInputSourceProperty(TISInputSourceRef, CFStringRef key) -> void* (a Get: not owned)
    TISSelectInputSource(TISInputSourceRef) -> OSStatus, paramErr when the source is not selectable
-   constants kTISPropertyInputSourceID, kTISPropertyLocalizedName, kTISPropertyInputSourceLanguages,
-   kTISPropertyInputSourceIsSelectCapable, kTISPropertyInputSourceType, kTISTypeKeyboardLayout,
-   kTISNotifySelectedKeyboardInputSourceChanged (a CF distributed notification name).
+   constants TIS_PROPERTY_INPUT_SOURCE_ID, TIS_PROPERTY_LOCALIZED_NAME, TIS_PROPERTY_INPUT_SOURCE_LANGUAGES,
+   TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE, TIS_PROPERTY_INPUT_SOURCE_TYPE, TIS_TYPE_KEYBOARD_LAYOUT,
+   TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED (a CF distributed notification name).
  Second source: Firefox widget/cocoa/TextInputHandler.mm (mozilla/gecko-dev, read 2026-10-20) calls
- TISCreateInputSourceList with a filter on kTISPropertyInputSourceType = kTISTypeKeyboardLayout, and observes
- kTISNotifySelectedKeyboardInputSourceChanged on CFNotificationCenterGetDistributedCenter().
+ TISCreateInputSourceList with a filter on TIS_PROPERTY_INPUT_SOURCE_TYPE = TIS_TYPE_KEYBOARD_LAYOUT, and observes
+ TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED on CFNotificationCenterGetDistributedCenter().
  CFNotificationCenter signatures and CFNotificationSuspensionBehaviorDeliverImmediately = 4: core-foundation-sys
  0.8.7 src/notification_center.rs (read 2026-10-20).
 
@@ -39,13 +39,13 @@ extern fn CFTypeRef tis_copy_current_keyboard_input_source() @cname("TISCopyCurr
 extern fn CFTypeRef tis_get_input_source_property(CFTypeRef source, CFTypeRef key) @cname("TISGetInputSourceProperty");
 extern fn int tis_select_input_source(CFTypeRef source) @cname("TISSelectInputSource");
 
-extern const CFTypeRef kTISPropertyInputSourceID @cname("kTISPropertyInputSourceID");
-extern const CFTypeRef kTISPropertyLocalizedName @cname("kTISPropertyLocalizedName");
-extern const CFTypeRef kTISPropertyInputSourceLanguages @cname("kTISPropertyInputSourceLanguages");
-extern const CFTypeRef kTISPropertyInputSourceIsSelectCapable @cname("kTISPropertyInputSourceIsSelectCapable");
-extern const CFTypeRef kTISPropertyInputSourceType @cname("kTISPropertyInputSourceType");
-extern const CFTypeRef kTISTypeKeyboardLayout @cname("kTISTypeKeyboardLayout");
-extern const CFTypeRef kTISNotifySelectedKeyboardInputSourceChanged @cname("kTISNotifySelectedKeyboardInputSourceChanged");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_ID @cname("TIS_PROPERTY_INPUT_SOURCE_ID");
+extern const CFTypeRef TIS_PROPERTY_LOCALIZED_NAME @cname("TIS_PROPERTY_LOCALIZED_NAME");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_LANGUAGES @cname("TIS_PROPERTY_INPUT_SOURCE_LANGUAGES");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE @cname("TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_TYPE @cname("TIS_PROPERTY_INPUT_SOURCE_TYPE");
+extern const CFTypeRef TIS_TYPE_KEYBOARD_LAYOUT @cname("TIS_TYPE_KEYBOARD_LAYOUT");
+extern const CFTypeRef TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED @cname("TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED");
 
 extern fn CFTypeRef cf_dictionary_create(CFTypeRef allocator, CFTypeRef* keys, CFTypeRef* values, cf::CFIndex count, void* key_callbacks, void* value_callbacks) @cname("CFDictionaryCreate");
 extern fn CFTypeRef cf_notification_center_distributed() @cname("CFNotificationCenterGetDistributedCenter");
@@ -116,11 +116,11 @@ fn String short_code_of_id(String id, Allocator allocator) @private
 	return names::short_code_of(id[start:id.len - start], allocator);
 }
 
-// A dictionary { kTISPropertyInputSourceType: kTISTypeKeyboardLayout }, owned.
+// A dictionary { TIS_PROPERTY_INPUT_SOURCE_TYPE: TIS_TYPE_KEYBOARD_LAYOUT }, owned.
 fn cf::Ref keyboard_layout_filter() @private
 {
-	CFTypeRef[1] keys   = { kTISPropertyInputSourceType };
-	CFTypeRef[1] values = { kTISTypeKeyboardLayout };
+	CFTypeRef[1] keys   = { TIS_PROPERTY_INPUT_SOURCE_TYPE };
+	CFTypeRef[1] values = { TIS_TYPE_KEYBOARD_LAYOUT };
 	return cf::adopt(cf_dictionary_create(null, &keys[0], &values[0], 1, null, null));
 }
 
@@ -130,7 +130,7 @@ fn CFTypeRef string_property(CFTypeRef source, CFTypeRef key) @private => tis_ge
 // Whether the source can be selected with TISSelectInputSource. Absent means not selectable.
 fn bool selectable(CFTypeRef source) @private
 {
-	CFTypeRef flag = tis_get_input_source_property(source, kTISPropertyInputSourceIsSelectCapable);
+	CFTypeRef flag = tis_get_input_source_property(source, TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE);
 	return flag != null && cf::cf_boolean_get_value(flag);
 }
 
@@ -142,10 +142,10 @@ fn bool selectable(CFTypeRef source) @private
 *>
 fn Layout? layout_of(CFTypeRef source, Allocator allocator) @private
 {
-	String id = cf::string_value(string_property(source, kTISPropertyInputSourceID), allocator)!;
-	String name = cf::string_value(string_property(source, kTISPropertyLocalizedName), allocator) ?? id;
+	String id = cf::string_value(string_property(source, TIS_PROPERTY_INPUT_SOURCE_ID), allocator)!;
+	String name = cf::string_value(string_property(source, TIS_PROPERTY_LOCALIZED_NAME), allocator) ?? id;
 	String language = "";
-	CFTypeRef languages = string_property(source, kTISPropertyInputSourceLanguages);
+	CFTypeRef languages = string_property(source, TIS_PROPERTY_INPUT_SOURCE_LANGUAGES);
 	if (cf::array_count(languages) > 0)
 	{
 		language = cf::string_value(cf::array_at(languages, 0), allocator) ?? "";
@@ -190,7 +190,7 @@ fn State? read_state(Allocator allocator) @private
 	defer active.close();
 	if (!active.is_nil())
 	{
-		String active_id = cf::string_value(string_property(active.ptr, kTISPropertyInputSourceID), allocator) ?? "";
+		String active_id = cf::string_value(string_property(active.ptr, TIS_PROPERTY_INPUT_SOURCE_ID), allocator) ?? "";
 		sz index = index_of(layouts[0:out], active_id);
 		if (index >= 0) current = { .value = (uint)index, .has_value = true };
 	}
@@ -235,7 +235,7 @@ fn void? select(String id) @private
 		int status = NO_ERROR;
 		@pool()
 		{
-			String source_id = cf::string_value(string_property(source, kTISPropertyInputSourceID), tmem) ?? "";
+			String source_id = cf::string_value(string_property(source, TIS_PROPERTY_INPUT_SOURCE_ID), tmem) ?? "";
 			if (source_id == id)
 			{
 				matched = true;
@@ -259,8 +259,8 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 	if (catch poller.init(mem, host.wakeup(), 1)) return;
 	defer poller.free();
 	CFTypeRef center = cf_notification_center_distributed();
-	cf_notification_center_add_observer(center, backend, &on_selection_changed, kTISNotifySelectedKeyboardInputSourceChanged, null, DELIVER_IMMEDIATELY);
-	defer cf_notification_center_remove_observer(center, backend, kTISNotifySelectedKeyboardInputSourceChanged, null);
+	cf_notification_center_add_observer(center, backend, &on_selection_changed, TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED, null, DELIVER_IMMEDIATELY);
+	defer cf_notification_center_remove_observer(center, backend, TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED, null);
 	refresh(backend, hub);
 	Command[COMMAND_BATCH] commands;
 	while (!host.stopping())

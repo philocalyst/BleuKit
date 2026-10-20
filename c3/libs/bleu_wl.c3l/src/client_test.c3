@@ -6,7 +6,7 @@
  objects, wlr-data-control's receive with a pipe, and a compositor protocol error.
 *>
 module bleu::wl::client_test @feat(POSIX);
-import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control, bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control, bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem;
+import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control, bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control, bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem, std::io, std::os;
 
 // libc entry points for the pipes the gamma and data-control scenarios pass around.
 extern fn CInt sys_pipe(CInt* fds) @cname("pipe");
@@ -18,10 +18,16 @@ const uint SERVER_OBJECT_A = 0xFF000001;
 const uint SERVER_OBJECT_B = 0xFF000002;
 const uint SERVER_OBJECT_C = 0xFF000003;
 
-// Fails the scenario thread with a message when a scenario sees something unexpected.
+// Stops the run with a message when a scenario sees something unexpected. This must not panic: the
+// test runner recovers from a panic with a longjmp into the main thread's stack, so the main thread
+// would wait forever on a socket that nothing writes to, and the suite would hang after the failure.
 fn void expect(bool ok, String what)
 {
-	if (!ok) unreachable(what);
+	if (!ok)
+	{
+		io::eprintn(what);
+		os::exit(1);
+	}
 }
 
 // Receive the next request and check its object and opcode.

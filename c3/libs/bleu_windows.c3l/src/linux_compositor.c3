@@ -130,7 +130,7 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 			}
 		}
 	}
-	fail_queued(host, batch[..]);
+	windows::fail_queued(host, batch[..]);
 }
 
 // A state that says nothing can be read, and why. The lists stay empty: nothing is known.
@@ -146,26 +146,6 @@ fn Snapshot{State}* disconnected(WindowsHub* hub, String reason) @private
 fn void publish_status(WindowsHub* hub, String reason) @private
 {
 	windows::publish_changes(hub, disconnected(hub, reason));
-}
-
-<*
- Commands that were queued when the service closed. They never reach the
- compositor, so each completes with `CANCELLED`.
-*>
-fn void fail_queued(Host{Command}* host, Command[] batch) @private
-{
-	usz count = host.mailbox().take_all(batch);
-	while (count > 0)
-	{
-		for (usz i = 0; i < count; i++)
-		{
-			if (batch[i].kind == CommandKind.REFRESH) continue;
-			Operation{bool}* request = batch[i].request;
-			request.fail(error::raise(error::CANCELLED, error::Domain.INTERNAL, 0, "the windows service was closed"));
-			request.release();
-		}
-		count = host.mailbox().take_all(batch);
-	}
 }
 
 // One connection to the compositor, and the model it has produced.
