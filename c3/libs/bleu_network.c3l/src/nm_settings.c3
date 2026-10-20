@@ -9,7 +9,7 @@
  own client library sends (nmrs 3.5.6, src/api/builders/wifi_builder.rs).
 *>
 module bleu::network::nm_settings;
-import std::collections::list, bleu::dbus::value, bleu::network;
+import std::collections::list, bleu::error, bleu::dbus::value, bleu::network;
 
 const String GROUP_CONNECTION = "connection";
 const String GROUP_WIRELESS   = "802-11-wireless";

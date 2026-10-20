@@ -7,6 +7,7 @@
  index, so the choice is stable for a given state.
 *>
 module bleu::media;
+import std::time;
 
 <* Rank of a playback status for the active-player choice: higher is preferred. *>
 fn int playback_rank(Playback status)

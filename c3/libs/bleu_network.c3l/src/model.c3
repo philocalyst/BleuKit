@@ -7,7 +7,7 @@
  bytes. Values the platform cannot tell are `Maybe` empties, never zero.
 *>
 module bleu::network;
-import std::collections::maybe, bleu::unit, bleu::operation;
+import std::collections::maybe, std::time, bleu::unit, bleu::operation;
 
 <* IEEE 802.11 SSID length limit, in octets. *>
 const usz SSID_MAX = 32;

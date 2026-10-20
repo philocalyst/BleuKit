@@ -13,7 +13,7 @@
  outside `process`, so the pointers the subscriptions carry stay valid.
 *>
 module bleu::media::mpris @feat(LINUX);
-import std::collections::list, std::collections::maybe, std::time, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::media, bleu::media::mpris_convert, bleu::observe, bleu::rt::poller, bleu::stream;
+import std::collections::list, std::collections::maybe, std::time, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::media, bleu::media::mpris_convert, bleu::observe, bleu::rt::poller, bleu::stream, bleu::unit;
 
 <* Longest wait for one D-Bus call. A player that does not answer in this time is skipped for the round. *>
 const Duration CALL_TIMEOUT = (Duration)2_000_000;

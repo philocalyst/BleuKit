@@ -20,7 +20,7 @@
  the fault directly.
 *>
 module bleu::media;
-import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation;
+import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit;
 
 alias MediaHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};

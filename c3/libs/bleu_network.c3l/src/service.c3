@@ -130,10 +130,10 @@ fn Reader{Event}*? Network.subscribe(&self) => self.hub.events.subscribe();
 fn void? Network.refresh(&self) => self.hub.post({ .kind = REFRESH });
 
 <*
- Scan for networks. Completes when the platform reports a finished scan.
+ Scan for networks. Completes when the platform reports a finished scan; the
+ operation fails with TIMEOUT when the scan does not finish in time.
 
  @return? error::UNSUPPORTED : "This backend cannot scan"
- The operation fails with TIMEOUT when the scan does not finish in time.
 *>
 fn SettleOp*? Network.scan(&self)
 {

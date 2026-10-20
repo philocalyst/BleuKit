@@ -113,7 +113,7 @@ fn State? read_state(void* context, Allocator allocator)
 }
 
 // The panel: the best backlight, if the kernel has one.
-fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices) @private
+fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices)
 {
 	if (try name = sysfs::select_backlight(tmem, self.root))
 	{
@@ -125,7 +125,7 @@ fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices) @pri
 }
 
 // Keyboard backlights: every LED named `*kbd_backlight`.
-fn void Linux.read_leds(&self, Allocator allocator, List{Device}* devices) @private
+fn void Linux.read_leds(&self, Allocator allocator, List{Device}* devices)
 {
 	if (try names = sysfs::entries(tmem, self.root, sysfs::LED_CLASS))
 	{
@@ -167,7 +167,7 @@ fn Applied? write_control(void* context, String device_id, Mechanism mechanism, 
 }
 
 // Write a sysfs knob: logind first, then the file itself. The panel and the LED must be the one the name says.
-fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level level) @private
+fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level level)
 {
 	@pool()
 	{
@@ -211,7 +211,7 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 }
 
 // Write an external monitor's luminance.
-fn Applied? Linux.write_ddc(&self, String device_id, Level level) @private
+fn Applied? Linux.write_ddc(&self, String device_id, Level level)
 {
 	foreach (display : self.displays)
 	{
@@ -221,7 +221,7 @@ fn Applied? Linux.write_ddc(&self, String device_id, Level level) @private
 }
 
 // Open the logind connection if it is not open. A failure is retried on the next pass.
-fn void Linux.ensure_bus(&self) @private
+fn void Linux.ensure_bus(&self)
 {
 	if (self.bus.is_open) return;
 	if (self.bus_address.len > 0)
