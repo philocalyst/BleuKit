@@ -7,7 +7,7 @@
 module bleu::network::sysfs @feat(LINUX);
 import bleu::network, bleu::rt::fs, bleu::network::sysfs_convert;
 
-const String NET_DIR = "/sys/class/net";
+const String NET_DIR         = "/sys/class/net";
 const usz ATTRIBUTE_CAPACITY = 64;
 
 <*

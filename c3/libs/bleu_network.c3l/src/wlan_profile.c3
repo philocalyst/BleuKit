@@ -15,7 +15,7 @@ module bleu::network::wlan_profile;
 import bleu::error, bleu::network;
 
 const String PROFILE_NAMESPACE = "http://www.microsoft.com/networking/WLAN/profile/v1";
-const String HEX_DIGITS = "0123456789abcdef";
+const String HEX_DIGITS        = "0123456789abcdef";
 
 <* The `authentication` word for a security class, or NOT_FOUND for a class this backend cannot profile. *>
 fn String? authentication_word(Security security)
@@ -87,7 +87,7 @@ fn String? profile_xml(Allocator allocator, char[] ssid, Security security, Stri
 	bool keyed = security == WPA2_PSK || security == WPA3_SAE;
 	if (keyed && passphrase.len == 0) return error::INVALID_ARGUMENT~;
 	String encryption = security == OPEN ? "none" : "AES";
-	Ssid named = network::make_ssid(tmem, ssid);
+	Ssid named        = network::make_ssid(tmem, ssid);
 	DString out;
 	out.init(tmem);
 	out.append_string("<?xml version=\"1.0\"?>\n");
@@ -113,7 +113,9 @@ fn String? profile_xml(Allocator allocator, char[] ssid, Security security, Stri
 	out.append_string("\t\t\t\t<useOneX>false</useOneX>\n\t\t\t</authEncryption>\n");
 	if (keyed)
 	{
-		out.append_string("\t\t\t<sharedKey>\n\t\t\t\t<keyType>passPhrase</keyType>\n\t\t\t\t<protected>false</protected>\n\t\t\t\t<keyMaterial>");
+		out.append_string(
+			"\t\t\t<sharedKey>\n\t\t\t\t<keyType>passPhrase</keyType>\n\t\t\t\t<protected>false</protected>\n\t\t\t\t<keyMaterial>"
+		);
 		append_escaped(&out, passphrase);
 		out.append_string("</keyMaterial>\n\t\t\t</sharedKey>\n");
 	}

@@ -65,10 +65,13 @@ fn Interface* interface_named(State* state, String name)
 
 fn void reads_the_picture() @test
 {
-	String bus = environment("BLEU_NETWORK_TEST_BUS");
+	String bus  = environment("BLEU_NETWORK_TEST_BUS");
 	String root = environment("BLEU_NETWORK_TEST_ROOT");
 	assert(bus.len > 0 && root.len > 0, "the runner sets the bus and the sysfs root");
-	Network* net = network::open(mem, { .backend = NETWORKMANAGER, .poll = time::ms(100), .root = root, .bus_address = bus })!!;
+	Network* net = network::open(
+		mem,
+		{ .backend = NETWORKMANAGER, .poll = time::ms(100), .root = root, .bus_address = bus }
+	)!!;
 	defer net.close();
 	assert(net.backend_name() == "networkmanager");
 	assert(net.capability(WIFI_SECRET_PROMPT).reason == UNSUPPORTED_BACKEND, "no secret agent yet, and it says why");
@@ -112,7 +115,8 @@ fn void reads_the_picture() @test
 	defer events.release();
 	ConnectOp* right = net.connect({ .ssid = (char[])"Office", .passphrase = "correct horse", .autoconnect = true })!!;
 	Connected joined = right.wait(time::sec(10))!!;
-	assert(joined.ssid.label == "Office" && joined.interface_name == "wlan0", "the operation reports the joined network");
+	assert(joined.ssid.label == "Office"
+		&& joined.interface_name == "wlan0", "the operation reports the joined network");
 	right.release();
 	bool announced = false;
 	for (int seen = 0; seen < 64 && !announced; seen++)
@@ -206,5 +210,7 @@ fn bool eth_counted(State* state)
 
 fn void missing_bus_does_not_open() @test
 {
-	assert(@catch(network::open(mem, { .backend = NETWORKMANAGER, .bus_address = "unix:path=/nonexistent/bus" })) == error::UNAVAILABLE, "no bus, no service");
+	assert(@catch(
+		network::open(mem, { .backend = NETWORKMANAGER, .bus_address = "unix:path=/nonexistent/bus" })
+	) == error::UNAVAILABLE, "no bus, no service");
 }

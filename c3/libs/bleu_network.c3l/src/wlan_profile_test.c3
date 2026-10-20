@@ -67,7 +67,9 @@ fn void keyed_profiles_need_a_passphrase_and_others_are_refused() @test
 {
 	@pool()
 	{
-		assert(@catch(wlan_profile::profile_xml(tmem, (char[])"Office", WPA2_PSK, "", true)) == error::INVALID_ARGUMENT);
+		assert(@catch(
+			wlan_profile::profile_xml(tmem, (char[])"Office", WPA2_PSK, "", true)
+		) == error::INVALID_ARGUMENT);
 		assert(@catch(wlan_profile::profile_xml(tmem, (char[])"Shared", WEP, "key", true)) == error::UNSUPPORTED);
 		assert(@catch(wlan_profile::profile_xml(tmem, (char[])"Corp", ENTERPRISE, "", true)) == error::UNSUPPORTED);
 	};

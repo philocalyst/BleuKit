@@ -26,17 +26,17 @@ const Duration RADIO_TIMEOUT      = (Duration)15_000_000;
 struct Pending
 {
 	PendingKind kind;
-	ConnectOp* connect;     // CONNECT
-	SettleOp* settle;       // every other kind
-	String device;          // object path of the Wi-Fi device
-	String active;          // CONNECT: the active connection NetworkManager made, "" until it answered
-	String interface_name;  // CONNECT: reported in the operation's value
-	char[] ssid;            // CONNECT
-	bool supplied;          // CONNECT: a passphrase was sent with the request
-	bool started;           // CONNECT: this activation has been seen to begin
-	bool target;            // RADIO: the wanted value of WirelessEnabled
-	long last_scan;         // SCAN: LastScan when the request was made
-	ulong after;            // only transitions newer than this belong to the request
+	ConnectOp* connect; // CONNECT
+	SettleOp* settle; // every other kind
+	String device; // object path of the Wi-Fi device
+	String active; // CONNECT: the active connection NetworkManager made, "" until it answered
+	String interface_name; // CONNECT: reported in the operation's value
+	char[] ssid; // CONNECT
+	bool supplied; // CONNECT: a passphrase was sent with the request
+	bool started; // CONNECT: this activation has been seen to begin
+	bool target; // RADIO: the wanted value of WirelessEnabled
+	long last_scan; // SCAN: LastScan when the request was made
+	ulong after; // only transitions newer than this belong to the request
 	Deadline deadline;
 }
 
@@ -96,7 +96,7 @@ fn Duration timeout_of(PendingKind kind) @local
 <* Remove the request at `index`, releasing its operation and strings. *>
 fn void retire_at(Backend* b, sz index)
 {
-	Pending* p = b.pending.get_ref(index);
+	Pending* p          = b.pending.get_ref(index);
 	Allocator allocator = b.allocator;
 	drop_text(allocator, p.device);
 	drop_text(allocator, p.active);
@@ -151,10 +151,12 @@ fn bool apply_connect_state(Backend* b, sz index, uint state, uint reason)
 	{
 		case nm_convert::DEVICE_STATE_ACTIVATED:
 			b.last_supplied = false;
-			p.connect.succeed({
-				.ssid = network::make_ssid(p.connect.allocator(), p.ssid),
-				.interface_name = p.interface_name.copy(p.connect.allocator()),
-			});
+			p.connect.succeed(
+				{
+					.ssid = network::make_ssid(p.connect.allocator(), p.ssid),
+					.interface_name = p.interface_name.copy(p.connect.allocator()),
+				}
+			);
 			retire_at(b, index);
 			return true;
 		case nm_convert::DEVICE_STATE_NEED_AUTH:
@@ -172,11 +174,12 @@ fn bool apply_connect_state(Backend* b, sz index, uint state, uint reason)
 		case nm_convert::DEVICE_STATE_DISCONNECTED:
 		case nm_convert::DEVICE_STATE_UNAVAILABLE:
 		case nm_convert::DEVICE_STATE_UNMANAGED:
-		{
-			FailureReason failure = failure_while_connecting(state, reason, p.supplied);
-			fail_connect(b, index, failure, reason, "connection failed (NetworkManager state reason)");
-			return true;
-		}
+
+			{
+				FailureReason failure = failure_while_connecting(state, reason, p.supplied);
+				fail_connect(b, index, failure, reason, "connection failed (NetworkManager state reason)");
+				return true;
+			}
 		default:
 			return false;
 	}
@@ -224,7 +227,8 @@ fn void apply_transitions(Backend* b)
 				case CONNECT:
 					done = apply_connect_state(b, i, t.state, t.reason);
 				case DISCONNECT:
-					if (t.state == nm_convert::DEVICE_STATE_DISCONNECTED || t.state == nm_convert::DEVICE_STATE_UNAVAILABLE)
+					if (t.state == nm_convert::DEVICE_STATE_DISCONNECTED
+						|| t.state == nm_convert::DEVICE_STATE_UNAVAILABLE)
 					{
 						settle_with(b, i, CHANGED);
 						done = true;
@@ -254,7 +258,9 @@ fn void settle(Backend* b, Reading* r)
 		{
 			if (p.kind == CONNECT)
 			{
-				if (catch deactivate(b, p.active)) {} // best effort: the timeout below stands either way
+				if (catch deactivate(b, p.active))
+				{
+				} // best effort: the timeout below stands either way
 				fail_connect(b, i, FailureReason.TIMEOUT, 0, "the connection did not finish in time");
 			}
 			else
@@ -272,7 +278,9 @@ fn void settle(Backend* b, Reading* r)
 			case RADIO:
 				done = r.radio_enabled == p.target;
 			case DISCONNECT:
-				done = r.wifi_found && r.wifi_path == p.device && (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED || r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE);
+				done = r.wifi_found && r.wifi_path == p.device
+					&& (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED
+						|| r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE);
 			case CONNECT:
 				done = false;
 		}

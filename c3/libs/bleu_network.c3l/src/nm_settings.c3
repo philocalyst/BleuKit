@@ -99,16 +99,16 @@ fn String uuid_for_ssid(Allocator allocator, char[] ssid)
 	foreach (c : ssid)
 	{
 		high = (high ^ (ulong)(char)c) * 0x100000001b3;
-		low  = (low ^ (ulong)(char)c) * 0x100000001b3;
+		low = (low ^ (ulong)(char)c) * 0x100000001b3;
 	}
 	char[36] text;
 	usz at = 0;
 	for (usz digit = 0; digit < 32; digit++)
 	{
 		if (digit == 8 || digit == 12 || digit == 16 || digit == 20) text[at++] = '-';
-		ulong word  = digit < 16 ? high : low;
-		usz nibble  = (usz)((word >> ((15 - digit % 16) * 4)) & 0xF);
-		text[at++]  = HEX_DIGITS[nibble];
+		ulong word = digit < 16 ? high : low;
+		usz nibble = (usz)((word >> ((15 - digit % 16) * 4)) & 0xF);
+		text[at++] = HEX_DIGITS[nibble];
 	}
 	return ((String)text[..]).copy(allocator);
 }
@@ -133,7 +133,7 @@ fn Value? dict_with(Allocator allocator, Value dict, String key, Value new_value
 		entries.push(entry);
 	}
 	entries.push(value::dict_entry(allocator, value::str(allocator, key)!!, new_value)!!);
-	return value::array(allocator, dict.sig[1 : dict.sig.len - 1], entries.array_view());
+	return value::array(allocator, dict.sig[1:dict.sig.len - 1], entries.array_view());
 }
 
 <*
@@ -151,7 +151,7 @@ fn Value? with_bool(Allocator allocator, Value settings, String group_name, Stri
 	}
 	else
 	{
-		Value[] none = {};
+		Value[] none = { };
 		current = value::array(allocator, "{sv}", none)!!;
 	}
 	Value updated = dict_with(allocator, current, key, value::variant(allocator, value::boolean(flag)))!;

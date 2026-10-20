@@ -1,15 +1,15 @@
 // The Windows backend: the Native Wifi (WLAN) API, wlanapi.dll.
-//
+// 
 // Compiled for Windows; type-checked for every other target. It has not been
 // run (no Windows machine is available to the project). The bindings and the
 // sources of every constant and layout are in wlan_native.c3.
-//
+// 
 // What it does not do in v1 (listed in README.md): it does not switch the radio
 // (that needs the Windows.Devices.Radios consent path), it does not change
 // autoconnect (a profile element written at connect time), it does not decode
 // the WLAN failure reason of a failed connection (the notification payload),
 // and it reads no Ethernet state (IP Helper is not bound).
-//
+// 
 // Threading: WLAN calls run on the worker. The WLAN notification callback runs
 // on a WLAN thread and only posts a refresh to the mailbox.
 module bleu::network::wlan_api @feat(WIN32);
@@ -31,12 +31,12 @@ struct Backend
 	Guid interface_guid;
 	String interface_name;
 	void* handle;
-	int interface_state;          // WLAN_INTERFACE_STATE of the last read
-	ConnectOp* connect;           // the connection in progress, or null
+	int interface_state; // WLAN_INTERFACE_STATE of the last read
+	ConnectOp* connect; // the connection in progress, or null
 	char[32] connect_ssid;
 	usz connect_ssid_len;
 	Deadline connect_deadline;
-	bool connect_saw_busy;        // the interface has left DISCONNECTED for the attempt
+	bool connect_saw_busy; // the interface has left DISCONNECTED for the attempt
 }
 
 const Driver DRIVER = {
@@ -61,7 +61,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	void* handle = open_handle()!;
 	defer wlan_native::wlan_close_handle(handle, null);
 	WlanInterfaceInfo info;
-	if (!first_interface(handle, &info)!) return error::raise(error::UNAVAILABLE, error::Domain.WIN32, 0, "there is no Wi-Fi interface")~;
+	if (!first_interface(
+		handle,
+		&info
+	)!) return error::raise(error::UNAVAILABLE, error::Domain.WIN32, 0, "there is no Wi-Fi interface")~;
 	Backend* self = alloc::new(allocator, Backend, { .allocator = allocator, .poll = options.poll });
 	fill_capabilities(capabilities);
 	return self;
@@ -79,13 +82,43 @@ fn void fill_capabilities(Capabilities* capabilities) @local
 	capabilities.set(Cap.SSID_VISIBILITY, availability::YES);
 	capabilities.set(Cap.WIFI_BSSID, availability::YES);
 	capabilities.set(Cap.WIFI_SIGNAL_DBM, availability::YES);
-	capabilities.set(Cap.WIFI_RADIO, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "radio control needs the Windows.Devices.Radios consent path, not bound in v1"));
-	capabilities.set(Cap.WIFI_AUTOCONNECT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "autoconnect is a profile element written at connect time; not changed in v1"));
-	capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the key is written into the profile up front"));
-	capabilities.set(Cap.INTERFACE_STATE, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "Ethernet state needs IP Helper, not bound in v1; the Wi-Fi state is wifi.phase"));
-	capabilities.set(Cap.INTERFACE_SPEED, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "IP Helper is not bound in v1"));
-	capabilities.set(Cap.INTERFACE_COUNTERS, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "IP Helper is not bound in v1"));
-	capabilities.set(Cap.CONNECTIVITY, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "network list manager is not bound in v1"));
+	capabilities.set(
+		Cap.WIFI_RADIO,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"radio control needs the Windows.Devices.Radios consent path, not bound in v1"
+		)
+	);
+	capabilities.set(
+		Cap.WIFI_AUTOCONNECT,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"autoconnect is a profile element written at connect time; not changed in v1"
+		)
+	);
+	capabilities.set(
+		Cap.WIFI_SECRET_PROMPT,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the key is written into the profile up front")
+	);
+	capabilities.set(
+		Cap.INTERFACE_STATE,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"Ethernet state needs IP Helper, not bound in v1; the Wi-Fi state is wifi.phase"
+		)
+	);
+	capabilities.set(
+		Cap.INTERFACE_SPEED,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "IP Helper is not bound in v1")
+	);
+	capabilities.set(
+		Cap.INTERFACE_COUNTERS,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "IP Helper is not bound in v1")
+	);
+	capabilities.set(
+		Cap.CONNECTIVITY,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "network list manager is not bound in v1")
+	);
 }
 
 fn void destroy(Allocator allocator, void* state)
@@ -99,8 +132,8 @@ fn void destroy(Allocator allocator, void* state)
 fn void*? open_handle() @local
 {
 	uint negotiated = 0;
-	void* handle = null;
-	uint code = wlan_native::wlan_open_handle(wlan_native::CLIENT_VERSION, null, &negotiated, &handle);
+	void* handle    = null;
+	uint code       = wlan_native::wlan_open_handle(wlan_native::CLIENT_VERSION, null, &negotiated, &handle);
 	if (code != 0) return errors::raise_win32(code, "opening the WLAN service")~;
 	return handle;
 }
@@ -109,7 +142,7 @@ fn void*? open_handle() @local
 fn bool? first_interface(void* handle, WlanInterfaceInfo* out) @local
 {
 	WlanInterfaceInfoList* list = null;
-	uint code = wlan_native::wlan_enum_interfaces(handle, null, &list);
+	uint code                   = wlan_native::wlan_enum_interfaces(handle, null, &list);
 	if (code != 0) return errors::raise_win32(code, "listing the Wi-Fi interfaces")~;
 	defer wlan_native::wlan_free_memory((void*)list);
 	if (list.count == 0) return false;
@@ -120,7 +153,7 @@ fn bool? first_interface(void* handle, WlanInterfaceInfo* out) @local
 <* The loop: wait for the poll interval or a notification; run the commands; read and publish. *>
 fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 {
-	Backend* b = (Backend*)state;
+	Backend* b    = (Backend*)state;
 	void*? opened = open_handle();
 	if (catch err = opened)
 	{
@@ -129,7 +162,9 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	}
 	b.handle = opened;
 	defer wlan_native::wlan_close_handle(b.handle, null);
-	if (catch err = register(b, host.mailbox())) {}
+	if (catch err = register(b, host.mailbox()))
+	{
+	}
 	defer unregister(b);
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 2)) return;
@@ -156,7 +191,15 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 fn void? register(Backend* b, Mailbox{Command}* box) @local
 {
 	uint previous = 0;
-	uint code = wlan_native::wlan_register_notification(b.handle, wlan_native::NOTIFICATION_SOURCE_ACM, 1, &on_notification, box, null, &previous);
+	uint code     = wlan_native::wlan_register_notification(
+		b.handle,
+		wlan_native::NOTIFICATION_SOURCE_ACM,
+		1,
+		&on_notification,
+		box,
+		null,
+		&previous
+	);
 	if (code != 0) return errors::raise_win32(code, "registering for WLAN notifications")~;
 }
 
@@ -164,7 +207,15 @@ fn void? register(Backend* b, Mailbox{Command}* box) @local
 fn void unregister(Backend* b) @local
 {
 	uint previous = 0;
-	wlan_native::wlan_register_notification(b.handle, wlan_native::NOTIFICATION_SOURCE_NONE, 1, null, null, null, &previous);
+	wlan_native::wlan_register_notification(
+		b.handle,
+		wlan_native::NOTIFICATION_SOURCE_NONE,
+		1,
+		null,
+		null,
+		null,
+		&previous
+	);
 }
 
 // WLAN notification callback: runs on a WLAN thread, so it only posts.
@@ -172,7 +223,9 @@ fn void on_notification(L2NotificationData* data, void* context)
 {
 	Mailbox{Command}* box = (Mailbox{Command}*)context;
 	// A full queue already holds a refresh, so a refused post changes nothing.
-	if (catch err = box.post({ .kind = REFRESH })) {}
+	if (catch err = box.post({ .kind = REFRESH }))
+	{
+	}
 }
 
 <* Route one command. Completes synchronously, except connections, which the next reads complete. *>
@@ -241,7 +294,7 @@ fn void? forget(Backend* b, Command* c)
 	@pool()
 	{
 		WideZ name = text::to_wide(tmem, profile_name_of(c))!!;
-		uint code = wlan_native::wlan_delete_profile(b.handle, &b.interface_guid, name.as_wstring(), null);
+		uint code  = wlan_native::wlan_delete_profile(b.handle, &b.interface_guid, name.as_wstring(), null);
 		if (code == wlan_native::ERROR_NOT_FOUND) return NOT_FOUND~;
 		if (code != 0) return errors::raise_win32(code, "forgetting the network")~;
 		settle_now(c.settle, Settled.CHANGED);
@@ -250,7 +303,7 @@ fn void? forget(Backend* b, Command* c)
 
 fn String profile_name_of(Command* c) @local
 {
-	return wlan_profile::profile_name(tmem, c.ssid.bytes[0 : c.ssid.len]);
+	return wlan_profile::profile_name(tmem, c.ssid.bytes[0:c.ssid.len]);
 }
 
 <*
@@ -274,18 +327,32 @@ fn void start_connect(Backend* b, NetworkHub* hub, Command* c)
 
 fn void? join(Backend* b, NetworkHub* hub, Command* c) @local
 {
-	char[] ssid = c.ssid.bytes[0 : c.ssid.len];
-	String passphrase = (String)c.secret.bytes[0 : c.secret.len];
+	char[] ssid       = c.ssid.bytes[0:c.ssid.len];
+	String passphrase = (String)c.secret.bytes[0:c.secret.len];
 	Security security = security_on_air(hub, ssid);
-	if (security == UNKNOWN) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the network is not in the last scan")~;
+	if (security == UNKNOWN) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"the network is not in the last scan"
+	)~;
 	@pool()
 	{
-		String xml = wlan_profile::profile_xml(tmem, ssid, security, passphrase, c.flag)!;
-		String name = wlan_profile::profile_name(tmem, ssid);
-		WideZ xml_wide = text::to_wide(tmem, xml)!!;
+		String xml      = wlan_profile::profile_xml(tmem, ssid, security, passphrase, c.flag)!;
+		String name     = wlan_profile::profile_name(tmem, ssid);
+		WideZ xml_wide  = text::to_wide(tmem, xml)!!;
 		WideZ name_wide = text::to_wide(tmem, name)!!;
-		uint reason = 0;
-		uint code = wlan_native::wlan_set_profile(b.handle, &b.interface_guid, 0, xml_wide.as_wstring(), null, 1, null, &reason);
+		uint reason     = 0;
+		uint code       = wlan_native::wlan_set_profile(
+			b.handle,
+			&b.interface_guid,
+			0,
+			xml_wide.as_wstring(),
+			null,
+			1,
+			null,
+			&reason
+		);
 		if (code != 0) return errors::raise_win32(code, "writing the network profile")~;
 		wlan_native::WlanConnectionParameters parameters = {
 			.mode = wlan_native::CONNECTION_MODE_PROFILE,
@@ -322,10 +389,10 @@ fn void abandon_connect(Backend* b) @local
 fn void refresh(Backend* b, NetworkHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
-	State? state = read_state(b, snapshot.allocator());
+	State? state              = read_state(b, snapshot.allocator());
 	if (catch err = state)
 	{
-		snapshot.value = {};
+		snapshot.value = { };
 	}
 	else
 	{
@@ -341,17 +408,24 @@ fn void settle_connect(Backend* b, State* state) @local
 {
 	if (b.connect == null) return;
 	int phase_state = b.interface_state;
-	if (phase_state == wlan_native::INTERFACE_STATE_ASSOCIATING || phase_state == wlan_native::INTERFACE_STATE_AUTHENTICATING || phase_state == wlan_native::INTERFACE_STATE_DISCOVERING)
+	if (phase_state == wlan_native::INTERFACE_STATE_ASSOCIATING
+		|| phase_state == wlan_native::INTERFACE_STATE_AUTHENTICATING
+		|| phase_state == wlan_native::INTERFACE_STATE_DISCOVERING)
 	{
 		b.connect_saw_busy = true;
 	}
-	bool joined = phase_state == wlan_native::INTERFACE_STATE_CONNECTED && network::same_ssid(state.wifi.connected_ssid.bytes, b.connect_ssid[0 : b.connect_ssid_len]);
+	bool joined = phase_state == wlan_native::INTERFACE_STATE_CONNECTED && network::same_ssid(
+		state.wifi.connected_ssid.bytes,
+		b.connect_ssid[0:b.connect_ssid_len]
+	);
 	if (joined)
 	{
-		b.connect.succeed({
-			.ssid = network::make_ssid(b.connect.allocator(), state.wifi.connected_ssid.bytes),
-			.interface_name = b.interface_name.copy(b.connect.allocator()),
-		});
+		b.connect.succeed(
+			{
+				.ssid = network::make_ssid(b.connect.allocator(), state.wifi.connected_ssid.bytes),
+				.interface_name = b.interface_name.copy(b.connect.allocator()),
+			}
+		);
 		finish_connect(b);
 		return;
 	}
@@ -363,7 +437,14 @@ fn void settle_connect(Backend* b, State* state) @local
 	}
 	if (phase_state == wlan_native::INTERFACE_STATE_DISCONNECTED && b.connect_saw_busy)
 	{
-		b.connect.fail(error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "the connection attempt failed (the WLAN reason is not decoded in v1)"));
+		b.connect.fail(
+			error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.WIN32,
+				0,
+				"the connection attempt failed (the WLAN reason is not decoded in v1)"
+			)
+		);
 		finish_connect(b);
 	}
 }
@@ -380,7 +461,7 @@ fn State? read_state(Backend* b, Allocator out)
 	@pool()
 	{
 		WlanInterfaceInfo info;
-		if (!first_interface(b.handle, &info)!) return {};
+		if (!first_interface(b.handle, &info)!) return { };
 		b.interface_guid = info.guid;
 		b.interface_state = info.state;
 		String name = text::from_wide_units(out, info.description[..]) ?? "";
@@ -429,8 +510,8 @@ fn AccessPoint[]? read_networks(Backend* b, Allocator out) @local
 	uint code = wlan_native::wlan_get_available_network_list(b.handle, &b.interface_guid, 0, null, &list);
 	if (code != 0) return errors::raise_win32(code, "reading the visible networks")~;
 	defer wlan_native::wlan_free_memory((void*)list);
-	WlanBssList* bss = read_bss(b);
-	AccessPoint[] found = alloc::new_array(out, AccessPoint, list.count);
+	WlanBssList* bss            = read_bss(b);
+	AccessPoint[] found         = alloc::new_array(out, AccessPoint, list.count);
 	WlanAvailableNetwork* items = &list.items[0];
 	for (uint i = 0; i < list.count; i++)
 	{
@@ -444,15 +525,23 @@ fn AccessPoint[]? read_networks(Backend* b, Allocator out) @local
 fn WlanBssList* read_bss(Backend* b) @local
 {
 	WlanBssList* bss = null;
-	uint code = wlan_native::wlan_get_network_bss_list(b.handle, &b.interface_guid, null, wlan_native::BSS_TYPE_ANY, 0, null, &bss);
+	uint code        = wlan_native::wlan_get_network_bss_list(
+		b.handle,
+		&b.interface_guid,
+		null,
+		wlan_native::BSS_TYPE_ANY,
+		0,
+		null,
+		&bss
+	);
 	if (code != 0) return null;
 	return bss;
 }
 
 fn AccessPoint access_point(Allocator out, WlanAvailableNetwork* network, WlanBssList* bss) @local
 {
-	usz length = min(network.ssid.length, wlan_native::SSID_OCTETS);
-	char[] ssid = network.ssid.bytes[0 : length];
+	usz length  = min(network.ssid.length, wlan_native::SSID_OCTETS);
+	char[] ssid = network.ssid.bytes[0:length];
 	AccessPoint entry = {
 		.ssid = network::make_ssid(out, ssid),
 		.quality = maybe::value(unit::from_percent((float)network.signal_quality)),
@@ -461,8 +550,8 @@ fn AccessPoint access_point(Allocator out, WlanAvailableNetwork* network, WlanBs
 	};
 	if (bss == null) return entry;
 	WlanBssEntry* entries = &bss.entries[0];
-	int best = 0;
-	bool found = false;
+	int best              = 0;
+	bool found            = false;
 	for (uint i = 0; i < bss.count; i++)
 	{
 		WlanBssEntry* candidate = &entries[i];

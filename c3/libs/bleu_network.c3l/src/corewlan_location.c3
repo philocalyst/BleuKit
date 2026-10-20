@@ -1,6 +1,6 @@
 // Location Services authorization, which decides whether CoreWLAN shows SSIDs
 // and BSSIDs. Not run on macOS (see corewlan.c3).
-//
+// 
 // CLAuthorizationStatus values: CoreLocation's CLLocationManager.h (notDetermined 0,
 // restricted 1, denied 2, authorizedAlways 3, authorizedWhenInUse 4). The
 // class method `authorizationStatus` is the one present in every macOS the
@@ -10,10 +10,10 @@ module bleu::network::corewlan_location @feat(DARWIN) @link("CoreLocation.framew
 import std::os::darwin::objc, bleu::objc, bleu::network;
 
 const long CL_AUTHORIZATION_NOT_DETERMINED = 0;
-const long CL_AUTHORIZATION_RESTRICTED = 1;
-const long CL_AUTHORIZATION_DENIED = 2;
-const long CL_AUTHORIZATION_ALWAYS = 3;
-const long CL_AUTHORIZATION_WHEN_IN_USE = 4;
+const long CL_AUTHORIZATION_RESTRICTED     = 1;
+const long CL_AUTHORIZATION_DENIED         = 2;
+const long CL_AUTHORIZATION_ALWAYS         = 3;
+const long CL_AUTHORIZATION_WHEN_IN_USE    = 4;
 
 <* This process's Location Services authorization for Wi-Fi names. *>
 fn LocationAccess authorization()

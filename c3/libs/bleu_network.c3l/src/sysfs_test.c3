@@ -27,7 +27,7 @@ fn void unknown_speed_and_negative_counters_are_empty() @test
 fn String fake_tree(String stem) @local
 {
 	String root = string::tformat("/tmp/bleu-network-%s-%d", stem, clock::now());
-	String up = string::tformat("%s/sys/class/net/eth0", root);
+	String up   = string::tformat("%s/sys/class/net/eth0", root);
 	String down = string::tformat("%s/sys/class/net/wlan1", root);
 	path::mkdir((Path)string::tformat("%s/statistics", up), true)!!;
 	path::mkdir((Path)string::tformat("%s/statistics", down), true)!!;
@@ -45,7 +45,7 @@ fn void reads_an_interface_from_its_directory() @test
 {
 	@pool()
 	{
-		String root = fake_tree("read");
+		String root   = fake_tree("read");
 		Interface eth = sysfs::read_interface(tmem, root, "eth0", ETHERNET);
 		assert(eth.name == "eth0" && eth.kind == ETHERNET && eth.link == UP);
 		assert(eth.carrier.value == true, "carrier 1");
@@ -58,7 +58,7 @@ fn void a_down_interface_leaves_fields_empty() @test
 {
 	@pool()
 	{
-		String root = fake_tree("down");
+		String root    = fake_tree("down");
 		Interface wlan = sysfs::read_interface(tmem, root, "wlan1", WIFI);
 		assert(wlan.link == DOWN);
 		assert(!wlan.carrier.has_value, "carrier is unreadable while down: empty, not false");

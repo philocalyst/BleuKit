@@ -8,7 +8,7 @@ import bleu::equal, bleu::observe;
 fn void publish_empty(NetworkHub* hub)
 {
 	Snapshot{State}* snapshot = hub.begin();
-	snapshot.value = {};
+	snapshot.value = { };
 	hub.publish_if_changed(snapshot);
 }
 
@@ -30,7 +30,10 @@ fn void emit_changes(NetworkHub* hub, State* before, State* after) @local
 {
 	Ssid none = { };
 	if (!equal::deep(before.wifi.networks, after.wifi.networks)) emit(hub, NETWORKS_CHANGED, none);
-	bool connection_moved = before.wifi.phase != after.wifi.phase || !same_ssid(before.wifi.connected_ssid.bytes, after.wifi.connected_ssid.bytes);
+	bool connection_moved = before.wifi.phase != after.wifi.phase || !same_ssid(
+		before.wifi.connected_ssid.bytes,
+		after.wifi.connected_ssid.bytes
+	);
 	if (connection_moved) emit(hub, CONNECTION_CHANGED, after.wifi.connected_ssid);
 	if (!equal::deep(before.interfaces, after.interfaces)) emit(hub, INTERFACES_CHANGED, none);
 }

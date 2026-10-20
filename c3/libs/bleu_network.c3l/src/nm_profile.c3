@@ -29,21 +29,37 @@ fn Profile[]? load_profiles(Connection* bus, Allocator allocator)
 		found.init(allocator);
 		for (usz i = 0; i < paths.count(); i++)
 		{
-			String path = paths.at(i)!.as_object_path()!;
+			String path      = paths.at(i)!.as_object_path()!;
 			Proxy connection = object_proxy(bus, path, NM_CONNECTION_IFACE)!;
-			Value current = method_value(&connection, "GetSettings", tmem)!;
+			Value current    = method_value(&connection, "GetSettings", tmem)!;
 			Value wireless;
 			Value general;
-			if (try w = current.dict_get(nm_settings::GROUP_WIRELESS)) { wireless = w; } else { continue; }
-			if (try g = current.dict_get(nm_settings::GROUP_CONNECTION)) { general = g; } else { continue; }
+			if (try w = current.dict_get(nm_settings::GROUP_WIRELESS))
+			{
+				wireless = w;
+			}
+			else
+			{
+				continue;
+			}
+			if (try g = current.dict_get(nm_settings::GROUP_CONNECTION))
+			{
+				general = g;
+			}
+			else
+			{
+				continue;
+			}
 			char[] ssid = bytes_of(allocator, wireless, "ssid");
 			if (ssid.len == 0) continue;
-			found.push({
-				.path = path.copy(allocator),
-				.uuid = text_of(allocator, general, "uuid"),
-				.ssid = ssid,
-				.autoconnect = bool_or(general, "autoconnect", true),
-			});
+			found.push(
+				{
+					.path = path.copy(allocator),
+					.uuid = text_of(allocator, general, "uuid"),
+					.ssid = ssid,
+					.autoconnect = bool_or(general, "autoconnect", true),
+				}
+			);
 		}
 		return found.array_view();
 	};

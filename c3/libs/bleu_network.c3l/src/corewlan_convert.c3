@@ -4,33 +4,33 @@
 
  Sources:
  * CWSecurity, CWChannelBand and CWErr values: the CoreWLAN headers as
-   generated into objc2-core-wlan 0.3.0
-   (https://static.crates.io/crates/objc2-core-wlan/objc2-core-wlan-0.3.0.crate,
-   src/generated/CoreWLANTypes.rs: CWSecurity lines 335-370, CWChannelBand 479-488,
-   CWErr 115-184). The `kCWErr*` names are the header's doc aliases.
+ generated into objc2-core-wlan 0.3.0
+ (https://static.crates.io/crates/objc2-core-wlan/objc2-core-wlan-0.3.0.crate,
+ src/generated/CoreWLANTypes.rs: CWSecurity lines 335-370, CWChannelBand 479-488,
+ CWErr 115-184). The `kCWErr*` names are the header's doc aliases.
  * The 2.4 GHz channel 14 exception and the 5 and 6 GHz channel formulas: the
-   IEEE 802.11 channel plans, as CoreWLAN's `CWChannel` documents its numbers.
+ IEEE 802.11 channel plans, as CoreWLAN's `CWChannel` documents its numbers.
 *>
 module bleu::network::corewlan_convert;
 import bleu::error, bleu::network;
 
 <* CWSecurity (CoreWLANTypes.rs 335-370). *>
-const long CW_SECURITY_NONE              = 0;
-const long CW_SECURITY_WEP               = 1;
-const long CW_SECURITY_WPA_PERSONAL      = 2;
-const long CW_SECURITY_WPA_PERSONAL_MIXED = 3;
-const long CW_SECURITY_WPA2_PERSONAL     = 4;
-const long CW_SECURITY_PERSONAL          = 5;
-const long CW_SECURITY_DYNAMIC_WEP       = 6;
-const long CW_SECURITY_WPA_ENTERPRISE    = 7;
+const long CW_SECURITY_NONE                 = 0;
+const long CW_SECURITY_WEP                  = 1;
+const long CW_SECURITY_WPA_PERSONAL         = 2;
+const long CW_SECURITY_WPA_PERSONAL_MIXED   = 3;
+const long CW_SECURITY_WPA2_PERSONAL        = 4;
+const long CW_SECURITY_PERSONAL             = 5;
+const long CW_SECURITY_DYNAMIC_WEP          = 6;
+const long CW_SECURITY_WPA_ENTERPRISE       = 7;
 const long CW_SECURITY_WPA_ENTERPRISE_MIXED = 8;
-const long CW_SECURITY_WPA2_ENTERPRISE   = 9;
-const long CW_SECURITY_ENTERPRISE        = 10;
-const long CW_SECURITY_WPA3_PERSONAL     = 11;
-const long CW_SECURITY_WPA3_ENTERPRISE   = 12;
-const long CW_SECURITY_WPA3_TRANSITION   = 13;
-const long CW_SECURITY_OWE               = 14;
-const long CW_SECURITY_OWE_TRANSITION    = 15;
+const long CW_SECURITY_WPA2_ENTERPRISE      = 9;
+const long CW_SECURITY_ENTERPRISE           = 10;
+const long CW_SECURITY_WPA3_PERSONAL        = 11;
+const long CW_SECURITY_WPA3_ENTERPRISE      = 12;
+const long CW_SECURITY_WPA3_TRANSITION      = 13;
+const long CW_SECURITY_OWE                  = 14;
+const long CW_SECURITY_OWE_TRANSITION       = 15;
 
 <* CWChannelBand (CoreWLANTypes.rs 479-488). *>
 const long CW_BAND_2_GHZ = 1;
@@ -41,13 +41,13 @@ const long CW_BAND_6_GHZ = 3;
 const uint CHANNEL_14_MHZ = 2484;
 
 <* 2.4 GHz channels 1-13: 2407 MHz + 5 MHz per channel. *>
-const uint BAND_2_4_BASE_MHZ = 2407;
+const uint BAND_2_4_BASE_MHZ     = 2407;
 <* 5 GHz channels: 5000 MHz + 5 MHz per channel. *>
-const uint BAND_5_BASE_MHZ = 5000;
+const uint BAND_5_BASE_MHZ       = 5000;
 <* 6 GHz channels: 5950 MHz + 5 MHz per channel. *>
-const uint BAND_6_BASE_MHZ = 5950;
+const uint BAND_6_BASE_MHZ       = 5950;
 <* Channel-number step of the 5 and 6 GHz grids, in MHz. *>
-const uint GRID_STEP_MHZ = 5;
+const uint GRID_STEP_MHZ         = 5;
 <* The highest 2.4 GHz channel that sits on the 5 MHz grid. *>
 const long LAST_2_4_GRID_CHANNEL = 13;
 
@@ -145,16 +145,16 @@ fn fault fault_from_cw_error(long code)
 {
 	switch (code)
 	{
-		case -3900: return error::INVALID_ARGUMENT; // kCWInvalidParameterErr
-		case -3903: return error::UNSUPPORTED;      // kCWNotSupportedErr
-		case -3905: return TIMEOUT;                 // kCWTimeoutErr
-		case -3909: // kCWAssociationDeniedErr
-		case -3910: // kCWAuthenticationAlgorithmUnsupportedErr
-		case -3912: // kCWChallengeFailureErr
-		case -3923: // kCWCipherSuiteRejectedErr
-		case -3924: return error::AUTH_REQUIRED;    // kCWInvalidPMKErr
-		case -3925: return TIMEOUT;                 // kCWSupplicantTimeoutErr
-		case -3930: return error::PERMISSION_DENIED; // kCWOperationNotPermittedErr
+		case -3900: return error::INVALID_ARGUMENT;  // kCWInvalidParameterErr
+		case -3903: return error::UNSUPPORTED;  // kCWNotSupportedErr
+		case -3905: return TIMEOUT;  // kCWTimeoutErr
+		case -3909:  // kCWAssociationDeniedErr
+		case -3910:  // kCWAuthenticationAlgorithmUnsupportedErr
+		case -3912:  // kCWChallengeFailureErr
+		case -3923:  // kCWCipherSuiteRejectedErr
+		case -3924: return error::AUTH_REQUIRED;  // kCWInvalidPMKErr
+		case -3925: return TIMEOUT;  // kCWSupplicantTimeoutErr
+		case -3930: return error::PERMISSION_DENIED;  // kCWOperationNotPermittedErr
 		default: return error::BACKEND_FAILURE;
 	}
 }

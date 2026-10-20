@@ -1,9 +1,9 @@
 // CoreWLAN events: a delegate object that CoreWLAN calls on its own threads.
-//
+// 
 // The callbacks do one thing: they post a refresh to the service's mailbox.
 // The mailbox is thread-safe and the worker reads the state, so no callback
 // touches the service state or calls back into CoreWLAN.
-//
+// 
 // Selectors and encodings: CWWiFiClient.h via objc2-core-wlan 0.3.0
 // (src/generated/CWWiFiClient.rs lines 22-150: the delegate methods, and
 // CWEventType in CoreWLANTypes.rs 613-636). Registration: startMonitoringEventWithType:error:
@@ -32,7 +32,9 @@ fn void post_refresh(ObjId self) @local
 	Mailbox{Command}* box = (Mailbox{Command}*)objc::context_of(self);
 	if (box == null) return;
 	// A full queue already holds a refresh, so a refused post changes nothing.
-	if (catch err = box.post({ .kind = REFRESH })) {}
+	if (catch err = box.post({ .kind = REFRESH }))
+	{
+	}
 }
 
 // powerStateDidChangeForWiFiInterfaceWithName:, ssidDidChange..., bssidDidChange..., linkDidChange..., modeDidChange..., scanCacheUpdatedForWiFiInterfaceWithName:
@@ -71,7 +73,11 @@ fn objc::Obj install_delegate(Mailbox{Command}* box)
 		builder.method("bssidDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
 		builder.method("countryCodeDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
 		builder.method("linkDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
-		builder.method("linkQualityDidChangeForWiFiInterfaceWithName:rssi:transmitRate:", (void*)&on_link_quality, "v@:@qd")!!;
+		builder.method(
+			"linkQualityDidChangeForWiFiInterfaceWithName:rssi:transmitRate:",
+			(void*)&on_link_quality,
+			"v@:@qd"
+		)!!;
 		builder.method("modeDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
 		builder.method("scanCacheUpdatedForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
 		builder.method("clientConnectionInterrupted", (void*)&on_client_state, "v@:")!!;

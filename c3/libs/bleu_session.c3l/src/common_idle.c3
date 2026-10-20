@@ -1,0 +1,109 @@
+<*
+ Idle thresholds as the worker tracks them, for the backends that measure idle time
+ themselves (macOS and Windows). Pure logic: the backend measures the time since the last
+ input, and this file decides which IDLE and RESUMED edges that causes.
+
+ A slot is either one of `Options.idle_thresholds` (`configured`, reported in `State.idle`)
+ or the threshold of an `IdleWatch` (`watch` is its id). An edge fires when the idle time
+ first reaches the threshold, and again when input resets it below the threshold: the same
+ alternation that `ext-idle-notify` gives.
+*>
+module bleu::session;
+import std::collections::list, std::time, bleu::rt::worker;
+
+<* One threshold the worker watches. *>
+struct IdleSlot
+{
+	ulong watch;
+	Duration threshold;
+	bool idle;
+	bool configured;
+}
+
+<* The slots of one worker. Owned by the worker thread. *>
+struct IdleRegistry
+{
+	List{IdleSlot} slots;
+}
+
+<* Whether `elapsed` idle time has reached `threshold`. *>
+fn bool reached(Duration elapsed, Duration threshold) @inline => elapsed >= threshold;
+
+<*
+ Start with one configured slot per threshold, in the order given.
+
+ @param allocator : "Where the slots live until `free`"
+ @param thresholds : "The idle thresholds of `Options.idle_thresholds`"
+*>
+fn void IdleRegistry.init(&self, Allocator allocator, Duration[] thresholds)
+{
+	self.slots.init(allocator);
+	foreach (threshold : thresholds) self.slots.push({ .threshold = threshold, .configured = true });
+}
+
+<* Release the slots. *>
+fn void IdleRegistry.free(&self) => self.slots.free();
+
+<*
+ Start or stop an idle watch. Commands of other kinds are ignored.
+
+ @param command : "A WATCH_IDLE or UNWATCH_IDLE command"
+*>
+fn void IdleRegistry.apply(&self, Command* command)
+{
+	if (command.kind == CommandKind.WATCH_IDLE)
+	{
+		self.slots.push({ .watch = command.watch, .threshold = command.threshold });
+		return;
+	}
+	if (command.kind != CommandKind.UNWATCH_IDLE) return;
+	for (sz i = self.slots.len() - 1; i >= 0; i--)
+	{
+		IdleSlot slot = self.slots.get(i);
+		if (!slot.configured && slot.watch == command.watch) self.slots.remove_at(i);
+	}
+}
+
+<*
+ Compare every slot with the idle time `elapsed`, and announce each that changed state.
+
+ @return "true when a configured threshold changed state, so the published state is stale"
+*>
+fn bool IdleRegistry.advance(&self, Duration elapsed, SessionHub* hub)
+{
+	bool configured_changed = false;
+	for (sz i = 0; i < self.slots.len(); i++)
+	{
+		IdleSlot* slot = self.slots.get_ref(i);
+		bool now = reached(elapsed, slot.threshold);
+		if (now == slot.idle) continue;
+		slot.idle = now;
+		emit(hub, now ? EventKind.IDLE : EventKind.RESUMED, slot.watch, slot.threshold);
+		if (slot.configured) configured_changed = true;
+	}
+	return configured_changed;
+}
+
+<*
+ The configured thresholds and whether each is reached, in `Options.idle_thresholds` order.
+
+ @param allocator : "Where the result lives (the snapshot's arena)"
+*>
+fn IdleStatus[] IdleRegistry.statuses(&self, Allocator allocator)
+{
+	sz count = 0;
+	for (sz i = 0; i < self.slots.len(); i++)
+	{
+		if (self.slots.get(i).configured) count++;
+	}
+	if (count == 0) return {};
+	IdleStatus[] statuses = alloc::new_array(allocator, IdleStatus, count);
+	sz next = 0;
+	for (sz i = 0; i < self.slots.len(); i++)
+	{
+		IdleSlot slot = self.slots.get(i);
+		if (!slot.configured) continue;
+		statuses[next++] = { .threshold = slot.threshold, .idle = slot.idle };
+	}
+	return statuses;
+}

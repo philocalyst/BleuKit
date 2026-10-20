@@ -1,15 +1,15 @@
 // The macOS backend: CoreWLAN, the public Wi-Fi framework.
-//
+// 
 // Compiled for macOS; type-checked for every other target. It has not been run
 // (no macOS machine is available to the project). The sources of every selector
 // and constant are in docs/research/network.md section 2.2.1 and
 // src/corewlan_convert.c3.
-//
+// 
 // What macOS hides: SSIDs and BSSIDs are withheld from an app without Location
 // authorization (CWInterface.h and CWNetwork.h: "not available unless Location
 // Services is enabled and the user has authorized the calling app"). They read
 // as empty here, and `State.location` says why.
-//
+// 
 // Threading: CoreWLAN calls run on the worker. The event callbacks (on
 // CoreWLAN's threads, in corewlan_events.c3) only post a refresh to the mailbox.
 module bleu::network::corewlan @feat(DARWIN) @link("CoreWLAN.framework");
@@ -24,8 +24,8 @@ struct Backend
 	Allocator allocator;
 	Duration poll;
 	String interface_name;
-	objc::Obj client;     // CWWiFiClient.sharedWiFiClient, retained
-	objc::Obj iface;  // the first Wi-Fi CWInterface, retained
+	objc::Obj client; // CWWiFiClient.sharedWiFiClient, retained
+	objc::Obj iface; // the first Wi-Fi CWInterface, retained
 }
 
 const Driver DRIVER = {
@@ -47,21 +47,25 @@ fn bool probe(Options* options) => true;
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
-	ObjId found = client.send_id("interface");
+	ObjId found      = client.send_id("interface");
 	if (found == (ObjId)null)
 	{
 		client.close();
 		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "this Mac has no Wi-Fi interface")~;
 	}
 	objc::Obj iface = objc::borrow(found);
-	String name = foundation::to_string(iface.send_id("interfaceName"), allocator) ?? "";
-	Backend* self = alloc::new(allocator, Backend, {
-		.allocator = allocator,
-		.poll = options.poll,
-		.interface_name = name,
-		.client = client,
-		.iface = iface,
-	});
+	String name     = foundation::to_string(iface.send_id("interfaceName"), allocator) ?? "";
+	Backend* self = alloc::new(
+		allocator,
+		Backend,
+		{
+			.allocator = allocator,
+			.poll = options.poll,
+			.interface_name = name,
+			.client = client,
+			.iface = iface,
+		}
+	);
 	fill_capabilities(capabilities);
 	return self;
 }
@@ -79,15 +83,63 @@ fn void fill_capabilities(Capabilities* capabilities) @local
 	capabilities.set(Cap.WIFI_CONNECT_PSK, availability::YES);
 	capabilities.set(Cap.WIFI_DISCONNECT, availability::YES);
 	capabilities.set(Cap.WIFI_SIGNAL_DBM, availability::YES);
-	capabilities.set(Cap.SSID_VISIBILITY, availability::no(availability::Reason.PERMISSION_NEEDED, "SSIDs are withheld unless this app is authorized for Location Services (State.location)"));
-	capabilities.set(Cap.WIFI_BSSID, availability::no(availability::Reason.PERMISSION_NEEDED, "BSSIDs are withheld unless this app is authorized for Location Services"));
-	capabilities.set(Cap.WIFI_FORGET, availability::no(availability::Reason.UNSUPPORTED_OS, "CoreWLAN has no saved-profile API; its keychain calls are deprecated"));
-	capabilities.set(Cap.WIFI_AUTOCONNECT, availability::no(availability::Reason.UNSUPPORTED_OS, "CoreWLAN has no saved-profile API"));
-	capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::no(availability::Reason.UNSUPPORTED_OS, "the password is given up front (associateToNetwork:password:error:)"));
-	capabilities.set(Cap.INTERFACE_STATE, availability::no(availability::Reason.UNSUPPORTED_OS, "CoreWLAN reports no link state; the power switch is State.wifi.radio_enabled"));
-	capabilities.set(Cap.INTERFACE_SPEED, availability::no(availability::Reason.UNSUPPORTED_OS, "CoreWLAN reports the transmit rate of the association, not the interface speed"));
-	capabilities.set(Cap.INTERFACE_COUNTERS, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "traffic counters (IOKit) are not bound in v1"));
-	capabilities.set(Cap.CONNECTIVITY, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "SystemConfiguration reachability is not bound in v1"));
+	capabilities.set(
+		Cap.SSID_VISIBILITY,
+		availability::no(
+			availability::Reason.PERMISSION_NEEDED,
+			"SSIDs are withheld unless this app is authorized for Location Services (State.location)"
+		)
+	);
+	capabilities.set(
+		Cap.WIFI_BSSID,
+		availability::no(
+			availability::Reason.PERMISSION_NEEDED,
+			"BSSIDs are withheld unless this app is authorized for Location Services"
+		)
+	);
+	capabilities.set(
+		Cap.WIFI_FORGET,
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"CoreWLAN has no saved-profile API; its keychain calls are deprecated"
+		)
+	);
+	capabilities.set(
+		Cap.WIFI_AUTOCONNECT,
+		availability::no(availability::Reason.UNSUPPORTED_OS, "CoreWLAN has no saved-profile API")
+	);
+	capabilities.set(
+		Cap.WIFI_SECRET_PROMPT,
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"the password is given up front (associateToNetwork:password:error:)"
+		)
+	);
+	capabilities.set(
+		Cap.INTERFACE_STATE,
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"CoreWLAN reports no link state; the power switch is State.wifi.radio_enabled"
+		)
+	);
+	capabilities.set(
+		Cap.INTERFACE_SPEED,
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"CoreWLAN reports the transmit rate of the association, not the interface speed"
+		)
+	);
+	capabilities.set(
+		Cap.INTERFACE_COUNTERS,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "traffic counters (IOKit) are not bound in v1")
+	);
+	capabilities.set(
+		Cap.CONNECTIVITY,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"SystemConfiguration reachability is not bound in v1"
+		)
+	);
 }
 
 fn void destroy(Allocator allocator, void* state)
@@ -102,7 +154,7 @@ fn void destroy(Allocator allocator, void* state)
 <* The loop: wait for the poll interval or a mailbox signal; run the commands; read and publish. *>
 fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 {
-	Backend* b = (Backend*)state;
+	Backend* b         = (Backend*)state;
 	objc::Obj delegate = install_delegate(host.mailbox());
 	defer uninstall_delegate(delegate);
 	Poller poller;
@@ -191,7 +243,7 @@ fn fault ns_error(ObjId failure, String what) @local
 
 fn void? scan(Backend* b, SettleOp* op)
 {
-	ObjId err = (ObjId)null;
+	ObjId err     = (ObjId)null;
 	ObjId results = b.iface.send_id("scanForNetworksWithName:includeHidden:error:", (ObjId)null, false, &err);
 	if (results == (ObjId)null) return ns_error(err, "the scan failed")~;
 	settle_now(op, Settled.CHANGED);
@@ -200,12 +252,17 @@ fn void? scan(Backend* b, SettleOp* op)
 <* Join a network from the last scan, found by its octets. Withheld names cannot be matched. *>
 fn Connected? connect(Backend* b, Command* c, Allocator out)
 {
-	char[] ssid = c.ssid.bytes[0 : c.ssid.len];
+	char[] ssid   = c.ssid.bytes[0:c.ssid.len];
 	ObjId network = find_scanned(b, ssid);
-	if (network == (ObjId)null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "that network is not in the last scan (or its name is withheld)")~;
+	if (network == (ObjId)null) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"that network is not in the last scan (or its name is withheld)"
+	)~;
 	ObjId password = (ObjId)null;
-	if (c.secret.len > 0) password = foundation::from_string((String)c.secret.bytes[0 : c.secret.len]).ptr;
-	ObjId err = (ObjId)null;
+	if (c.secret.len > 0) password = foundation::from_string((String)c.secret.bytes[0:c.secret.len]).ptr;
+	ObjId err   = (ObjId)null;
 	bool joined = b.iface.send_bool("associateToNetwork:password:error:", network, password, &err);
 	if (!joined) return ns_error(err, "the network refused the join")~;
 	return { .ssid = network::make_ssid(out, ssid), .interface_name = b.interface_name.copy(out) };
@@ -215,7 +272,7 @@ fn Connected? connect(Backend* b, Command* c, Allocator out)
 fn ObjId find_scanned(Backend* b, char[] ssid) @local
 {
 	ObjId list = scan_list(b);
-	usz count = foundation::array_count(list);
+	usz count  = foundation::array_count(list);
 	for (usz i = 0; i < count; i++)
 	{
 		ObjId network = foundation::array_at(list, i);
@@ -261,8 +318,8 @@ fn State read_state(Backend* b, Allocator out)
 {
 	Wifi wifi = { .present = true, .interface_name = b.interface_name.copy(out) };
 	wifi.radio_enabled = b.iface.send_bool("powerOn");
-	ObjId ssid = b.iface.send_id("ssid");
-	ObjId bssid = b.iface.send_id("bssid");
+	ObjId ssid    = b.iface.send_id("ssid");
+	ObjId bssid   = b.iface.send_id("bssid");
 	char[] octets = data_or_empty(b.iface.send_id("ssidData"), out);
 	if (ssid != (ObjId)null && octets.len > 0)
 	{
@@ -290,18 +347,18 @@ fn State read_state(Backend* b, Allocator out)
 <* One entry per scanned access point. CoreWLAN has no saved-profile information, so `known` stays false. *>
 fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid) @local
 {
-	ObjId list = scan_list(b);
-	usz count = foundation::array_count(list);
+	ObjId list          = scan_list(b);
+	usz count           = foundation::array_count(list);
 	AccessPoint[] found = alloc::new_array(out, AccessPoint, (sz)count);
 	for (usz i = 0; i < count; i++)
 	{
-		ObjId network = foundation::array_at(list, i);
+		ObjId network    = foundation::array_at(list, i);
 		objc::Obj object = view(network);
-		long rssi = object.send_long("rssiValue");
-		ObjId channel = object.send_id("wlanChannel");
-		long number = channel == (ObjId)null ? 0 : view(channel).send_long("channelNumber");
-		long band = channel == (ObjId)null ? 0 : view(channel).send_long("channelBand");
-		String bssid = bssid_text(object.send_id("bssid"), out);
+		long rssi        = object.send_long("rssiValue");
+		ObjId channel    = object.send_id("wlanChannel");
+		long number      = channel == (ObjId)null ? 0 : view(channel).send_long("channelNumber");
+		long band        = channel == (ObjId)null ? 0 : view(channel).send_long("channelBand");
+		String bssid     = bssid_text(object.send_id("bssid"), out);
 		AccessPoint entry = {
 			.ssid = network::make_ssid(out, data_or_empty(object.send_id("ssidData"), out)),
 			.bssid = bssid,
@@ -320,9 +377,9 @@ fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid
 // The octets of an NSData, or an empty slice when it is nil (withheld).
 fn char[] data_or_empty(ObjId data, Allocator out) @local
 {
-	if (data == (ObjId)null) return {};
+	if (data == (ObjId)null) return { };
 	if (try octets = foundation::data_bytes(data, out)) return octets;
-	return {};
+	return { };
 }
 
 // The text of an NSString, or "" when it is nil (withheld).

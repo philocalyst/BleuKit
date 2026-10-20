@@ -13,7 +13,7 @@
  completes it exactly once.
 *>
 module bleu::network;
-import std::collections::enummap, std::time, std::io, bleu::availability, bleu::error, bleu::observe, bleu::operation, bleu::stream, bleu::service, bleu::unit;
+import std::collections::enummap, std::time, bleu::availability, bleu::error, bleu::observe, bleu::operation, bleu::stream, bleu::service;
 
 alias NetworkHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};
@@ -28,9 +28,9 @@ const Duration DEFAULT_POLL = (Duration)5_000_000;
 *>
 struct ConnectRequest
 {
-	char[] ssid;       // raw octets, 1..32
+	char[] ssid; // raw octets, 1..32
 	String passphrase; // "" or 8..255 characters, as the network requires
-	bool autoconnect;  // join this network automatically later (saved profile)
+	bool autoconnect; // join this network automatically later (saved profile)
 }
 
 <* The service: one backend, one worker thread, one published state. *>
@@ -118,7 +118,11 @@ fn Snapshot{State}*? Network.wait_after(&self, ulong seen, Duration timeout = ti
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Network.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Network.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Network.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);

@@ -12,14 +12,17 @@ fn void wpa_psk_profile_carries_the_passphrase() @test
 	@pool()
 	{
 		char[] ssid = (char[])"Office";
-		Value settings = nm_settings::profile_settings(tmem, {
-			.ssid = ssid,
-			.id = "Office",
-			.uuid = "00000000-0000-0000-0000-000000000001",
-			.autoconnect = true,
-			.key_mgmt = WPA_PSK,
-			.psk = "correct horse",
-		})!!;
+		Value settings = nm_settings::profile_settings(
+			tmem,
+			{
+				.ssid = ssid,
+				.id = "Office",
+				.uuid = "00000000-0000-0000-0000-000000000001",
+				.autoconnect = true,
+				.key_mgmt = WPA_PSK,
+				.psk = "correct horse",
+			}
+		)!!;
 		assert(settings.sig == "a{sa{sv}}");
 		assert(group_string(settings, "connection", "type") == "802-11-wireless");
 		assert(group_string(settings, "connection", "id") == "Office");
@@ -35,11 +38,19 @@ fn void open_and_owe_profiles_have_no_passphrase() @test
 {
 	@pool()
 	{
-		Value open = nm_settings::profile_settings(tmem, { .ssid = (char[])"Cafe", .id = "Cafe", .uuid = "u", .autoconnect = false, .key_mgmt = OPEN })!!;
+		Value open = nm_settings::profile_settings(
+			tmem,
+			{ .ssid = (char[])"Cafe", .id = "Cafe", .uuid = "u", .autoconnect = false, .key_mgmt = OPEN }
+		)!!;
 		assert(@catch(open.dict_get("802-11-wireless-security")) == NOT_FOUND, "an open profile has no security group");
-		Value owe = nm_settings::profile_settings(tmem, { .ssid = (char[])"Lounge", .id = "Lounge", .uuid = "u", .key_mgmt = OWE })!!;
+		Value owe = nm_settings::profile_settings(
+			tmem,
+			{ .ssid = (char[])"Lounge", .id = "Lounge", .uuid = "u", .key_mgmt = OWE }
+		)!!;
 		assert(group_string(owe, "802-11-wireless-security", "key-mgmt") == "owe");
-		assert(@catch(owe.dict_get("802-11-wireless-security")!!.dict_get("psk")) == NOT_FOUND, "OWE has no passphrase");
+		assert(@catch(
+			owe.dict_get("802-11-wireless-security")!!.dict_get("psk")
+		) == NOT_FOUND, "OWE has no passphrase");
 	};
 }
 
@@ -47,7 +58,10 @@ fn void sae_profile_uses_sae_key_management() @test
 {
 	@pool()
 	{
-		Value settings = nm_settings::profile_settings(tmem, { .ssid = (char[])"Guest", .id = "Guest", .uuid = "u", .key_mgmt = SAE, .psk = "sae-password" })!!;
+		Value settings = nm_settings::profile_settings(
+			tmem,
+			{ .ssid = (char[])"Guest", .id = "Guest", .uuid = "u", .key_mgmt = SAE, .psk = "sae-password" }
+		)!!;
 		assert(group_string(settings, "802-11-wireless-security", "key-mgmt") == "sae");
 		assert(group_string(settings, "802-11-wireless-security", "psk") == "sae-password");
 	};
@@ -71,12 +85,24 @@ fn void with_bool_replaces_one_key() @test
 {
 	@pool()
 	{
-		Value settings = nm_settings::profile_settings(tmem, { .ssid = (char[])"Office", .id = "Office", .uuid = "u", .autoconnect = true, .key_mgmt = WPA_PSK, .psk = "correct horse" })!!;
-		Value quiet = nm_settings::with_bool(tmem, settings, "connection", "autoconnect", false)!!;
+		Value settings   = nm_settings::profile_settings(
+			tmem,
+			{
+				.ssid = (char[])"Office",
+				.id = "Office",
+				.uuid = "u",
+				.autoconnect = true,
+				.key_mgmt = WPA_PSK,
+				.psk = "correct horse"
+			}
+		)!!;
+		Value quiet      = nm_settings::with_bool(tmem, settings, "connection", "autoconnect", false)!!;
 		Value connection = quiet.dict_get("connection")!!;
 		assert(connection.dict_get("autoconnect")!!.as_bool()!! == false, "autoconnect is now false");
 		assert(connection.dict_get("id")!!.as_string()!! == "Office", "the other keys are kept");
-		assert(quiet.dict_get("802-11-wireless-security")!!.dict_get("psk")!!.as_string()!! == "correct horse", "the other groups are kept");
+		assert(quiet.dict_get(
+			"802-11-wireless-security"
+		)!!.dict_get("psk")!!.as_string()!! == "correct horse", "the other groups are kept");
 		Value added = nm_settings::with_bool(tmem, settings, "ipv4", "ignore-auto-dns", true)!!;
 		assert(added.dict_get("ipv4")!!.dict_get("ignore-auto-dns")!!.as_bool()!!, "a missing group is created");
 	};

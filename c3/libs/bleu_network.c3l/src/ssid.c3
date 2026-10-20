@@ -10,9 +10,9 @@ import bleu::dbus::names;
 *>
 fn Ssid make_ssid(Allocator allocator, char[] bytes)
 {
-	if (bytes.len == 0) return { .bytes = {}, .label = "" };
-	char[] copy   = alloc::clone_slice(allocator, bytes);
-	String label  = names::is_utf8_text((String)bytes) ? ((String)bytes).copy(allocator) : "";
+	if (bytes.len == 0) return { .bytes = { }, .label = "" };
+	char[] copy  = alloc::clone_slice(allocator, bytes);
+	String label = names::is_utf8_text((String)bytes) ? ((String)bytes).copy(allocator) : "";
 	return { .bytes = copy, .label = label };
 }
 

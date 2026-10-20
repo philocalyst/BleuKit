@@ -40,10 +40,10 @@ enum Security : char
 {
 	OPEN,
 	WEP,
-	WPA_PSK,   // WPA1 pre-shared key
-	WPA2_PSK,  // WPA2 pre-shared key (also what a WPA2/WPA3 transition network reports)
-	WPA3_SAE,  // WPA3 personal (SAE only)
-	OWE,       // Opportunistic Wireless Encryption: encrypted, no passphrase
+	WPA_PSK,    // WPA1 pre-shared key
+	WPA2_PSK,   // WPA2 pre-shared key (also what a WPA2/WPA3 transition network reports)
+	WPA3_SAE,   // WPA3 personal (SAE only)
+	OWE,        // Opportunistic Wireless Encryption: encrypted, no passphrase
 	ENTERPRISE, // 802.1X; detected, not connectable in this version
 	UNKNOWN,
 }
@@ -94,11 +94,11 @@ enum ConnectionPhase : char
 {
 	IDLE,
 	CONNECTING,
-	AUTH_REQUIRED,    // the network needs a secret and none is available
+	AUTH_REQUIRED, // the network needs a secret and none is available
 	OBTAINING_ADDRESS,
 	CONNECTED,
 	DISCONNECTING,
-	FAILED,           // `failure` says why
+	FAILED,        // `failure` says why
 }
 
 <*
@@ -130,15 +130,15 @@ enum FailureReason : char
 struct AccessPoint
 {
 	Ssid ssid;
-	String bssid;              // "" when unknown or withheld
+	String bssid; // "" when unknown or withheld
 	Maybe{MegaHertz} frequency;
-	Maybe{Dbm} signal;         // dBm when the platform gives it
-	Maybe{Level} quality;      // 0..1 when the platform gives a quality figure
+	Maybe{Dbm} signal; // dBm when the platform gives it
+	Maybe{Level} quality; // 0..1 when the platform gives a quality figure
 	Band band;
 	Security security;
-	bool in_use;               // the connection the device is on
-	bool known;                // a saved profile exists for this SSID
-	bool autoconnect;          // meaningful only when `known`
+	bool in_use; // the connection the device is on
+	bool known; // a saved profile exists for this SSID
+	bool autoconnect; // meaningful only when `known`
 }
 
 <* Frequency in MHz. *>
@@ -156,7 +156,7 @@ struct Interface
 	String name;
 	InterfaceKind kind;
 	LinkState link;
-	Maybe{bool} carrier;       // the cable or radio link has carrier
+	Maybe{bool} carrier; // the cable or radio link has carrier
 	Maybe{Mbps} speed;
 	Maybe{Bytes} rx_bytes;
 	Maybe{Bytes} tx_bytes;
@@ -167,14 +167,14 @@ struct Wifi
 {
 	bool present;
 	String interface_name;
-	bool radio_enabled;        // software switch
-	bool hardware_blocked;     // a physical switch or firmware refuses the radio
+	bool radio_enabled; // software switch
+	bool hardware_blocked; // a physical switch or firmware refuses the radio
 	bool scanning;
-	bool ssid_visible;         // false when the OS withholds names from this process
+	bool ssid_visible; // false when the OS withholds names from this process
 	ConnectionPhase phase;
-	FailureReason failure;     // NONE unless `phase` is FAILED or AUTH_REQUIRED
-	Ssid connected_ssid;       // empty bytes when not connected or withheld
-	Maybe{Dbm} signal;         // of the connected network
+	FailureReason failure; // NONE unless `phase` is FAILED or AUTH_REQUIRED
+	Ssid connected_ssid; // empty bytes when not connected or withheld
+	Maybe{Dbm} signal; // of the connected network
 	AccessPoint[] networks;
 }
 
@@ -183,7 +183,7 @@ struct State
 {
 	Connectivity connectivity;
 	LocationAccess location;
-	String primary_interface;  // "" when there is no connection
+	String primary_interface; // "" when there is no connection
 	Wifi wifi;
 	Interface[] interfaces;
 }
@@ -191,31 +191,31 @@ struct State
 <* Abilities of a backend. Every service operation has one. *>
 enum Cap : char
 {
-	WIFI_RADIO,              // set_radio
-	WIFI_SCAN,               // scan
-	WIFI_CONNECT_OPEN,       // connect to an open network
-	WIFI_CONNECT_PSK,        // connect with a passphrase given up front
-	WIFI_DISCONNECT,         // disconnect
-	WIFI_FORGET,             // forget a saved network
-	WIFI_AUTOCONNECT,        // set_autoconnect
-	WIFI_SECRET_PROMPT,      // CREDENTIALS_WANTED events, answered with supply_credentials
-	SSID_VISIBILITY,         // SSID bytes are reported (false when withheld, see LocationAccess)
-	WIFI_BSSID,              // BSSIDs are reported
-	WIFI_SIGNAL_DBM,         // signal strength in dBm (otherwise only a quality figure)
-	INTERFACE_STATE,         // link state and carrier per interface
-	INTERFACE_SPEED,         // link speed per interface
-	INTERFACE_COUNTERS,      // traffic counters per interface
-	CONNECTIVITY,            // internet reachability
+	WIFI_RADIO,         // set_radio
+	WIFI_SCAN,          // scan
+	WIFI_CONNECT_OPEN,  // connect to an open network
+	WIFI_CONNECT_PSK,   // connect with a passphrase given up front
+	WIFI_DISCONNECT,    // disconnect
+	WIFI_FORGET,        // forget a saved network
+	WIFI_AUTOCONNECT,   // set_autoconnect
+	WIFI_SECRET_PROMPT, // CREDENTIALS_WANTED events, answered with supply_credentials
+	SSID_VISIBILITY,    // SSID bytes are reported (false when withheld, see LocationAccess)
+	WIFI_BSSID,         // BSSIDs are reported
+	WIFI_SIGNAL_DBM,    // signal strength in dBm (otherwise only a quality figure)
+	INTERFACE_STATE,    // link state and carrier per interface
+	INTERFACE_SPEED,    // link speed per interface
+	INTERFACE_COUNTERS, // traffic counters per interface
+	CONNECTIVITY,       // internet reachability
 }
 
 <* A transient: something happened. Re-read the state for the values. *>
 enum EventKind : char
 {
-	NETWORKS_CHANGED,         // the list of visible networks changed
-	CONNECTION_CHANGED,       // the phase or the connected network changed
-	CREDENTIALS_WANTED,       // a passphrase is needed: answer with supply_credentials(request, secret)
-	CREDENTIALS_WITHDRAWN,    // the request is no longer wanted: drop any prompt for it
-	INTERFACES_CHANGED,       // an interface appeared, disappeared or changed link state
+	NETWORKS_CHANGED,      // the list of visible networks changed
+	CONNECTION_CHANGED,    // the phase or the connected network changed
+	CREDENTIALS_WANTED,    // a passphrase is needed: answer with supply_credentials(request, secret)
+	CREDENTIALS_WITHDRAWN, // the request is no longer wanted: drop any prompt for it
+	INTERFACES_CHANGED,    // an interface appeared, disappeared or changed link state
 }
 
 <* What kind of secret a request asks for. *>
@@ -228,9 +228,9 @@ enum SecretKind : char
 struct Event
 {
 	EventKind kind;
-	ulong request;        // CREDENTIALS_*: the id to answer with
-	Ssid ssid;            // CREDENTIALS_*, CONNECTION_CHANGED: the network concerned
-	SecretKind secret;    // CREDENTIALS_WANTED
+	ulong request; // CREDENTIALS_*: the id to answer with
+	Ssid ssid; // CREDENTIALS_*, CONNECTION_CHANGED: the network concerned
+	SecretKind secret; // CREDENTIALS_WANTED
 }
 
 <* Which mechanism provides the data. *>
@@ -247,9 +247,9 @@ enum Backend : char
 *>
 struct Options
 {
-	Backend backend;   // AUTO tries every backend of the platform in priority order
-	Duration poll;     // periodic re-read; 0 means the default (5 s)
-	String root;       // prefix for sysfs; "" for the real system. Lets tests use a fake tree
+	Backend backend; // AUTO tries every backend of the platform in priority order
+	Duration poll; // periodic re-read; 0 means the default (5 s)
+	String root; // prefix for sysfs; "" for the real system. Lets tests use a fake tree
 	String bus_address; // D-Bus address for NetworkManager; "" for the system bus. Lets tests use a private bus
 }
 
@@ -263,8 +263,8 @@ struct Connected
 <* Completion value of every other request: whether the world had to change. *>
 enum Settled : char
 {
-	CHANGED,  // the request changed the state
-	ALREADY,  // the state already was what was asked for
+	CHANGED, // the request changed the state
+	ALREADY, // the state already was what was asked for
 }
 
 alias ConnectOp = Operation{Connected};
@@ -286,7 +286,7 @@ struct SecretBuffer
 
 enum CommandKind : char
 {
-	REFRESH,        // read the hardware now
+	REFRESH, // read the hardware now
 	SCAN,
 	CONNECT,
 	DISCONNECT,
@@ -303,9 +303,9 @@ enum CommandKind : char
 struct Command
 {
 	CommandKind kind;
-	bool flag;             // SET_RADIO, SET_AUTOCONNECT: the new value; CONNECT: autoconnect
-	SsidBuffer ssid;       // CONNECT, FORGET, SET_AUTOCONNECT
-	SecretBuffer secret;   // CONNECT: "" for open networks and saved profiles
-	ConnectOp* connect;    // CONNECT
-	SettleOp* settle;      // every other kind
+	bool flag; // SET_RADIO, SET_AUTOCONNECT: the new value; CONNECT: autoconnect
+	SsidBuffer ssid; // CONNECT, FORGET, SET_AUTOCONNECT
+	SecretBuffer secret; // CONNECT: "" for open networks and saved profiles
+	ConnectOp* connect; // CONNECT
+	SettleOp* settle; // every other kind
 }

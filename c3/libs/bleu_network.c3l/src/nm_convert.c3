@@ -13,7 +13,7 @@ import std::collections::maybe, bleu::unit, bleu::network;
 <* NM_DEVICE_TYPE_ETHERNET (nm-dbus-types). *>
 const uint DEVICE_TYPE_ETHERNET = 1;
 <* NM_DEVICE_TYPE_WIFI (nm-dbus-types). *>
-const uint DEVICE_TYPE_WIFI = 2;
+const uint DEVICE_TYPE_WIFI     = 2;
 
 <* NMDeviceState values (nm-dbus-types). *>
 const uint DEVICE_STATE_UNMANAGED    = 10;
@@ -30,34 +30,34 @@ const uint DEVICE_STATE_DEACTIVATING = 110;
 const uint DEVICE_STATE_FAILED       = 120;
 
 <* NMDeviceStateReason values used by the mapping (nm-dbus-types; nmrs state_reason.rs). *>
-const uint REASON_NONE                       = 0;
-const uint REASON_CONFIG_FAILED              = 4;
-const uint REASON_IP_CONFIG_UNAVAILABLE      = 5;
-const uint REASON_IP_CONFIG_EXPIRED          = 6;
-const uint REASON_NO_SECRETS                 = 7;
-const uint REASON_SUPPLICANT_DISCONNECT      = 8;
-const uint REASON_SUPPLICANT_CONFIG_FAILED   = 9;
-const uint REASON_SUPPLICANT_FAILED          = 10;
-const uint REASON_SUPPLICANT_TIMEOUT         = 11;
-const uint REASON_DHCP_START_FAILED          = 15;
-const uint REASON_DHCP_ERROR                 = 16;
-const uint REASON_DHCP_FAILED                = 17;
-const uint REASON_DEVICE_REMOVED             = 36;
-const uint REASON_SLEEPING                   = 37;
-const uint REASON_CONNECTION_REMOVED         = 38;
-const uint REASON_USER_REQUESTED             = 39;
-const uint REASON_CARRIER                    = 40;
-const uint REASON_DEPENDENCY_FAILED          = 50;
-const uint REASON_SSID_NOT_FOUND             = 53;
-const uint REASON_FIRMWARE_MISSING           = 35;
-const uint REASON_NETWORKING_OFF             = 78;
+const uint REASON_NONE                     = 0;
+const uint REASON_CONFIG_FAILED            = 4;
+const uint REASON_IP_CONFIG_UNAVAILABLE    = 5;
+const uint REASON_IP_CONFIG_EXPIRED        = 6;
+const uint REASON_NO_SECRETS               = 7;
+const uint REASON_SUPPLICANT_DISCONNECT    = 8;
+const uint REASON_SUPPLICANT_CONFIG_FAILED = 9;
+const uint REASON_SUPPLICANT_FAILED        = 10;
+const uint REASON_SUPPLICANT_TIMEOUT       = 11;
+const uint REASON_DHCP_START_FAILED        = 15;
+const uint REASON_DHCP_ERROR               = 16;
+const uint REASON_DHCP_FAILED              = 17;
+const uint REASON_DEVICE_REMOVED           = 36;
+const uint REASON_SLEEPING                 = 37;
+const uint REASON_CONNECTION_REMOVED       = 38;
+const uint REASON_USER_REQUESTED           = 39;
+const uint REASON_CARRIER                  = 40;
+const uint REASON_DEPENDENCY_FAILED        = 50;
+const uint REASON_SSID_NOT_FOUND           = 53;
+const uint REASON_FIRMWARE_MISSING         = 35;
+const uint REASON_NETWORKING_OFF           = 78;
 
 <* NM80211ApFlags and NM80211ApSecurityFlags (nm-dbus-types; nmrs access_point.rs). *>
-const uint AP_FLAGS_PRIVACY         = 0x00000001;
-const uint AP_SEC_KEY_MGMT_PSK      = 0x00000100;
-const uint AP_SEC_KEY_MGMT_802_1X   = 0x00000200;
-const uint AP_SEC_KEY_MGMT_SAE      = 0x00000400;
-const uint AP_SEC_KEY_MGMT_OWE      = 0x00000800;
+const uint AP_FLAGS_PRIVACY       = 0x00000001;
+const uint AP_SEC_KEY_MGMT_PSK    = 0x00000100;
+const uint AP_SEC_KEY_MGMT_802_1X = 0x00000200;
+const uint AP_SEC_KEY_MGMT_SAE    = 0x00000400;
+const uint AP_SEC_KEY_MGMT_OWE    = 0x00000800;
 
 <* Wi-Fi band frequency ranges in MHz, from the IEEE 802.11 channel plans (2.4 GHz, 5 GHz, 6 GHz). *>
 const uint BAND_2_4_MIN = 2400;
@@ -197,9 +197,3 @@ fn InterfaceKind? kind_from_device_type(uint device_type)
  NM gives no dBm, so Wi-Fi signal in dBm stays empty on this backend.
 *>
 fn Level quality_from_strength(uint strength) => unit::from_percent((float)strength);
-
-<* Whether an NM AP security set needs a passphrase to join. *>
-fn bool needs_passphrase(Security security) @inline
-{
-	return security == WPA_PSK || security == WPA2_PSK || security == WPA3_SAE;
-}

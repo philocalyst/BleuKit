@@ -98,7 +98,7 @@ fn char[] bytes_of(Allocator allocator, Value props, String key)
 	{
 		if (try bytes = nm_settings::bytes_from(allocator, v)) return bytes;
 	}
-	return {};
+	return { };
 }
 
 <*
@@ -125,9 +125,6 @@ fn void? method_void(Proxy* proxy, String member)
 	Message* reply = proxy.connection.call(call)!;
 	defer reply.release();
 }
-
-<* All properties of `proxy`'s interface as an `a{sv}`, with `allocator` owning them. *>
-fn Value? properties(Proxy* proxy, Allocator allocator) => proxy.get_all_properties(allocator);
 
 <*
  Make a proxy for an object of NetworkManager. The connection must outlive it.

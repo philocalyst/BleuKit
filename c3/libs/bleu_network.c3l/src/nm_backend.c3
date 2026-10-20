@@ -1,7 +1,7 @@
 // The NetworkManager backend: the driver entry, the bus, the signal handlers
 // and the worker loop. Reading, commands and pending requests are in the other
 // `nm_*.c3` files of this module.
-//
+// 
 // Threading: the loop, every bus call and every handler run on the worker
 // thread. Signal handlers only record what happened (a flag, a transition);
 // the loop acts on it after `process()` returns, so no handler calls the bus.
@@ -12,19 +12,19 @@ import std::io::path, std::time, std::collections::list, bleu::availability, ble
 struct Backend
 {
 	Allocator allocator;
-	String root;                 // sysfs prefix, "" for the real system
-	Duration poll;               // periodic read interval
-	String bus_address;          // D-Bus address, "" for the system bus
-	Connection bus;              // the D-Bus connection: opened, used and freed on the worker thread only
-	Proxy nm;                    // the NetworkManager root object
-	String wifi_path;            // object path of the first Wi-Fi device, "" when none
-	String wifi_name;            // its interface name
-	uint device_state;           // its State, as of the last read
-	bool radio_enabled;          // WirelessEnabled, as of the last read
-	long last_scan;              // LastScan, as of the last read
-	bool last_supplied;          // the last connection was started with a passphrase
-	bool changed;                // a signal said something moved since the last read
-	ulong transition_sequence;   // numbers device transitions in arrival order
+	String root; // sysfs prefix, "" for the real system
+	Duration poll; // periodic read interval
+	String bus_address; // D-Bus address, "" for the system bus
+	Connection bus; // the D-Bus connection: opened, used and freed on the worker thread only
+	Proxy nm; // the NetworkManager root object
+	String wifi_path; // object path of the first Wi-Fi device, "" when none
+	String wifi_name; // its interface name
+	uint device_state; // its State, as of the last read
+	bool radio_enabled; // WirelessEnabled, as of the last read
+	long last_scan; // LastScan, as of the last read
+	bool last_supplied; // the last connection was started with a passphrase
+	bool changed; // a signal said something moved since the last read
+	ulong transition_sequence; // numbers device transitions in arrival order
 	List{Transition} transitions;
 	List{Pending} pending;
 }
@@ -63,12 +63,16 @@ fn bool probe(Options* options)
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	if (catch err = probe_bus(allocator, options.bus_address)) return err~;
-	Backend* self = alloc::new(allocator, Backend, {
-		.allocator = allocator,
-		.root = own_text(allocator, options.root),
-		.poll = options.poll,
-		.bus_address = own_text(allocator, options.bus_address),
-	});
+	Backend* self = alloc::new(
+		allocator,
+		Backend,
+		{
+			.allocator = allocator,
+			.root = own_text(allocator, options.root),
+			.poll = options.poll,
+			.bus_address = own_text(allocator, options.bus_address),
+		}
+	);
 	self.transitions.init(allocator);
 	self.pending.init(allocator);
 	fill_capabilities(capabilities);
@@ -90,13 +94,20 @@ fn void? probe_bus(Allocator allocator, String address) @local
 		bus.open_system()!;
 	}
 	bool running = bus.name_has_owner(NM_SERVICE)!;
-	if (!running) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "NetworkManager is not running on the bus")~;
+	if (!running) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"NetworkManager is not running on the bus"
+	)~;
 }
 
 // Offer what this backend can do. Everything else keeps its "not offered" reason.
 fn void fill_capabilities(Capabilities* capabilities) @local
 {
-	capabilities.init(availability::no(availability::Reason.UNSUPPORTED_BACKEND, "not offered by the NetworkManager backend"));
+	capabilities.init(
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "not offered by the NetworkManager backend")
+	);
 	capabilities.set(Cap.WIFI_RADIO, availability::YES);
 	capabilities.set(Cap.WIFI_SCAN, availability::YES);
 	capabilities.set(Cap.WIFI_CONNECT_OPEN, availability::YES);
@@ -110,8 +121,17 @@ fn void fill_capabilities(Capabilities* capabilities) @local
 	capabilities.set(Cap.INTERFACE_SPEED, availability::YES);
 	capabilities.set(Cap.INTERFACE_COUNTERS, availability::YES);
 	capabilities.set(Cap.CONNECTIVITY, availability::YES);
-	capabilities.set(Cap.WIFI_SIGNAL_DBM, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "NetworkManager reports a 0-100 strength, not dBm"));
-	capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the secret agent needs D-Bus object export, which bleu_dbus does not have yet"));
+	capabilities.set(
+		Cap.WIFI_SIGNAL_DBM,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "NetworkManager reports a 0-100 strength, not dBm")
+	);
+	capabilities.set(
+		Cap.WIFI_SECRET_PROMPT,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"the secret agent needs D-Bus object export, which bleu_dbus does not have yet"
+		)
+	);
 }
 
 // Open the connection on the worker thread and subscribe to what the backend reads.
@@ -174,22 +194,26 @@ fn void on_device_state(void* context, Message* signal)
 	Backend* b = (Backend*)context;
 	b.changed = true;
 	// A malformed signal cannot be applied; the next read still shows the device's state.
-	if (catch err = queue_transition(b, signal)) {}
+	if (catch err = queue_transition(b, signal))
+	{
+	}
 }
 
 fn void? queue_transition(Backend* b, Message* signal)
 {
-	Reader r = signal.reader()!;
+	Reader r   = signal.reader()!;
 	uint state = r.read_u32()!;
 	r.read_u32()!;
 	uint reason = r.read_u32()!;
 	b.transition_sequence++;
-	b.transitions.push({
-		.sequence = b.transition_sequence,
-		.device = own_text(b.allocator, signal.path),
-		.state = state,
-		.reason = reason,
-	});
+	b.transitions.push(
+		{
+			.sequence = b.transition_sequence,
+			.device = own_text(b.allocator, signal.path),
+			.state = state,
+			.reason = reason,
+		}
+	);
 }
 
 <* The loop: wait for the bus, the mailbox or the next read; run the commands; read and settle. *>
@@ -213,7 +237,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	refresh(b, hub);
 	while (!host.stopping())
 	{
-		bool woke = true;
+		bool woke     = true;
 		Duration wait = b.pending.len() > 0 ? PENDING_TICK : b.poll;
 		if (catch poller.wait(wait))
 		{
@@ -251,11 +275,11 @@ fn void refresh(Backend* b, NetworkHub* hub)
 	b.changed = false;
 	Snapshot{State}* snapshot = hub.begin();
 	Reading reading;
-	State? state = read_state(b, snapshot.allocator(), &reading);
+	State? state              = read_state(b, snapshot.allocator(), &reading);
 	if (catch err = state)
 	{
-		snapshot.value = {};
-		reading = {};
+		snapshot.value = { };
+		reading = { };
 	}
 	else
 	{

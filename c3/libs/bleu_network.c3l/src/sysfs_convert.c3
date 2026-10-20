@@ -33,7 +33,9 @@ fn Maybe{Mbps} speed_from_sysfs(long mbps)
 	return maybe::value((Mbps)mbps);
 }
 
-<* `carrier` is 1 when the link has carrier. Reading it while the interface is down fails; the caller leaves it empty. *>
+<*
+ `carrier` is 1 when the link has carrier. Reading it while the interface is down fails; the caller leaves it empty.
+*>
 fn Maybe{bool} carrier_from_sysfs(long value) @inline => maybe::value(value != 0);
 
 <* A traffic counter is an unsigned 64-bit count of octets; a negative read is not a counter. *>

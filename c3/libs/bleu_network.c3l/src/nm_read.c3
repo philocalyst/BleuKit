@@ -8,12 +8,12 @@ import std::collections::list, std::collections::maybe, bleu::error, bleu::netwo
 struct Reading
 {
 	bool wifi_found;
-	String wifi_path;    // object path of the first Wi-Fi device (lives in the snapshot's arena)
-	String wifi_name;    // its interface name (lives in the snapshot's arena)
-	uint device_state;   // Wi-Fi device State (nm_convert.DEVICE_STATE_*)
-	uint device_reason;  // Wi-Fi device StateReason
-	long last_scan;      // Wireless.LastScan: changes when a scan finishes
-	bool radio_enabled;  // WirelessEnabled
+	String wifi_path; // object path of the first Wi-Fi device (lives in the snapshot's arena)
+	String wifi_name; // its interface name (lives in the snapshot's arena)
+	uint device_state; // Wi-Fi device State (nm_convert.DEVICE_STATE_*)
+	uint device_reason; // Wi-Fi device StateReason
+	long last_scan; // Wireless.LastScan: changes when a scan finishes
+	bool radio_enabled; // WirelessEnabled
 }
 
 <* The Wi-Fi part of one read: the visible networks and the one in use. *>
@@ -44,7 +44,7 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 		Value root = b.nm.get_all_properties(tmem)!;
 		r.radio_enabled = bool_of(root, "WirelessEnabled");
 		String primary = path_of(tmem, root, "PrimaryConnection");
-		Value paths = method_value(&b.nm, "GetDevices", tmem)!;
+		Value paths    = method_value(&b.nm, "GetDevices", tmem)!;
 		List{Device} devices;
 		devices.init(tmem);
 		List{Interface} interfaces;
@@ -52,11 +52,18 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 		WifiScan wifi_scan;
 		for (usz i = 0; i < paths.count(); i++)
 		{
-			String path = paths.at(i)!.as_object_path()!;
+			String path  = paths.at(i)!.as_object_path()!;
 			Proxy device = object_proxy(&b.bus, path, NM_DEVICE_IFACE)!;
-			Value props = device.get_all_properties(tmem)!;
+			Value props  = device.get_all_properties(tmem)!;
 			InterfaceKind kind;
-			if (try k = nm_convert::kind_from_device_type(uint_of(props, "DeviceType"))) { kind = k; } else { continue; }
+			if (try k = nm_convert::kind_from_device_type(uint_of(props, "DeviceType")))
+			{
+				kind = k;
+			}
+			else
+			{
+				continue;
+			}
 			String name = text_of(tmem, props, "Interface");
 			if (name.len == 0) continue;
 			devices.push({ .path = path, .name = name });
@@ -90,11 +97,11 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 {
 	Proxy wireless = object_proxy(&b.bus, device, NM_WIRELESS_IFACE)!;
-	Value wprops = wireless.get_all_properties(tmem)!;
+	Value wprops   = wireless.get_all_properties(tmem)!;
 	r.last_scan = long_of(wprops, "LastScan");
-	String active = path_of(tmem, wprops, "ActiveAccessPoint");
+	String active      = path_of(tmem, wprops, "ActiveAccessPoint");
 	Profile[] profiles = load_profiles(&b.bus, tmem)!;
-	Value aps = method_value(&wireless, "GetAllAccessPoints", tmem)!;
+	Value aps          = method_value(&wireless, "GetAllAccessPoints", tmem)!;
 	List{AccessPoint} networks;
 	networks.init(tmem);
 	List{uint} strengths;
@@ -103,19 +110,23 @@ fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 	for (usz i = 0; i < aps.count(); i++)
 	{
 		String ap_path = aps.at(i)!.as_object_path()!;
-		Proxy ap = object_proxy(&b.bus, ap_path, NM_AP_IFACE)!;
-		Value props = ap.get_all_properties(tmem)!;
-		char[] bytes = bytes_of(tmem, props, "Ssid");
+		Proxy ap       = object_proxy(&b.bus, ap_path, NM_AP_IFACE)!;
+		Value props    = ap.get_all_properties(tmem)!;
+		char[] bytes   = bytes_of(tmem, props, "Ssid");
 		if (bytes.len == 0) continue;
 		uint strength = byte_of(props, "Strength");
-		uint mhz = uint_of(props, "Frequency");
-		bool in_use = active.len > 0 && ap_path == active;
+		uint mhz      = uint_of(props, "Frequency");
+		bool in_use   = active.len > 0 && ap_path == active;
 		AccessPoint entry = {
 			.ssid = network::make_ssid(out, bytes),
 			.bssid = text_of(out, props, "HwAddress"),
 			.quality = maybe::value(nm_convert::quality_from_strength(strength)),
 			.band = nm_convert::band_from_mhz(mhz),
-			.security = nm_convert::security_from_flags(uint_of(props, "Flags"), uint_of(props, "WpaFlags"), uint_of(props, "RsnFlags")),
+			.security = nm_convert::security_from_flags(
+				uint_of(props, "Flags"),
+				uint_of(props, "WpaFlags"),
+				uint_of(props, "RsnFlags")
+			),
 			.in_use = in_use,
 		};
 		if (mhz != 0) entry.frequency = maybe::value((MegaHertz)mhz);
@@ -167,7 +178,7 @@ fn String? primary_interface(Backend* b, String primary, Device[] devices, Alloc
 {
 	if (primary.len == 0 || primary == NO_OBJECT) return "";
 	Proxy active = object_proxy(&b.bus, primary, NM_ACTIVE_IFACE)!;
-	Value used = active.get_property("Devices", tmem)!;
+	Value used   = active.get_property("Devices", tmem)!;
 	if (used.count() == 0) return "";
 	String first = used.at(0)!.as_object_path()!;
 	foreach (device : devices)
@@ -207,7 +218,11 @@ fn Wifi wifi_state(Backend* b, Reading* r, bool hardware_enabled, WifiScan scan,
 		wifi.phase = FAILED;
 		wifi.failure = AUTH_REJECTED;
 	}
-	else if (has_pending(b, PendingKind.CONNECT) && (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED || r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE))
+	else if (has_pending(
+		b,
+		PendingKind.CONNECT
+	) && (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED
+		|| r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE))
 	{
 		wifi.phase = CONNECTING;
 	}
@@ -216,12 +231,12 @@ fn Wifi wifi_state(Backend* b, Reading* r, bool hardware_enabled, WifiScan scan,
 
 fn Interface[] clone_interfaces(Allocator out, Interface[] source) @local
 {
-	if (source.len == 0) return {};
+	if (source.len == 0) return { };
 	return alloc::clone_slice(out, source);
 }
 
 fn AccessPoint[] clone_networks(Allocator out, AccessPoint[] source) @local
 {
-	if (source.len == 0) return {};
+	if (source.len == 0) return { };
 	return alloc::clone_slice(out, source);
 }
