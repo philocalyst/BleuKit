@@ -14,7 +14,7 @@ import std::os::win32;
 import bleu::error, bleu::win::guid, bleu::win::hresult, bleu::win::errors;
 
 <* `IID_IUnknown` (unknwn.h; Wine include/unknwn.idl). *>
-const Guid IID_IUNKNOWN = guid::guid("00000000-0000-0000-c000-000000000046");
+const Guid IID_IUNKNOWN     = guid::guid("00000000-0000-0000-c000-000000000046");
 <*
  `IID_IAgileObject`: "this object may be called from any apartment". Source:
  objidl.h (mingw-w64; Wine include/objidl.idl), Microsoft Learn "IAgileObject".
@@ -22,19 +22,20 @@ const Guid IID_IUNKNOWN = guid::guid("00000000-0000-0000-c000-000000000046");
 const Guid IID_IAGILEOBJECT = guid::guid("94ea2b94-e9cc-49e0-c0ff-ee64ca8f5b90");
 
 <* `COINIT_MULTITHREADED`: the multithreaded apartment (MTA). objbase.h. *>
-const uint COINIT_MULTITHREADED = 0x0;
+const uint COINIT_MULTITHREADED     = 0x0;
 <* `COINIT_APARTMENTTHREADED`: a single-threaded apartment (STA). objbase.h. *>
 const uint COINIT_APARTMENTTHREADED = 0x2;
 <* `CLSCTX_INPROC_SERVER`, in-process server. wtypesbase.h. *>
-const uint CLSCTX_INPROC_SERVER = 0x1;
+const uint CLSCTX_INPROC_SERVER     = 0x1;
 <* `CLSCTX_INPROC_HANDLER`, in-process handler. wtypesbase.h. *>
-const uint CLSCTX_INPROC_HANDLER = 0x2;
+const uint CLSCTX_INPROC_HANDLER    = 0x2;
 <* `CLSCTX_LOCAL_SERVER`, out-of-process server on this machine. wtypesbase.h. *>
-const uint CLSCTX_LOCAL_SERVER = 0x4;
+const uint CLSCTX_LOCAL_SERVER      = 0x4;
 <* `CLSCTX_REMOTE_SERVER`, server on another machine. wtypesbase.h. *>
-const uint CLSCTX_REMOTE_SERVER = 0x10;
+const uint CLSCTX_REMOTE_SERVER     = 0x10;
 <* `CLSCTX_ALL`, every context above. combaseapi.h. *>
-const uint CLSCTX_ALL = CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER | CLSCTX_LOCAL_SERVER | CLSCTX_REMOTE_SERVER;
+const uint CLSCTX_ALL               = CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER | CLSCTX_LOCAL_SERVER
+	| CLSCTX_REMOTE_SERVER;
 
 alias QueryInterfaceFn = fn hresult::Hresult(void* self, Guid* iid, void** out);
 alias AddRefFn = fn uint(void* self);
@@ -73,7 +74,13 @@ struct Apartment
 
 extern fn Win32_HRESULT coInitializeEx(void* reserved, Win32_DWORD flags) @cname("CoInitializeEx");
 extern fn void coUninitialize() @cname("CoUninitialize");
-extern fn Win32_HRESULT coCreateInstance(Guid* clsid, void* outer, Win32_DWORD context, Guid* iid, void** out) @cname("CoCreateInstance");
+extern fn Win32_HRESULT coCreateInstance(
+	Guid* clsid,
+	void* outer,
+	Win32_DWORD context,
+	Guid* iid,
+	void** out
+) @cname("CoCreateInstance");
 
 <*
  Initialise COM on the calling thread with the given model.
@@ -85,13 +92,17 @@ extern fn Win32_HRESULT coCreateInstance(Guid* clsid, void* outer, Win32_DWORD c
 *>
 fn Apartment? enter(Model model)
 {
-	uint flags = model == MULTI_THREADED ? COINIT_MULTITHREADED : COINIT_APARTMENTTHREADED;
+	uint flags          = model == MULTI_THREADED ? COINIT_MULTITHREADED : COINIT_APARTMENTTHREADED;
 	hresult::Hresult hr = (hresult::Hresult)coInitializeEx(null, flags);
 	if (hr == (hresult::Hresult)hresult::S_OK || hr == (hresult::Hresult)hresult::S_FALSE) return { .owned = true };
 	if (hr == (hresult::Hresult)hresult::RPC_E_CHANGED_MODE)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.WIN32, (int)hr,
-			"this thread already uses the other COM apartment model")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.WIN32,
+			(int)hr,
+			"this thread already uses the other COM apartment model"
+		)~;
 	}
 	return errors::raise_hresult(hr, "CoInitializeEx")~;
 }

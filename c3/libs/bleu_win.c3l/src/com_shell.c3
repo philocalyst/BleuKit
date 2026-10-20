@@ -7,9 +7,9 @@
  per-interface constant, written by the caller, so this module is generic over
  that vtable type and supplies the three `IUnknown` slots itself:
 
-     com_shell::query_interface{MyVtbl}   // slot 0: answers IUnknown, the shell's IID, and IAgileObject
-     com_shell::add_ref{MyVtbl}           // slot 1: atomic reference count
-     com_shell::release{MyVtbl}           // slot 2: frees the shell when the count reaches zero
+ com_shell::query_interface{MyVtbl}   // slot 0: answers IUnknown, the shell's IID, and IAgileObject
+ com_shell::add_ref{MyVtbl}           // slot 1: atomic reference count
+ com_shell::release{MyVtbl}           // slot 2: frees the shell when the count reaches zero
 
  Lifetimes: `create` returns a shell holding one reference, which belongs to
  the caller. Passing the shell to a registrar makes the registrar call
@@ -31,7 +31,7 @@ import std::atomic, bleu::win::guid;
  is the interface's vtable struct, whose first three members are the
  `IUnknownVtbl` slots.
 *>
-struct Shell <Vtbl>
+struct Shell<Vtbl>
 {
 	Vtbl* vtbl;
 	Atomic{uint} refs;
@@ -80,8 +80,9 @@ fn hresult::Hresult query_interface(void* self, Guid* iid, void** out)
 	*out = null;
 	if (!iid) return (hresult::Hresult)hresult::E_POINTER;
 	Shell{Vtbl}* shell = (Shell{Vtbl}*)self;
-	bool answers = iid.equals(com::IID_IUNKNOWN) || iid.equals(shell.iid)
-		|| (shell.agile && iid.equals(com::IID_IAGILEOBJECT));
+	bool answers       = iid.equals(
+		com::IID_IUNKNOWN
+	) || iid.equals(shell.iid) || (shell.agile && iid.equals(com::IID_IAGILEOBJECT));
 	if (!answers) return (hresult::Hresult)hresult::E_NOINTERFACE;
 	shell.refs.add(1);
 	*out = self;
@@ -102,7 +103,7 @@ fn uint add_ref(void* self)
 fn uint release(void* self)
 {
 	Shell{Vtbl}* shell = (Shell{Vtbl}*)self;
-	uint previous = shell.refs.sub(1);
+	uint previous      = shell.refs.sub(1);
 	if (previous == 1)
 	{
 		Allocator allocator = shell.allocator;

@@ -3,7 +3,7 @@
  a backend exposes (get, set, verified set, save, capabilities).
 
  Timing and retry rules come from the open-source implementations, which agree
- with the DDC/CI 1.1 and MCCS 2.2a timings (see `Options` for each value and
+ with the timings their comments cite from the DDC/CI specification (see `Options` for each value and
  its sources). The session never reads a clock: every wait is a call to the
  injected `Sleeper`, so tests see the exact sequence of delays.
 *>
@@ -31,7 +31,7 @@ struct Options
 	// ddcutil `ddc_packet_io.c` (`ddcrc_null_response_max = 3`). ddcutil notes that
 	// some monitors answer unsupported codes with a null message.
 	uint max_null_replies;
-	// Wait between writing a request and reading its reply. DDC/CI 4.3 says at
+	// Wait between writing a request and reading its reply. The DDC/CI spec (section 4.3, as ddcutil cites it) says at
 	// least 40 ms (ddcutil `tuned_sleep.c`, SE_WRITE_TO_READ). The `ddc` crate
 	// `commands.rs` uses 40 ms for Get VCP, and MonitorControl waits 50 ms.
 	Duration write_to_read;
@@ -39,7 +39,7 @@ struct Options
 	// 50 ms ("DELAY_COMMAND_MS"); ddcutil `tuned_sleep.c` says "at least 50ms".
 	Duration between_commands;
 	// Wait before a retry. The `ddc` crate `DELAY_COMMAND_FAILED_MS` is 40 ms, and
-	// Lunar `DDCReadIntel` sleeps 40 ms before each retry (DDC/CI 4.4.1).
+	// Lunar `DDCReadIntel` sleeps 40 ms before each retry (the spec's section 4.4.1, as Lunar cites it).
 	Duration retry_delay;
 	// Wait after Save Current Settings. The `ddc` crate `SaveCurrentSettings` uses
 	// 200 ms. ddcutil `tuned_sleep.c` says "The host should wait at least 200 ms

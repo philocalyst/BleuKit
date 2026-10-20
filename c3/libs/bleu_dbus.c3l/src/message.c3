@@ -285,25 +285,29 @@ fn usz? frame_length(String prefix)
 <*
  Parse one complete message from `frame`, which must be exactly one message
  (as framed by `frame_length`). The bytes are copied into the message, so
- `frame` may be reused. Descriptors that arrived with the message are taken
- over on success and closed by `release`; on failure they remain the caller's.
+ `frame` may be reused.
+
+ The message's descriptors are taken from the front of `descriptors`, which
+ holds the descriptors received so far in arrival order: the first
+ `unix_fds` of them belong to this message. They are removed from the list and
+ owned by the message from then on (closed by `release`). On failure the list
+ is left unchanged.
 
  @param parent : "Allocator for the message"
  @param frame : "The message bytes"
- @param descriptors : "Descriptors received with the message, in order"
- @return? error::PROTOCOL : "The bytes do not form a valid message"
+ @param descriptors : "Received descriptors in arrival order, or null when none can arrive"
+ @return? error::PROTOCOL : "The bytes do not form a valid message, or fewer descriptors arrived than it declares"
 *>
-fn Message*? parse(Allocator parent, String frame, int[] descriptors = {})
+fn Message*? parse(Allocator parent, String frame, List{int}* descriptors = null)
 {
 	usz total = frame_length(frame)!;
 	if (frame.len != total) return error::PROTOCOL~;
 	Message* m = create(parent, INVALID);
-	if (catch err = fill(m, frame, descriptors.len))
+	if (catch err = fill(m, frame, descriptors))
 	{
 		m.release();
 		return err~;
 	}
-	m.fds.push_all(descriptors);
 	m.owns_fds = true;
 	return m;
 }
@@ -321,7 +325,7 @@ fn String? Message.error_text(&self)
 }
 
 // Fills this message from `frame` (already length-checked) and validates it.
-fn void? fill(Message* self, String frame, usz descriptor_count) @private
+fn void? fill(Message* self, String frame, List{int}* descriptors) @private
 {
 	self.big_endian = endianness_of(frame)!;
 	String stored = frame.copy(&self.storage);
@@ -342,8 +346,14 @@ fn void? fill(Message* self, String frame, usz descriptor_count) @private
 	}
 	if (body_at + body_length != stored.len) return error::PROTOCOL~;
 	self.body = stored[body_at:body_length];
-	if (self.unix_fds > descriptor_count) return error::PROTOCOL~;
-	return validate(self);
+	usz available = descriptors == null ? 0 : (usz)descriptors.len();
+	if (self.unix_fds > available) return error::PROTOCOL~;
+	validate(self)!;
+	for (usz i = 0; i < self.unix_fds; i++)
+	{
+		self.fds.push(descriptors.get(0));
+		descriptors.remove_at(0);
+	}
 }
 
 // Reads the header field array into `m`, rejecting duplicates and wrong types.

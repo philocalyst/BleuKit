@@ -122,12 +122,12 @@ fn Duration MockMonitor.min_interval_after_write(&self) @dynamic => self.latency
 // Answer one request, if it is well formed. Malformed requests get no answer.
 fn void MockMonitor.handle(&self, char[] bytes)
 {
-	if (bytes.len < 3 || bytes[0] != packet::HOST_SOURCE || (bytes[1] & 0x80) == 0)
+	if (bytes.len < 3 || bytes[0] != packet::HOST_SOURCE || (bytes[1] & packet::LENGTH_FLAG) == 0)
 	{
 		self.bad_requests++;
 		return;
 	}
-	usz n = (usz)(bytes[1] & 0x7F);
+	usz n = (usz)(bytes[1] & packet::LENGTH_MASK);
 	if (n == 0 || bytes.len != n + 3 || bytes[n + 2] != packet::checksum(packet::WRITE_ADDRESS, bytes[0:n + 2]))
 	{
 		self.bad_requests++;

@@ -8,12 +8,12 @@
  would then miss a signal raised in between.
 
  Sources:
-   - CreateEventA, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
-     (bManualReset TRUE: "the state of a manual-reset event object remains
-     signaled until it is set explicitly to the nonsignaled state by the ResetEvent function")
-   - SetEvent, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
-   - ResetEvent, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-resetevent
-   - std::os::win32 (C3 0.8.5): createEventA, setEvent, resetEvent, closeHandle, getLastError
+ - CreateEventA, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
+ (bManualReset TRUE: "the state of a manual-reset event object remains
+ signaled until it is set explicitly to the nonsignaled state by the ResetEvent function")
+ - SetEvent, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
+ - ResetEvent, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-resetevent
+ - std::os::win32 (C3 0.8.5): createEventA, setEvent, resetEvent, closeHandle, getLastError
 *>
 module bleu::rt::wakeup @feat(WIN32);
 import std::os::win32, bleu::error;
@@ -26,7 +26,12 @@ fn void? native_open(Wakeup* self) @private
 	Win32_HANDLE event = win32::createEventA(null, MANUAL_RESET, 0, null);
 	if (!event)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "CreateEvent failed")~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			(int)win32::getLastError(),
+			"CreateEvent failed"
+		)~;
 	}
 	self.read_end = event;
 	self.write_end = event;

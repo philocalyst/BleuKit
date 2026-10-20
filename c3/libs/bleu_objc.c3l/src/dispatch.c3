@@ -8,7 +8,7 @@
  and `dispatch_queue_create` (`DISPATCH_QUEUE_SERIAL` is `NULL`), `dispatch/source.h`
  for `dispatch_source_create`, `dispatch_source_set_timer`, the `_f` handler
  variants and `DISPATCH_SOURCE_TYPE_TIMER`, `dispatch/time.h` for `dispatch_time`
- and `DISPATCH_TIME_NOW`, `dispatch/object.h` for `dispatch_release`). The
+ and `DISPATCH_TIME_NOW`, `dispatch/object.h` for `dispatch_release` and `dispatch_resume`). The
  `dispatch_release`/`dispatch_set_context` prototypes are also in dispatch2 0.3.0
  `src/generated/mod.rs`.
 
@@ -95,14 +95,14 @@ fn void SerialQueue.close(&self)
 }
 
 <*
- A repeating timer on a queue. It is created suspended; `start` arms it and
- `stop` cancels it. Close it when done.
+ A repeating timer on a queue. It is created inactive; `start` activates it and
+ `stop` cancels it. A stopped timer is not restarted: create a new one.
 *>
 struct Timer
 {
 	void* source;
 	Duration interval;
-	bool armed;
+	bool activated;
 }
 
 <*
@@ -123,33 +123,37 @@ fn Timer? repeating_timer(SerialQueue queue, Duration interval, WorkFn handler, 
 	)~;
 	dispatch_set_context(source, context);
 	dispatch_source_set_event_handler_f(source, handler);
-	return { .source = source, .interval = interval, .armed = false };
+	return { .source = source, .interval = interval, .activated = false };
 }
 
-<* Arm the timer: the first tick comes one interval from now. *>
+<*
+ Activate the timer: the first tick comes one interval from now. Starting an
+ active timer does nothing.
+*>
 fn void Timer.start(&self)
 {
+	if (self.activated) return;
 	ulong period = (ulong)self.interval.to_nano();
 	ulong first  = dispatch_time(DISPATCH_TIME_NOW_VALUE, (long)period);
 	dispatch_source_set_timer(self.source, first, period, period / 10);
 	dispatch_resume(self.source);
-	self.armed = true;
+	self.activated = true;
 }
 
 <* Cancel the timer. No further ticks are delivered after this returns. *>
 fn void Timer.stop(&self) => dispatch_source_cancel(self.source);
 
 <*
- Release the timer, cancelling it first. Idempotent. A timer that was never
- started is resumed once before cancelling, because libdispatch refuses to
- release a suspended object.
+ Cancel and release the timer. Idempotent. A timer that was never started is
+ activated first, because libdispatch requires a source to be activated before
+ it is disposed (source.h).
 *>
 fn void Timer.close(&self)
 {
 	if (!self.source) return;
-	if (!self.armed) dispatch_resume(self.source);
+	if (!self.activated) dispatch_resume(self.source);
 	dispatch_source_cancel(self.source);
 	dispatch_release(self.source);
 	self.source = null;
-	self.armed = false;
+	self.activated = false;
 }

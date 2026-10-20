@@ -6,7 +6,7 @@ import std::io, bleu::error;
 fn void guid_literal_matches_fields() @test
 {
 	const Guid IID = guid("2f13c006-a03a-5f69-b090-75a43e33423e");
-	Guid fields = make(0x2f13c006, 0xa03a, 0x5f69, 0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e);
+	Guid fields    = make(0x2f13c006, 0xa03a, 0x5f69, 0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e);
 	assert(IID.equals(fields));
 	assert(IID.data1 == 0x2f13c006);
 	assert(IID.data4[7] == 0x3e);
@@ -41,7 +41,7 @@ fn void guid_parse_rejects_malformed() @test
 
 fn void guid_format_round_trips() @test
 {
-	Guid g = guid("2f13c006-a03a-5f69-b090-75a43e33423e");
+	Guid g      = guid("2f13c006-a03a-5f69-b090-75a43e33423e");
 	String text = g.format(tmem);
 	assert(text == "{2F13C006-A03A-5F69-B090-75A43E33423E}");
 	assert(parse(text)!!.equals(g));

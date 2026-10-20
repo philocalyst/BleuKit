@@ -81,7 +81,7 @@ struct Observable
 	bool closed;
 	List{Watcher} watchers;
 	uint next_watch_id;
-	Thread notifying;     // thread currently inside a listener, if any
+	Thread notifying; // thread currently inside a listener, if any
 	bool in_notify;
 }
 
@@ -93,7 +93,7 @@ typedef WatchId = uint;
 *>
 fn void Observable.init(&self, Allocator allocator)
 {
-	*self = {};
+	*self = { };
 	self.mutex.init()!!;
 	self.changed.init()!!;
 	self.watchers.init(allocator);

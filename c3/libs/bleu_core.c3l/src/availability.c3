@@ -45,14 +45,14 @@ fn fault Availability.refusal(self)
 	switch (self.reason)
 	{
 		case AVAILABLE:
-		case DEGRADED:             unreachable("an available capability has no fault");
+		case DEGRADED: unreachable("an available capability has no fault");
 		case UNSUPPORTED_OS:
-		case UNSUPPORTED_BACKEND:  return error::UNSUPPORTED;
-		case PERMISSION_NEEDED:    return error::PERMISSION_DENIED;
+		case UNSUPPORTED_BACKEND: return error::UNSUPPORTED;
+		case PERMISSION_NEEDED: return error::PERMISSION_DENIED;
 		case BACKEND_MISSING:
 		case BACKEND_STOPPED:
 		case HARDWARE_ABSENT:
-		case DISABLED_BY_POLICY:   return error::UNAVAILABLE;
+		case DISABLED_BY_POLICY: return error::UNAVAILABLE;
 	}
 }
 
@@ -63,7 +63,7 @@ fn fault Availability.refusal(self)
 *>
 struct BackendInfo
 {
-	String name;         // stable identifier: "networkmanager", "corewlan", "wlanapi"
-	String description;  // one line for logs and diagnostics
-	int priority;        // higher is tried first
+	String name; // stable identifier: "networkmanager", "corewlan", "wlanapi"
+	String description; // one line for logs and diagnostics
+	int priority; // higher is tried first
 }

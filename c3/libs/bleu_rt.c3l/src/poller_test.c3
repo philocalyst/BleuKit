@@ -58,10 +58,13 @@ fn void sources_must_have_unique_tags() @test
 	waiter.init(mem, &wake, 2)!!;
 	defer waiter.free();
 	waiter.add({ .handle = wake.native(), .interest = { .readable = true }, .tag = 3 })!!;
-	test::@error(waiter.add({ .handle = wake.native(), .interest = {}, .tag = 3 }), error::INVALID_ARGUMENT);
-	test::@error(waiter.add({ .handle = wake.native(), .interest = {}, .tag = poller::WAKEUP_TAG }), error::INVALID_ARGUMENT);
-	waiter.add({ .handle = wake.native(), .interest = {}, .tag = 4 })!!;
-	test::@error(waiter.add({ .handle = wake.native(), .interest = {}, .tag = 5 }), error::OUT_OF_RANGE);
+	test::@error(waiter.add({ .handle = wake.native(), .interest = { }, .tag = 3 }), error::INVALID_ARGUMENT);
+	test::@error(
+		waiter.add({ .handle = wake.native(), .interest = { }, .tag = poller::WAKEUP_TAG }),
+		error::INVALID_ARGUMENT
+	);
+	waiter.add({ .handle = wake.native(), .interest = { }, .tag = 4 })!!;
+	test::@error(waiter.add({ .handle = wake.native(), .interest = { }, .tag = 5 }), error::OUT_OF_RANGE);
 	waiter.remove(3)!!;
 	test::@error(waiter.remove(3), NOT_FOUND);
 }

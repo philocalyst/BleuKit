@@ -5,8 +5,10 @@
 
  The wake-up path is a version-0 `CFRunLoopSource`. Any thread calls `wake()`,
  which signals the source and calls `CFRunLoopWakeUp`; the loop thread then runs
- `on_wake` on its own thread. Both calls are documented as safe from any thread
- (CFRunLoop.h: CFRunLoopSourceSignal, CFRunLoopWakeUp).
+ `on_wake` on its own thread. This is the standard wake-up pattern for a run loop
+ source. `CFRunLoop.h` declares both functions but does not state their thread
+ safety, so the research record counts this as a documented usage pattern, not a
+ header guarantee.
 
  Sources: CoreFoundation `CFRunLoop.h` (CFRunLoopSourceContext field order, which
  is `version, info, retain, release, copyDescription, equal, hash, schedule, cancel,

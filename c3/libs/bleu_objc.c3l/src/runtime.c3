@@ -109,12 +109,19 @@ fn ObjClass class_named(ZString name) @inline => objc::lookUpClass(name);
  (`ulong`) for `NSUInteger`. Selectors must be string literals.
 *>
 macro ObjId Obj.send_id(self, ZString $selector, ...) => self.ptr.send(ObjId, $selector, ...$vaarg);
+<* Send a message returning `BOOL` (C3 `bool`). *>
 macro bool Obj.send_bool(self, ZString $selector, ...) => self.ptr.send(bool, $selector, ...$vaarg);
+<* Send a message returning a 64-bit signed integer (`long`, `NSInteger`). *>
 macro long Obj.send_long(self, ZString $selector, ...) => self.ptr.send(long, $selector, ...$vaarg);
+<* Send a message returning a 64-bit unsigned integer (`NSUInteger`). *>
 macro ulong Obj.send_ulong(self, ZString $selector, ...) => self.ptr.send(ulong, $selector, ...$vaarg);
+<* Send a message returning `double` (`CGFloat` on 64-bit). *>
 macro double Obj.send_double(self, ZString $selector, ...) => self.ptr.send(double, $selector, ...$vaarg);
+<* Send a message with no return value. *>
 macro void Obj.send_void(self, ZString $selector, ...) => self.ptr.send_void($selector, ...$vaarg);
+<* Send a message returning `CGRect` or `NSRect`. Stret rules: see above. *>
 macro cg::CGRect Obj.send_rect(self, ZString $selector, ...) => self.ptr.send(cg::CGRect, $selector, ...$vaarg);
+<* Send a message returning `NSRange`. *>
 macro NSRange Obj.send_range(self, ZString $selector, ...) => self.ptr.send(NSRange, $selector, ...$vaarg);
 
 <*

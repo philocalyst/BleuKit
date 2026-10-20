@@ -5,7 +5,7 @@ import bleu::error;
 fn void wide_round_trip_keeps_text() @test
 {
 	String original = "héllo €𝄞 ok";
-	WideZ wide = to_wide(tmem, original)!!;
+	WideZ wide      = to_wide(tmem, original)!!;
 	assert(wide.len() == 12);
 	assert(wide.as_wstring()[wide.len()] == 0);
 	String back = from_wide(tmem, wide.as_wstring())!!;
@@ -21,12 +21,20 @@ fn void wide_units_slice_round_trip() @test
 fn void invalid_utf8_is_rejected() @test
 {
 	String bad = "\xff\xfe";
-	if (catch e = to_wide(tmem, bad)) { assert(e == error::INVALID_ARGUMENT); return; }
+	if (catch e = to_wide(tmem, bad))
+	{
+		assert(e == error::INVALID_ARGUMENT);
+		return;
+	}
 	unreachable("invalid UTF-8 was accepted");
 }
 
 fn void null_wide_string_is_rejected() @test
 {
-	if (catch e = from_wide(tmem, null)) { assert(e == error::INVALID_ARGUMENT); return; }
+	if (catch e = from_wide(tmem, null))
+	{
+		assert(e == error::INVALID_ARGUMENT);
+		return;
+	}
 	unreachable("a null wide string was accepted");
 }

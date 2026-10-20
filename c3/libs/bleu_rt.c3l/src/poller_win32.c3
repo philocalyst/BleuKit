@@ -3,18 +3,20 @@
  window messages must be pumped on this thread.
 
  Sources:
-   - WaitForMultipleObjects, https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects
-     nCount at most MAXIMUM_WAIT_OBJECTS (64); the return value minus WAIT_OBJECT_0 is
-     the index of the object that satisfied the wait; WAIT_TIMEOUT and WAIT_FAILED.
-   - MsgWaitForMultipleObjects, https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-msgwaitformultipleobjects
-     nCount at most MAXIMUM_WAIT_OBJECTS minus one; WAIT_OBJECT_0 + nCount means
-     input of the kind named by dwWakeMask is available.
-   - QS_ALLINPUT = (QS_INPUT | QS_POSTMESSAGE | QS_TIMER | QS_PAINT | QS_HOTKEY | QS_SENDMESSAGE)
-     (the formula on https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getqueuestatus),
-     with the QS_* values from Wine's include/winuser.h (QS_KEY 0x0001, QS_MOUSEMOVE 0x0002,
-     QS_MOUSEBUTTON 0x0004, QS_POSTMESSAGE 0x0008, QS_TIMER 0x0010, QS_PAINT 0x0020,
-     QS_SENDMESSAGE 0x0040, QS_HOTKEY 0x0080, QS_RAWINPUT 0x0400, QS_TOUCH 0x0800,
-     QS_POINTER 0x1000), which gives 0x1CFF on current SDKs.
+ - WaitForMultipleObjects,
+ https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects
+ nCount at most MAXIMUM_WAIT_OBJECTS (64); the return value minus WAIT_OBJECT_0 is
+ the index of the object that satisfied the wait; WAIT_TIMEOUT and WAIT_FAILED.
+ - MsgWaitForMultipleObjects,
+ https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-msgwaitformultipleobjects
+ nCount at most MAXIMUM_WAIT_OBJECTS minus one; WAIT_OBJECT_0 + nCount means
+ input of the kind named by dwWakeMask is available.
+ - QS_ALLINPUT = (QS_INPUT | QS_POSTMESSAGE | QS_TIMER | QS_PAINT | QS_HOTKEY | QS_SENDMESSAGE)
+ (the formula on https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getqueuestatus),
+ with the QS_* values from Wine's include/winuser.h (QS_KEY 0x0001, QS_MOUSEMOVE 0x0002,
+ QS_MOUSEBUTTON 0x0004, QS_POSTMESSAGE 0x0008, QS_TIMER 0x0010, QS_PAINT 0x0020,
+ QS_SENDMESSAGE 0x0040, QS_HOTKEY 0x0080, QS_RAWINPUT 0x0400, QS_TOUCH 0x0800,
+ QS_POINTER 0x1000), which gives 0x1CFF on current SDKs.
 
  A waitable object does not say whether it became readable, writable or hung up,
  so each signalled object is reported as readable. Sockets are not waitable
@@ -34,19 +36,19 @@ const usz MAXIMUM_WAIT_OBJECTS = 64;
 const usz MESSAGE_WAIT_OBJECTS = MAXIMUM_WAIT_OBJECTS - 1;
 
 // Queue status flags (Wine winuser.h, see the sources above).
-const Win32_DWORD QS_KEY = 0x0001;
-const Win32_DWORD QS_MOUSEMOVE = 0x0002;
+const Win32_DWORD QS_KEY         = 0x0001;
+const Win32_DWORD QS_MOUSEMOVE   = 0x0002;
 const Win32_DWORD QS_MOUSEBUTTON = 0x0004;
 const Win32_DWORD QS_POSTMESSAGE = 0x0008;
-const Win32_DWORD QS_TIMER = 0x0010;
-const Win32_DWORD QS_PAINT = 0x0020;
+const Win32_DWORD QS_TIMER       = 0x0010;
+const Win32_DWORD QS_PAINT       = 0x0020;
 const Win32_DWORD QS_SENDMESSAGE = 0x0040;
-const Win32_DWORD QS_HOTKEY = 0x0080;
-const Win32_DWORD QS_RAWINPUT = 0x0400;
-const Win32_DWORD QS_TOUCH = 0x0800;
-const Win32_DWORD QS_POINTER = 0x1000;
-const Win32_DWORD QS_INPUT = QS_MOUSEMOVE | QS_MOUSEBUTTON | QS_KEY | QS_RAWINPUT | QS_TOUCH | QS_POINTER;
-const Win32_DWORD QS_ALLINPUT = QS_INPUT | QS_POSTMESSAGE | QS_TIMER | QS_PAINT | QS_HOTKEY | QS_SENDMESSAGE;
+const Win32_DWORD QS_HOTKEY      = 0x0080;
+const Win32_DWORD QS_RAWINPUT    = 0x0400;
+const Win32_DWORD QS_TOUCH       = 0x0800;
+const Win32_DWORD QS_POINTER     = 0x1000;
+const Win32_DWORD QS_INPUT       = QS_MOUSEMOVE | QS_MOUSEBUTTON | QS_KEY | QS_RAWINPUT | QS_TOUCH | QS_POINTER;
+const Win32_DWORD QS_ALLINPUT    = QS_INPUT | QS_POSTMESSAGE | QS_TIMER | QS_PAINT | QS_HOTKEY | QS_SENDMESSAGE;
 
 <* bWaitAll = FALSE: return when any one handle is signalled. *>
 const Win32_BOOL WAIT_FOR_ANY = 0;
@@ -57,7 +59,13 @@ fn void? native_check_limits(usz capacity, bool window_messages) @private
 	// The wake-up takes one handle of the limit.
 	if (capacity + 1 > limit)
 	{
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "a Windows wait holds at most %d handles", limit)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"a Windows wait holds at most %d handles",
+			limit
+		)~;
 	}
 }
 
@@ -69,12 +77,22 @@ fn usz? native_wait(Poller* self, Deadline deadline) @private
 	while (true)
 	{
 		Win32_DWORD timeout = wait_timeout_ms(deadline);
-		Win32_DWORD result = self.window_messages
-			? win32::msgWaitForMultipleObjects((Win32_DWORD)handles, self.entries.ptr, WAIT_FOR_ANY, timeout, QS_ALLINPUT)
+		Win32_DWORD result  = self.window_messages ? win32::msgWaitForMultipleObjects(
+			(Win32_DWORD)handles,
+			self.entries.ptr,
+			WAIT_FOR_ANY,
+			timeout,
+			QS_ALLINPUT
+		)
 			: win32::waitForMultipleObjects((Win32_DWORD)handles, self.entries.ptr, WAIT_FOR_ANY, timeout);
 		if (result == win32::WAIT_FAILED)
 		{
-			return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "wait failed")~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.WIN32,
+				(int)win32::getLastError(),
+				"wait failed"
+			)~;
 		}
 		if (result == win32::WAIT_TIMEOUT)
 		{
@@ -98,14 +116,21 @@ fn Win32_DWORD wait_timeout_ms(Deadline deadline) @private
 fn usz? collect_ready(Poller* self, usz index) @private
 {
 	usz handles = self.count + 1;
-	usz n = 0;
+	usz n       = 0;
 	if (self.window_messages && index == handles)
 	{
 		self.ready[n++] = { .tag = WINDOW_MESSAGES_TAG, .events = readable() };
 	}
 	else if (index >= handles)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "wait returned index %d of %d", index, handles)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			0,
+			"wait returned index %d of %d",
+			index,
+			handles
+		)~;
 	}
 	for (usz i = 0; i < handles; i++)
 	{

@@ -8,8 +8,8 @@
  * selector-based (`observe_selector`): the observer is an object of a class
  built with `ClassBuilder` (`class.c3`) whose method receives the notification.
 
- Threading: the posting thread is AppKit's main thread for workspace
- notifications and an arbitrary thread for distributed ones. Handlers must
+ Threading: workspace notifications are normally posted on AppKit's main thread,
+ and distributed notifications on an arbitrary thread. Handlers must
  only enqueue work to the owning service (ARCHITECTURE.md, "Threads").
 
  Sources: Apple objc4/Foundation method names (`addObserverForName:object:queue:usingBlock:`,

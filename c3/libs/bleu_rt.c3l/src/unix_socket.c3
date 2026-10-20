@@ -6,15 +6,16 @@
  `unix_linux.c3` and `unix_darwin.c3`; everything here is the same on both.
 
  Sources common to both systems:
-   - socket(2), sendmsg(2), recvmsg(2), unix(4):
-     https://man7.org/linux/man-pages/man7/unix.7.html and the XNU sources below
-   - AF_UNIX 1: include/linux/socket.h (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/socket.h)
-     and XNU bsd/sys/socket.h line 387 (https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/sys/socket.h)
-   - SOCK_STREAM 1, SOCK_SEQPACKET 5: include/linux/net.h lines 108 and 112
-     (https://raw.githubusercontent.com/torvalds/linux/master/include/linux/net.h)
-     and XNU bsd/sys/socket.h lines 113 and 119
-   - struct iovec { void *base; size_t len; }: include/uapi/linux/uio.h and XNU bsd/sys/uio.h
-   - SCM_RIGHTS 0x01: XNU bsd/sys/socket.h line 726 and Linux include/linux/socket.h line 192
+ - socket(2), sendmsg(2), recvmsg(2), unix(4):
+ https://man7.org/linux/man-pages/man7/unix.7.html and the XNU sources below
+ - AF_UNIX 1: include/linux/socket.h
+ (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/socket.h)
+ and XNU bsd/sys/socket.h line 387 (https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/sys/socket.h)
+ - SOCK_STREAM 1, SOCK_SEQPACKET 5: include/linux/net.h lines 108 and 112
+ (https://raw.githubusercontent.com/torvalds/linux/master/include/linux/net.h)
+ and XNU bsd/sys/socket.h lines 113 and 119
+ - struct iovec { void *base; size_t len; }: include/uapi/linux/uio.h and XNU bsd/sys/uio.h
+ - SCM_RIGHTS 0x01: XNU bsd/sys/socket.h line 726 and Linux include/linux/socket.h line 192
 *>
 module bleu::rt::unix @feat(POSIX);
 import libc, bleu::rt, bleu::error;
@@ -27,8 +28,8 @@ enum SocketKind : char
 }
 
 // Socket domain and types (sources above).
-const CInt AF_UNIX_FAMILY = 1;
-const CInt SOCK_STREAM_TYPE = 1;
+const CInt AF_UNIX_FAMILY      = 1;
+const CInt SOCK_STREAM_TYPE    = 1;
 const CInt SOCK_SEQPACKET_TYPE = 5;
 
 <*
@@ -43,7 +44,9 @@ const usz MAX_FDS_PER_MESSAGE = 16;
 *>
 const usz CONTROL_BUFFER_SIZE = 256;
 
-<* socklen_t: an unsigned 32-bit length on both Linux and Darwin (socket(2) man pages, XNU bsd/sys/_types/_socklen_t.h). *>
+<*
+ socklen_t: an unsigned 32-bit length on both Linux and Darwin (socket(2) man pages, XNU bsd/sys/_types/_socklen_t.h).
+*>
 alias SockLen = CUInt;
 
 // Offset of sun_path in struct sockaddr_un on both platforms (a 2-byte family
@@ -112,7 +115,7 @@ fn CInt SocketKind.native_type(self)
 {
 	switch (self)
 	{
-		case STREAM:    return SOCK_STREAM_TYPE;
+		case STREAM: return SOCK_STREAM_TYPE;
 		case SEQPACKET: return SOCK_SEQPACKET_TYPE;
 	}
 }
@@ -165,7 +168,7 @@ fn SocketPair? socket_pair(SocketKind kind)
 	{
 		return errno_fault("socketpair", libc::errno())~;
 	}
-	Fd first = { .value = raw[0] };
+	Fd first  = { .value = raw[0] };
 	Fd second = { .value = raw[1] };
 	defer (void)first.close();
 	defer (void)second.close();
@@ -211,20 +214,26 @@ fn UnixSocket? UnixSocket.accept(&self)
  @return? error::BUSY : "Non-blocking socket is full; nothing was sent"
  @return? error::DISCONNECTED : "The peer has closed the connection"
 *>
-fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = {})
+fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = { })
 {
 	if ((usz)fds.len > MAX_FDS_PER_MESSAGE)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "at most %d descriptors per message", MAX_FDS_PER_MESSAGE)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"at most %d descriptors per message",
+			MAX_FDS_PER_MESSAGE
+		)~;
 	}
 	char[CONTROL_BUFFER_SIZE] control_storage;
 	char[] control = control_storage[..];
-	IoVec iov = { .base = bytes.ptr, .len = bytes.len };
+	IoVec iov      = { .base = bytes.ptr, .len = bytes.len };
 	MsgHdr msg;
 	msg.attach(&iov, 1, null, 0);
 	if (fds.len > 0)
 	{
-		usz data_len = (usz)fds.len * CInt::size;
+		usz data_len    = (usz)fds.len * CInt::size;
 		CmsgHdr* header = (CmsgHdr*)control.ptr;
 		header.set_rights(data_len);
 		CInt* values = (CInt*)(control.ptr + cmsg_align(CMSG_HEADER_SIZE));
@@ -247,16 +256,16 @@ fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = {})
 
  @return? error::BUSY : "The socket filled up midway through the message"
 *>
-fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = {})
+fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = { })
 {
-	usz done = 0;
+	usz done     = 0;
 	Fd[] pending = fds;
 	while (done < (usz)bytes.len)
 	{
 		usz accepted = self.send(bytes[done..], pending)!;
 		if (accepted == 0) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "sendmsg accepted no bytes")~;
 		done += accepted;
-		pending = {};
+		pending = { };
 	}
 }
 
@@ -278,7 +287,7 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 {
 	char[CONTROL_BUFFER_SIZE] control_storage;
 	char[] control = control_storage[..];
-	IoVec iov = { .base = buffer.ptr, .len = buffer.len };
+	IoVec iov      = { .base = buffer.ptr, .len = buffer.len };
 	MsgHdr msg;
 	msg.attach(&iov, 1, control.ptr, control.len);
 	sz got;
@@ -289,9 +298,9 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 		if (libc::errno() == EINTR) continue;
 		return errno_fault("recvmsg", libc::errno())~;
 	}
-	usz total = take_descriptors(control.ptr, msg.received_control_len(), fd_buffer);
+	usz total    = take_descriptors(control.ptr, msg.received_control_len(), fd_buffer);
 	usz capacity = (usz)fd_buffer.len;
-	usz stored = min(total, capacity);
+	usz stored   = min(total, capacity);
 	foreach (&fd : fd_buffer[:stored])
 	{
 		if (catch err = configure_received_fd(fd))
@@ -303,7 +312,14 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 	if (total > capacity)
 	{
 		close_stored(fd_buffer[:stored]);
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%d descriptors arrived, room for %d", total, capacity)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"%d descriptors arrived, room for %d",
+			total,
+			capacity
+		)~;
 	}
 	if ((msg.received_flags() & MSG_CTRUNC_FLAG) != 0)
 	{
@@ -315,7 +331,12 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 		close_stored(fd_buffer[:stored]);
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message is longer than the buffer")~;
 	}
-	if (got == 0 && total == 0) return error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "peer closed the connection")~;
+	if (got == 0 && total == 0) return error::raise(
+		error::DISCONNECTED,
+		error::Domain.INTERNAL,
+		0,
+		"peer closed the connection"
+	)~;
 	return { .bytes = (usz)got, .fds = total };
 }
 
@@ -350,16 +371,16 @@ fn Fd? new_socket(SocketKind kind) @private
 // fit. Returns how many descriptors arrived in total.
 fn usz take_descriptors(char* control, usz used, Fd[] out) @private
 {
-	usz total = 0;
+	usz total  = 0;
 	usz offset = 0;
 	while (offset + CMSG_HEADER_SIZE <= used)
 	{
 		CmsgHdr* header = (CmsgHdr*)(control + offset);
-		usz length = header.length();
+		usz length      = header.length();
 		if (length < CMSG_HEADER_SIZE || offset + length > used) break;
 		if (header.is_rights())
 		{
-			usz count = (length - cmsg_align(CMSG_HEADER_SIZE)) / CInt::size;
+			usz count    = (length - cmsg_align(CMSG_HEADER_SIZE)) / CInt::size;
 			CInt* values = (CInt*)(control + offset + cmsg_align(CMSG_HEADER_SIZE));
 			for (usz i = 0; i < count; i++)
 			{

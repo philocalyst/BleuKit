@@ -24,6 +24,7 @@ module bleu::objc @feat(DARWIN) @link("Foundation.framework");
 import std::os::darwin::objc;
 import bleu::error;
 
+<* An Objective-C protocol object (`Protocol *`), from `objc_getProtocol`. *>
 typedef ObjProtocol = void*;
 
 extern fn ObjProtocol objc_getProtocol(ZString name);

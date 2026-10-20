@@ -219,8 +219,8 @@ fn void close_fd(int fd)
 
 <*
  Send as much of `bytes[offset:]` as the socket takes right now, without
- blocking. `descriptors` travel with the first byte, so they are only sent when
- `offset` is 0.
+ blocking. `descriptors` travel with the first byte this call sends, so the
+ caller passes them only on the call that starts the message.
 
  @return "Number of bytes written; 0 when the socket would block"
  @return? error::DISCONNECTED : "The peer has closed the connection"
@@ -232,7 +232,7 @@ fn usz? send_some(int fd, String bytes, usz offset, int[] descriptors)
 	char[CONTROL_CAPACITY] control;
 	Iovec vec = { .base = &bytes[offset], .len = bytes.len - offset };
 	Msghdr msg = { .iov = &vec, .iovlen = 1 };
-	if (offset == 0 && descriptors.len > 0)
+	if (descriptors.len > 0)
 	{
 		usz data_len = descriptors.len * DESCRIPTOR_BYTES;
 		msg.control = &control;
@@ -349,17 +349,21 @@ fn usz control_len(usz data) @inline => control_header_size() + data;
 fn usz control_space(usz data) @inline => control_header_size() + control_align(data);
 
 <*
- Wait until `fd` is readable (or writable when `for_write`), or `timeout` passes.
- Errors and hang-ups count as ready, so the next read or write reports them.
+ Wait until `fd` is readable, writable, or both as asked, or `timeout` passes.
+ Errors and hang-ups count as readable, so the next read reports them.
 
+ @param readable : "Wait for input"
+ @param writable : "Wait for room to write"
  @return "true when the descriptor is ready, false on timeout"
 *>
-fn bool wait(int fd, bool for_write, Duration timeout)
+fn bool wait(int fd, bool readable, bool writable, Duration timeout)
 {
-	Pollfd pfd = { .fd = fd, .events = for_write ? POLLOUT : POLLIN };
+	short events = (readable ? POLLIN : 0) | (writable ? POLLOUT : 0);
+	Pollfd pfd = { .fd = fd, .events = events };
 	int ms = timeout == time::FOREVER ? -1 : (int)min((long)(timeout / 1000) + 1, 0x7fffffff);
 	int result = poll(&pfd, 1, ms);
-	if (result < 0) return libc::errno() == EINTR ? false : true;
+	// A failed poll is reported as ready: the next read or write returns the error.
+	if (result < 0) return true;
 	return result > 0;
 }
 

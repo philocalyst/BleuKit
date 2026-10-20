@@ -45,6 +45,8 @@ fn bool Deadline.wait(self, ConditionVariable* cond, Mutex* mutex)
 	Duration left = self.remaining();
 	if (left <= time::DURATION_ZERO) return false;
 	// WAIT_TIMEOUT is not an error here: the loop re-tests both predicate and deadline.
-	if (catch cond.wait_timeout(mutex, left)) {}
+	if (catch cond.wait_timeout(mutex, left))
+	{
+	}
 	return !self.expired();
 }

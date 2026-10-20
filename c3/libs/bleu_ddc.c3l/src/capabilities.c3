@@ -4,7 +4,7 @@
  (prot(monitor)type(LCD)model(Wacom One 13)cmds(01 02 03 07 F3)
  vcp(04 05 08 12 14(04 05 06 08 0B) 16 18 1A 60(11 12 0F) AC AE)mccs_ver(2.2))
 
- Grammar (MCCS 2.2a section 6 and DDC/CI 4.6): a parenthesised list of segments.
+ Grammar, as ddcutil `vcp/parse_capabilities.c` implements it: a parenthesised list of segments.
  A segment is a name, then a parenthesised value. Values of `vcp` are hex
  codes, each optionally followed by a parenthesised list of allowed values.
 

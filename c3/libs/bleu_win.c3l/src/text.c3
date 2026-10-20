@@ -34,7 +34,7 @@ fn sz WideZ.len(self) @inline => self.units.len;
 fn void WideZ.free(&self)
 {
 	alloc::free(self.allocator, self.units.ptr);
-	self.units = {};
+	self.units = { };
 }
 
 <*

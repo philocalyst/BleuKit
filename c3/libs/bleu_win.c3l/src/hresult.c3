@@ -23,51 +23,51 @@ typedef Hresult = int;
 const uint FACILITY_WIN32 = 7;
 
 <* Success. *>
-const uint S_OK = 0x00000000;
+const uint S_OK               = 0x00000000;
 <* Success with a non-default meaning, e.g. `CoInitializeEx` on an already-initialised thread. *>
-const uint S_FALSE = 0x00000001;
+const uint S_FALSE            = 0x00000001;
 <* The object does not implement the requested interface. *>
-const uint E_NOINTERFACE = 0x80004002;
+const uint E_NOINTERFACE      = 0x80004002;
 <* Not implemented. *>
-const uint E_NOTIMPL = 0x80004001;
+const uint E_NOTIMPL          = 0x80004001;
 <* Unspecified failure. *>
-const uint E_FAIL = 0x80004005;
+const uint E_FAIL             = 0x80004005;
 <* Null pointer argument. *>
-const uint E_POINTER = 0x80004003;
+const uint E_POINTER          = 0x80004003;
 <* `HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)`. *>
-const uint E_ACCESSDENIED = 0x80070005;
+const uint E_ACCESSDENIED     = 0x80070005;
 <* `HRESULT_FROM_WIN32(ERROR_OUTOFMEMORY)`. *>
-const uint E_OUTOFMEMORY = 0x8007000E;
+const uint E_OUTOFMEMORY      = 0x8007000E;
 <* `HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER)`. *>
-const uint E_INVALIDARG = 0x80070057;
+const uint E_INVALIDARG       = 0x80070057;
 <* The COM apartment model of this thread conflicts with an earlier initialisation. *>
 const uint RPC_E_CHANGED_MODE = 0x80010106;
 <* The COM server went away (RPC facility). *>
 const uint RPC_E_DISCONNECTED = 0x80010108;
 
 <* System error codes (Win32 `GetLastError` values), from winerror.h. *>
-const uint ERROR_FILE_NOT_FOUND = 2;
-const uint ERROR_PATH_NOT_FOUND = 3;
-const uint ERROR_ACCESS_DENIED = 5;
-const uint ERROR_INVALID_HANDLE = 6;
-const uint ERROR_NOT_ENOUGH_MEMORY = 8;
-const uint ERROR_INVALID_FUNCTION = 1;
-const uint ERROR_NOT_SUPPORTED = 50;
-const uint ERROR_INVALID_PARAMETER = 87;
-const uint ERROR_INSUFFICIENT_BUFFER = 122;
-const uint ERROR_BUSY = 170;
-const uint ERROR_ALREADY_EXISTS = 183;
-const uint ERROR_OUTOFMEMORY = 14;
-const uint ERROR_MORE_DATA = 234;
-const uint ERROR_NO_MORE_ITEMS = 259;
-const uint ERROR_CANCELLED = 1223;
+const uint ERROR_FILE_NOT_FOUND       = 2;
+const uint ERROR_PATH_NOT_FOUND       = 3;
+const uint ERROR_ACCESS_DENIED        = 5;
+const uint ERROR_INVALID_HANDLE       = 6;
+const uint ERROR_NOT_ENOUGH_MEMORY    = 8;
+const uint ERROR_INVALID_FUNCTION     = 1;
+const uint ERROR_NOT_SUPPORTED        = 50;
+const uint ERROR_INVALID_PARAMETER    = 87;
+const uint ERROR_INSUFFICIENT_BUFFER  = 122;
+const uint ERROR_BUSY                 = 170;
+const uint ERROR_ALREADY_EXISTS       = 183;
+const uint ERROR_OUTOFMEMORY          = 14;
+const uint ERROR_MORE_DATA            = 234;
+const uint ERROR_NO_MORE_ITEMS        = 259;
+const uint ERROR_CANCELLED            = 1223;
 const uint ERROR_CLASS_ALREADY_EXISTS = 1410;
-const uint ERROR_TIMEOUT = 1460;
-const uint ERROR_NOT_FOUND = 1168;
-const uint ERROR_NONE_MAPPED = 1332;
-const uint WAIT_TIMEOUT = 258;
+const uint ERROR_TIMEOUT              = 1460;
+const uint ERROR_NOT_FOUND            = 1168;
+const uint ERROR_NONE_MAPPED          = 1332;
+const uint WAIT_TIMEOUT               = 258;
 <* RPC server unavailable (`RPC_S_SERVER_UNAVAILABLE`), a Win32 code. *>
-const uint RPC_S_SERVER_UNAVAILABLE = 1722;
+const uint RPC_S_SERVER_UNAVAILABLE   = 1722;
 
 <* True when the severity bit is set. Same as the `FAILED` macro. *>
 fn bool Hresult.failed(self) @inline => (int)self < 0;
@@ -105,9 +105,9 @@ fn fault Hresult.to_fault(self)
 	if (self.is_win32()) return win32_to_fault((uint)self & 0x0000ffff);
 	switch ((uint)self)
 	{
-		case E_NOTIMPL:          return error::UNSUPPORTED;
+		case E_NOTIMPL: return error::UNSUPPORTED;
 		case RPC_E_DISCONNECTED: return error::DISCONNECTED;
-		default:                 return error::BACKEND_FAILURE;
+		default: return error::BACKEND_FAILURE;
 	}
 }
 
@@ -125,17 +125,17 @@ fn fault win32_to_fault(uint code)
 	{
 		case ERROR_FILE_NOT_FOUND:
 		case ERROR_PATH_NOT_FOUND:
-		case ERROR_NOT_FOUND:            return NOT_FOUND;
-		case ERROR_ACCESS_DENIED:        return error::PERMISSION_DENIED;
+		case ERROR_NOT_FOUND: return NOT_FOUND;
+		case ERROR_ACCESS_DENIED: return error::PERMISSION_DENIED;
 		case ERROR_NOT_ENOUGH_MEMORY:
-		case ERROR_OUTOFMEMORY:          return error::NO_MEMORY;
-		case ERROR_INVALID_PARAMETER:    return error::INVALID_ARGUMENT;
-		case ERROR_NOT_SUPPORTED:        return error::UNSUPPORTED;
+		case ERROR_OUTOFMEMORY: return error::NO_MEMORY;
+		case ERROR_INVALID_PARAMETER: return error::INVALID_ARGUMENT;
+		case ERROR_NOT_SUPPORTED: return error::UNSUPPORTED;
 		case ERROR_TIMEOUT:
-		case WAIT_TIMEOUT:               return TIMEOUT;
-		case ERROR_BUSY:                 return error::BUSY;
-		case ERROR_CANCELLED:            return error::CANCELLED;
-		case RPC_S_SERVER_UNAVAILABLE:   return error::DISCONNECTED;
-		default:                         return error::BACKEND_FAILURE;
+		case WAIT_TIMEOUT: return TIMEOUT;
+		case ERROR_BUSY: return error::BUSY;
+		case ERROR_CANCELLED: return error::CANCELLED;
+		case RPC_S_SERVER_UNAVAILABLE: return error::DISCONNECTED;
+		default: return error::BACKEND_FAILURE;
 	}
 }

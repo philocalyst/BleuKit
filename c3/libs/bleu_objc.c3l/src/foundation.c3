@@ -20,6 +20,7 @@ import std::os::darwin::objc, std::os::macos::cg, bleu::objc, bleu::error;
 
 <* `NSUInteger` and `NSInteger`. Bleu's Apple targets are all 64-bit, so both are 64 bits wide. *>
 alias NSUInteger = ulong;
+<* `NSInteger`: 64 bits on every Apple target Bleu builds for. *>
 alias NSInteger = long;
 
 <* `NSStringEncoding` value for UTF-8 (`NSUTF8StringEncoding`). *>
@@ -34,22 +35,36 @@ const ZString OS_STATUS_ERROR_DOMAIN = "NSOSStatusErrorDomain";
 
 <* CocoaError codes that map to a Bleu excuse (objc2-foundation FoundationErrors.rs). *>
 const NSInteger COCOA_FILE_NO_SUCH_FILE        = 4;
+<* `NSFileLockingError` (255). *>
 const NSInteger COCOA_FILE_LOCKING             = 255;
+<* `NSFileReadNoPermissionError` (257). *>
 const NSInteger COCOA_FILE_READ_NO_PERMISSION  = 257;
+<* `NSFileReadNoSuchFileError` (260). *>
 const NSInteger COCOA_FILE_READ_NO_SUCH_FILE   = 260;
+<* `NSFileWriteNoPermissionError` (513). *>
 const NSInteger COCOA_FILE_WRITE_NO_PERMISSION = 513;
+<* `NSUserCancelledError` (3072). *>
 const NSInteger COCOA_USER_CANCELLED           = 3072;
+<* `NSFeatureUnsupportedError` (3328). *>
 const NSInteger COCOA_FEATURE_UNSUPPORTED      = 3328;
 
 <* errno values on Darwin (xnu bsd/sys/errno.h). *>
 const NSInteger POSIX_EPERM     = 1;
+<* errno `ENOENT` on Darwin. *>
 const NSInteger POSIX_ENOENT    = 2;
+<* errno `ENOMEM` on Darwin. *>
 const NSInteger POSIX_ENOMEM    = 12;
+<* errno `EACCES` on Darwin. *>
 const NSInteger POSIX_EACCES    = 13;
+<* errno `EBUSY` on Darwin. *>
 const NSInteger POSIX_EBUSY     = 16;
+<* errno `EINVAL` on Darwin. *>
 const NSInteger POSIX_EINVAL    = 22;
+<* errno `ENOTSUP` on Darwin. *>
 const NSInteger POSIX_ENOTSUP   = 45;
+<* errno `ETIMEDOUT` on Darwin. *>
 const NSInteger POSIX_ETIMEDOUT = 60;
+<* errno `ECANCELED` on Darwin. *>
 const NSInteger POSIX_ECANCELED = 89;
 
 <*
@@ -231,18 +246,24 @@ fn fault classify_ns_error(String domain, NSInteger code)
 
  return foundation::raise_ns_error(err, "could not join network")~;
 
- @param error : "The NSError object (nil is reported as an unknown failure)"
+ @param ns_error : "The NSError object (nil is reported as an unknown failure)"
  @param context : "What the caller was doing; a short noun phrase"
  @return "The classified fault, ready to be returned with `~`"
 *>
-fn fault raise_ns_error(ObjId error, String context)
+fn fault raise_ns_error(ObjId ns_error, String context)
 {
-	if (!error) return error::raise(error::BACKEND_FAILURE, error::Domain.NS_ERROR, 0, "%s: no error object", context);
+	if (!ns_error) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.NS_ERROR,
+		0,
+		"%s: no error object",
+		context
+	);
 	@pool()
 	{
-		String domain      = to_string(error.send(ObjId, "domain"), tmem) ?? "?";
-		NSInteger code     = error.send(NSInteger, "code");
-		String description = to_string(error.send(ObjId, "localizedDescription"), tmem) ?? "";
+		String domain      = to_string(ns_error.send(ObjId, "domain"), tmem) ?? "?";
+		NSInteger code     = ns_error.send(NSInteger, "code");
+		String description = to_string(ns_error.send(ObjId, "localizedDescription"), tmem) ?? "";
 		fault f            = classify_ns_error(domain, code);
 		return error::raise(
 			f,

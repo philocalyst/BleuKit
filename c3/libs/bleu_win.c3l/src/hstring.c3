@@ -30,8 +30,8 @@ extern fn Char16* windowsGetStringRawBuffer(void* handle, uint* length) @cname("
 *>
 fn Hstring? create(String text)
 {
-	WideZ wide = text::to_wide(tmem, text)!;
-	void* handle = null;
+	WideZ wide          = text::to_wide(tmem, text)!;
+	void* handle        = null;
 	hresult::Hresult hr = (hresult::Hresult)windowsCreateString(wide.units.ptr, (uint)wide.len(), &handle);
 	if (hr.failed()) return errors::raise_hresult(hr, "WindowsCreateString")~;
 	return { .handle = handle };

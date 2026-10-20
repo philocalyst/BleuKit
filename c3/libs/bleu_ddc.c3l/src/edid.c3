@@ -53,6 +53,21 @@ const char FEATURE_PREFERRED_TIMING = 0x02;
 <* Video input bit: digital (kernel `DRM_EDID_INPUT_DIGITAL`). *>
 const char INPUT_DIGITAL            = 0x80;
 
+<* Mask of one 5-bit letter in the PNP id. *>
+const uint LETTER_MASK     = 0x1F;
+<*
+ Descriptor text ends at this byte; the rest of the 13 bytes is space padding (the `edid` crate and the kernel both read
+ it this way).
+*>
+const char LINE_FEED       = 0x0A;
+<* Printable ASCII range kept from descriptor text: [PRINTABLE_FIRST, PRINTABLE_AFTER). *>
+const char PRINTABLE_FIRST = 0x20;
+const char PRINTABLE_AFTER = 0x7F;
+<* Pixel clock is stored in units of 10 kHz. *>
+const uint CLOCK_UNIT_KHZ  = 10;
+<* Gamma is stored as gamma * 100 - 100. *>
+const double GAMMA_OFFSET  = 100.0;
+
 <* Year of manufacture is stored as an offset from this. *>
 const uint YEAR_BASE = 1990;
 
@@ -173,9 +188,9 @@ fn Edid identify(char[] data, char[] tags, Allocator allocator) @private
 	uint manufacturer = (byte_at(data, 8) << 8) | byte_at(data, 9);
 	Edid edid = {
 		.vendor = {
-			letter((manufacturer >> 10) & 0x1F),
-			letter((manufacturer >> 5) & 0x1F),
-			letter(manufacturer & 0x1F),
+			letter((manufacturer >> 10) & LETTER_MASK),
+			letter((manufacturer >> 5) & LETTER_MASK),
+			letter(manufacturer & LETTER_MASK),
 		},
 		.vendor_code = (ushort)manufacturer,
 		.product_code = (ushort)(byte_at(data, 10) | (byte_at(data, 11) << 8)),
@@ -190,7 +205,7 @@ fn Edid identify(char[] data, char[] tags, Allocator allocator) @private
 		.digital = (data[20] & INPUT_DIGITAL) != 0,
 		.width_cm = data[21],
 		.height_cm = data[22],
-		.gamma = ((double)data[23] + 100.0) / 100.0,
+		.gamma = ((double)data[23] + GAMMA_OFFSET) / 100.0,
 		.has_preferred_timing = (data[24] & FEATURE_PREFERRED_TIMING) != 0,
 		.extension_tags = tags,
 	};
@@ -216,7 +231,7 @@ fn Edid identify(char[] data, char[] tags, Allocator allocator) @private
 fn Timing timing(char[] d) @private
 {
 	return {
-		.pixel_clock_khz = (byte_at(d, 0) | (byte_at(d, 1) << 8)) * 10,
+		.pixel_clock_khz = (byte_at(d, 0) | (byte_at(d, 1) << 8)) * CLOCK_UNIT_KHZ,
 		.horizontal_active = (ushort)(byte_at(d, 2) | ((byte_at(d, 4) >> 4) << 8)),
 		.horizontal_blank = (ushort)(byte_at(d, 3) | ((byte_at(d, 4) & 0x0F) << 8)),
 		.vertical_active = (ushort)(byte_at(d, 5) | ((byte_at(d, 7) >> 4) << 8)),
@@ -232,8 +247,8 @@ fn String descriptor_text(char[] d, Allocator allocator) @private
 	usz kept = 0;
 	for (usz i = 5; i < 18; i++)
 	{
-		if (d[i] == 0x0A) break;
-		if (d[i] >= 0x20 && d[i] < 0x7F) raw[kept++] = d[i];
+		if (d[i] == LINE_FEED) break;
+		if (d[i] >= PRINTABLE_FIRST && d[i] < PRINTABLE_AFTER) raw[kept++] = d[i];
 	}
 	while (kept > 0 && raw[kept - 1] == ' ') kept--;
 	String text = (String)raw[0:kept];

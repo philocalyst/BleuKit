@@ -14,16 +14,23 @@ import std::os::win32, std::core::string;
 import bleu::error, bleu::win::hresult, bleu::win::text;
 
 <* `FORMAT_MESSAGE_FROM_SYSTEM`: look the code up in the system message table. *>
-const Win32_DWORD FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000;
+const Win32_DWORD FORMAT_MESSAGE_FROM_SYSTEM    = 0x00001000;
 <* `FORMAT_MESSAGE_IGNORE_INSERTS`: do not expand `%1`-style inserts (we pass none). *>
 const Win32_DWORD FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200;
 <* Capacity of the message buffer, in UTF-16 units. System messages are far shorter. *>
-const usz MESSAGE_CAPACITY = 512;
+const usz MESSAGE_CAPACITY                      = 512;
 <* Language 0 is `LANG_NEUTRAL` with `SUBLANG_DEFAULT`: the user's installed language. *>
-const Win32_DWORD LANG_USER_DEFAULT = 0;
+const Win32_DWORD LANG_USER_DEFAULT             = 0;
 
-extern fn Win32_DWORD formatMessageW(Win32_DWORD flags, void* source, Win32_DWORD message_id,
-	Win32_DWORD language, Win32_LPWSTR buffer, Win32_DWORD size, void* arguments) @cname("FormatMessageW");
+extern fn Win32_DWORD formatMessageW(
+	Win32_DWORD flags,
+	void* source,
+	Win32_DWORD message_id,
+	Win32_DWORD language,
+	Win32_LPWSTR buffer,
+	Win32_DWORD size,
+	void* arguments
+) @cname("FormatMessageW");
 
 <*
  The system's text for a code, trimmed of the trailing line break that
@@ -35,8 +42,15 @@ extern fn Win32_DWORD formatMessageW(Win32_DWORD flags, void* source, Win32_DWOR
 fn String system_message(Allocator allocator, uint code)
 {
 	Char16[MESSAGE_CAPACITY] buffer;
-	Win32_DWORD written = formatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		null, code, LANG_USER_DEFAULT, &buffer, MESSAGE_CAPACITY, null);
+	Win32_DWORD written = formatMessageW(
+		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		null,
+		code,
+		LANG_USER_DEFAULT,
+		&buffer,
+		MESSAGE_CAPACITY,
+		null
+	);
 	if (written == 0) return "";
 	// A message that is not valid UTF-16 is only decoration for the error; the code is still reported.
 	String text = text::from_wide_units(allocator, buffer[:written]) ?? "";
@@ -56,7 +70,15 @@ fn fault raise_hresult(hresult::Hresult hr, String context)
 	@pool()
 	{
 		String message = system_message(tmem, (uint)hr);
-		return error::raise(hr.to_fault(), error::Domain.WIN32, (int)hr, "%s failed: %s (0x%x)", context, message, (uint)hr);
+		return error::raise(
+			hr.to_fault(),
+			error::Domain.WIN32,
+			(int)hr,
+			"%s failed: %s (0x%x)",
+			context,
+			message,
+			(uint)hr
+		);
 	};
 }
 
@@ -71,7 +93,15 @@ fn fault raise_win32(uint code, String context)
 	@pool()
 	{
 		String message = system_message(tmem, code);
-		return error::raise(hresult::win32_to_fault(code), error::Domain.WIN32, (int)code, "%s failed: %s (%d)", context, message, code);
+		return error::raise(
+			hresult::win32_to_fault(code),
+			error::Domain.WIN32,
+			(int)code,
+			"%s failed: %s (%d)",
+			context,
+			message,
+			code
+		);
 	};
 }
 

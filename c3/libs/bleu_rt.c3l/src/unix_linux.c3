@@ -2,43 +2,44 @@
  Linux layouts and constants for the Unix socket layer.
 
  Sources (two independent ones for each value):
-   - struct msghdr { void *msg_name; socklen_t msg_namelen; struct iovec *msg_iov;
-     size_t msg_iovlen; void *msg_control; size_t msg_controllen; int msg_flags; }:
-     glibc bits/socket.h as mirrored in libc 0.2.170 src/unix/linux_like/linux/gnu/mod.rs:63-71
-     (https://static.crates.io/crates/libc/libc-0.2.170.crate), and the kernel's sendmsg(2) ABI
-     (https://man7.org/linux/man-pages/man2/sendmsg.2.html, "struct msghdr")
-   - struct cmsghdr { size_t cmsg_len; int cmsg_level; int cmsg_type; }, CMSG_ALIGN(len)
-     = (len + sizeof(size_t) - 1) & ~(sizeof(size_t) - 1), CMSG_LEN(n) = CMSG_ALIGN(16) + n:
-     libc 0.2.170 src/unix/linux_like/mod.rs:1627-1650; cmsg(3), https://man7.org/linux/man-pages/man3/cmsg.3.html
-   - struct sockaddr_un { sa_family_t sun_family; char sun_path[108]; }:
-     include/uapi/linux/un.h (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/un.h),
-     unix(7) for abstract names (leading NUL byte)
-   - SOL_SOCKET 1, SO_PEERCRED 17, SCM_RIGHTS 1: include/uapi/asm-generic/socket.h line 30 (SO_PEERCRED 17),
-     include/uapi/linux/socket.h lines 192-193, libc 0.2.170 src/unix/linux_like/linux/arch/generic/mod.rs:40
-   - struct ucred { __u32 pid, uid, gid; }: include/uapi/linux/socket.h line 197
-   - MSG_CTRUNC 0x08, MSG_TRUNC 0x20, MSG_NOSIGNAL 0x4000, MSG_CMSG_CLOEXEC 0x40000000:
-     libc 0.2.170 src/unix/linux_like/mod.rs:834-848
-   - F_GETFL 3, F_SETFL 4: include/uapi/asm-generic/fcntl.h; F_DUPFD_CLOEXEC 1030: libc 0.2.170 linux_like/mod.rs:509
-   - O_CLOEXEC 0x80000 and O_NONBLOCK 0o4000: asm-generic/fcntl.h lines 42 and 66; libc 0.2.170 linux gnu b64 mod.rs:432, 592
+ - struct msghdr { void *msg_name; socklen_t msg_namelen; struct iovec *msg_iov;
+ size_t msg_iovlen; void *msg_control; size_t msg_controllen; int msg_flags; }:
+ glibc bits/socket.h as mirrored in libc 0.2.170 src/unix/linux_like/linux/gnu/mod.rs:63-71
+ (https://static.crates.io/crates/libc/libc-0.2.170.crate), and the kernel's sendmsg(2) ABI
+ (https://man7.org/linux/man-pages/man2/sendmsg.2.html, "struct msghdr")
+ - struct cmsghdr { size_t cmsg_len; int cmsg_level; int cmsg_type; }, CMSG_ALIGN(len)
+ = (len + sizeof(size_t) - 1) & ~(sizeof(size_t) - 1), CMSG_LEN(n) = CMSG_ALIGN(16) + n:
+ libc 0.2.170 src/unix/linux_like/mod.rs:1627-1650; cmsg(3), https://man7.org/linux/man-pages/man3/cmsg.3.html
+ - struct sockaddr_un { sa_family_t sun_family; char sun_path[108]; }:
+ include/uapi/linux/un.h (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/un.h),
+ unix(7) for abstract names (leading NUL byte)
+ - SOL_SOCKET 1, SO_PEERCRED 17, SCM_RIGHTS 1: include/uapi/asm-generic/socket.h line 30 (SO_PEERCRED 17),
+ include/uapi/linux/socket.h lines 192-193, libc 0.2.170 src/unix/linux_like/linux/arch/generic/mod.rs:40
+ - struct ucred { __u32 pid, uid, gid; }: include/uapi/linux/socket.h line 197
+ - MSG_CTRUNC 0x08, MSG_TRUNC 0x20, MSG_NOSIGNAL 0x4000, MSG_CMSG_CLOEXEC 0x40000000:
+ libc 0.2.170 src/unix/linux_like/mod.rs:834-848
+ - F_GETFL 3, F_SETFL 4: include/uapi/asm-generic/fcntl.h; F_DUPFD_CLOEXEC 1030: libc 0.2.170 linux_like/mod.rs:509
+ - O_CLOEXEC 0x80000 and O_NONBLOCK 0o4000: asm-generic/fcntl.h lines 42 and 66; libc 0.2.170 linux gnu b64 mod.rs:432,
+ 592
 *>
 module bleu::rt::unix @feat(LINUX);
 import libc, bleu::error;
 
-const CInt F_GETFL = 3;
-const CInt F_SETFL = 4;
+const CInt F_GETFL         = 3;
+const CInt F_SETFL         = 4;
 const CInt F_DUPFD_CLOEXEC = 1030;
 const CInt O_NONBLOCK_FLAG = 0o4000;
 
 // SOCK_CLOEXEC has the value of O_CLOEXEC: close-on-exec from creation, atomically.
 const CInt SOCKET_CLOEXEC = 0o2000000;
 
-const CInt SOL_SOCKET = 1;
-const CInt SO_PEERCRED = 17;
+const CInt SOL_SOCKET      = 1;
+const CInt SO_PEERCRED     = 17;
 const CInt SCM_RIGHTS_TYPE = 1;
 
-const CInt MSG_CTRUNC_FLAG = 0x08;
-const CInt MSG_TRUNC_FLAG = 0x20;
-const CInt MSG_NOSIGNAL_FLAG = 0x4000;
+const CInt MSG_CTRUNC_FLAG       = 0x08;
+const CInt MSG_TRUNC_FLAG        = 0x20;
+const CInt MSG_NOSIGNAL_FLAG     = 0x4000;
 const CInt MSG_CMSG_CLOEXEC_FLAG = 0x40000000;
 
 // Per send: a write to a closed peer must not raise SIGPIPE and kill the process.
@@ -127,13 +128,27 @@ fn SockLen? socket_address(SockAddrUn* addr, String path)
 	if (is_abstract)
 	{
 		String name = path[1..];
-		if (name.len >= capacity) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "abstract name is %d bytes, at most %d", name.len, capacity - 1)~;
+		if (name.len >= capacity) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"abstract name is %d bytes, at most %d",
+			name.len,
+			capacity - 1
+		)~;
 		addr.sun_path[0] = 0;
 		mem::copy(&addr.sun_path[1], name.ptr, name.len);
 		return (SockLen)(SUN_PATH_OFFSET + 1 + name.len);
 	}
 	// One byte is reserved for the terminating NUL.
-	if (path.len >= capacity) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "socket path is %d bytes, at most %d", path.len, capacity - 1)~;
+	if (path.len >= capacity) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"socket path is %d bytes, at most %d",
+		path.len,
+		capacity - 1
+	)~;
 	mem::copy(&addr.sun_path, path.ptr, path.len);
 	addr.sun_path[path.len] = 0;
 	return (SockLen)(SUN_PATH_OFFSET + path.len + 1);

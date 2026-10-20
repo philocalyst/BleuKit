@@ -2,15 +2,15 @@
  POSIX poller: poll(2) over the wake-up and every registered source.
 
  Sources:
-   - poll(2), https://man7.org/linux/man-pages/man2/poll.2.html (POSIX.1-2008 poll)
-   - struct pollfd { int fd; short events; short revents; } and the POLL* values:
-     XNU bsd/sys/poll.h (https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/sys/poll.h)
-     POLLIN 0x0001, POLLPRI 0x0002, POLLOUT 0x0004, POLLERR 0x0008, POLLHUP 0x0010, POLLNVAL 0x0020
-     and the same values in the libc 0.2.170 crate, src/unix/linux_like/mod.rs:1342-1347
-   - nfds_t: `unsigned long` on glibc (libc crate, src/unix/linux_like/linux/mod.rs:16),
-     `unsigned int` on XNU (xnu bsd/sys/poll.h line 102; libc crate src/unix/bsd/mod.rs:9)
-   - EINTR is retried with the remaining time, as poll(2) advises when a signal
-     handler ran ("EINTR ... the call may be retried").
+ - poll(2), https://man7.org/linux/man-pages/man2/poll.2.html (POSIX.1-2008 poll)
+ - struct pollfd { int fd; short events; short revents; } and the POLL* values:
+ XNU bsd/sys/poll.h (https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/sys/poll.h)
+ POLLIN 0x0001, POLLPRI 0x0002, POLLOUT 0x0004, POLLERR 0x0008, POLLHUP 0x0010, POLLNVAL 0x0020
+ and the same values in the libc 0.2.170 crate, src/unix/linux_like/mod.rs:1342-1347
+ - nfds_t: `unsigned long` on glibc (libc crate, src/unix/linux_like/linux/mod.rs:16),
+ `unsigned int` on XNU (xnu bsd/sys/poll.h line 102; libc crate src/unix/bsd/mod.rs:9)
+ - EINTR is retried with the remaining time, as poll(2) advises when a signal
+ handler ran ("EINTR ... the call may be retried").
 *>
 module bleu::rt::poller @feat(POSIX);
 import libc, std::time, bleu::rt, bleu::deadline, bleu::error, bleu::rt::unix;
@@ -27,11 +27,11 @@ struct NativeWait
 alias NfdsT @feat(LINUX) = CULong;
 alias NfdsT @feat(!LINUX) = CUInt;
 
-const CShort POLLIN = 0x0001;
-const CShort POLLPRI = 0x0002;
-const CShort POLLOUT = 0x0004;
-const CShort POLLERR = 0x0008;
-const CShort POLLHUP = 0x0010;
+const CShort POLLIN   = 0x0001;
+const CShort POLLPRI  = 0x0002;
+const CShort POLLOUT  = 0x0004;
+const CShort POLLERR  = 0x0008;
+const CShort POLLHUP  = 0x0010;
 const CShort POLLNVAL = 0x0020;
 
 // poll(2) with the timeout in milliseconds, -1 meaning forever.

@@ -105,7 +105,7 @@ fn void Poller.free(&self)
 	alloc::free(self.allocator, self.sources.ptr);
 	alloc::free(self.allocator, self.entries.ptr);
 	alloc::free(self.allocator, self.ready.ptr);
-	*self = {};
+	*self = { };
 }
 
 <*
@@ -119,7 +119,13 @@ fn void? Poller.add(&self, Source source)
 {
 	if (self.count == self.capacity)
 	{
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "poller already holds %d sources", self.capacity)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"poller already holds %d sources",
+			self.capacity
+		)~;
 	}
 	if (source.tag == WAKEUP_TAG || source.tag == WINDOW_MESSAGES_TAG)
 	{
@@ -129,7 +135,13 @@ fn void? Poller.add(&self, Source source)
 	{
 		if (existing.tag == source.tag)
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "tag %d is already registered", source.tag)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"tag %d is already registered",
+				source.tag
+			)~;
 		}
 	}
 	self.sources[self.count++] = source;
@@ -176,8 +188,8 @@ fn long duration_ceil_ms(Duration d) @private
 fn Ready[]? Poller.wait(&self, Duration timeout = time::FOREVER)
 {
 	Deadline deadline = deadline::after(timeout);
-	usz n = native_wait(self, deadline)!;
-	Ready[] result = self.ready[:n];
+	usz n             = native_wait(self, deadline)!;
+	Ready[] result    = self.ready[:n];
 	foreach (ready : result)
 	{
 		if (ready.tag == WAKEUP_TAG) self.wakeup.drain()!;

@@ -104,7 +104,14 @@ fn void? Worker.start(&self, String name, RunFn run, void* context)
 	self.context = context;
 	if (catch err = self.thread.create(&worker_main, self))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "cannot start thread for worker '%s': %s", name, err)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"cannot start thread for worker '%s': %s",
+			name,
+			err
+		)~;
 	}
 	self.state = RUNNING;
 }

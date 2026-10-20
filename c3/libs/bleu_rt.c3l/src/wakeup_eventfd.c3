@@ -5,19 +5,19 @@
  the coalescing: two signals read back as one drain.
 
  Sources:
-   - eventfd(2), https://man7.org/linux/man-pages/man2/eventfd.2.html
-   - Linux uapi, include/uapi/linux/eventfd.h:
-     EFD_SEMAPHORE (1 << 0), EFD_CLOEXEC O_CLOEXEC, EFD_NONBLOCK O_NONBLOCK
-     (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/eventfd.h)
-   - libc 0.2.170 crate, src/unix/linux_like/linux/gnu/b64/x86_64/mod.rs:
-     EFD_CLOEXEC = 0x80000, EFD_NONBLOCK = 0x800, O_CLOEXEC = 0x80000, O_NONBLOCK = 2048
-     (https://static.crates.io/crates/libc/libc-0.2.170.crate)
+ - eventfd(2), https://man7.org/linux/man-pages/man2/eventfd.2.html
+ - Linux uapi, include/uapi/linux/eventfd.h:
+ EFD_SEMAPHORE (1 << 0), EFD_CLOEXEC O_CLOEXEC, EFD_NONBLOCK O_NONBLOCK
+ (https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/eventfd.h)
+ - libc 0.2.170 crate, src/unix/linux_like/linux/gnu/b64/x86_64/mod.rs:
+ EFD_CLOEXEC = 0x80000, EFD_NONBLOCK = 0x800, O_CLOEXEC = 0x80000, O_NONBLOCK = 2048
+ (https://static.crates.io/crates/libc/libc-0.2.170.crate)
 *>
 module bleu::rt::wakeup @feat(LINUX);
 import libc, bleu::error;
 
 // eventfd flags from the Linux uapi header (see the source above).
-const CInt EFD_CLOEXEC = 0x80000;
+const CInt EFD_CLOEXEC  = 0x80000;
 const CInt EFD_NONBLOCK = 0x800;
 
 // The eventfd counter is a 64-bit unsigned integer (eventfd(2), "Description").
@@ -41,7 +41,7 @@ fn void native_close(Wakeup* self) @private
 
 fn void? native_signal(Wakeup* self) @private
 {
-	ulong one = 1;
+	ulong one  = 1;
 	sz written = libc::write(self.write_end, &one, (usz)EVENTFD_COUNTER_SIZE);
 	// EAGAIN means the counter is at its maximum: a signal is already pending.
 	if (written == EVENTFD_COUNTER_SIZE || libc::errno() == EAGAIN) return;

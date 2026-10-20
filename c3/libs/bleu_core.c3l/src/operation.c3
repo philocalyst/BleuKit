@@ -16,8 +16,8 @@ import std::thread, std::atomic, std::time, bleu::error, bleu::deadline;
 
 enum Phase : char
 {
-	PENDING,    // accepted, not started
-	RUNNING,    // in flight
+	PENDING, // accepted, not started
+	RUNNING, // in flight
 	SUCCEEDED,
 	FAILED,
 	CANCELLED,
@@ -57,7 +57,11 @@ fn Operation* begin(Allocator parent)
 }
 
 fn Allocator Operation.allocator(&self) @inline => &self.arena;
-fn Operation* Operation.retain(&self) { self.refs.add(1); return self; }
+fn Operation* Operation.retain(&self)
+{
+	self.refs.add(1);
+	return self;
+}
 
 fn void Operation.release(&self)
 {
@@ -128,7 +132,7 @@ fn bool Operation.fail(&self, fault failure)
 fn void Operation.conclude(&self)
 {
 	Completion callback = self.completion;
-	void* context = self.completion_context;
+	void* context       = self.completion_context;
 	self.finished.broadcast()!!;
 	self.mutex.unlock();
 	if (callback) callback(context, self);

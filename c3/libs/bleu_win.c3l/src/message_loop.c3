@@ -22,56 +22,56 @@ import bleu::error, bleu::rt::foreign;
 import bleu::win::errors, bleu::win::guid, bleu::win::hresult, bleu::win::session, bleu::win::text;
 
 <* `WM_NCCREATE`: sent first; `lParam` is the `CREATESTRUCTW`. winuser.h. *>
-const uint WM_NCCREATE = 0x0081;
+const uint WM_NCCREATE          = 0x0081;
 <* `WM_SETTINGCHANGE` (= `WM_WININICHANGE`): a system setting changed. winuser.h. *>
-const uint WM_SETTINGCHANGE = 0x001a;
+const uint WM_SETTINGCHANGE     = 0x001a;
 <* `WM_DEVICECHANGE`: a device was added or removed, or the device tree changed. winuser.h. *>
-const uint WM_DEVICECHANGE = 0x0219;
+const uint WM_DEVICECHANGE      = 0x0219;
 <* `WM_POWERBROADCAST`: a power state or a registered power setting changed. winuser.h. *>
-const uint WM_POWERBROADCAST = 0x0218;
+const uint WM_POWERBROADCAST    = 0x0218;
 <* `WM_WTSSESSION_CHANGE`: a session was locked, unlocked, logged on or off. wtsapi32.h. *>
 const uint WM_WTSSESSION_CHANGE = 0x02b1;
 <* `WM_APP`: the base of application-private messages. winuser.h. *>
-const uint WM_APP = 0x8000;
+const uint WM_APP               = 0x8000;
 <* The message `Loop.post_wake` sends: `WM_APP` plus one. *>
-const uint WM_WAKE = WM_APP + 1;
+const uint WM_WAKE              = WM_APP + 1;
 
 <* `PBT_POWERSETTINGCHANGE`: a registered power setting changed (wParam). winuser.h. *>
-const uint PBT_POWERSETTINGCHANGE = 0x8013;
+const uint PBT_POWERSETTINGCHANGE   = 0x8013;
 <* `PBT_APMSUSPEND`: the system is suspending. winuser.h. *>
-const uint PBT_APMSUSPEND = 0x0004;
+const uint PBT_APMSUSPEND           = 0x0004;
 <* `PBT_APMRESUMESUSPEND`: the system resumed because of user input. winuser.h. *>
-const uint PBT_APMRESUMESUSPEND = 0x0007;
+const uint PBT_APMRESUMESUSPEND     = 0x0007;
 <* `PBT_APMRESUMEAUTOMATIC`: the system resumed without user input. winuser.h. *>
-const uint PBT_APMRESUMEAUTOMATIC = 0x0012;
+const uint PBT_APMRESUMEAUTOMATIC   = 0x0012;
 <* `PBT_APMPOWERSTATUSCHANGE`: the AC or battery state changed. winuser.h. *>
 const uint PBT_APMPOWERSTATUSCHANGE = 0x000a;
 
 <* `DBT_DEVICEARRIVAL`: a device interface arrived (wParam of `WM_DEVICECHANGE`). dbt.h. *>
-const uint DBT_DEVICEARRIVAL = 0x8000;
+const uint DBT_DEVICEARRIVAL          = 0x8000;
 <* `DBT_DEVICEREMOVECOMPLETE`: a device interface was removed. dbt.h. *>
-const uint DBT_DEVICEREMOVECOMPLETE = 0x8004;
+const uint DBT_DEVICEREMOVECOMPLETE   = 0x8004;
 <* `DBT_DEVNODES_CHANGED`: the device tree changed without naming a device. dbt.h. *>
-const uint DBT_DEVNODES_CHANGED = 0x0007;
+const uint DBT_DEVNODES_CHANGED       = 0x0007;
 <* `DBT_DEVTYP_DEVICEINTERFACE`: the broadcast block describes a device interface. dbt.h. *>
 const uint DBT_DEVTYP_DEVICEINTERFACE = 0x00000005;
 
 <* `WS_POPUP`: the hidden window's style. A pop-up that is never shown is not in the taskbar. *>
-const uint HIDDEN_WINDOW_STYLE = 0x80000000;
+const uint HIDDEN_WINDOW_STYLE    = 0x80000000;
 <* `WS_EX_TOOLWINDOW`: keeps the hidden window out of the task switcher. *>
 const uint HIDDEN_WINDOW_EX_STYLE = 0x00000080;
 
 <* What happened. Each kind sets the `Event` fields documented beside it. *>
 enum EventKind : char
 {
-	POWER_SETTING,   // guid: the setting; code: its first data DWORD
-	POWER_STATE,     // code: the PBT_* value (suspend, resume, power source change)
-	DISPLAY_CHANGE,  // code: bits per pixel; width, height: the new resolution
-	DEVICE_CHANGE,   // code: the DBT_* value; text: the device interface path, if any
-	SESSION_CHANGE,  // code: the WTS_SESSION_* value; session: the session it concerns
-	SETTING_CHANGE,  // code: the SPI_* value; text: the changed section name, or empty
-	DPI_CHANGE,      // width, height: the new horizontal and vertical DPI
-	WAKE,            // `Loop.post_wake` was called, from any thread
+	POWER_SETTING,  // guid: the setting; code: its first data DWORD
+	POWER_STATE,    // code: the PBT_* value (suspend, resume, power source change)
+	DISPLAY_CHANGE, // code: bits per pixel; width, height: the new resolution
+	DEVICE_CHANGE,  // code: the DBT_* value; text: the device interface path, if any
+	SESSION_CHANGE, // code: the WTS_SESSION_* value; session: the session it concerns
+	SETTING_CHANGE, // code: the SPI_* value; text: the changed section name, or empty
+	DPI_CHANGE,     // width, height: the new horizontal and vertical DPI
+	WAKE,           // `Loop.post_wake` was called, from any thread
 }
 
 <*
@@ -172,7 +172,7 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 	loop.instance = win32::getModuleHandleW(null);
 	// The class is unique per loop: it holds this loop's window procedure address.
 	String name = string::format(tmem, "bleu.win.message_loop.%x", (uptr)loop);
-	loop.class_name = text::to_wide(allocator, name)!;
+	loop.class_name = text::to_wide(allocator, name)!!;
 	win32::Win32_WNDCLASSEXW wc = {
 		.cbSize = win32::Win32_WNDCLASSEXW::size,
 		.lpfnWndProc = &window_proc,
@@ -186,8 +186,20 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 		alloc::free(allocator, loop);
 		return failure~;
 	}
-	void* window = win32::createWindowExW(HIDDEN_WINDOW_EX_STYLE, loop.class_name.as_wstring(), null, HIDDEN_WINDOW_STYLE,
-		0, 0, 0, 0, null, null, loop.instance, loop);
+	void* window = win32::createWindowExW(
+		HIDDEN_WINDOW_EX_STYLE,
+		loop.class_name.as_wstring(),
+		null,
+		HIDDEN_WINDOW_STYLE,
+		0,
+		0,
+		0,
+		0,
+		null,
+		null,
+		loop.instance,
+		loop
+	);
 	if (!window)
 	{
 		fault failure = errors::raise_last("CreateWindowExW");
@@ -213,7 +225,9 @@ fn void Loop.close(&self)
 {
 	// A failed unregister leaves nothing behind that the destroyed window could
 	// still receive, so the failure is not worth stopping the teardown for.
-	if (catch session::unregister(self.window)) {}
+	if (catch session::unregister(self.window))
+	{
+	}
 	win32::destroyWindow(self.window);
 	win32::unregisterClassW(self.class_name.as_wstring(), self.instance);
 	self.class_name.free();
@@ -272,7 +286,7 @@ fn void dispatch(Loop* loop, uint message, uptr wparam, iptr lparam) @local
 			event.kind = POWER_SETTING;
 			event.guid = setting.power_setting;
 			event.code = setting.data_length >= 4 ? *(uint*)&setting.data[0] : 0;
-		case WM_DISPLAYCHANGE:
+		case win32::WM_DISPLAYCHANGE:
 			event.kind = DISPLAY_CHANGE;
 			event.code = (uint)wparam;
 			event.width = (uint)lparam & 0xffff;

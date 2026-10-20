@@ -21,12 +21,12 @@ import bleu::win::errors, bleu::win::hstring, bleu::win::message_loop;
 <* `IID_IInspectable` (inspectable.h; Wine inspectable.idl). *>
 const Guid IID_IINSPECTABLE = guid::guid("af86e2e0-b12d-4c6a-9c5a-d7aa65101e90");
 <* `IID_IAsyncInfo` (asyncinfo.h; Wine asyncinfo.idl). *>
-const Guid IID_IASYNCINFO = guid::guid("00000036-0000-0000-c000-000000000046");
+const Guid IID_IASYNCINFO   = guid::guid("00000036-0000-0000-c000-000000000046");
 
 <* `RO_INIT_SINGLETHREADED` (roapi.h): WinRT on a single-threaded apartment. *>
 const uint RO_INIT_SINGLETHREADED = 0;
 <* `RO_INIT_MULTITHREADED` (roapi.h): WinRT on the multithreaded apartment. *>
-const uint RO_INIT_MULTITHREADED = 1;
+const uint RO_INIT_MULTITHREADED  = 1;
 
 <* `TrustLevel` of a runtime class (inspectable.idl). *>
 enum TrustLevel : int
@@ -112,7 +112,11 @@ struct Runtime
 
 extern fn hresult::Hresult roInitialize(uint init_type) @cname("RoInitialize");
 extern fn void roUninitialize() @cname("RoUninitialize");
-extern fn hresult::Hresult roGetActivationFactory(void* class_id, Guid* iid, void** out) @cname("RoGetActivationFactory");
+extern fn hresult::Hresult roGetActivationFactory(
+	void* class_id,
+	Guid* iid,
+	void** out
+) @cname("RoGetActivationFactory");
 
 <*
  Initialise WinRT on the calling thread. Single-threaded for `STA`, multithreaded
@@ -123,13 +127,17 @@ extern fn hresult::Hresult roGetActivationFactory(void* class_id, Guid* iid, voi
 *>
 fn Runtime? enter(com::Model model)
 {
-	uint init_type = model == com::Model.MULTI_THREADED ? RO_INIT_MULTITHREADED : RO_INIT_SINGLETHREADED;
+	uint init_type      = model == com::Model.MULTI_THREADED ? RO_INIT_MULTITHREADED : RO_INIT_SINGLETHREADED;
 	hresult::Hresult hr = (hresult::Hresult)roInitialize(init_type);
 	if (hr == (hresult::Hresult)hresult::S_OK || hr == (hresult::Hresult)hresult::S_FALSE) return { .owned = true };
 	if (hr == (hresult::Hresult)hresult::RPC_E_CHANGED_MODE)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.WIN32, (int)hr,
-			"this thread already uses the other WinRT concurrency model")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.WIN32,
+			(int)hr,
+			"this thread already uses the other WinRT concurrency model"
+		)~;
 	}
 	return errors::raise_hresult(hr, "RoInitialize")~;
 }
@@ -181,10 +189,15 @@ fn AsyncStatus? wait_async(com_ptr::Com{com::IUnknown}* operation, time::Duratio
 	{
 		AsyncStatus status = status_of(info.ptr)!;
 		if (status != AsyncStatus.STARTED) return status;
-		if (deadline.expired()) return error::raise(TIMEOUT, error::Domain.INTERNAL, 0, "async operation still running")~;
+		if (deadline.expired()) return error::raise(
+			TIMEOUT,
+			error::Domain.INTERNAL,
+			0,
+			"async operation still running"
+		)~;
 		time::Duration slice = deadline.remaining();
 		if (slice > ASYNC_POLL_SLICE) slice = ASYNC_POLL_SLICE;
-		message_loop::pump(slice);
+		message_loop::pump(slice)!;
 	}
 }
 
@@ -204,7 +217,7 @@ fn com_ptr::Com{Target}? activation_factory(String class_name, Guid iid)
 {
 	hstring::Hstring name = hstring::create(class_name)!;
 	defer name.close();
-	void* raw = null;
+	void* raw           = null;
 	hresult::Hresult hr = (hresult::Hresult)roGetActivationFactory(name.handle, &iid, &raw);
 	if (hr.failed()) return errors::raise_hresult(hr, "RoGetActivationFactory")~;
 	return { .ptr = (Target*)raw };

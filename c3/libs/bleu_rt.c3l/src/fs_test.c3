@@ -1,5 +1,5 @@
 module bleu::rt::fs_test;
-import bleu::rt::fs, bleu::error, std::core::test, std::core::string, std::io, std::time::clock;
+import bleu::rt::fs, bleu::error, std::core::test, std::core::string, std::io, std::io::path, std::time::clock;
 
 // A scratch file in the system temp directory, unique per run.
 fn String scratch_path(String stem) @local
@@ -39,16 +39,19 @@ fn void a_file_longer_than_the_buffer_is_refused() @test
 
 fn void directory_listing_names_its_entries() @test
 {
-	String path = scratch_path("listed");
-	fs::write_text(path, "x")!!;
-	String dir = "/tmp";
-	PathList names = fs::list_dir(mem, dir)!!;
-	defer names.free();
-	bool found = false;
+	// A directory of our own: listing a shared directory such as /tmp is slow and
+	// its contents are not ours to assume.
+	String dir = scratch_path("listing");
+	io::path::mkdir(dir)!!;
+	String file = string::tformat("%s/entry", dir);
+	fs::write_text(file, "x")!!;
+	PathList names = fs::list_dir(tmem, dir)!!;
+	bool found     = false;
 	foreach (entry : names)
 	{
-		if ((String)entry == path[5..]) found = true;
+		if ((String)entry == "entry") found = true;
 	}
-	test::@check(found, "the scratch file appears in its directory's listing");
-	io::file::delete(path)!!;
+	test::@check(found, "the file appears in its directory's listing");
+	io::file::delete(file)!!;
+	io::path::rmdir((Path)dir)!!; // a String argument trips std::io::path::rmdir (see the research notes)
 }

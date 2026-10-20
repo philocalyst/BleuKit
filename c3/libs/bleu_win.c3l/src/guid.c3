@@ -34,13 +34,24 @@ const Guid NIL = { .data1 = 0, .data2 = 0, .data3 = 0, .data4 = { 0, 0, 0, 0, 0,
  Build a GUID from the eleven-field literal form used by `DEFINE_GUID`, so a
  constant can be copied straight from a header:
 
-     const Guid IID_IUNKNOWN = guid::make(0x00000000, 0x0000, 0x0000,
-                                          0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46);
+ const Guid IID_IUNKNOWN = guid::make(0x00000000, 0x0000, 0x0000,
+ 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46);
 
  @return "The GUID with the given fields"
 *>
-fn Guid make(uint data1, ushort data2, ushort data3,
-             char b0, char b1, char b2, char b3, char b4, char b5, char b6, char b7) @inline
+fn Guid make(
+	uint data1,
+	ushort data2,
+	ushort data3,
+	char b0,
+	char b1,
+	char b2,
+	char b3,
+	char b4,
+	char b5,
+	char b6,
+	char b7
+) @inline
 {
 	return { .data1 = data1, .data2 = data2, .data3 = data3, .data4 = { b0, b1, b2, b3, b4, b5, b6, b7 } };
 }
@@ -55,9 +66,9 @@ fn Guid make(uint data1, ushort data2, ushort data3,
 *>
 macro Guid guid($text)
 {
-	char[16] $bytes = {};
-	int $n = 0;
-	int $high = -1;
+	char[16] $bytes =  { };
+	int $n          =  0;
+	int $high       = -1;
 	$foreach $c : $text:
 		$if $c != '-' &&& $c != '{' &&& $c != '}':
 			$if $high < 0:
@@ -70,10 +81,12 @@ macro Guid guid($text)
 		$endif
 	$endforeach
 	$assert($n == 16);
-	return { .data1 = ((uint)$bytes[0] << 24) | ((uint)$bytes[1] << 16) | ((uint)$bytes[2] << 8) | (uint)$bytes[3],
-	         .data2 = (ushort)(((uint)$bytes[4] << 8) | (uint)$bytes[5]),
-	         .data3 = (ushort)(((uint)$bytes[6] << 8) | (uint)$bytes[7]),
-	         .data4 = { $bytes[8], $bytes[9], $bytes[10], $bytes[11], $bytes[12], $bytes[13], $bytes[14], $bytes[15] } };
+	return {
+		.data1 = ((uint)$bytes[0] << 24) | ((uint)$bytes[1] << 16) | ((uint)$bytes[2] << 8) | (uint)$bytes[3],
+		.data2 = (ushort)(((uint)$bytes[4] << 8) | (uint)$bytes[5]),
+		.data3 = (ushort)(((uint)$bytes[6] << 8) | (uint)$bytes[7]),
+		.data4 = { $bytes[8], $bytes[9], $bytes[10], $bytes[11], $bytes[12], $bytes[13], $bytes[14], $bytes[15] }
+	};
 }
 
 <* Value of one hex digit, at compile time. Used by `guid`. *>
@@ -93,8 +106,11 @@ macro uint guid_nibble($c) @private
 <* Two GUIDs are equal when all sixteen bytes are. *>
 fn bool Guid.equals(self, Guid other) @inline
 {
-	return self.data1 == other.data1 && self.data2 == other.data2 && self.data3 == other.data3
-		&& mem::equals(&self.data4, &other.data4, 8);
+	return self.data1 == other.data1 && self.data2 == other.data2 && self.data3 == other.data3 && mem::equals(
+		&self.data4,
+		&other.data4,
+		8
+	);
 }
 
 <*
@@ -121,10 +137,21 @@ fn int Guid.compare(self, Guid other)
 *>
 fn String Guid.format(self, Allocator allocator)
 {
-	return string::format(allocator, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-		self.data1, self.data2, self.data3,
-		self.data4[0], self.data4[1], self.data4[2], self.data4[3],
-		self.data4[4], self.data4[5], self.data4[6], self.data4[7]);
+	return string::format(
+		allocator,
+		"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+		self.data1,
+		self.data2,
+		self.data3,
+		self.data4[0],
+		self.data4[1],
+		self.data4[2],
+		self.data4[3],
+		self.data4[4],
+		self.data4[5],
+		self.data4[6],
+		self.data4[7]
+	);
 }
 
 <*
@@ -139,7 +166,13 @@ fn Guid? parse(String text)
 {
 	String body = text;
 	if (body.len == 38 && body[0] == '{' && body[37] == '}') body = body[1..36];
-	if (body.len != 36) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+	if (body.len != 36) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a GUID: '%s'",
+		text
+	)~;
 	char[32] nibbles;
 	usz count = 0;
 	for (usz i = 0; i < 36; i++)
@@ -148,11 +181,23 @@ fn Guid? parse(String text)
 		// The four dashes sit at fixed positions in the 8-4-4-4-12 layout.
 		if (i == 8 || i == 13 || i == 18 || i == 23)
 		{
-			if (c != '-') return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+			if (c != '-') return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"not a GUID: '%s'",
+				text
+			)~;
 			continue;
 		}
 		int value = guid_hex_value(c);
-		if (value < 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+		if (value < 0) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"not a GUID: '%s'",
+			text
+		)~;
 		nibbles[count++] = (char)value;
 	}
 	char[16] bytes;

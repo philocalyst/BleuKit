@@ -41,7 +41,7 @@ fn usz? recv_some(int fd, char[] buffer, usz offset, List{int}* descriptors)
 }
 
 <* No descriptor can be waited on here, so nothing ever becomes ready. *>
-fn bool wait(int fd, bool for_write, Duration timeout) => false;
+fn bool wait(int fd, bool readable, bool writable, Duration timeout) => false;
 
 <*
  Not available on Windows.

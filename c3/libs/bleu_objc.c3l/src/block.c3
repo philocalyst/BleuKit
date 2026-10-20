@@ -1,20 +1,16 @@
 <*
  Objective-C blocks built from C3 (Apple Block ABI, ABI.2010.3.16).
 
- A block is a struct whose first fields are fixed by the ABI:
-
- struct Block_literal {
- void *isa;          // &_NSConcreteStackBlock, then the heap class after _Block_copy
- int   flags;        // BLOCK_HAS_COPY_DISPOSE (1 << 25) is set here
- int   reserved;     // 0
- void *invoke;       // called with the block pointer as first argument
- struct Block_descriptor *descriptor;
- /* captured variables follow */
- };
+ A block is a struct whose first fields the ABI fixes: `isa` (the block class:
+ `_NSConcreteStackBlock` before the copy, the heap class after `_Block_copy`), `flags`
+ (BLOCK_HAS_COPY_DISPOSE, 1 << 25, is set here), `reserved` (0), `invoke` (called with
+ the block pointer as its first argument) and `descriptor` (size and copy/dispose
+ helpers). Captured variables follow. Here the only captured variable is one `context`
+ pointer.
 
  Sources (cross-checked):
  * Apple, "Block Implementation Specification", clang.llvm.org/docs/Block-ABI-Apple.html
- (struct layout, flag bits, `_Block_copy`/`_Block_object_assign` helper contract).
+ (struct layout, flag bits, copy/dispose helper contract).
  * Rust `block2` 0.5.1, `src/abi.rs` (flag values, `_NSConcreteStackBlock`) and
  `src/ffi.rs` (`_Block_copy`, `_Block_release` as libSystem exports).
 
@@ -25,8 +21,8 @@
  the heap block(s) that point at it.
 
  Lifetime, precisely:
- * `void_block`, `id_block`, `bool_error_block`, `id_error_block` and `int_block` return a heap block with one reference
- (owned by the caller).
+ * `void_block`, `id_block`, `bool_error_block`, `id_error_block` and `int_block`
+ return a heap block with one reference, owned by the caller.
  * Passing `block.id()` to an API that keeps the handler retains it (blocks
  answer `copy`/`retain`), exactly as with a compiler-generated block.
  * `block.release()` drops the caller's reference (`_Block_release`). When the

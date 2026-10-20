@@ -11,13 +11,13 @@
  C3 has no static methods and a method cannot take its own type parameter, so
  `query_interface` is a generic function over the source and target types:
 
-     Com{IMMDevice}? device = com_ptr::query_interface{IMMDeviceEnumerator, IMMDevice}(&enumerator, com::IID_IUNKNOWN)!;
+ Com{IMMDevice}? device = com_ptr::query_interface{IMMDeviceEnumerator, IMMDevice}(&enumerator, com::IID_IUNKNOWN)!;
 *>
 module bleu::win::com_ptr @feat(WIN32);
 import bleu::error, bleu::win::com, bleu::win::guid, bleu::win::hresult, bleu::win::errors;
 
 <* An owning pointer to a COM interface `Target`. A null `ptr` owns nothing. *>
-struct Com <Target>
+struct Com<Target>
 {
 	Target* ptr;
 }
@@ -59,7 +59,7 @@ import bleu::error, bleu::win::com, bleu::win::guid, bleu::win::hresult, bleu::w
 *>
 fn Com{Target}? co_create_instance(Guid clsid, Guid iid)
 {
-	void* raw = null;
+	void* raw           = null;
 	hresult::Hresult hr = (hresult::Hresult)com::coCreateInstance(&clsid, null, com::CLSCTX_ALL, &iid, &raw);
 	if (hr.failed()) return errors::raise_hresult(hr, "CoCreateInstance")~;
 	return { .ptr = (Target*)raw };
@@ -79,10 +79,15 @@ import bleu::error, bleu::win::com, bleu::win::guid, bleu::win::hresult, bleu::w
 *>
 fn Com{Target}? query_interface(Com{Source}* source, Guid iid)
 {
-	if (!source.ptr) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "query on a null COM pointer")~;
+	if (!source.ptr) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"query on a null COM pointer"
+	)~;
 	com::IUnknown* unknown = (com::IUnknown*)source.ptr;
-	void* raw = null;
-	hresult::Hresult hr = (hresult::Hresult)unknown.vtbl.query_interface(unknown, &iid, &raw);
+	void* raw              = null;
+	hresult::Hresult hr    = (hresult::Hresult)unknown.vtbl.query_interface(unknown, &iid, &raw);
 	if (hr.failed()) return errors::raise_hresult(hr, "QueryInterface")~;
 	return { .ptr = (Target*)raw };
 }

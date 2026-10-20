@@ -93,9 +93,10 @@ const VcpFeature[] FEATURES = {
 		.name = "Video gain: Blue",
 		.kind = CONTINUOUS,
 		.access = READ_WRITE
-	}, // Quirk: MCCS 2.2a section 8.6 calls 0x62 non-continuous with reserved values, while
-	// its summary table calls it continuous (ddcutil comment). Continuous is used here.
-	{ .code = AUDIO_SPEAKER_VOLUME, .name = "Audio speaker volume", .kind = CONTINUOUS, .access = READ_WRITE },
+	}, // Quirk: MCCS 2.2a's summary table lists 0x62 as continuous, but its detailed section
+	// documents it as non-continuous with reserved values. ddcutil treats it as
+	// non-continuous for 2.2 (vcp_feature_codes.c:1729); its 2.0 flags say continuous.
+	{ .code = AUDIO_SPEAKER_VOLUME, .name = "Audio speaker volume", .kind = NON_CONTINUOUS, .access = READ_WRITE },
 	{ .code = INPUT_SOURCE, .name = "Input source", .kind = NON_CONTINUOUS, .access = READ_WRITE },
 	{ .code = AUDIO_MUTE, .name = "Audio mute", .kind = NON_CONTINUOUS, .access = READ_WRITE },
 	{ .code = HORIZONTAL_FREQUENCY, .name = "Horizontal frequency", .kind = CONTINUOUS, .access = READ_ONLY },

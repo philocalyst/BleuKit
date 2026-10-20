@@ -68,7 +68,7 @@ fn void Mailbox.free(&self)
 	self.wake.close();
 	self.mutex.destroy();
 	alloc::free(self.allocator, self.ring.ptr);
-	*self = {};
+	*self = { };
 }
 
 <*
@@ -166,8 +166,8 @@ fn Wakeup* Mailbox.wakeup(&self) @inline => &self.wake;
 // `post`: entered with the mutex held.
 fn void Mailbox.grow(&self)
 {
-	usz old_len = (usz)self.ring.len;
-	usz new_len = min(old_len * 2, self.max_capacity);
+	usz old_len      = (usz)self.ring.len;
+	usz new_len      = min(old_len * 2, self.max_capacity);
 	Command[] bigger = alloc::new_array(self.allocator, Command, (sz)new_len);
 	for (usz i = 0; i < self.count; i++)
 	{

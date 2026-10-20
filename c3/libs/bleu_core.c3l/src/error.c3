@@ -13,20 +13,19 @@
 *>
 module bleu::error;
 
-excuse
-	UNSUPPORTED,       // This platform or backend can never do this
-	UNAVAILABLE,       // Could do it, but the service/hardware is absent or off right now
-	PERMISSION_DENIED, // The OS refused (polkit, TCC, entitlement, ACL ...)
-	AUTH_REQUIRED,     // A credential or user interaction is needed to continue
-	INVALID_ARGUMENT,  // The caller supplied something out of contract
-	INVALID_STATE,     // The object is not in a state where this operation applies
-	BUSY,              // Another operation holds the resource
-	CANCELLED,         // The operation was cancelled by the caller
-	DISCONNECTED,      // The connection to the backend went away
-	PROTOCOL,          // The peer sent something that violates its protocol
-	BACKEND_FAILURE,   // The OS or daemon reported a failure with no better class
-	OUT_OF_RANGE,      // A value does not fit the device or API range
-	NO_MEMORY;         // An allocation failed
+excuse UNSUPPORTED, // This platform or backend can never do this
+UNAVAILABLE, // Could do it, but the service/hardware is absent or off right now
+PERMISSION_DENIED, // The OS refused (polkit, TCC, entitlement, ACL ...)
+AUTH_REQUIRED, // A credential or user interaction is needed to continue
+INVALID_ARGUMENT, // The caller supplied something out of contract
+INVALID_STATE, // The object is not in a state where this operation applies
+BUSY, // Another operation holds the resource
+CANCELLED, // The operation was cancelled by the caller
+DISCONNECTED, // The connection to the backend went away
+PROTOCOL, // The peer sent something that violates its protocol
+BACKEND_FAILURE, // The OS or daemon reported a failure with no better class
+OUT_OF_RANGE, // A value does not fit the device or API range
+NO_MEMORY; // An allocation failed
 
 <*
  Stable numeric form of every fault, for the C ABI and for IPC. The ordinal is
@@ -59,15 +58,15 @@ enum Status : int
 enum Domain : char
 {
 	NONE,
-	ERRNO,       // POSIX errno
-	WIN32,       // GetLastError / HRESULT
-	MACH,        // kern_return_t / IOReturn
-	NS_ERROR,    // NSError code (domain in the text)
-	DBUS,        // D-Bus error (name in the text)
-	WAYLAND,     // wl_display protocol error
-	PULSE,       // PulseAudio protocol error
-	COMPOSITOR,  // compositor IPC error reply
-	INTERNAL,    // raised by Bleu itself
+	ERRNO,      // POSIX errno
+	WIN32,      // GetLastError / HRESULT
+	MACH,       // kern_return_t / IOReturn
+	NS_ERROR,   // NSError code (domain in the text)
+	DBUS,       // D-Bus error (name in the text)
+	WAYLAND,    // wl_display protocol error
+	PULSE,      // PulseAudio protocol error
+	COMPOSITOR, // compositor IPC error reply
+	INTERNAL,   // raised by Bleu itself
 }
 
 const DETAIL_TEXT_CAPACITY = 240;
@@ -79,8 +78,8 @@ struct Detail
 {
 	Status status;
 	Domain domain;
-	int    code;
-	sz     len;
+	int code;
+	sz len;
 	char[DETAIL_TEXT_CAPACITY] text;
 }
 
@@ -92,7 +91,7 @@ tlocal Detail last_detail;
  Record the details of a failure on the current thread and hand back `f`,
  ready to be returned with `~`:
 
-     return error::raise(NOT_FOUND, ERRNO, errno, "no such backlight '%s'", name)~;
+ return error::raise(NOT_FOUND, ERRNO, errno, "no such backlight '%s'", name)~;
 
  @param f : "Classification of the failure"
  @param domain : "Subsystem the native code belongs to"
@@ -128,22 +127,22 @@ fn Status status_of(fault f)
 {
 	switch (f)
 	{
-		case UNSUPPORTED:       return UNSUPPORTED;
-		case UNAVAILABLE:       return UNAVAILABLE;
+		case UNSUPPORTED: return UNSUPPORTED;
+		case UNAVAILABLE: return UNAVAILABLE;
 		case PERMISSION_DENIED: return PERMISSION_DENIED;
-		case AUTH_REQUIRED:     return AUTH_REQUIRED;
-		case NOT_FOUND:         return NOT_FOUND;
-		case INVALID_ARGUMENT:  return INVALID_ARGUMENT;
-		case INVALID_STATE:     return INVALID_STATE;
-		case BUSY:              return BUSY;
-		case TIMEOUT:           return TIMEOUT;
-		case CANCELLED:         return CANCELLED;
-		case DISCONNECTED:      return DISCONNECTED;
-		case PROTOCOL:          return PROTOCOL;
-		case BACKEND_FAILURE:   return BACKEND_FAILURE;
-		case OUT_OF_RANGE:      return OUT_OF_RANGE;
-		case NO_MEMORY:         return NO_MEMORY;
-		default:                return UNKNOWN;
+		case AUTH_REQUIRED: return AUTH_REQUIRED;
+		case NOT_FOUND: return NOT_FOUND;
+		case INVALID_ARGUMENT: return INVALID_ARGUMENT;
+		case INVALID_STATE: return INVALID_STATE;
+		case BUSY: return BUSY;
+		case TIMEOUT: return TIMEOUT;
+		case CANCELLED: return CANCELLED;
+		case DISCONNECTED: return DISCONNECTED;
+		case PROTOCOL: return PROTOCOL;
+		case BACKEND_FAILURE: return BACKEND_FAILURE;
+		case OUT_OF_RANGE: return OUT_OF_RANGE;
+		case NO_MEMORY: return NO_MEMORY;
+		default: return UNKNOWN;
 	}
 }
 
@@ -156,22 +155,22 @@ fn fault fault_of(Status status)
 {
 	switch (status)
 	{
-		case OK:                unreachable("OK has no fault");
-		case UNSUPPORTED:       return UNSUPPORTED;
-		case UNAVAILABLE:       return UNAVAILABLE;
+		case OK: unreachable("OK has no fault");
+		case UNSUPPORTED: return UNSUPPORTED;
+		case UNAVAILABLE: return UNAVAILABLE;
 		case PERMISSION_DENIED: return PERMISSION_DENIED;
-		case AUTH_REQUIRED:     return AUTH_REQUIRED;
-		case NOT_FOUND:         return NOT_FOUND;
-		case INVALID_ARGUMENT:  return INVALID_ARGUMENT;
-		case INVALID_STATE:     return INVALID_STATE;
-		case BUSY:              return BUSY;
-		case TIMEOUT:           return TIMEOUT;
-		case CANCELLED:         return CANCELLED;
-		case DISCONNECTED:      return DISCONNECTED;
-		case PROTOCOL:          return PROTOCOL;
-		case BACKEND_FAILURE:   return BACKEND_FAILURE;
-		case OUT_OF_RANGE:      return OUT_OF_RANGE;
-		case NO_MEMORY:         return NO_MEMORY;
-		case UNKNOWN:           return BACKEND_FAILURE;
+		case AUTH_REQUIRED: return AUTH_REQUIRED;
+		case NOT_FOUND: return NOT_FOUND;
+		case INVALID_ARGUMENT: return INVALID_ARGUMENT;
+		case INVALID_STATE: return INVALID_STATE;
+		case BUSY: return BUSY;
+		case TIMEOUT: return TIMEOUT;
+		case CANCELLED: return CANCELLED;
+		case DISCONNECTED: return DISCONNECTED;
+		case PROTOCOL: return PROTOCOL;
+		case BACKEND_FAILURE: return BACKEND_FAILURE;
+		case OUT_OF_RANGE: return OUT_OF_RANGE;
+		case NO_MEMORY: return NO_MEMORY;
+		case UNKNOWN: return BACKEND_FAILURE;
 	}
 }

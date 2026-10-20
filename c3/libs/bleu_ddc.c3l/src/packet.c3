@@ -39,6 +39,10 @@
 module bleu::ddc::packet;
 import bleu::error, bleu::ddc::vcp;
 
+<* Set in the length byte of every message: the payload length follows in the low 7 bits. *>
+const char LENGTH_FLAG   = 0x80;
+<* The payload length in a length byte. *>
+const char LENGTH_MASK   = 0x7F;
 <* 7-bit DDC/CI slave address of the display (chip 0x37). *>
 const char CHIP_ADDRESS  = 0x37;
 <* Destination byte of every request: `CHIP_ADDRESS << 1`. *>
@@ -57,7 +61,7 @@ const char VIRTUAL_HOST  = 0x50;
 const usz MAX_PAYLOAD       = 4;
 <*
  Largest reply payload: opcode, two bytes of offset and 32 bytes of fragment
- (the capabilities and table-read layout, DDC/CI 4.6). A payload longer than
+ (the capabilities and table-read layout, as ddcutil and the ddc crate read it). A payload longer than
  this is malformed (ddcutil `interpret_multi_part_read_response`).
 *>
 const usz MAX_REPLY_PAYLOAD = 35;
@@ -88,7 +92,7 @@ constset Opcode : char
 }
 
 <*
- Result codes of Get VCP Feature Reply (DDC/CI 4.3 and MCCS 2.2a 6.2).
+ Result codes of Get VCP Feature Reply (ddcutil `interpret_vcp_feature_response_std`).
 
  Source: ddcutil `interpret_vcp_feature_response_std` (`result_code`), and
  ddc crate `commands.rs` `VcpValue::decode`.
@@ -129,7 +133,7 @@ fn Request get_vcp(VcpCode code)
 <*
  Set VCP Feature (0x03): set `code` to `value`. Values are big-endian on the wire.
 
- Source: DDC/CI 4.3; ddcutil `create_ddc_setvcp_request_packet`; ddc crate
+ Source: ddcutil `create_ddc_setvcp_request_packet`; ddc crate
  `SetVcpFeature::encode`.
 *>
 fn Request set_vcp(VcpCode code, ushort value)
@@ -147,7 +151,7 @@ fn Request set_vcp(VcpCode code, ushort value)
  Capabilities Request (0xF3): ask for the capabilities string starting at byte
  `offset`. The offset is two bytes, big-endian. The reply is a fragment.
 
- Source: DDC/CI 4.6; ddcutil `create_ddc_base_request_packet` (`{0xF3, hi, lo}`);
+ Source: ddcutil `create_ddc_base_request_packet` (`{0xF3, hi, lo}`);
  ddc crate `CapabilitiesRequest::encode` (`data[1] = offset >> 8`).
 *>
 fn Request capabilities_request(ushort offset)
@@ -202,7 +206,7 @@ fn usz? Request.encode_i2c(&self, char[] out)
 		)~;
 	}
 	out[0] = HOST_SOURCE;
-	out[1] = (char)(0x80 | n);
+	out[1] = (char)(LENGTH_FLAG | n);
 	for (usz i = 0; i < n; i++) out[2 + i] = self.payload[i];
 	out[n + 2] = checksum(WRITE_ADDRESS, out[..n + 1]);
 	return n + 3;
@@ -298,7 +302,7 @@ fn Reply? parse_reply(char[] bytes)
 		)~;
 	}
 	char length_byte = frame[1];
-	if ((length_byte & 0x80) == 0)
+	if ((length_byte & LENGTH_FLAG) == 0)
 	{
 		return error::raise(
 			error::PROTOCOL,
@@ -308,7 +312,7 @@ fn Reply? parse_reply(char[] bytes)
 			length_byte
 		)~;
 	}
-	usz n = (usz)(length_byte & 0x7F);
+	usz n = (usz)(length_byte & LENGTH_MASK);
 	if (n > MAX_REPLY_PAYLOAD)
 	{
 		return error::raise(
@@ -459,7 +463,7 @@ fn usz? encode_reply(char[] payload, char[] out)
 		)~;
 	}
 	out[0] = WRITE_ADDRESS;
-	out[1] = (char)(0x80 | n);
+	out[1] = (char)(LENGTH_FLAG | n);
 	for (usz i = 0; i < n; i++) out[2 + i] = payload[i];
 	out[n + 2] = checksum(VIRTUAL_HOST, out[..n + 1]);
 	return n + 3;

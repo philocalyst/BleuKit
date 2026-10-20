@@ -77,6 +77,8 @@ fn void? write_text(String path, String text)
 
 <*
  Names of the entries in a directory, relative to it (no "." or "..").
+ The list and its entries are allocated from `allocator`; a short-lived listing
+ belongs in `tmem`.
 
  @return? NOT_FOUND, error::PERMISSION_DENIED, error::BACKEND_FAILURE : "The directory could not be read"
 *>
@@ -101,7 +103,14 @@ fn String? read_into(String path, char[] buffer) @private
 	// Full: the file is exactly this long, or longer. One more byte tells which.
 	if (try extra = file.read_byte())
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%s is longer than %d bytes", path, buffer.len)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"%s is longer than %d bytes",
+			path,
+			buffer.len
+		)~;
 	}
 	return data;
 }
@@ -114,15 +123,15 @@ fn fault io_fault(fault f) @private
 		case io::FILE_NOT_FOUND:
 		case io::PATH_COULD_NOT_BE_FOUND: return NOT_FOUND;
 		case io::NO_PERMISSION:
-		case io::READ_ONLY:               return error::PERMISSION_DENIED;
-		case io::BUSY:                    return error::BUSY;
+		case io::READ_ONLY: return error::PERMISSION_DENIED;
+		case io::BUSY: return error::BUSY;
 		case io::ILLEGAL_ARGUMENT:
 		case io::FILE_IS_DIR:
 		case io::FILE_NOT_DIR:
-		case io::NAME_TOO_LONG:           return error::INVALID_ARGUMENT;
+		case io::NAME_TOO_LONG: return error::INVALID_ARGUMENT;
 		case io::OUT_OF_SPACE:
-		case io::OVERFLOW:                return error::OUT_OF_RANGE;
-		default:                          return error::BACKEND_FAILURE;
+		case io::OVERFLOW: return error::OUT_OF_RANGE;
+		default: return error::BACKEND_FAILURE;
 	}
 }
 

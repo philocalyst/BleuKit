@@ -8,9 +8,9 @@
  raised while the owner is busy is never lost.
 
  Backends (chosen by `@feat`, see the sibling files):
-   Linux    eventfd(2) with EFD_CLOEXEC | EFD_NONBLOCK; one descriptor
-   other POSIX  non-blocking, close-on-exec pipe; signal writes one byte
-   Windows  a manual-reset event; signal is SetEvent, drain is ResetEvent
+ Linux    eventfd(2) with EFD_CLOEXEC | EFD_NONBLOCK; one descriptor
+ other POSIX  non-blocking, close-on-exec pipe; signal writes one byte
+ Windows  a manual-reset event; signal is SetEvent, drain is ResetEvent
 
  `signal()` never blocks and never allocates, so it may be called from a
  signal handler or a foreign callback. A wake-up is not copyable: two values

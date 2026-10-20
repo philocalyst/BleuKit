@@ -6,7 +6,7 @@ import bleu::win::guid, std::io;
 
 fn void expect_iid(Guid piid, String args, String expected) @local
 {
-	Guid got = instance(piid, args);
+	Guid got  = instance(piid, args);
 	Guid want = guid::parse(expected)!!;
 	if (!got.equals(want))
 	{
@@ -52,5 +52,7 @@ fn void iid_reference_of_bool() @test
 
 fn void signature_text_is_lower_case_and_braced() @test
 {
-	assert(interface_signature(guid::parse("00000000-0000-0000-C000-000000000046")!!) == "{00000000-0000-0000-c000-000000000046}");
+	assert(interface_signature(
+		guid::parse("00000000-0000-0000-C000-000000000046")!!
+	) == "{00000000-0000-0000-c000-000000000046}");
 }

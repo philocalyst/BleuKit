@@ -50,6 +50,7 @@ extern fn uint io_register_for_system_power(
 extern fn int io_deregister_for_system_power(iokit::IoObject* notifier) @cname("IODeregisterForSystemPower");
 extern fn int io_allow_power_change(uint kernel_port, long notification_id) @cname("IOAllowPowerChange");
 
+<* The `IOServiceInterestCallback` shape used by `IORegisterForSystemPower`. *>
 alias IoInterest = fn void(void* refcon, iokit::IoObject service, uint message, void* argument);
 
 <* `IOPSPowerSourceState` value for a battery that is not on external power (IOPSKeys.h `kIOPSBatteryPowerValue`). *>
@@ -61,13 +62,21 @@ const ZString PS_OFF_LINE      = "Off Line";
 
 <* Key names of a power-source description dictionary (IOPSKeys.h). *>
 const ZString PS_KEY_NAME     = "Name";
+<* `kIOPSTypeKey`: the source type (`InternalBattery` or a UPS). *>
 const ZString PS_KEY_TYPE     = "Type";
+<* `kIOPSPowerSourceStateKey`. *>
 const ZString PS_KEY_STATE    = "Power Source State";
+<* `kIOPSIsPresentKey`. *>
 const ZString PS_KEY_PRESENT  = "Is Present";
+<* `kIOPSIsChargingKey`. *>
 const ZString PS_KEY_CHARGING = "Is Charging";
+<* `kIOPSCurrentCapacityKey`. *>
 const ZString PS_KEY_CURRENT  = "Current Capacity";
+<* `kIOPSMaxCapacityKey`. *>
 const ZString PS_KEY_MAXIMUM  = "Max Capacity";
+<* `kIOPSTimeToEmptyKey`: minutes on battery. *>
 const ZString PS_KEY_TO_EMPTY = "Time to Empty";
+<* `kIOPSTimeToFullChargeKey`: minutes to full while charging. *>
 const ZString PS_KEY_TO_FULL  = "Time to Full Charge";
 
 <* `kIOPMAssertPreventUserIdleSystemSleep` (IOPMLib.h): keep the system awake while the user is idle. *>
@@ -326,19 +335,23 @@ struct SystemPower
 }
 
 <*
- Register for system power events. Attach `port` to a run loop with
- `attach_source(loop, power.port.source())`, and close the registration after
- that loop has stopped.
+ Register for system power events. The registration is heap-allocated because
+ IOKit keeps its address as the callback context, so it must not move. Attach
+ `port` to a run loop with `attach_source(loop, power.port.source())`. Close the
+ registration after that loop has stopped; `close` frees it.
 
  @return? error::BACKEND_FAILURE : "when the Root Power Domain refuses the registration"
 *>
-fn SystemPower? register_system_power(PowerEventHandler handler, void* context)
+fn SystemPower*? register_system_power(PowerEventHandler handler, void* context)
 {
-	SystemPower power = { .handler = handler, .context = context };
-	void* port_ref    = null;
-	power.root = io_register_for_system_power(&power, &port_ref, &system_power_callback, &power.notifier);
+	SystemPower* power = alloc::new(mem, SystemPower);
+	power.handler = handler;
+	power.context = context;
+	void* port_ref = null;
+	power.root = io_register_for_system_power(power, &port_ref, &system_power_callback, &power.notifier);
 	if (!power.root)
 	{
+		alloc::free(mem, power);
 		return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "IORegisterForSystemPower failed")~;
 	}
 	power.port = { .port = port_ref };
@@ -346,14 +359,16 @@ fn SystemPower? register_system_power(PowerEventHandler handler, void* context)
 }
 
 <*
- Deregister, close the root connection, and destroy the port. Call only after the port's loop has stopped. Idempotent.
+ Deregister, close the root connection and destroy the port, then free the
+ registration. Call only after the port's loop has stopped. The pointer must not
+ be used afterwards.
 *>
 fn void SystemPower.close(&self)
 {
 	if (self.notifier) io_deregister_for_system_power(&self.notifier);
 	if (self.root) iokit::io_service_close(self.root);
-	self.root = 0;
 	self.port.close();
+	alloc::free(mem, self);
 }
 
 <* Map an IOKit power message to a `PowerEvent`. *>

@@ -1,19 +1,33 @@
 module bleu::rt::unix_test @feat(POSIX);
-import bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup, bleu::error, libc, std::core::test, std::core::string,
-	std::os::posix, std::io, std::time, std::time::clock;
+import bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup, bleu::error, libc, std::core::test, std::core::string, std::os::posix, std::io, std::time, std::time::clock;
 
 fn void errno_values_map_to_the_bleu_vocabulary() @test
 {
 	test::@check(unix::errno_to_fault((CInt)libc::Errno.ENOENT) == NOT_FOUND, "ENOENT is NOT_FOUND");
-	test::@check(unix::errno_to_fault((CInt)libc::Errno.EACCES) == error::PERMISSION_DENIED, "EACCES is PERMISSION_DENIED");
-	test::@check(unix::errno_to_fault((CInt)libc::Errno.EPERM) == error::PERMISSION_DENIED, "EPERM is PERMISSION_DENIED");
-	test::@check(unix::errno_to_fault((CInt)libc::Errno.ECONNREFUSED) == error::DISCONNECTED, "ECONNREFUSED is DISCONNECTED");
+	test::@check(
+		unix::errno_to_fault((CInt)libc::Errno.EACCES) == error::PERMISSION_DENIED,
+		"EACCES is PERMISSION_DENIED"
+	);
+	test::@check(
+		unix::errno_to_fault((CInt)libc::Errno.EPERM) == error::PERMISSION_DENIED,
+		"EPERM is PERMISSION_DENIED"
+	);
+	test::@check(
+		unix::errno_to_fault((CInt)libc::Errno.ECONNREFUSED) == error::DISCONNECTED,
+		"ECONNREFUSED is DISCONNECTED"
+	);
 	test::@check(unix::errno_to_fault((CInt)libc::Errno.EPIPE) == error::DISCONNECTED, "EPIPE is DISCONNECTED");
 	test::@check(unix::errno_to_fault((CInt)libc::Errno.ETIMEDOUT) == TIMEOUT, "ETIMEDOUT is TIMEOUT");
 	test::@check(unix::errno_to_fault((CInt)libc::Errno.EAGAIN) == error::BUSY, "EAGAIN is BUSY");
-	test::@check(unix::errno_to_fault((CInt)libc::Errno.EINVAL) == error::INVALID_ARGUMENT, "EINVAL is INVALID_ARGUMENT");
+	test::@check(
+		unix::errno_to_fault((CInt)libc::Errno.EINVAL) == error::INVALID_ARGUMENT,
+		"EINVAL is INVALID_ARGUMENT"
+	);
 	test::@check(unix::errno_to_fault((CInt)libc::Errno.ENOMEM) == error::NO_MEMORY, "ENOMEM is NO_MEMORY");
-	test::@check(unix::errno_to_fault((CInt)libc::Errno.EBADF) == error::BACKEND_FAILURE, "unlisted errno is BACKEND_FAILURE");
+	test::@check(
+		unix::errno_to_fault((CInt)libc::Errno.EBADF) == error::BACKEND_FAILURE,
+		"unlisted errno is BACKEND_FAILURE"
+	);
 }
 
 fn void socket_pair_carries_bytes() @test
@@ -23,7 +37,7 @@ fn void socket_pair_carries_bytes() @test
 	defer (void)pair.second.close();
 	test::eq((usz)5, pair.first.send("hello")!!);
 	char[16] buffer;
-	unix::RecvResult got = pair.second.recv(buffer[..], {})!!;
+	unix::RecvResult got = pair.second.recv(buffer[..], { })!!;
 	test::eq((usz)5, got.bytes);
 	test::eq((usz)0, got.fds);
 	test::@check((String)buffer[:5] == "hello", "the bytes arrive unchanged");
@@ -33,7 +47,7 @@ fn void file_descriptor_passes_through_a_socket() @test
 {
 	CInt[2] pipes;
 	test::eq(0, posix::pipe(&pipes));
-	unix::Fd read_end = { .value = pipes[0] };
+	unix::Fd read_end  = { .value = pipes[0] };
 	unix::Fd write_end = { .value = pipes[1] };
 	defer (void)read_end.close();
 	defer (void)write_end.close();
@@ -112,7 +126,7 @@ fn void poller_reports_socket_readiness() @test
 
 fn void listen_connect_accept_and_identify() @test
 {
-	String path = string::tformat("/tmp/bleu-rt-unix-%d.sock", clock::now());
+	String path               = string::tformat("/tmp/bleu-rt-unix-%d.sock", clock::now());
 	unix::UnixSocket listener = unix::listen(path, STREAM, 4)!!;
 	defer (void)listener.close();
 	unix::UnixSocket client = unix::connect(path, STREAM)!!;

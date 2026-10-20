@@ -29,9 +29,14 @@ extern fn uint sysStringLen(Char16* bstr) @cname("SysStringLen");
 *>
 fn Bstr? create(String text)
 {
-	WideZ wide = text::to_wide(tmem, text)!;
+	WideZ wide  = text::to_wide(tmem, text)!;
 	Char16* ptr = sysAllocStringLen(wide.units.ptr, (uint)wide.len());
-	if (!ptr && wide.len() > 0) return error::raise(error::NO_MEMORY, error::Domain.WIN32, 0, "SysAllocStringLen failed")~;
+	if (!ptr && wide.len() > 0) return error::raise(
+		error::NO_MEMORY,
+		error::Domain.WIN32,
+		0,
+		"SysAllocStringLen failed"
+	)~;
 	return { .ptr = ptr };
 }
 

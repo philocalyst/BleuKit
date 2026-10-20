@@ -100,7 +100,7 @@ fn Duration TimerQueue.next_timeout(&self)
 fn usz TimerQueue.pop_expired(&self, usz[] buffer)
 {
 	Clock now = clock::now();
-	usz n = 0;
+	usz n     = 0;
 	while (n < (usz)buffer.len && !self.heap.is_empty() && self.heap.get(0).due <= now)
 	{
 		Timer top = self.heap.get(0);
@@ -167,13 +167,13 @@ fn void timer_sift_up(TimerQueue* self, sz index) @private
 
 fn void timer_sift_down(TimerQueue* self, sz index) @private
 {
-	sz i = index;
+	sz i     = index;
 	sz count = self.heap.len();
 	while (true)
 	{
 		sz smallest = i;
-		sz left = 2 * i + 1;
-		sz right = left + 1;
+		sz left     = 2 * i + 1;
+		sz right    = left + 1;
 		if (left < count && self.heap.get(left).due < self.heap.get(smallest).due) smallest = left;
 		if (right < count && self.heap.get(right).due < self.heap.get(smallest).due) smallest = right;
 		if (smallest == i) return;
