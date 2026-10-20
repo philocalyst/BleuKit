@@ -42,11 +42,20 @@ fn bool probe(display::Options* options) => true;
 fn void*? create(Allocator allocator, display::Options options, display::Capabilities* capabilities)
 {
 	macos_native::DirectDisplayId[MAX_DISPLAYS] displays;
-	if (active_displays(displays[..]) == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no display is active")~;
+	if (active_displays(
+		displays[..]
+	) == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no display is active")~;
 	fill_capabilities(capabilities);
 	CoreGraphicsBackend* backend = alloc::new(allocator, CoreGraphicsBackend);
 	backend.allocator = allocator;
-	backend.native = { .backend = backend, .allocator = allocator, .read = &read_native, .commit = &commit_native, .can_rotate = false, .can_toggle = false };
+	backend.native = {
+		.backend = backend,
+		.allocator = allocator,
+		.read = &read_native,
+		.commit = &commit_native,
+		.can_rotate = false,
+		.can_toggle = false
+	};
 	return backend;
 }
 
@@ -73,20 +82,65 @@ fn void? commit_native(void* backend, display::Config config, bool test_only, bo
 fn void fill_capabilities(display::Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.set(SET_SCALE, { .reason = availability::Reason.DEGRADED, .note = "the scale follows the mode: a scale is accepted only when a mode with it exists" });
-	capabilities.set(TEST_ONLY, { .reason = availability::Reason.DEGRADED, .note = "CoreGraphics checks each configure call as it is made; the whole layout is not tested before it is completed" });
-	capabilities.set(SET_TRANSFORM, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "rotation needs a private CoreGraphics call; not in this version"));
-	capabilities.set(SET_ENABLED, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "disabling a display needs a private CoreGraphics call; not in this version"));
-	capabilities.set(SET_MIRROR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "mirroring is read but not written in this version"));
-	capabilities.set(SET_HDR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "HDR is not read or written on macOS in this version"));
-	capabilities.set(SET_COLOUR_DEPTH, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "colour depth is not read or written on macOS in this version"));
-	capabilities.set(SET_ADAPTIVE_SYNC, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "adaptive sync is not read or written on macOS in this version"));
+	capabilities.set(
+		SET_SCALE,
+		{
+			.reason = availability::Reason.DEGRADED,
+			.note = "the scale follows the mode: a scale is accepted only when a mode with it exists"
+		}
+	);
+	capabilities.set(
+		TEST_ONLY,
+		{
+			.reason = availability::Reason.DEGRADED,
+			.note = "CoreGraphics checks each configure call as it is made; the whole layout is not tested before it is completed"
+		}
+	);
+	capabilities.set(
+		SET_TRANSFORM,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"rotation needs a private CoreGraphics call; not in this version"
+		)
+	);
+	capabilities.set(
+		SET_ENABLED,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"disabling a display needs a private CoreGraphics call; not in this version"
+		)
+	);
+	capabilities.set(
+		SET_MIRROR,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "mirroring is read but not written in this version")
+	);
+	capabilities.set(
+		SET_HDR,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"HDR is not read or written on macOS in this version"
+		)
+	);
+	capabilities.set(
+		SET_COLOUR_DEPTH,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"colour depth is not read or written on macOS in this version"
+		)
+	);
+	capabilities.set(
+		SET_ADAPTIVE_SYNC,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"adaptive sync is not read or written on macOS in this version"
+		)
+	);
 }
 
 // The active displays, into `buffer`. Returns how many there are.
 fn sz active_displays(macos_native::DirectDisplayId[] buffer)
 {
-	uint count = 0;
+	uint count                 = 0;
 	macos_native::CgError code = macos_native::cg_active_displays((uint)buffer.len, buffer.ptr, &count);
 	if (code != macos_native::CG_SUCCESS) return 0;
 	return (sz)count;
@@ -108,16 +162,25 @@ fn DirectDisplayId? parse_display(String id)
 {
 	if (id.len == 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "empty output id")~;
 	macos_native::DirectDisplayId value = 0;
-	for (sz i = 0; i < id.len; i++) {
+	for (sz i = 0; i < id.len; i++)
+	{
 		char c = id[i];
-		if (c < '0' || c > '9') return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output id %s is not a display number", id)~;
+		if (c < '0' || c > '9') return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"output id %s is not a display number",
+			id
+		)~;
 		value = value * 10 + (uint)(c - '0');
 	}
 	return value;
 }
 
 // A refresh rate in millihertz from CoreGraphics' hertz; 0 when CoreGraphics does not know it.
-fn display::RefreshMilliHz refresh_of(double hertz) @inline => hertz > 0.0 ? (display::RefreshMilliHz)math::round(hertz * 1000.0) : 0;
+fn display::RefreshMilliHz refresh_of(
+	double hertz
+) @inline => hertz > 0.0 ? (display::RefreshMilliHz)math::round(hertz * 1000.0) : 0;
 
 // The mode a CoreGraphics mode object describes, at pixel size.
 fn display::Mode mode_of(void* mode)
@@ -146,12 +209,15 @@ fn display::Mode[] modes_of(macos_native::DirectDisplayId display, Allocator all
 	if (!all) return { };
 	defer macos_native::cf_release(all);
 	display::Mode[] modes = alloc::new_array(allocator, display::Mode, macos_native::cf_array_count(all));
-	sz count = 0;
-	for (sz i = 0; i < macos_native::cf_array_count(all); i++) {
+	sz count              = 0;
+	for (sz i = 0; i < macos_native::cf_array_count(all); i++)
+	{
 		display::Mode mode = mode_of(macos_native::cf_array_value_at(all, i));
-		bool seen = false;
-		for (sz j = 0; j < count; j++) {
-			if (modes[j].width == mode.width && modes[j].height == mode.height && modes[j].refresh == mode.refresh) seen = true;
+		bool seen          = false;
+		for (sz j = 0; j < count; j++)
+		{
+			if (modes[j].width == mode.width && modes[j].height == mode.height
+				&& modes[j].refresh == mode.refresh) seen = true;
 		}
 		if (!seen) modes[count++] = mode;
 	}
@@ -159,13 +225,16 @@ fn display::Mode[] modes_of(macos_native::DirectDisplayId display, Allocator all
 }
 
 // One display as an output: where it sits, its current mode, the modes it offers, and what it mirrors.
-fn display::Output describe(macos_native::DirectDisplayId display, macos_native::DirectDisplayId main, Allocator allocator)
+fn display::Output describe(
+	macos_native::DirectDisplayId display,
+	macos_native::DirectDisplayId main,
+	Allocator allocator
+)
 {
 	display::Output out = {
 		.id = number_text(display, allocator),
-		.name = string::tformat("Display %d", (int)display).copy(allocator),
-		.enabled = true,
-	};
+		.name = string::tformat("Display %d", (int)display)
+		.copy(allocator), .enabled = true, };
 	macos_native::CgRect bounds = macos_native::cg_display_bounds(display);
 	out.x = (int)math::round(bounds.origin.x);
 	out.y = (int)math::round(bounds.origin.y);
@@ -176,7 +245,8 @@ fn display::Output describe(macos_native::DirectDisplayId display, macos_native:
 	out.transform = transform_of(macos_native::cg_display_rotation(display));
 	out.modes = modes_of(display, allocator);
 	void* current = macos_native::cg_display_copy_mode(display);
-	if (current) {
+	if (current)
+	{
 		out.current.set(mode_of(current));
 		double scale = scale_of(current);
 		if (scale > 0.0) out.scale.set(scale);
@@ -199,9 +269,9 @@ fn display::Transform transform_of(double degrees)
 fn display::State read_state(Allocator allocator)
 {
 	macos_native::DirectDisplayId[MAX_DISPLAYS] displays;
-	sz count = active_displays(displays[..]);
+	sz count                           = active_displays(displays[..]);
 	macos_native::DirectDisplayId main = macos_native::cg_main_display();
-	display::Output[] outputs = alloc::new_array(allocator, display::Output, count);
+	display::Output[] outputs          = alloc::new_array(allocator, display::Output, count);
 	for (sz i = 0; i < count; i++) outputs[i] = describe(displays[i], main, allocator);
 	return { .outputs = outputs };
 }
@@ -210,10 +280,13 @@ fn display::State read_state(Allocator allocator)
 fn void publish(CoreGraphicsBackend* b)
 {
 	Snapshot{display::State}* snapshot = b.hub.begin();
-	display::State? state = read_state(snapshot.allocator());
-	if (catch err = state) {
+	display::State? state              = read_state(snapshot.allocator());
+	if (catch err = state)
+	{
 		snapshot.value = { };
-	} else {
+	}
+	else
+	{
 		snapshot.value = state;
 	}
 	display::publish_snapshot(b.hub, snapshot);
@@ -231,17 +304,21 @@ fn void run(void* state, display::DisplayHub* hub, Host{display::Command}* host)
 	defer unregister(b);
 	publish(b);
 	display::Command[8] commands;
-	while (!host.stopping()) {
-		if (catch poller.wait(b.rollback.guard.remaining(clock::now()))) {
+	while (!host.stopping())
+	{
+		if (catch poller.wait(b.rollback.guard.remaining(clock::now())))
+		{
 			// TIMEOUT is the rollback falling due, or nothing happening.
 		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) handle(b, commands[i], clock::now());
-		if (b.rollback.guard.due(clock::now())) {
+		if (b.rollback.guard.due(clock::now()))
+		{
 			display::revert_sync(&b.native, &b.rollback, b.hub);
 			b.dirty = true;
 		}
-		if (b.dirty) {
+		if (b.dirty)
+		{
 			b.dirty = false;
 			publish(b);
 		}
@@ -253,8 +330,10 @@ fn void run(void* state, display::DisplayHub* hub, Host{display::Command}* host)
 fn void on_reconfigure(macos_native::DirectDisplayId display, uint flags, void* user)
 {
 	if ((flags & macos_native::CG_BEGIN_CONFIGURATION_FLAG) != 0) return;
-	CoreGraphicsBackend* b = (CoreGraphicsBackend*)user;
-	if (catch b.mailbox.post(REFRESH)) {
+	CoreGraphicsBackend* b   = (CoreGraphicsBackend*)user;
+	display::Command command = { .kind = display::CommandKind.REFRESH };
+	if (catch b.mailbox.post(command))
+	{
 		// The mailbox is closed when the service stops; there is nothing left to tell.
 	}
 }
@@ -266,7 +345,8 @@ fn void unregister(CoreGraphicsBackend* b)
 
 fn void handle(CoreGraphicsBackend* b, display::Command command, Clock now)
 {
-	switch (command.kind) {
+	switch (command.kind)
+	{
 		case REFRESH: b.dirty = true;
 		case CONFIRM: display::confirm_sync(&b.rollback, now);
 		case APPLY: display::apply_sync(&b.native, &b.rollback, command, now);
@@ -280,58 +360,106 @@ fn void handle(CoreGraphicsBackend* b, display::Command command, Clock now)
 fn void? run_transaction(display::Config config, bool test_only, bool persistent)
 {
 	macos_native::ConfigRef transaction = null;
-	if (macos_native::cg_begin_configuration(&transaction) != macos_native::CG_SUCCESS) {
+	if (macos_native::cg_begin_configuration(&transaction) != macos_native::CG_SUCCESS)
+	{
 		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "CGBeginDisplayConfiguration failed")~;
 	}
-	if (catch err = configure_all(transaction, config)) {
+	if (catch err = configure_all(transaction, config))
+	{
 		macos_native::cg_cancel_configuration(transaction);
 		return err~;
 	}
-	if (test_only) {
+	if (test_only)
+	{
 		macos_native::cg_cancel_configuration(transaction);
 		return;
 	}
 	uint option = persistent ? macos_native::CONFIGURE_PERMANENTLY : macos_native::CONFIGURE_FOR_SESSION;
-	if (macos_native::cg_complete_configuration(transaction, option) != macos_native::CG_SUCCESS) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "CGCompleteDisplayConfiguration failed")~;
+	if (macos_native::cg_complete_configuration(transaction, option) != macos_native::CG_SUCCESS)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"CGCompleteDisplayConfiguration failed"
+		)~;
 	}
 }
 
 // Configure every display of the config inside the transaction.
 fn void? configure_all(macos_native::ConfigRef transaction, display::Config config)
 {
-	for (sz i = 0; i < config.outputs.len; i++) {
-		display::OutputChange change = config.outputs[i];
+	for (sz i = 0; i < config.outputs.len; i++)
+	{
+		display::OutputChange change          = config.outputs[i];
 		macos_native::DirectDisplayId display = parse_display(change.output_id)!;
 		configure_display(transaction, display, change)!;
 	}
 }
 
 // The mode that matches the change (the scale too, when the change names one), then the origin.
-fn void? configure_display(macos_native::ConfigRef transaction, macos_native::DirectDisplayId display, display::OutputChange change)
+fn void? configure_display(
+	macos_native::ConfigRef transaction,
+	macos_native::DirectDisplayId display,
+	display::OutputChange change
+)
 {
 	void* options = macos_native::duplicate_mode_options();
 	defer macos_native::cf_release(options);
 	void* all = macos_native::cg_display_copy_all_modes(display, options);
-	if (!all) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "display %d lists no modes", (int)display)~;
+	if (!all) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"display %d lists no modes",
+		(int)display
+	)~;
 	defer macos_native::cf_release(all);
 	void* found = null;
-	for (sz i = 0; i < macos_native::cf_array_count(all) && !found; i++) {
-		void* candidate = macos_native::cf_array_value_at(all, i);
+	for (sz i = 0; i < macos_native::cf_array_count(all) && !found; i++)
+	{
+		void* candidate    = macos_native::cf_array_value_at(all, i);
 		display::Mode mode = mode_of(candidate);
 		if (mode.width != change.mode.width || mode.height != change.mode.height) continue;
-		if (change.mode.refresh != 0 && !display::refresh_matches(mode.refresh, change.mode.refresh, display::DEFAULT_REFRESH_TOLERANCE)) continue;
+		if (change.mode.refresh != 0 && !display::refresh_matches(
+			mode.refresh,
+			change.mode.refresh,
+			display::DEFAULT_REFRESH_TOLERANCE
+		)) continue;
 		if (change.scale.has_value && math::abs(scale_of(candidate) - change.scale.value) >= SCALE_TOLERANCE) continue;
 		found = candidate;
 	}
-	if (!found) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "display %d has no mode %dx%d that matches", (int)display, (int)change.mode.width, (int)change.mode.height)~;
+	if (!found)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"display %d has no mode %dx%d that matches",
+			(int)display,
+			(int)change.mode.width,
+			(int)change.mode.height
+		)~;
 	}
-	if (macos_native::cg_configure_mode(transaction, display, found, null) != macos_native::CG_SUCCESS) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "CGConfigureDisplayWithDisplayMode refused display %d", (int)display)~;
+	if (macos_native::cg_configure_mode(transaction, display, found, null) != macos_native::CG_SUCCESS)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"CGConfigureDisplayWithDisplayMode refused display %d",
+			(int)display
+		)~;
 	}
-	if (macos_native::cg_configure_origin(transaction, display, change.x, change.y) != macos_native::CG_SUCCESS) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "CGConfigureDisplayOrigin refused display %d", (int)display)~;
+	if (macos_native::cg_configure_origin(transaction, display, change.x, change.y) != macos_native::CG_SUCCESS)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"CGConfigureDisplayOrigin refused display %d",
+			(int)display
+		)~;
 	}
 }
 
@@ -341,9 +469,14 @@ fn void shutdown(CoreGraphicsBackend* b, Host{display::Command}* host)
 	if (b.rollback.guard.armed) display::revert_sync(&b.native, &b.rollback, b.hub);
 	display::Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
-	while (count > 0) {
-		for (usz i = 0; i < count; i++) {
-			if (commands[i].kind == APPLY) display::reject(commands[i].op, error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "the display service stopped"));
+	while (count > 0)
+	{
+		for (usz i = 0; i < count; i++)
+		{
+			if (commands[i].kind == APPLY) display::reject(
+				commands[i].op,
+				error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "the display service stopped")
+			);
 		}
 		count = host.mailbox().take_all(commands[..]);
 	}

@@ -83,9 +83,13 @@ struct Pending
 
 // The head events: each updates its record. The manager's `done` ends a batch.
 
-fn void on_head(void* context, wlr_output_management::ZwlrOutputManagerV1* target, wlr_output_management::ZwlrOutputHeadV1* head)
+fn void on_head(
+	void* context,
+	wlr_output_management::ZwlrOutputManagerV1* target,
+	wlr_output_management::ZwlrOutputHeadV1* head
+)
 {
-	Session* s = (Session*)context;
+	Session* s        = (Session*)context;
 	OutputRecord* rec = new_record(s);
 	rec.head = head;
 	s.outputs.push(rec);
@@ -145,9 +149,13 @@ fn void on_head_serial(void* context, wlr_output_management::ZwlrOutputHeadV1* t
 }
 
 // A new mode of this head: a record for it, listening for its size and refresh.
-fn void on_head_mode(void* context, wlr_output_management::ZwlrOutputHeadV1* target, wlr_output_management::ZwlrOutputModeV1* mode)
+fn void on_head_mode(
+	void* context,
+	wlr_output_management::ZwlrOutputHeadV1* target,
+	wlr_output_management::ZwlrOutputModeV1* mode
+)
 {
-	OutputRecord* rec = (OutputRecord*)context;
+	OutputRecord* rec  = (OutputRecord*)context;
 	ModeRecord* record = new_mode(rec);
 	record.object = mode;
 	mode.set_listener(&MODE_LISTENER, record);
@@ -160,11 +168,16 @@ fn void on_head_enabled(void* context, wlr_output_management::ZwlrOutputHeadV1* 
 	if (!rec.enabled) clear_current(rec);
 }
 
-fn void on_head_current_mode(void* context, wlr_output_management::ZwlrOutputHeadV1* target, wlr_output_management::ZwlrOutputModeV1* mode)
+fn void on_head_current_mode(
+	void* context,
+	wlr_output_management::ZwlrOutputHeadV1* target,
+	wlr_output_management::ZwlrOutputModeV1* mode
+)
 {
 	OutputRecord* rec = (OutputRecord*)context;
 	clear_current(rec);
-	for (sz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++)
+	{
 		ModeRecord* record = rec.modes.get(i);
 		if (record.object == mode) record.current = true;
 	}
@@ -177,7 +190,11 @@ fn void on_head_position(void* context, wlr_output_management::ZwlrOutputHeadV1*
 	rec.y = y;
 }
 
-fn void on_head_transform(void* context, wlr_output_management::ZwlrOutputHeadV1* target, wayland::WlOutputTransform transform)
+fn void on_head_transform(
+	void* context,
+	wlr_output_management::ZwlrOutputHeadV1* target,
+	wayland::WlOutputTransform transform
+)
 {
 	OutputRecord* rec = (OutputRecord*)context;
 	rec.transform = wayland_convert::transform_from_wire((uint)transform);
@@ -189,7 +206,11 @@ fn void on_head_scale(void* context, wlr_output_management::ZwlrOutputHeadV1* ta
 	rec.scale = scale.to_double();
 }
 
-fn void on_head_adaptive_sync(void* context, wlr_output_management::ZwlrOutputHeadV1* target, wlr_output_management::ZwlrOutputHeadV1AdaptiveSyncState state)
+fn void on_head_adaptive_sync(
+	void* context,
+	wlr_output_management::ZwlrOutputHeadV1* target,
+	wlr_output_management::ZwlrOutputHeadV1AdaptiveSyncState state
+)
 {
 	OutputRecord* rec = (OutputRecord*)context;
 	rec.has_adaptive = true;
@@ -200,7 +221,7 @@ fn void on_head_adaptive_sync(void* context, wlr_output_management::ZwlrOutputHe
 fn void on_head_finished(void* context, wlr_output_management::ZwlrOutputHeadV1* target)
 {
 	OutputRecord* rec = (OutputRecord*)context;
-	Session* s = rec.session;
+	Session* s        = rec.session;
 	remove_record(s, rec); // releases the head object, as the protocol asks after `finished`
 	s.dirty = true;
 }
@@ -227,16 +248,21 @@ fn void on_mode_preferred(void* context, wlr_output_management::ZwlrOutputModeV1
 // The mode is gone: take it out of its head and release it.
 fn void on_mode_finished(void* context, wlr_output_management::ZwlrOutputModeV1* target)
 {
-	ModeRecord* mode = (ModeRecord*)context;
+	ModeRecord* mode  = (ModeRecord*)context;
 	OutputRecord* rec = mode.owner;
-	for (sz i = 0; i < rec.modes.len(); i++) {
-		if (rec.modes.get(i) == mode) {
+	for (sz i = 0; i < rec.modes.len(); i++)
+	{
+		if (rec.modes.get(i) == mode)
+		{
 			rec.modes.remove_at(i);
 			break;
 		}
 	}
-	if (mode.object) {
-		if (catch mode.object.release()) {}
+	if (mode.object)
+	{
+		if (catch mode.object.release())
+		{
+		}
 	}
 	alloc::free(rec.allocator, mode);
 	rec.session.dirty = true;

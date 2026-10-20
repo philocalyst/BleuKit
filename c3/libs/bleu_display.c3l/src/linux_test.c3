@@ -8,54 +8,54 @@ module bleu::display::linux_test @feat(LINUX);
 import bleu::display, bleu::display::linux_wayland, bleu::wl, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::xdg_output, bleu::wl::proto::wlr_output_management, bleu::rt::unix, bleu::rt::foreign, bleu::operation, bleu::error, bleu::observe, bleu::availability, std::core::test, std::thread, std::time::clock;
 
 // wl_display's id, and the events and requests the scenarios use (opcodes from the protocol XML).
-const uint WL_DISPLAY = 1;
-const ushort DISPLAY_SYNC = 0;
-const ushort DISPLAY_GET_REGISTRY = 1;
-const ushort DISPLAY_DELETE_ID = 1;
-const ushort REGISTRY_BIND = 0;
-const ushort CALLBACK_DONE = 0;
-const ushort WL_OUTPUT_GEOMETRY = 0;
-const ushort WL_OUTPUT_MODE = 1;
-const ushort WL_OUTPUT_DONE = 2;
-const ushort WL_OUTPUT_SCALE = 3;
-const ushort WL_OUTPUT_NAME = 4;
-const ushort XDG_MANAGER_GET_OUTPUT = 1;
-const ushort XDG_OUTPUT_LOGICAL_POSITION = 0;
-const ushort XDG_OUTPUT_LOGICAL_SIZE = 1;
-const ushort XDG_OUTPUT_DONE = 2;
+const uint WL_DISPLAY                     = 1;
+const ushort DISPLAY_SYNC                 = 0;
+const ushort DISPLAY_GET_REGISTRY         = 1;
+const ushort DISPLAY_DELETE_ID            = 1;
+const ushort REGISTRY_BIND                = 0;
+const ushort CALLBACK_DONE                = 0;
+const ushort WL_OUTPUT_GEOMETRY           = 0;
+const ushort WL_OUTPUT_MODE               = 1;
+const ushort WL_OUTPUT_DONE               = 2;
+const ushort WL_OUTPUT_SCALE              = 3;
+const ushort WL_OUTPUT_NAME               = 4;
+const ushort XDG_MANAGER_GET_OUTPUT       = 1;
+const ushort XDG_OUTPUT_LOGICAL_POSITION  = 0;
+const ushort XDG_OUTPUT_LOGICAL_SIZE      = 1;
+const ushort XDG_OUTPUT_DONE              = 2;
 const ushort MANAGER_CREATE_CONFIGURATION = 0;
-const ushort MANAGER_HEAD = 0;
-const ushort MANAGER_DONE = 1;
-const ushort HEAD_NAME = 0;
-const ushort HEAD_PHYSICAL_SIZE = 2;
-const ushort HEAD_MODE = 3;
-const ushort HEAD_ENABLED = 4;
-const ushort HEAD_CURRENT_MODE = 5;
-const ushort HEAD_POSITION = 6;
-const ushort HEAD_TRANSFORM = 7;
-const ushort HEAD_SCALE = 8;
-const ushort HEAD_MAKE = 10;
-const ushort MODE_SIZE = 0;
-const ushort MODE_REFRESH = 1;
-const ushort CONFIG_ENABLE_HEAD = 0;
-const ushort CONFIG_APPLY = 2;
-const ushort CONFIG_TEST = 3;
-const ushort CONFIG_DESTROY = 4;
-const ushort CONFIG_SUCCEEDED = 0;
-const ushort CONFIG_HEAD_SET_MODE = 0;
-const ushort CONFIG_HEAD_SET_POSITION = 2;
-const ushort CONFIG_HEAD_SET_TRANSFORM = 3;
-const ushort CONFIG_HEAD_SET_SCALE = 4;
+const ushort MANAGER_HEAD                 = 0;
+const ushort MANAGER_DONE                 = 1;
+const ushort HEAD_NAME                    = 0;
+const ushort HEAD_PHYSICAL_SIZE           = 2;
+const ushort HEAD_MODE                    = 3;
+const ushort HEAD_ENABLED                 = 4;
+const ushort HEAD_CURRENT_MODE            = 5;
+const ushort HEAD_POSITION                = 6;
+const ushort HEAD_TRANSFORM               = 7;
+const ushort HEAD_SCALE                   = 8;
+const ushort HEAD_MAKE                    = 10;
+const ushort MODE_SIZE                    = 0;
+const ushort MODE_REFRESH                 = 1;
+const ushort CONFIG_ENABLE_HEAD           = 0;
+const ushort CONFIG_APPLY                 = 2;
+const ushort CONFIG_TEST                  = 3;
+const ushort CONFIG_DESTROY               = 4;
+const ushort CONFIG_SUCCEEDED             = 0;
+const ushort CONFIG_HEAD_SET_MODE         = 0;
+const ushort CONFIG_HEAD_SET_POSITION     = 2;
+const ushort CONFIG_HEAD_SET_TRANSFORM    = 3;
+const ushort CONFIG_HEAD_SET_SCALE        = 4;
 
-const uint SERIAL = 7;
+const uint SERIAL                     = 7;
 const uint CONFIG_TIMEOUT_NANOS_AHEAD = 2_000_000_000;
 
 // Globals of the scenarios, and the ids the compositor gives the head and mode it creates.
-const uint OUTPUT_GLOBAL = 1;
-const uint XDG_GLOBAL = 2;
+const uint OUTPUT_GLOBAL  = 1;
+const uint XDG_GLOBAL     = 2;
 const uint MANAGER_GLOBAL = 5;
-const uint HEAD_OBJECT = 0xFF000003;
-const uint MODE_OBJECT = 0xFF000004;
+const uint HEAD_OBJECT    = 0xFF000003;
+const uint MODE_OBJECT    = 0xFF000004;
 
 fn void expect(bool ok, String what)
 {
@@ -72,7 +72,7 @@ fn testing::Message expect_request(testing::MockServer* s, uint object, ushort o
 fn uint expect_bind(testing::MockServer* s, uint registry, uint name, String interface_name, uint version)
 {
 	testing::Message bind = expect_request(s, registry, REGISTRY_BIND);
-	wire::Reader r = s.reader(bind);
+	wire::Reader r        = s.reader(bind);
 	expect(r.get_uint()!! == name, "bind of the wrong global");
 	expect(r.get_string()!! == interface_name, "bind of the wrong interface");
 	expect(r.get_uint()!! == version, "bind at the wrong version");
@@ -106,10 +106,13 @@ fn void answer_sync(testing::MockServer* s, uint callback)
 fn uint serve_registry(testing::MockServer* s, bool wlr)
 {
 	testing::Message get = expect_request(s, WL_DISPLAY, DISPLAY_GET_REGISTRY);
-	uint registry = s.reader(get).get_new_id()!!;
-	if (wlr) {
+	uint registry        = s.reader(get).get_new_id()!!;
+	if (wlr)
+	{
 		send_global(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
-	} else {
+	}
+	else
+	{
 		send_global(s, registry, OUTPUT_GLOBAL, "wl_output", 4);
 		send_global(s, registry, XDG_GLOBAL, "zxdg_output_manager_v1", 3);
 	}
@@ -231,14 +234,15 @@ fn void send_head(testing::MockServer* s, uint manager)
 fn uint expect_configure(testing::MockServer* s, uint manager, bool with_scale)
 {
 	testing::Message create = expect_request(s, manager, MANAGER_CREATE_CONFIGURATION);
-	wire::Reader c = s.reader(create);
-	uint config = c.get_new_id()!!;
+	wire::Reader c          = s.reader(create);
+	uint config             = c.get_new_id()!!;
 	expect(c.get_uint()!! == SERIAL, "configuration created with a stale serial");
 	testing::Message enable = expect_request(s, config, CONFIG_ENABLE_HEAD);
-	wire::Reader e = s.reader(enable);
-	uint config_head = e.get_new_id()!!;
+	wire::Reader e          = s.reader(enable);
+	uint config_head        = e.get_new_id()!!;
 	expect(e.get_object()!! == HEAD_OBJECT, "enabled the wrong head");
-	expect(s.reader(expect_request(s, config_head, CONFIG_HEAD_SET_MODE)).get_object()!! == MODE_OBJECT, "set the wrong mode");
+	expect(s.reader(expect_request(s, config_head, CONFIG_HEAD_SET_MODE))
+		.get_object()!! == MODE_OBJECT, "set the wrong mode");
 	testing::Message position = expect_request(s, config_head, CONFIG_HEAD_SET_POSITION);
 	expect(s.reader(position).get_int()!! == 0, "moved the output");
 	expect_request(s, config_head, CONFIG_HEAD_SET_TRANSFORM);
@@ -266,7 +270,8 @@ fn wl::Client* connect(testing::MockServer* server)
 // Drive the session until the request in flight is complete.
 fn void pump(linux_wayland::Session* session)
 {
-	while (session.pending != null) {
+	while (session.pending != null)
+	{
 		session.client.flush()!!;
 		session.client.dispatch()!!;
 		linux_wayland::advance(session, clock::now());
@@ -280,12 +285,12 @@ fn int read_route_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s, false);
-		uint xdg_manager = expect_bind(s, registry, XDG_GLOBAL, "zxdg_output_manager_v1", 3);
-		uint output = expect_bind(s, registry, OUTPUT_GLOBAL, "wl_output", 4);
-		testing::Message get = expect_request(s, xdg_manager, XDG_MANAGER_GET_OUTPUT);
-		wire::Reader g = s.reader(get);
-		uint xdg = g.get_new_id()!!;
+		uint registry          = serve_registry(s, false);
+		uint xdg_manager       = expect_bind(s, registry, XDG_GLOBAL, "zxdg_output_manager_v1", 3);
+		uint output            = expect_bind(s, registry, OUTPUT_GLOBAL, "wl_output", 4);
+		testing::Message get   = expect_request(s, xdg_manager, XDG_MANAGER_GET_OUTPUT);
+		wire::Reader g         = s.reader(get);
+		uint xdg               = g.get_new_id()!!;
 		expect(g.get_object()!! == output, "xdg output for the wrong output");
 		testing::Message sync = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
 		send_output(s, output, xdg);
@@ -327,9 +332,9 @@ fn int wlr_test_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s, true);
-		uint manager = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
-		testing::Message sync = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
+		uint registry          = serve_registry(s, true);
+		uint manager           = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
+		testing::Message sync  = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
 		send_head(s, manager);
 		answer_sync(s, s.reader(sync).get_new_id()!!);
 		// Test only: the configuration is tested, answered, and destroyed.
@@ -359,9 +364,21 @@ fn void test_only_reports_the_outcome_and_changes_nothing() @test
 	assert(session.wlr && session.serial == SERIAL);
 	ApplyOp* op = operation::begin(mem);
 	op.retain();
-	display::OutputChange[1] changes = { { .output_id = "DP-1", .enabled = true, .mode = { .width = 1920, .height = 1080, .refresh = 60000 } } };
+	// Rotated: a change the platform must make (an unchanged layout completes without asking the compositor).
+	display::OutputChange[1] changes = {
+		{
+			.output_id = "DP-1",
+			.enabled = true,
+			.mode = { .width = 1920, .height = 1080, .refresh = 60000 },
+			.transform = display::Transform.R90
+		},
+	};
 	display::Config config = owned(op, { .outputs = changes[..] });
-	linux_wayland::begin_apply(session, { .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.TEST_ONLY }, clock::now());
+	linux_wayland::begin_apply(
+		session,
+		{ .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.TEST_ONLY },
+		clock::now()
+	);
 	pump(session);
 	display::ApplyResult result = op.wait()!!;
 	assert(!result.live && !result.revert_armed);
@@ -375,9 +392,9 @@ fn int wlr_rollback_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s, true);
-		uint manager = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
-		testing::Message sync = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
+		uint registry          = serve_registry(s, true);
+		uint manager           = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
+		testing::Message sync  = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
 		send_head(s, manager);
 		answer_sync(s, s.reader(sync).get_new_id()!!);
 		// The test of the new layout.
@@ -411,10 +428,25 @@ fn void unconfirmed_change_is_rolled_back() @test
 	ApplyOp* op = operation::begin(mem);
 	op.retain();
 	display::OutputChange[1] changes = {
-		{ .output_id = "DP-1", .enabled = true, .mode = { .width = 1920, .height = 1080, .refresh = 60000 }, .transform = display::Transform.R90 },
+		{
+			.output_id = "DP-1",
+			.enabled = true,
+			.mode = { .width = 1920, .height = 1080, .refresh = 60000 },
+			.transform = display::Transform.R90
+		},
 	};
 	display::Config config = owned(op, { .outputs = changes[..] });
-	linux_wayland::begin_apply(session, { .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.APPLY_WITH_REVERT, .revert_after = (Duration)1_000_000 }, clock::now());
+	linux_wayland::begin_apply(
+		session,
+		{
+			.kind = display::CommandKind.APPLY,
+			.op = op,
+			.config = config,
+			.mode = display::ApplyMode.APPLY_WITH_REVERT,
+			.revert_after = (Duration)1_000_000
+		},
+		clock::now()
+	);
 	pump(session);
 	display::ApplyResult result = op.wait()!!;
 	assert(result.live && result.revert_armed);

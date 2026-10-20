@@ -31,6 +31,9 @@ fn Driver*? select_driver(Options options)
 		if (options.backend != AUTO && options.backend != driver.id) continue;
 		if (driver.probe(&options)) return driver;
 	}
-	if (options.backend != AUTO) return error::UNSUPPORTED~;
-	return error::UNAVAILABLE~;
+	if (options.backend != AUTO)
+	{
+		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "this platform has no such windows backend")~;
+	}
+	return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no windows backend works here (no compositor and no desktop session)")~;
 }

@@ -120,18 +120,32 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 		if (events && link.connected) link.read(&poller, hub);
 		if (refresh)
 		{
-			if (link.connected) link.resync(&poller, hub); else link.attempt(&poller, hub);
+			if (link.connected)
+			{
+				link.resync(&poller, hub);
+			}
+			else
+			{
+				link.attempt(&poller, hub);
+			}
 		}
 	}
 	fail_queued(host, batch[..]);
 }
 
-// Publish a state that says nothing can be read, and why.
-fn void publish_status(WindowsHub* hub, String reason) @private
+// A state that says nothing can be read, and why. The lists stay empty: nothing is known.
+fn Snapshot{State}* disconnected(WindowsHub* hub, String reason) @private
 {
 	Snapshot{State}* next = hub.begin();
+	next.value.connection = Connection.DISCONNECTED;
 	next.value.status = reason.copy(next.allocator());
-	windows::publish_changes(hub, next);
+	return next;
+}
+
+// Publish the state that says nothing can be read, and why, before the worker returns.
+fn void publish_status(WindowsHub* hub, String reason) @private
+{
+	windows::publish_changes(hub, disconnected(hub, reason));
 }
 
 <*
@@ -311,8 +325,7 @@ fn void? Link.act(&self, Command* command)
 // which a failing close or poller call overwrites.
 fn void Link.lose(&self, Poller* poller, WindowsHub* hub, String reason)
 {
-	Snapshot{State}* next = hub.begin();
-	next.value.status = reason.copy(next.allocator());
+	Snapshot{State}* next = disconnected(hub, reason);
 	self.drop(poller);
 	self.retry_wait = self.backoff.take();
 	windows::publish_changes(hub, next);

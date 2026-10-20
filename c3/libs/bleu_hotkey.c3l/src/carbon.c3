@@ -187,8 +187,14 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 	Backend* b = (Backend*)state;
 	b.hub = hub;
 	b.wakeup = host.wakeup();
-	if (catch err = carbon_api()) return;
-	b.api = carbon_api()!!;
+	if (try api = carbon_api())
+	{
+		b.api = api;
+	}
+	else
+	{
+		return;
+	}
 	b.queue.mutex.init()!!;
 	defer b.queue.mutex.destroy();
 	EventTypeSpec[2] types = { { CLASS_KEYBOARD, EVENT_HOT_KEY_PRESSED }, { CLASS_KEYBOARD, EVENT_HOT_KEY_RELEASED } };
@@ -257,7 +263,10 @@ fn void queue_press(Backend* b, int native, bool pressed) @local
 		b.queue.dropped++;
 	}
 	b.queue.mutex.unlock();
-	b.wakeup.signal()!!;
+	if (catch err = b.wakeup.signal())
+	{
+		// The worker is gone: nothing is waiting for the press.
+	}
 }
 
 // Emit the queued presses and releases, on the worker thread.
@@ -326,7 +335,7 @@ fn void register_code(Backend* b, Command command, uint code) @local
 	ulong hotkey_id = (ulong)SIGNATURE | ((ulong)native << 32); // EventHotKeyID, by value, little-endian
 	void* reference = null;
 	uint modifiers  = keymap_macos::macos_modifiers(command.chord.mods);
-	int status      = b.api.register_hotkey(
+	int status = b.api.register_hotkey(
 		code,
 		modifiers,
 		hotkey_id,

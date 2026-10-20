@@ -96,7 +96,8 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 {
 	Backend* b = (Backend*)state;
 	b.hub = hub;
-	message_loop::Loop* loop = message_loop::open(mem, &ignore_event, null)!!;
+	message_loop::Loop* loop = message_loop::open(mem, &ignore_event, null) ?? null;
+	if (loop == null) return;
 	defer loop.close();
 	b.window = loop.window;
 	Poller poller;

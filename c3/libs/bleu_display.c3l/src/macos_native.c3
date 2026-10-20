@@ -81,20 +81,46 @@ extern fn double cg_display_rotation(DirectDisplayId display) @cname("CGDisplayR
 extern fn CgSize cg_display_screen_size(DirectDisplayId display) @cname("CGDisplayScreenSize");
 extern fn DirectDisplayId cg_display_mirrors(DirectDisplayId display) @cname("CGDisplayMirrorsDisplay");
 extern fn void* cg_display_copy_mode(DirectDisplayId display) @cname("CGDisplayCopyDisplayMode");
-extern fn void* cg_display_copy_all_modes(DirectDisplayId display, void* options) @cname("CGDisplayCopyAllDisplayModes");
+extern fn void* cg_display_copy_all_modes(
+	DirectDisplayId display,
+	void* options
+) @cname("CGDisplayCopyAllDisplayModes");
 extern fn usz cg_mode_width(void* mode) @cname("CGDisplayModeGetWidth");
 extern fn usz cg_mode_height(void* mode) @cname("CGDisplayModeGetHeight");
 extern fn usz cg_mode_pixel_width(void* mode) @cname("CGDisplayModeGetPixelWidth");
 extern fn usz cg_mode_pixel_height(void* mode) @cname("CGDisplayModeGetPixelHeight");
 extern fn double cg_mode_refresh_rate(void* mode) @cname("CGDisplayModeGetRefreshRate");
 extern fn CgError cg_begin_configuration(ConfigRef* config) @cname("CGBeginDisplayConfiguration");
-extern fn CgError cg_configure_origin(ConfigRef config, DirectDisplayId display, int x, int y) @cname("CGConfigureDisplayOrigin");
-extern fn CgError cg_configure_mode(ConfigRef config, DirectDisplayId display, void* mode, void* options) @cname("CGConfigureDisplayWithDisplayMode");
+extern fn CgError cg_configure_origin(
+	ConfigRef config,
+	DirectDisplayId display,
+	int x,
+	int y
+) @cname("CGConfigureDisplayOrigin");
+extern fn CgError cg_configure_mode(
+	ConfigRef config,
+	DirectDisplayId display,
+	void* mode,
+	void* options
+) @cname("CGConfigureDisplayWithDisplayMode");
 extern fn CgError cg_complete_configuration(ConfigRef config, uint option) @cname("CGCompleteDisplayConfiguration");
 extern fn CgError cg_cancel_configuration(ConfigRef config) @cname("CGCancelDisplayConfiguration");
-extern fn CgError cg_register_reconfiguration(ReconfigurationFn callback, void* user) @cname("CGDisplayRegisterReconfigurationCallback");
-extern fn CgError cg_remove_reconfiguration(ReconfigurationFn callback, void* user) @cname("CGDisplayRemoveReconfigurationCallback");
-extern fn void* cf_dictionary_create(void* allocator, void** keys, void** values, sz count, CfKeyCallbacks* key_callbacks, CfValueCallbacks* value_callbacks) @cname("CFDictionaryCreate");
+extern fn CgError cg_register_reconfiguration(
+	ReconfigurationFn callback,
+	void* user
+) @cname("CGDisplayRegisterReconfigurationCallback");
+extern fn CgError cg_remove_reconfiguration(
+	ReconfigurationFn callback,
+	void* user
+) @cname("CGDisplayRemoveReconfigurationCallback");
+extern fn void* cf_dictionary_create(
+	void* allocator,
+	void** keys,
+	void** values,
+	sz count,
+	CfKeyCallbacks* key_callbacks,
+	CfValueCallbacks* value_callbacks
+) @cname("CFDictionaryCreate");
 extern fn sz cf_array_count(void* array) @cname("CFArrayGetCount");
 extern fn void* cf_array_value_at(void* array, sz index) @cname("CFArrayGetValueAtIndex");
 extern fn void cf_release(void* object) @cname("CFRelease");
@@ -105,7 +131,14 @@ extern fn void cf_release(void* object) @cname("CFRelease");
 *>
 fn void* duplicate_mode_options()
 {
-	void*[1] keys = { (void*)KCG_SHOW_DUPLICATE_LOW_RES_MODES };
+	void*[1] keys   = { (void*)KCG_SHOW_DUPLICATE_LOW_RES_MODES };
 	void*[1] values = { (void*)cf::KCF_BOOLEAN_TRUE };
-	return cf_dictionary_create(null, &keys[0], &values[0], 1, &KCF_TYPE_DICTIONARY_KEY_CALLBACKS, &KCF_TYPE_DICTIONARY_VALUE_CALLBACKS);
+	return cf_dictionary_create(
+		null,
+		&keys[0],
+		&values[0],
+		1,
+		&KCF_TYPE_DICTIONARY_KEY_CALLBACKS,
+		&KCF_TYPE_DICTIONARY_VALUE_CALLBACKS
+	);
 }

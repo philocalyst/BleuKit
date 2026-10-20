@@ -6,8 +6,10 @@ fn display::Mode fhd60() => { .width = 1920, .height = 1080, .refresh = 60000 };
 
 fn void transform_swaps_for_quarter_turns() @test
 {
-	assert(!display::Transform.NORMAL.quarter_turn() && !display::Transform.R180.quarter_turn() && !display::Transform.FLIPPED.quarter_turn());
-	assert(display::Transform.R90.quarter_turn() && display::Transform.R270.quarter_turn() && display::Transform.FLIPPED_R90.quarter_turn());
+	assert(!display::Transform.NORMAL.quarter_turn() && !display::Transform.R180.quarter_turn()
+		&& !display::Transform.FLIPPED.quarter_turn());
+	assert(display::Transform.R90.quarter_turn() && display::Transform.R270.quarter_turn()
+		&& display::Transform.FLIPPED_R90.quarter_turn());
 	display::Extent e = display::logical_extent(fhd60(), display::Transform.R90, 1.5);
 	assert(e.width == 720 && e.height == 1280);
 	display::Extent n = display::logical_extent(fhd60(), display::Transform.NORMAL, 1.0);
@@ -49,7 +51,7 @@ fn void an_output_the_pointer_cannot_reach_is_refused() @test
 fn void origin_moves_to_the_anchor_or_the_bounding_box() @test
 {
 	display::Rect[2] rects = { { -1920, 0, 1920, 1080 }, { 0, 0, 1920, 1080 } };
-	display::Offset box = display::origin_offset(rects[..], -1);
+	display::Offset box    = display::origin_offset(rects[..], -1);
 	assert(box.x == 1920 && box.y == 0);
 	display::Offset primary = display::origin_offset(rects[..], 1);
 	assert(primary.x == 0 && primary.y == 0);
@@ -66,7 +68,7 @@ fn void refresh_tolerance_separates_ntsc_rates() @test
 fn void mode_matching_is_exact_on_size() @test
 {
 	display::Mode[3] modes = { { 1920, 1080, 60000, true }, { 1920, 1080, 59940, false }, { 1280, 720, 60000, false } };
-	display::Mode wanted = { .width = 1920, .height = 1080, .refresh = 59940 };
+	display::Mode wanted   = { .width = 1920, .height = 1080, .refresh = 59940 };
 	assert(display::find_mode(modes[..], wanted, display::DEFAULT_REFRESH_TOLERANCE).value == 1);
 	display::Mode any_rate = { .width = 1920, .height = 1080, .refresh = 0 };
 	assert(display::find_mode(modes[..], any_rate, display::DEFAULT_REFRESH_TOLERANCE).value == 0);
@@ -121,7 +123,7 @@ fn void diff_sees_only_what_the_change_sets() @test
 {
 	display::Output[2] outputs = { };
 	two_outputs(outputs[..]);
-	display::State state = { .outputs = outputs[..] };
+	display::State state       = { .outputs = outputs[..] };
 	display::OutputChange same = { .output_id = "HDMI-1", .enabled = true, .mode = fhd60(), .x = 1920 };
 	assert(!display::delta_of(outputs[1], same).differs());
 	display::OutputChange moved = { .output_id = "HDMI-1", .enabled = true, .mode = fhd60(), .x = 0 };

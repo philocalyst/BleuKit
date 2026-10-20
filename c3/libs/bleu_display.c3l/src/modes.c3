@@ -25,19 +25,23 @@ fn bool refresh_matches(RefreshMilliHz a, RefreshMilliHz b, RefreshMilliHz toler
 fn Maybe{sz} find_mode(Mode[] modes, Mode wanted, RefreshMilliHz tolerance)
 {
 	bool found = false;
-	sz best = 0;
-	for (sz i = 0; i < modes.len; i++) {
+	sz best    = 0;
+	for (sz i = 0; i < modes.len; i++)
+	{
 		Mode candidate = modes[i];
 		if (candidate.width != wanted.width || candidate.height != wanted.height) continue;
-		if (wanted.refresh == 0) {
-			if (!found || candidate.refresh > modes[best].refresh) {
+		if (wanted.refresh == 0)
+		{
+			if (!found || candidate.refresh > modes[best].refresh)
+			{
 				found = true;
 				best = i;
 			}
 			continue;
 		}
 		if (!refresh_matches(candidate.refresh, wanted.refresh, tolerance)) continue;
-		if (!found || closer(candidate.refresh, modes[best].refresh, wanted.refresh)) {
+		if (!found || closer(candidate.refresh, modes[best].refresh, wanted.refresh))
+		{
 			found = true;
 			best = i;
 		}

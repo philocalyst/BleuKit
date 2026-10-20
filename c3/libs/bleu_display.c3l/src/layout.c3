@@ -28,8 +28,8 @@ struct Offset
 <* True when the two rectangles share some area. Touching edges do not count. *>
 fn bool Rect.overlaps(self, Rect other) @inline
 {
-	return self.x < other.x + other.width && other.x < self.x + self.width
-		&& self.y < other.y + other.height && other.y < self.y + self.height;
+	return self.x < other.x + other.width && other.x < self.x + self.width && self.y < other.y + other.height
+		&& other.y < self.y + self.height;
 }
 
 <* True when the two rectangles share an edge of positive length, so the pointer crosses between them. *>
@@ -43,7 +43,10 @@ fn bool Rect.touches(self, Rect other) @inline
 }
 
 <* The rectangle moved by `by`. *>
-fn Rect Rect.shifted(self, Offset by) @inline => { .x = self.x + by.x, .y = self.y + by.y, .width = self.width, .height = self.height };
+fn Rect Rect.shifted(
+	self,
+	Offset by
+) @inline => { .x = self.x + by.x, .y = self.y + by.y, .width = self.width, .height = self.height };
 
 <*
  Check that the enabled outputs form one desktop: at least one, no two overlapping, and every one
@@ -55,26 +58,52 @@ fn Rect Rect.shifted(self, Offset by) @inline => { .x = self.x + by.x, .y = self
 *>
 fn void? validate_layout(Rect[] rects)
 {
-	if (rects.len == 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "no output is enabled")~;
-	if (rects.len > MAX_LAYOUT_OUTPUTS) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "more than %d outputs", (int)MAX_LAYOUT_OUTPUTS)~;
+	if (rects.len == 0) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"no output is enabled"
+	)~;
+	if (rects.len > MAX_LAYOUT_OUTPUTS)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"more than %d outputs",
+			(int)MAX_LAYOUT_OUTPUTS
+		)~;
 	}
-	for (sz i = 0; i < rects.len; i++) {
-		for (sz j = i + 1; j < rects.len; j++) {
-			if (rects[i].overlaps(rects[j])) {
-				return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "outputs %d and %d overlap", (int)i, (int)j)~;
+	for (sz i = 0; i < rects.len; i++)
+	{
+		for (sz j = i + 1; j < rects.len; j++)
+		{
+			if (rects[i].overlaps(rects[j]))
+			{
+				return error::raise(
+					error::INVALID_ARGUMENT,
+					error::Domain.INTERNAL,
+					0,
+					"outputs %d and %d overlap",
+					(int)i,
+					(int)j
+				)~;
 			}
 		}
 	}
 	bool[MAX_LAYOUT_OUTPUTS] reached = { };
 	reached[0] = true;
 	bool grew = true;
-	while (grew) {
+	while (grew)
+	{
 		grew = false;
-		for (sz i = 0; i < rects.len; i++) {
+		for (sz i = 0; i < rects.len; i++)
+		{
 			if (reached[i]) continue;
-			for (sz j = 0; j < rects.len; j++) {
-				if (reached[j] && rects[i].touches(rects[j])) {
+			for (sz j = 0; j < rects.len; j++)
+			{
+				if (reached[j] && rects[i].touches(rects[j]))
+				{
 					reached[i] = true;
 					grew = true;
 					break;
@@ -82,9 +111,17 @@ fn void? validate_layout(Rect[] rects)
 			}
 		}
 	}
-	for (sz i = 0; i < rects.len; i++) {
-		if (!reached[i]) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %d is cut off from the rest of the layout", (int)i)~;
+	for (sz i = 0; i < rects.len; i++)
+	{
+		if (!reached[i])
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"output %d is cut off from the rest of the layout",
+				(int)i
+			)~;
 		}
 	}
 }
@@ -100,7 +137,8 @@ fn Offset origin_offset(Rect[] rects, sz anchor)
 	if (anchor >= 0 && anchor < rects.len) return { .x = -rects[anchor].x, .y = -rects[anchor].y };
 	int min_x = rects[0].x;
 	int min_y = rects[0].y;
-	foreach (rect : rects) {
+	foreach (rect : rects)
+	{
 		if (rect.x < min_x) min_x = rect.x;
 		if (rect.y < min_y) min_y = rect.y;
 	}

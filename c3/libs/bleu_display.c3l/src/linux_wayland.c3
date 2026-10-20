@@ -29,9 +29,11 @@ fn bool probe(Options* options)
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	wl::Client* client = alloc::new(allocator, wl::Client);
-	if (catch err = client.connect_env(allocator)) {
+	if (catch err = client.connect_env(allocator))
+	{
 		alloc::free(allocator, client);
-		return error::raise(error::UNAVAILABLE, error::Domain.WAYLAND, 0, "no Wayland display: %s", error::last().message())~;
+		return error::raise(error::UNAVAILABLE, error::Domain.WAYLAND, 0, "no Wayland display: %s", error::last()
+			.message())~;
 	}
 	Session* session = attach(allocator, client, options.root)!;
 	fill_capabilities(session, capabilities);
@@ -48,7 +50,8 @@ fn void destroy(Allocator allocator, void* state)
 fn void fill_capabilities(Session* s, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	if (!s.wlr) {
+	if (!s.wlr)
+	{
 		String note = "the compositor has no wlr-output-management: the layout is read-only";
 		capabilities.set(SET_LAYOUT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, note));
 		capabilities.set(SET_MODE, availability::no(availability::Reason.UNSUPPORTED_BACKEND, note));
@@ -64,11 +67,32 @@ fn void fill_capabilities(Session* s, Capabilities* capabilities)
 		capabilities.set(SET_ADAPTIVE_SYNC, availability::no(availability::Reason.UNSUPPORTED_BACKEND, note));
 		return;
 	}
-	capabilities.set(PERSISTENT, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the compositor keeps its own layout; wlr-output-management cannot persist it"));
-	capabilities.set(SET_MIRROR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no mirror field"));
-	capabilities.set(SET_HDR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no HDR field"));
-	capabilities.set(SET_COLOUR_DEPTH, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no colour depth field"));
-	capabilities.set(SET_ADAPTIVE_SYNC, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "adaptive sync is read from the compositor but not written in this version"));
+	capabilities.set(
+		PERSISTENT,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"the compositor keeps its own layout; wlr-output-management cannot persist it"
+		)
+	);
+	capabilities.set(
+		SET_MIRROR,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no mirror field")
+	);
+	capabilities.set(
+		SET_HDR,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no HDR field")
+	);
+	capabilities.set(
+		SET_COLOUR_DEPTH,
+		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "wlr-output-management has no colour depth field")
+	);
+	capabilities.set(
+		SET_ADAPTIVE_SYNC,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"adaptive sync is read from the compositor but not written in this version"
+		)
+	);
 }
 
 <*
@@ -88,12 +112,16 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 	if (catch poller.add(source)) return;
 	publish(s);
 	Command[8] commands;
-	while (!host.stopping()) {
+	while (!host.stopping())
+	{
 		if (catch s.client.flush()) break;
 		Clock now = clock::now();
-		if (try ready = poller.wait(next_wake(s, now))) {
-			foreach (event : ready) {
-				if (event.tag == CLIENT_TAG) {
+		if (try ready = poller.wait(next_wake(s, now)))
+		{
+			foreach (event : ready)
+			{
+				if (event.tag == CLIENT_TAG)
+				{
 					if (catch s.client.dispatch()) break;
 				}
 			}
@@ -102,7 +130,8 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 		for (usz i = 0; i < count; i++) handle_command(s, commands[i], clock::now());
 		advance(s, clock::now());
 		if (catch s.client.flush()) break;
-		if (s.dirty) {
+		if (s.dirty)
+		{
 			s.dirty = false;
 			publish(s);
 		}
@@ -113,7 +142,8 @@ fn void run(void* state, display::DisplayHub* hub, Host{Command}* host)
 // One command from the mailbox.
 fn void handle_command(Session* s, Command command, Clock now)
 {
-	switch (command.kind) {
+	switch (command.kind)
+	{
 		case REFRESH: s.dirty = true;
 		case CONFIRM: confirm(s, now);
 		case APPLY: begin_apply(s, command, now);
@@ -126,19 +156,31 @@ fn void handle_command(Session* s, Command command, Clock now)
 *>
 fn void shutdown(Session* s, Host{Command}* host)
 {
-	if (s.guard.armed) {
+	if (s.guard.armed)
+	{
 		start_revert(s, clock::now());
-		if (catch s.client.flush()) {}
+		if (catch s.client.flush())
+		{
+		}
 		if (s.pending) release_pending(s.pending);
 	}
-	if (s.pending) {
-		finish_failed(s.pending, error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped"));
+	if (s.pending)
+	{
+		finish_failed(
+			s.pending,
+			error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped")
+		);
 	}
 	Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
-	while (count > 0) {
-		for (usz i = 0; i < count; i++) {
-			if (commands[i].kind == APPLY) reject(commands[i].op, error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped"));
+	while (count > 0)
+	{
+		for (usz i = 0; i < count; i++)
+		{
+			if (commands[i].kind == APPLY) reject(
+				commands[i].op,
+				error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the display service stopped")
+			);
 		}
 		count = host.mailbox().take_all(commands[..]);
 	}

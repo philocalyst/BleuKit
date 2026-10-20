@@ -47,7 +47,14 @@ fn void*? create(Allocator allocator, display::Options options, display::Capabil
 	fill_capabilities(capabilities);
 	WindowsBackend* backend = alloc::new(allocator, WindowsBackend);
 	backend.allocator = allocator;
-	backend.native = { .backend = backend, .allocator = allocator, .read = &read_native, .commit = &commit_native, .can_rotate = true, .can_toggle = true };
+	backend.native = {
+		.backend = backend,
+		.allocator = allocator,
+		.read = &read_native,
+		.commit = &commit_native,
+		.can_rotate = true,
+		.can_toggle = true
+	};
 	return backend;
 }
 
@@ -62,12 +69,48 @@ fn void destroy(Allocator allocator, void* state)
 fn void fill_capabilities(display::Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.set(SET_SCALE, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "scale is changed in Windows Settings; no public call is bound here"));
-	capabilities.set(SET_ENABLED, { .reason = availability::Reason.DEGRADED, .note = "an active output can be switched off; switching on an inactive output is not in this version" });
-	capabilities.set(SET_MIRROR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "mirroring (the clone topology) is not written in this version"));
-	capabilities.set(SET_HDR, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "advanced colour is not read or written in this version"));
-	capabilities.set(SET_COLOUR_DEPTH, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "advanced colour is not read or written in this version"));
-	capabilities.set(SET_ADAPTIVE_SYNC, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "adaptive sync is not read or written in this version"));
+	capabilities.set(
+		SET_SCALE,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"scale is changed in Windows Settings; no public call is bound here"
+		)
+	);
+	capabilities.set(
+		SET_ENABLED,
+		{
+			.reason = availability::Reason.DEGRADED,
+			.note = "an active output can be switched off; switching on an inactive output is not in this version"
+		}
+	);
+	capabilities.set(
+		SET_MIRROR,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"mirroring (the clone topology) is not written in this version"
+		)
+	);
+	capabilities.set(
+		SET_HDR,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"advanced colour is not read or written in this version"
+		)
+	);
+	capabilities.set(
+		SET_COLOUR_DEPTH,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"advanced colour is not read or written in this version"
+		)
+	);
+	capabilities.set(
+		SET_ADAPTIVE_SYNC,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"adaptive sync is not read or written in this version"
+		)
+	);
 }
 
 // A topology as Windows returned it: the paths and the modes they index, in `tmp`.
@@ -82,12 +125,14 @@ fn Topology? query_topology(Allocator tmp, uint flags)
 {
 	uint path_count = 0;
 	uint mode_count = 0;
-	if (win_native::get_display_config_buffer_sizes(flags, &path_count, &mode_count) != 0) {
+	if (win_native::get_display_config_buffer_sizes(flags, &path_count, &mode_count) != 0)
+	{
 		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "GetDisplayConfigBufferSizes failed")~;
 	}
 	win_native::PathInfo[] paths = alloc::new_array(tmp, win_native::PathInfo, path_count);
 	win_native::ModeInfo[] modes = alloc::new_array(tmp, win_native::ModeInfo, mode_count);
-	if (win_native::query_display_config(flags, &path_count, paths.ptr, &mode_count, modes.ptr, null) != 0) {
+	if (win_native::query_display_config(flags, &path_count, paths.ptr, &mode_count, modes.ptr, null) != 0)
+	{
 		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "QueryDisplayConfig failed")~;
 	}
 	return { .paths = paths[0:path_count], .modes = modes[0:mode_count] };
@@ -99,7 +144,8 @@ fn uint mode_index(uint mode_info) @inline => (mode_info >> 16) & win_native::MO
 // The number of characters before the terminating NUL of a wide string.
 fn sz wide_length(Char16[] units)
 {
-	for (sz i = 0; i < units.len; i++) {
+	for (sz i = 0; i < units.len; i++)
+	{
 		if (units[i] == 0) return i;
 	}
 	return units.len;
@@ -119,8 +165,14 @@ fn String? device_path(win_native::PathInfo path, Allocator allocator)
 	name.header.size = (uint)@sizeof(name);
 	name.header.adapter = path.target.adapter;
 	name.header.id = path.target.id;
-	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "DisplayConfigGetDeviceInfo (target) failed")~;
+	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"DisplayConfigGetDeviceInfo (target) failed"
+		)~;
 	}
 	return wide_text(name.device_path[..], allocator);
 }
@@ -133,24 +185,36 @@ fn String? friendly_name(win_native::PathInfo path, Allocator allocator)
 	name.header.size = (uint)@sizeof(name);
 	name.header.adapter = path.target.adapter;
 	name.header.id = path.target.id;
-	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "DisplayConfigGetDeviceInfo (target) failed")~;
+	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"DisplayConfigGetDeviceInfo (target) failed"
+		)~;
 	}
 	return wide_text(name.friendly_name[..], allocator);
 }
 
 // The GDI device name of a path's source, such as \\.\DISPLAY1, which EnumDisplaySettingsExW takes.
-fn Char16[win_native::CCH_DEVICE_NAME]? gdi_name_of(win_native::PathInfo path)
+fn void? gdi_name_of(win_native::PathInfo path, Char16[] gdi)
 {
 	win_native::SourceDeviceName name;
 	name.header.info_type = win_native::DEVICE_INFO_SOURCE_NAME;
 	name.header.size = (uint)@sizeof(name);
 	name.header.adapter = path.source.adapter;
 	name.header.id = path.source.id;
-	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0) {
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "DisplayConfigGetDeviceInfo (source) failed")~;
+	if (win_native::display_config_get_device_info((win_native::DeviceInfoHeader*)&name) != 0)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"DisplayConfigGetDeviceInfo (source) failed"
+		)~;
 	}
-	return name.gdi_name;
+	for (sz i = 0; i < gdi.len && i < name.gdi_name.len; i++) gdi[i] = name.gdi_name[i];
 }
 
 <*
@@ -163,7 +227,8 @@ fn display::Mode[] modes_of(Char16[win_native::CCH_DEVICE_NAME] gdi_name, Alloca
 	found.init(allocator);
 	defer found.free();
 	Win32_DEVMODEW devmode;
-	for (uint index = 0; ; index++) {
+	for (uint index = 0;; index++)
+	{
 		devmode.dmSize = (ushort)@sizeof(devmode);
 		if (win_native::enum_display_settings_ex(&gdi_name[0], index, &devmode, 0) == 0) break;
 		display::Mode mode = {
@@ -177,9 +242,10 @@ fn display::Mode[] modes_of(Char16[win_native::CCH_DEVICE_NAME] gdi_name, Alloca
 }
 
 // True when the list already holds this size and refresh.
-fn bool contains_mode(display::Mode[] modes, display::Mode mode) @private
+fn bool contains_mode(display::Mode[] modes, display::Mode mode)
 {
-	foreach (known : modes) {
+	foreach (known : modes)
+	{
 		if (known.width == mode.width && known.height == mode.height && known.refresh == mode.refresh) return true;
 	}
 	return false;
@@ -191,31 +257,41 @@ fn display::Output? describe(win_native::PathInfo path, Topology topo, Allocator
 	display::Output out;
 	out.id = device_path(path, allocator)!;
 	out.name = friendly_name(path, allocator)!;
-	Char16[win_native::CCH_DEVICE_NAME] gdi = gdi_name_of(path)!;
+	// A target with no source (an output that is off, say) has no GDI name and so no mode list.
+	Char16[win_native::CCH_DEVICE_NAME] gdi;
+	if (catch gdi_name_of(path, gdi[..])) gdi[0] = 0;
 	out.modes = modes_of(gdi, allocator);
 	out.enabled = (path.flags & win_native::DISPLAYCONFIG_PATH_ACTIVE) != 0;
 	out.transform = win_convert::transform_from_rotation(path.target.rotation);
 	if (!out.enabled) return out;
 	uint source_index = mode_index(path.source.mode_info);
-	if (source_index < topo.modes.len) {
+	if (source_index < topo.modes.len)
+	{
 		win_native::SourceMode* source = (win_native::SourceMode*)&topo.modes[source_index].payload[0];
 		out.x = source.position_x;
 		out.y = source.position_y;
-		out.current.set({
-			.width = source.width,
-			.height = source.height,
-			.refresh = win_convert::refresh_from_fraction(path.target.refresh_rate.numerator, path.target.refresh_rate.denominator),
-		});
+		out.current.set(
+			{
+				.width = source.width,
+				.height = source.height,
+				.refresh = win_convert::refresh_from_fraction(
+					path.target.refresh_rate.numerator,
+					path.target.refresh_rate.denominator
+				),
+			}
+		);
 	}
 	out.primary.set(out.x == 0 && out.y == 0);
 	return out;
 }
 
 // Whether this path is the first of its target: a target shared by clone paths is listed once.
-fn bool first_path_of_target(win_native::PathInfo[] paths, sz index) @private
+fn bool first_path_of_target(win_native::PathInfo[] paths, sz index)
 {
-	for (sz j = 0; j < index; j++) {
-		if (paths[j].target.id == paths[index].target.id && paths[j].target.adapter.low_part == paths[index].target.adapter.low_part) return false;
+	for (sz j = 0; j < index; j++)
+	{
+		if (paths[j].target.id == paths[index].target.id
+			&& paths[j].target.adapter.low_part == paths[index].target.adapter.low_part) return false;
 	}
 	return true;
 }
@@ -226,10 +302,11 @@ fn display::State? read_native_state(Allocator allocator)
 	display::State state;
 	@pool()
 	{
-		Topology topo = query_topology(tmem, QUERY_FLAGS)!;
+		Topology topo             = query_topology(tmem, QUERY_FLAGS)!;
 		display::Output[] outputs = alloc::new_array(allocator, display::Output, topo.paths.len);
-		sz count = 0;
-		for (sz i = 0; i < topo.paths.len; i++) {
+		sz count                  = 0;
+		for (sz i = 0; i < topo.paths.len; i++)
+		{
 			if (!first_path_of_target(topo.paths, i)) continue;
 			outputs[count++] = describe(topo.paths[i], topo, allocator)!;
 		}
@@ -249,24 +326,33 @@ fn void? commit_native(void* backend, display::Config config, bool test_only, bo
 {
 	@pool()
 	{
-		Topology topo = query_topology(tmem, QUERY_FLAGS)!;
+		Topology topo               = query_topology(tmem, QUERY_FLAGS)!;
 		win_native::PathInfo[] kept = alloc::new_array(tmem, win_native::PathInfo, topo.paths.len);
-		sz count = 0;
-		for (sz i = 0; i < topo.paths.len; i++) {
+		sz count                    = 0;
+		for (sz i = 0; i < topo.paths.len; i++)
+		{
 			win_native::PathInfo path = topo.paths[i];
-			String id = device_path(path, tmem)!;
-			Maybe{sz} change = change_for(config, id);
+			String id                 = device_path(path, tmem)!;
+			Maybe{sz} change          = change_for(config, id);
 			if (change.has_value) path = change_path(path, topo.modes, config.outputs[change.value])!;
 			if ((path.flags & win_native::DISPLAYCONFIG_PATH_ACTIVE) != 0) kept[count++] = path;
 		}
 		uint validate = win_native::SDC_USE_SUPPLIED_DISPLAY_CONFIG | win_native::SDC_VALIDATE;
-		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, validate) != 0) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "Windows refuses the configuration (SetDisplayConfig validate)")~;
+		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, validate) != 0)
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"Windows refuses the configuration (SetDisplayConfig validate)"
+			)~;
 		}
 		if (test_only) return;
-		uint apply = win_native::SDC_USE_SUPPLIED_DISPLAY_CONFIG | win_native::SDC_APPLY | win_native::SDC_ALLOW_CHANGES;
+		uint apply = win_native::SDC_USE_SUPPLIED_DISPLAY_CONFIG | win_native::SDC_APPLY
+			| win_native::SDC_ALLOW_CHANGES;
 		if (persistent) apply |= win_native::SDC_SAVE_TO_DATABASE;
-		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, apply) != 0) {
+		if (win_native::set_display_config((uint)count, kept.ptr, (uint)topo.modes.len, topo.modes.ptr, apply) != 0)
+		{
 			return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "SetDisplayConfig (apply) failed")~;
 		}
 	};
@@ -275,7 +361,8 @@ fn void? commit_native(void* backend, display::Config config, bool test_only, bo
 // The index of the change for this output id.
 fn Maybe{sz} change_for(display::Config config, String id)
 {
-	for (sz i = 0; i < config.outputs.len; i++) {
+	for (sz i = 0; i < config.outputs.len; i++)
+	{
 		if (config.outputs[i].output_id == id) return maybe::value(i);
 	}
 	return { };
@@ -285,29 +372,55 @@ fn Maybe{sz} change_for(display::Config config, String id)
  A path with its change applied: off (dropped from the topology), or on with the mode, place,
  refresh and rotation the change names. The mode it edits is shared through `modes`.
 *>
-fn win_native::PathInfo? change_path(win_native::PathInfo path, win_native::ModeInfo[] modes, display::OutputChange change)
+fn win_native::PathInfo? change_path(
+	win_native::PathInfo path,
+	win_native::ModeInfo[] modes,
+	display::OutputChange change
+)
 {
-	if (!change.enabled) {
+	if (change.scale.has_value) {
+		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Windows cannot set an output's scale in this version")~;
+	}
+	if (!change.enabled)
+	{
 		path.flags &= ~win_native::DISPLAYCONFIG_PATH_ACTIVE;
 		return path;
 	}
-	if ((path.flags & win_native::DISPLAYCONFIG_PATH_ACTIVE) == 0) {
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "switching on an inactive output is not in this version")~;
+	if ((path.flags & win_native::DISPLAYCONFIG_PATH_ACTIVE) == 0)
+	{
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"switching on an inactive output is not in this version"
+		)~;
 	}
 	uint source_index = mode_index(path.source.mode_info);
-	if (source_index >= modes.len) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "the path names no source mode")~;
+	if (source_index >= modes.len) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"the path names no source mode"
+	)~;
 	win_native::SourceMode* source = (win_native::SourceMode*)&modes[source_index].payload[0];
 	source.width = change.mode.width;
 	source.height = change.mode.height;
 	source.position_x = change.x;
 	source.position_y = change.y;
-	if (change.mode.refresh != 0) {
+	if (change.mode.refresh != 0)
+	{
 		win_convert::Fraction fraction = win_convert::fraction_from_refresh(change.mode.refresh);
 		path.target.refresh_rate = { .numerator = fraction.numerator, .denominator = fraction.denominator };
 	}
 	uint rotation = 0;
-	if (!win_convert::rotation_of(change.transform, &rotation)) {
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Windows cannot rotate an output with a flip")~;
+	if (!win_convert::rotation_of(change.transform, &rotation))
+	{
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"Windows cannot rotate an output with a flip"
+		)~;
 	}
 	path.target.rotation = rotation;
 	return path;
@@ -321,22 +434,34 @@ fn void run(void* state, display::DisplayHub* hub, Host{display::Command}* host)
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 1, true)) return;
 	defer poller.free();
-	Loop* loop = message_loop::open(mem, &on_message, b)!!;
-	defer loop.close();
-	publish(b);
+	if (try loop = message_loop::open(mem, &on_message, b))
+	{
+		defer loop.close();
+		publish(b);
+		pump_until_stopped(b, host, &poller);
+	}
+}
+
+// Wait for window messages, the mailbox or the rollback; act on each until the service stops.
+fn void pump_until_stopped(WindowsBackend* b, Host{display::Command}* host, Poller* poller)
+{
 	display::Command[8] commands;
-	while (!host.stopping()) {
-		if (catch poller.wait(b.rollback.guard.remaining(clock::now()))) {
+	while (!host.stopping())
+	{
+		if (catch poller.wait(b.rollback.guard.remaining(clock::now())))
+		{
 			// TIMEOUT: nothing happened in the wait, or the rollback is due.
 		}
 		message_loop::dispatch_pending();
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) handle(b, commands[i], clock::now());
-		if (b.rollback.guard.due(clock::now())) {
+		if (b.rollback.guard.due(clock::now()))
+		{
 			display::revert_sync(&b.native, &b.rollback, b.hub);
 			b.dirty = true;
 		}
-		if (b.dirty) {
+		if (b.dirty)
+		{
 			b.dirty = false;
 			publish(b);
 		}
@@ -354,10 +479,13 @@ fn void on_message(void* context, message_loop::Event* event)
 fn void publish(WindowsBackend* b)
 {
 	Snapshot{display::State}* snapshot = b.hub.begin();
-	display::State? state = read_native_state(snapshot.allocator());
-	if (catch err = state) {
+	display::State? state              = read_native_state(snapshot.allocator());
+	if (catch err = state)
+	{
 		snapshot.value = { };
-	} else {
+	}
+	else
+	{
 		snapshot.value = state;
 	}
 	display::publish_snapshot(b.hub, snapshot);
@@ -365,7 +493,8 @@ fn void publish(WindowsBackend* b)
 
 fn void handle(WindowsBackend* b, display::Command command, Clock now)
 {
-	switch (command.kind) {
+	switch (command.kind)
+	{
 		case REFRESH: b.dirty = true;
 		case CONFIRM: display::confirm_sync(&b.rollback, now);
 		case APPLY: display::apply_sync(&b.native, &b.rollback, command, now);
@@ -378,9 +507,14 @@ fn void shutdown(WindowsBackend* b, Host{display::Command}* host)
 	if (b.rollback.guard.armed) display::revert_sync(&b.native, &b.rollback, b.hub);
 	display::Command[8] commands;
 	usz count = host.mailbox().take_all(commands[..]);
-	while (count > 0) {
-		for (usz i = 0; i < count; i++) {
-			if (commands[i].kind == APPLY) display::reject(commands[i].op, error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "the display service stopped"));
+	while (count > 0)
+	{
+		for (usz i = 0; i < count; i++)
+		{
+			if (commands[i].kind == APPLY) display::reject(
+				commands[i].op,
+				error::raise(error::DISCONNECTED, error::Domain.INTERNAL, 0, "the display service stopped")
+			);
 		}
 		count = host.mailbox().take_all(commands[..]);
 	}

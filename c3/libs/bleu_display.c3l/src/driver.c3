@@ -27,7 +27,8 @@ alias DisplayRunFn = fn void(void* state, DisplayHub* hub, Host{Command}* host);
 <* The backends of this platform in priority order; defined per platform in `probe.c3`. *>
 fn Driver*? select_driver(Options options)
 {
-	foreach (driver : platform_drivers()) {
+	foreach (driver : platform_drivers())
+	{
 		if (options.backend != AUTO && options.backend != driver.id) continue;
 		if (driver.probe(&options)) return driver;
 	}

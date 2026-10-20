@@ -7,9 +7,9 @@ import bleu::display;
 
 // DISPLAYCONFIG_ROTATION: the identity is 1 and each quarter turn adds one.
 const uint ROTATION_IDENTITY = 1;
-const uint ROTATION_90 = 2;
-const uint ROTATION_180 = 3;
-const uint ROTATION_270 = 4;
+const uint ROTATION_90       = 2;
+const uint ROTATION_180      = 3;
+const uint ROTATION_270      = 4;
 
 <* A fraction, as DISPLAYCONFIG_RATIONAL holds a frequency: numerator over denominator, in Hz. *>
 struct Fraction
@@ -35,7 +35,8 @@ fn display::Transform transform_from_rotation(uint rotation)
 *>
 fn bool rotation_of(display::Transform transform, uint* rotation)
 {
-	switch (transform) {
+	switch (transform)
+	{
 		case NORMAL:
 			*rotation = ROTATION_IDENTITY;
 			return true;
@@ -53,7 +54,9 @@ fn bool rotation_of(display::Transform transform, uint* rotation)
 	}
 }
 
-<* A refresh rate in millihertz from a fraction of hertz, rounded to the nearest millihertz; 0 when the denominator is 0. *>
+<*
+ A refresh rate in millihertz from a fraction of hertz, rounded to the nearest millihertz; 0 when the denominator is 0.
+*>
 fn display::RefreshMilliHz refresh_from_fraction(uint numerator, uint denominator)
 {
 	if (denominator == 0) return 0;
@@ -61,4 +64,6 @@ fn display::RefreshMilliHz refresh_from_fraction(uint numerator, uint denominato
 }
 
 <* The fraction of hertz that holds a refresh rate given in millihertz (exact: the denominator is 1000). *>
-fn Fraction fraction_from_refresh(display::RefreshMilliHz millihertz) => { .numerator = millihertz, .denominator = 1000 };
+fn Fraction fraction_from_refresh(
+	display::RefreshMilliHz millihertz
+) => { .numerator = millihertz, .denominator = 1000 };

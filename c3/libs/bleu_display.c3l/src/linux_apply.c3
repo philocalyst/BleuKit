@@ -18,24 +18,35 @@ fn void begin_apply(Session* s, Command command, Clock now)
 {
 	display::ApplyOp* op = command.op;
 	op.start();
-	if (!s.wlr) {
-		reject(op, error::raise(error::UNSUPPORTED, error::Domain.WAYLAND, 0, "the compositor offers no wlr-output-management"));
+	if (!s.wlr)
+	{
+		reject(
+			op,
+			error::raise(error::UNSUPPORTED, error::Domain.WAYLAND, 0, "the compositor offers no wlr-output-management")
+		);
 		return;
 	}
-	if (s.manager_gone) {
-		reject(op, error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the compositor ended wlr-output-management"));
+	if (s.manager_gone)
+	{
+		reject(
+			op,
+			error::raise(error::DISCONNECTED, error::Domain.WAYLAND, 0, "the compositor ended wlr-output-management")
+		);
 		return;
 	}
-	if (s.pending != null) {
+	if (s.pending != null)
+	{
 		reject(op, error::raise(error::BUSY, error::Domain.WAYLAND, 0, "another configuration is still being applied"));
 		return;
 	}
 	bool changed = false;
-	if (catch err = check_request(s, command.config, &changed)) {
+	if (catch err = check_request(s, command.config, &changed))
+	{
 		reject(op, err);
 		return;
 	}
-	if (!changed) {
+	if (!changed)
+	{
 		op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = false });
 		op.release();
 		return;
@@ -48,7 +59,8 @@ fn void begin_apply(Session* s, Command command, Clock now)
 	p.revert_after = command.revert_after;
 	p.testing = true;
 	p.result = PENDING;
-	if (command.mode == APPLY_WITH_REVERT) {
+	if (command.mode == APPLY_WITH_REVERT)
+	{
 		p.revert_op = operation::begin(s.allocator);
 		p.revert_config = previous_config(s, p.revert_op.allocator());
 	}
@@ -98,12 +110,16 @@ fn void? start_attempt(Pending* p)
 	p.waiting_serial = false;
 	p.object = s.manager.create_configuration(p.serial)!;
 	p.object.set_listener(&CONFIG_LISTENER, p);
-	for (sz i = 0; i < s.outputs.len(); i++) {
+	for (sz i = 0; i < s.outputs.len(); i++)
+	{
 		configure_head(p, s.outputs.get(i))!;
 	}
-	if (p.testing) {
+	if (p.testing)
+	{
 		p.object.test()!;
-	} else {
+	}
+	else
+	{
 		p.object.apply()!;
 	}
 	p.deadline = clock_after(clock::now(), CONFIG_TIMEOUT);
@@ -112,9 +128,10 @@ fn void? start_attempt(Pending* p)
 // Describe one head in the attempt: disabled, or enabled with its mode, place, transform and scale.
 fn void? configure_head(Pending* p, OutputRecord* rec)
 {
-	sz index = change_index(p.config, rec);
+	sz index                     = change_index(p.config, rec);
 	display::OutputChange change = p.config.outputs[index];
-	if (!change.enabled) {
+	if (!change.enabled)
+	{
 		p.object.disable_head(rec.head)!;
 		return;
 	}
@@ -132,8 +149,10 @@ fn sz change_index(display::Config config, OutputRecord* rec)
 	@pool()
 	{
 		String id = record_id(rec, tmem);
-		for (sz i = 0; i < config.outputs.len; i++) {
-			if (config.outputs[i].output_id == id) {
+		for (sz i = 0; i < config.outputs.len; i++)
+		{
+			if (config.outputs[i].output_id == id)
+			{
 				found = i;
 				break;
 			}
@@ -143,20 +162,31 @@ fn sz change_index(display::Config config, OutputRecord* rec)
 }
 
 // Use the advertised mode that matches `wanted`; a mode the head does not advertise is set as custom.
-fn void? set_head_mode(wlr_output_management::ZwlrOutputConfigurationHeadV1* head, OutputRecord* rec, display::Mode wanted)
+fn void? set_head_mode(
+	wlr_output_management::ZwlrOutputConfigurationHeadV1* head,
+	OutputRecord* rec,
+	display::Mode wanted
+)
 {
 	sz found = -1;
 	@pool()
 	{
 		display::Mode[] advertised = alloc::new_array(tmem, display::Mode, rec.modes.len());
-		for (sz i = 0; i < rec.modes.len(); i++) {
+		for (sz i = 0; i < rec.modes.len(); i++)
+		{
 			ModeRecord* mode = rec.modes.get(i);
-			advertised[i] = { .width = mode.width, .height = mode.height, .refresh = mode.refresh, .preferred = mode.preferred };
+			advertised[i] = {
+				.width = mode.width,
+				.height = mode.height,
+				.refresh = mode.refresh,
+				.preferred = mode.preferred
+			};
 		}
 		Maybe{sz} hit = display::find_mode(advertised, wanted, display::DEFAULT_REFRESH_TOLERANCE);
 		if (hit.has_value) found = hit.value;
 	};
-	if (found >= 0) {
+	if (found >= 0)
+	{
 		head.set_mode(rec.modes.get(found).object)!;
 		return;
 	}
@@ -167,25 +197,34 @@ fn void? set_head_mode(wlr_output_management::ZwlrOutputConfigurationHeadV1* hea
 fn void advance(Session* s, Clock now)
 {
 	Pending* p = s.pending;
-	if (p == null) {
+	if (p == null)
+	{
 		if (s.guard.due(now)) start_revert(s, now);
 		return;
 	}
-	if (p.result == PENDING) {
-		if (p.waiting_serial && s.serial != p.serial) {
+	if (p.result == PENDING)
+	{
+		if (p.waiting_serial && s.serial != p.serial)
+		{
 			if (catch err = start_attempt(p)) finish_failed(p, err);
-		} else if (now > p.deadline) {
+		}
+		else if (now > p.deadline)
+		{
 			finish_failed(p, TIMEOUT);
 		}
 		return;
 	}
 	ConfigResult result = p.result;
 	p.result = PENDING;
-	if (p.object) {
-		if (catch p.object.destroy()) {}
+	if (p.object)
+	{
+		if (catch p.object.destroy())
+		{
+		}
 		p.object = null;
 	}
-	switch (result) {
+	switch (result)
+	{
 		case PENDING: return;
 		case SUCCEEDED: on_succeeded(p, now);
 		case FAILED: finish_failed(p, error::raise(error::INVALID_ARGUMENT, error::Domain.WAYLAND, 0, "the compositor refused the layout"));
@@ -196,8 +235,10 @@ fn void advance(Session* s, Clock now)
 // A test or an apply was accepted.
 fn void on_succeeded(Pending* p, Clock now)
 {
-	if (p.testing) {
-		if (p.mode == TEST_ONLY) {
+	if (p.testing)
+	{
+		if (p.mode == TEST_ONLY)
+		{
 			finish_applied(p, now, false);
 			return;
 		}
@@ -212,7 +253,8 @@ fn void on_succeeded(Pending* p, Clock now)
 fn void on_cancelled(Pending* p, Clock now)
 {
 	Session* s = p.session;
-	switch (wayland_convert::after_cancel(p.retried, p.serial, s.serial)) {
+	switch (wayland_convert::after_cancel(p.retried, p.serial, s.serial))
+	{
 		case RETRY_NOW:
 			p.retried = true;
 			if (catch err = start_attempt(p)) finish_failed(p, err);
@@ -220,12 +262,15 @@ fn void on_cancelled(Pending* p, Clock now)
 			p.retried = true;
 			p.waiting_serial = true;
 		case GIVE_UP:
-			finish_failed(p, error::raise(
-				error::INVALID_STATE,
-				error::Domain.WAYLAND,
-				0,
-				"the outputs changed while the layout was applied: read the state and apply again"
-			));
+			finish_failed(
+				p,
+				error::raise(
+					error::INVALID_STATE,
+					error::Domain.WAYLAND,
+					0,
+					"the outputs changed while the layout was applied: read the state and apply again"
+				)
+			);
 	}
 }
 
@@ -233,18 +278,24 @@ fn void on_cancelled(Pending* p, Clock now)
 fn void finish_applied(Pending* p, Clock now, bool live)
 {
 	Session* s = p.session;
-	if (p.is_revert) {
+	if (p.is_revert)
+	{
 		display::emit(s.hub, display::EventKind.REVERTED, "");
 		p.op.succeed({ .mode = APPLY, .live = true, .revert_armed = false });
-	} else if (p.mode == APPLY_WITH_REVERT && live) {
+	}
+	else if (p.mode == APPLY_WITH_REVERT && live)
+	{
 		if (s.guard_op) s.guard_op.release();
 		s.guard_op = p.revert_op;
 		s.guard_config = p.revert_config;
 		p.revert_op = null;
 		s.guard.arm(now, p.revert_after);
 		p.op.succeed({ .mode = p.mode, .live = true, .revert_armed = true });
-	} else {
-		if (live) {
+	}
+	else
+	{
+		if (live)
+		{
 			s.guard.disarm();
 			if (s.guard_op) s.guard_op.release();
 			s.guard_op = null;
@@ -295,8 +346,10 @@ fn void start_revert(Session* s, Clock now)
 fn Duration next_wake(Session* s, Clock now)
 {
 	Duration wait = s.guard.remaining(now);
-	if (s.pending != null) {
-		Duration request = now > s.pending.deadline ? time::DURATION_ZERO : (Duration)(((ulong)s.pending.deadline - (ulong)now) / 1000);
+	if (s.pending != null)
+	{
+		Duration request = now > s.pending.deadline ? time::DURATION_ZERO
+			: (Duration)(((ulong)s.pending.deadline - (ulong)now) / 1000);
 		if (request < wait) wait = request;
 	}
 	return wait;
@@ -305,7 +358,8 @@ fn Duration next_wake(Session* s, Clock now)
 <* Confirm the pending change in time: keep it, and forget the rollback point. *>
 fn void confirm(Session* s, Clock now)
 {
-	if (s.guard.confirm(now)) {
+	if (s.guard.confirm(now))
+	{
 		if (s.guard_op) s.guard_op.release();
 		s.guard_op = null;
 	}

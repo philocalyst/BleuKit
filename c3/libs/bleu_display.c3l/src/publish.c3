@@ -23,16 +23,22 @@ fn void publish_snapshot(DisplayHub* hub, Snapshot{State}* snapshot)
 // Emit one event per output that appeared, disappeared or changed between two states.
 fn void emit_changes(DisplayHub* hub, State before, State after)
 {
-	foreach (output : after.outputs) {
+	foreach (output : after.outputs)
+	{
 		Maybe{sz} previous = index_of_output(before.outputs, output.id);
-		if (!previous.has_value) {
+		if (!previous.has_value)
+		{
 			emit(hub, OUTPUT_ADDED, output.id);
-		} else if (!equal::deep(before.outputs[previous.value], output)) {
+		}
+		else if (!equal::deep(before.outputs[previous.value], output))
+		{
 			emit(hub, OUTPUT_CHANGED, output.id);
 		}
 	}
-	foreach (output : before.outputs) {
-		if (!index_of_output(after.outputs, output.id).has_value) {
+	foreach (output : before.outputs)
+	{
+		if (!index_of_output(after.outputs, output.id).has_value)
+		{
 			emit(hub, OUTPUT_REMOVED, output.id);
 		}
 	}

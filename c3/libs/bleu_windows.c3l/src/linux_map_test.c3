@@ -38,7 +38,7 @@ fn void maps_windows_workspaces_and_outputs() @test
 	Allocator allocator = &arena;
 	linux_map::fill_state(&state, &model, allocator);
 
-	assert(state.connection == windows::CONNECTED);
+	assert(state.connection == windows::Connection.CONNECTED);
 	assert(state.focused_window_id == "0x1");
 	assert(state.windows.len == 2);
 	assert(state.windows[0].pid.value == 4242);

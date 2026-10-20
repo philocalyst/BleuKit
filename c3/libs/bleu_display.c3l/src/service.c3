@@ -92,7 +92,11 @@ fn Snapshot{State}*? Display.wait_after(&self, ulong seen, Duration timeout = ti
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Display.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Display.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Display.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
@@ -161,7 +165,8 @@ fn void? require_cap(Display* display, Cap cap)
 fn Config copy_config(Config config, Allocator allocator)
 {
 	OutputChange[] outputs = alloc::new_array(allocator, OutputChange, config.outputs.len);
-	for (sz i = 0; i < config.outputs.len; i++) {
+	for (sz i = 0; i < config.outputs.len; i++)
+	{
 		outputs[i] = config.outputs[i];
 		outputs[i].output_id = config.outputs[i].output_id.copy(allocator);
 	}

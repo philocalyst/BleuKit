@@ -30,11 +30,11 @@ const uint MODE_INFO_SOURCE = 1;
 const uint MODE_INFO_TARGET = 2;
 
 // SetDisplayConfig flags (wingdi.h).
-const uint SDC_APPLY = 0x80;
-const uint SDC_VALIDATE = 0x40;
+const uint SDC_APPLY                       = 0x80;
+const uint SDC_VALIDATE                    = 0x40;
 const uint SDC_USE_SUPPLIED_DISPLAY_CONFIG = 0x20;
-const uint SDC_SAVE_TO_DATABASE = 0x200;
-const uint SDC_ALLOW_CHANGES = 0x400;
+const uint SDC_SAVE_TO_DATABASE            = 0x200;
+const uint SDC_ALLOW_CHANGES               = 0x400;
 
 // The size of a CCHDEVICENAME buffer (wingdi.h).
 const usz CCH_DEVICE_NAME = 32;
@@ -153,8 +153,30 @@ struct TargetDeviceName
 	Char16[128] device_path;
 }
 
-extern fn int get_display_config_buffer_sizes(uint flags, uint* paths, uint* modes) @cname("GetDisplayConfigBufferSizes");
-extern fn int query_display_config(uint flags, uint* paths, PathInfo* path_array, uint* modes, ModeInfo* mode_array, void* topology) @cname("QueryDisplayConfig");
-extern fn int set_display_config(uint paths, PathInfo* path_array, uint modes, ModeInfo* mode_array, uint flags) @cname("SetDisplayConfig");
+extern fn int get_display_config_buffer_sizes(
+	uint flags,
+	uint* paths,
+	uint* modes
+) @cname("GetDisplayConfigBufferSizes");
+extern fn int query_display_config(
+	uint flags,
+	uint* paths,
+	PathInfo* path_array,
+	uint* modes,
+	ModeInfo* mode_array,
+	void* topology
+) @cname("QueryDisplayConfig");
+extern fn int set_display_config(
+	uint paths,
+	PathInfo* path_array,
+	uint modes,
+	ModeInfo* mode_array,
+	uint flags
+) @cname("SetDisplayConfig");
 extern fn int display_config_get_device_info(DeviceInfoHeader* request) @cname("DisplayConfigGetDeviceInfo");
-extern fn int enum_display_settings_ex(Char16* device, uint mode_index, Win32_DEVMODEW* devmode, uint flags) @cname("EnumDisplaySettingsExW");
+extern fn int enum_display_settings_ex(
+	Char16* device,
+	uint mode_index,
+	Win32_DEVMODEW* devmode,
+	uint flags
+) @cname("EnumDisplaySettingsExW");

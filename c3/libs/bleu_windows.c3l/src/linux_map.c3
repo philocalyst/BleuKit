@@ -18,39 +18,39 @@ import std::collections::maybe, bleu::windows, bleu::compositor;
 
  @param allocator : "Allocator for the strings and arrays of `state` (the snapshot's arena)"
 *>
-fn void fill_state(State* state, compositor::Model* model, Allocator allocator)
+fn void fill_state(windows::State* state, compositor::Model* model, Allocator allocator)
 {
-	state.connection = CONNECTED;
+	state.connection = windows::Connection.CONNECTED;
 	state.status = "";
 	state.titles_available = true;
 	state.focused_window_id = "";
-	state.windows = alloc::new_array(allocator, Window, model.windows.len);
+	state.windows = alloc::new_array(allocator, windows::Window, model.windows.len);
 	foreach (i, window : model.windows)
 	{
 		state.windows[i] = window_of(window, allocator);
 		if (window.focused) state.focused_window_id = window.id.copy(allocator);
 	}
-	state.workspaces = alloc::new_array(allocator, Workspace, model.workspaces.len);
+	state.workspaces = alloc::new_array(allocator, windows::Workspace, model.workspaces.len);
 	foreach (i, workspace : model.workspaces)
 	{
 		state.workspaces[i] = workspace_of(workspace, state.windows, allocator);
 	}
-	state.outputs = alloc::new_array(allocator, Output, model.outputs.len);
+	state.outputs = alloc::new_array(allocator, windows::Output, model.outputs.len);
 	foreach (i, output : model.outputs)
 	{
 		state.outputs[i] = output_of(output, allocator);
 	}
 }
 
-fn Window window_of(compositor::Window source, Allocator allocator) @private
+fn windows::Window window_of(compositor::Window source, Allocator allocator) @private
 {
-	WindowFlags flags;
+	windows::WindowFlags flags;
 	flags.focused = source.focused;
 	flags.floating = source.floating;
 	flags.fullscreen = source.fullscreen.has_value && source.fullscreen.value;
 	flags.maximized = source.maximized.has_value && source.maximized.value;
 	flags.urgent = source.urgent.has_value && source.urgent.value;
-	WindowFlags reported;
+	windows::WindowFlags reported;
 	reported.focused = true;
 	reported.floating = true;
 	reported.fullscreen = source.fullscreen.has_value;
@@ -71,10 +71,10 @@ fn Window window_of(compositor::Window source, Allocator allocator) @private
 }
 
 // Every workspace counts the listed windows that name it.
-fn Workspace workspace_of(compositor::Workspace source, Window[] windows, Allocator allocator) @private
+fn windows::Workspace workspace_of(compositor::Workspace source, windows::Window[] listed, Allocator allocator) @private
 {
 	int count = 0;
-	foreach (window : windows)
+	foreach (window : listed)
 	{
 		if (window.workspace_id == source.id) count++;
 	}
@@ -89,7 +89,7 @@ fn Workspace workspace_of(compositor::Workspace source, Window[] windows, Alloca
 	};
 }
 
-fn Output output_of(compositor::Output source, Allocator allocator) @private
+fn windows::Output output_of(compositor::Output source, Allocator allocator) @private
 {
 	return {
 		.id = source.name.copy(allocator),
@@ -100,10 +100,10 @@ fn Output output_of(compositor::Output source, Allocator allocator) @private
 	};
 }
 
-fn Maybe{Rect} rect_of(Maybe{compositor::Rect} source) @private
+fn Maybe{windows::Rect} rect_of(Maybe{compositor::Rect} source) @private
 {
 	if (!source.has_value) return { };
 	compositor::Rect r = source.value;
-	Rect rect = { .x = r.x, .y = r.y, .width = r.width, .height = r.height };
+	windows::Rect rect = { .x = r.x, .y = r.y, .width = r.width, .height = r.height };
 	return maybe::value(rect);
 }

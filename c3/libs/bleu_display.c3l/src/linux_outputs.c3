@@ -7,7 +7,7 @@ module bleu::display::linux_wayland @feat(LINUX);
 import bleu::display, bleu::display::wayland_convert, bleu::wl::proto::wayland, bleu::wl::proto::xdg_output;
 
 // wl_output.mode flag bits, as the protocol numbers them.
-const uint WL_MODE_CURRENT = (uint)wayland::WlOutputMode.CURRENT;
+const uint WL_MODE_CURRENT   = (uint)wayland::WlOutputMode.CURRENT;
 const uint WL_MODE_PREFERRED = (uint)wayland::WlOutputMode.PREFERRED;
 
 const wayland::WlOutputListener WL_OUTPUT_LISTENER = {
@@ -52,20 +52,29 @@ fn void on_geometry(
 }
 
 // wl_output.mode: one mode; the CURRENT and PREFERRED flags say which it is.
-fn void on_mode(void* context, wayland::WlOutput* target, wayland::WlOutputMode flags, int width, int height, int refresh)
+fn void on_mode(
+	void* context,
+	wayland::WlOutput* target,
+	wayland::WlOutputMode flags,
+	int width,
+	int height,
+	int refresh
+)
 {
 	OutputRecord* rec = (OutputRecord*)context;
-	uint bits = (uint)flags;
-	bool current = (bits & WL_MODE_CURRENT) != 0;
-	ModeRecord* mode = find_wl_mode(rec, (uint)width, (uint)height, wayland_convert::refresh_from_wire(refresh));
-	if (!mode) {
+	uint bits         = (uint)flags;
+	bool current      = (bits & WL_MODE_CURRENT) != 0;
+	ModeRecord* mode  = find_wl_mode(rec, (uint)width, (uint)height, wayland_convert::refresh_from_wire(refresh));
+	if (!mode)
+	{
 		mode = new_mode(rec);
 		mode.width = (uint)width;
 		mode.height = (uint)height;
 		mode.refresh = wayland_convert::refresh_from_wire(refresh);
 	}
 	mode.preferred = (bits & WL_MODE_PREFERRED) != 0;
-	if (current) {
+	if (current)
+	{
 		for (sz i = 0; i < rec.modes.len(); i++) rec.modes.get(i).current = false;
 	}
 	mode.current = current;
@@ -131,7 +140,8 @@ fn void on_xdg_done(void* context, xdg_output::ZxdgOutputV1* target)
 fn void on_xdg_name(void* context, xdg_output::ZxdgOutputV1* target, String name)
 {
 	OutputRecord* rec = (OutputRecord*)context;
-	if (rec.name.len == 0) {
+	if (rec.name.len == 0)
+	{
 		set_text(rec, &rec.name, name);
 		refresh_fingerprint(rec);
 	}
@@ -147,7 +157,8 @@ fn void on_xdg_description(void* context, xdg_output::ZxdgOutputV1* target, Stri
 // The record's mode with this size and refresh, if it has one.
 fn ModeRecord* find_wl_mode(OutputRecord* rec, uint width, uint height, display::RefreshMilliHz refresh)
 {
-	for (sz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++)
+	{
 		ModeRecord* mode = rec.modes.get(i);
 		if (mode.width == width && mode.height == height && mode.refresh == refresh) return mode;
 	}

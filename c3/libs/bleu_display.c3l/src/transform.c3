@@ -13,7 +13,9 @@ struct Extent
 }
 
 <* True for the transforms that turn the output a quarter turn, which swaps its width and height. *>
-fn bool Transform.quarter_turn(self) @inline => self == R90 || self == R270 || self == FLIPPED_R90 || self == FLIPPED_R270;
+fn bool Transform.quarter_turn(
+	self
+) @inline => self == R90 || self == R270 || self == FLIPPED_R90 || self == FLIPPED_R270;
 
 <* The scale a missing value stands for: the platform default of 1.0. *>
 fn ScaleFactor scale_or_default(Maybe{ScaleFactor} scale) @inline => scale.has_value ? scale.value : 1.0;

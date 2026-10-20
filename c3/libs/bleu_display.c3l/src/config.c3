@@ -10,7 +10,8 @@ import std::collections::maybe, bleu::error;
 <* The index of the output with this id, or empty. *>
 fn Maybe{sz} index_of_output(Output[] outputs, String id)
 {
-	for (sz i = 0; i < outputs.len; i++) {
+	for (sz i = 0; i < outputs.len; i++)
+	{
 		if (outputs[i].id == id) return maybe::value(i);
 	}
 	return { };
@@ -31,10 +32,18 @@ fn Rect change_rect(OutputChange change)
 *>
 fn void? validate_config(Output[] outputs, Config config)
 {
-	if (config.outputs.len > MAX_LAYOUT_OUTPUTS) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "more than %d outputs", (int)MAX_LAYOUT_OUTPUTS)~;
+	if (config.outputs.len > MAX_LAYOUT_OUTPUTS)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"more than %d outputs",
+			(int)MAX_LAYOUT_OUTPUTS
+		)~;
 	}
-	if (config.outputs.len != outputs.len) {
+	if (config.outputs.len != outputs.len)
+	{
 		return error::raise(
 			error::INVALID_ARGUMENT,
 			error::Domain.INTERNAL,
@@ -46,20 +55,43 @@ fn void? validate_config(Output[] outputs, Config config)
 	}
 	Rect[MAX_LAYOUT_OUTPUTS] rects;
 	sz enabled = 0;
-	for (sz i = 0; i < config.outputs.len; i++) {
+	for (sz i = 0; i < config.outputs.len; i++)
+	{
 		OutputChange change = config.outputs[i];
-		if (!index_of_output(outputs, change.output_id).has_value) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "unknown output %s", change.output_id)~;
+		if (!index_of_output(outputs, change.output_id).has_value)
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"unknown output %s",
+				change.output_id
+			)~;
 		}
-		for (sz j = 0; j < i; j++) {
-			if (config.outputs[j].output_id == change.output_id) {
-				return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %s is named twice", change.output_id)~;
+		for (sz j = 0; j < i; j++)
+		{
+			if (config.outputs[j].output_id == change.output_id)
+			{
+				return error::raise(
+					error::INVALID_ARGUMENT,
+					error::Domain.INTERNAL,
+					0,
+					"output %s is named twice",
+					change.output_id
+				)~;
 			}
 		}
 		scale_check(change)!;
 		if (!change.enabled) continue;
-		if (change.mode.width == 0 || change.mode.height == 0) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %s has no mode", change.output_id)~;
+		if (change.mode.width == 0 || change.mode.height == 0)
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"output %s has no mode",
+				change.output_id
+			)~;
 		}
 		rects[enabled++] = change_rect(change);
 	}
@@ -69,8 +101,15 @@ fn void? validate_config(Output[] outputs, Config config)
 // A scale, when given, must be positive.
 fn void? scale_check(OutputChange change) @private
 {
-	if (change.scale.has_value && !(change.scale.value > 0.0)) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "output %s has a scale that is not positive", change.output_id)~;
+	if (change.scale.has_value && !(change.scale.value > 0.0))
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"output %s has a scale that is not positive",
+			change.output_id
+		)~;
 	}
 }
 
@@ -115,7 +154,8 @@ fn bool same_mode(Mode current, Mode wanted) @private
 *>
 fn bool config_changes(State state, Config config)
 {
-	foreach (change : config.outputs) {
+	foreach (change : config.outputs)
+	{
 		Maybe{sz} index = index_of_output(state.outputs, change.output_id);
 		if (!index.has_value) return true;
 		if (delta_of(state.outputs[index.value], change).differs()) return true;
@@ -130,7 +170,8 @@ fn bool config_changes(State state, Config config)
 fn Config config_from_state(State state, Allocator allocator)
 {
 	OutputChange[] changes = alloc::new_array(allocator, OutputChange, state.outputs.len);
-	for (sz i = 0; i < state.outputs.len; i++) {
+	for (sz i = 0; i < state.outputs.len; i++)
+	{
 		Output output = state.outputs[i];
 		Mode mode;
 		if (output.current.has_value) mode = output.current.value;

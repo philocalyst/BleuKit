@@ -47,8 +47,8 @@ impossible on that platform (see the reason in `capability()`).
 | Chord parse and format, portal paths | Run (unit tests) | Run (unit tests) | Run (unit tests) |
 
 Run on Linux: the 18 pure `@test`s (chord text, key tables, portal paths) and `tests/run.sh` (live
-portal and the absent-portal refusal). All six targets type-check with `tools/check.sh`-equivalent
-`compile-only` runs.
+portal and the absent-portal refusal). `tools/check.sh bleu_core bleu_rt bleu_service bleu_dbus
+bleu_dl bleu_win bleu_hotkey` is clean on all six targets.
 
 ## Not done
 
@@ -70,9 +70,10 @@ portal and the absent-portal refusal). All six targets type-check with `tools/ch
 ## Verification and how to run it
 
     libs/bleu_hotkey.c3l/tests/run.sh          # live portal + absent-portal test (needs dbus-daemon, python3, dbus-next)
+    tools/check.sh bleu_core bleu_rt bleu_service bleu_dbus bleu_dl bleu_win bleu_hotkey   # six targets
     c3c --libdir "$(tools/libdir.sh)" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus \
         --lib bleu_dl --lib bleu_win compile-test libs/bleu_hotkey.c3l/src/*_test.c3 \
-        --sources <the non-test, non-Windows, non-macOS files of src/>
+        --sources <the non-test, non-Windows, non-macOS files of src/>   # Linux unit tests
 
 `tests/run.sh` starts a private session bus and `tests/mock_portal.py` (python-dbus-next), which
 implements the GlobalShortcuts methods, Request objects with Response signals, Session.Close and the

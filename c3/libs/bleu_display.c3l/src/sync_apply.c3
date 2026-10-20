@@ -59,14 +59,27 @@ fn void? check_request(SyncNative* native, Config config, bool* changed)
 	{
 		State state = native.read(native.backend, tmem)!;
 		validate_config(state.outputs, config)!;
-		for (sz i = 0; i < config.outputs.len; i++) {
-			Maybe{sz} index = index_of_output(state.outputs, config.outputs[i].output_id);
+		for (sz i = 0; i < config.outputs.len; i++)
+		{
+			Maybe{sz} index   = index_of_output(state.outputs, config.outputs[i].output_id);
 			OutputDelta delta = delta_of(state.outputs[index.value], config.outputs[i]);
-			if (delta.enabled && !native.can_toggle) {
-				return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "this platform cannot switch an output on or off here")~;
+			if (delta.enabled && !native.can_toggle)
+			{
+				return error::raise(
+					error::UNSUPPORTED,
+					error::Domain.INTERNAL,
+					0,
+					"this platform cannot switch an output on or off here"
+				)~;
 			}
-			if (config.outputs[i].transform != state.outputs[index.value].transform && !native.can_rotate) {
-				return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "this platform cannot rotate an output here")~;
+			if (config.outputs[i].transform != state.outputs[index.value].transform && !native.can_rotate)
+			{
+				return error::raise(
+					error::UNSUPPORTED,
+					error::Domain.INTERNAL,
+					0,
+					"this platform cannot rotate an output here"
+				)~;
 			}
 		}
 		*changed = config_changes(state, config);
@@ -95,44 +108,54 @@ fn void apply_sync(SyncNative* native, Rollback* rollback, Command command, Cloc
 	ApplyOp* op = command.op;
 	op.start();
 	bool changed = false;
-	if (catch err = check_request(native, command.config, &changed)) {
+	if (catch err = check_request(native, command.config, &changed))
+	{
 		reject(op, err);
 		return;
 	}
-	if (!changed) {
+	if (!changed)
+	{
 		op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = false });
 		op.release();
 		return;
 	}
 	ApplyOp* holder = null;
 	Config previous;
-	if (command.mode == APPLY_WITH_REVERT) {
+	if (command.mode == APPLY_WITH_REVERT)
+	{
 		holder = operation::begin(native.allocator);
 		previous = previous_config(native, holder.allocator());
 	}
-	if (catch err = native.commit(native.backend, command.config, command.mode == TEST_ONLY, command.config.persistent)) {
+	if (catch err = native.commit(native.backend, command.config, command.mode == TEST_ONLY, command.config.persistent))
+	{
 		if (holder) holder.release();
 		reject(op, err);
 		return;
 	}
-	if (command.mode == APPLY_WITH_REVERT) {
+	if (command.mode == APPLY_WITH_REVERT)
+	{
 		if (rollback.op) rollback.op.release();
 		rollback.op = holder;
 		rollback.config = previous;
 		rollback.guard.arm(now, command.revert_after);
-	} else if (command.mode == APPLY) {
+	}
+	else if (command.mode == APPLY)
+	{
 		rollback.guard.disarm();
 		if (rollback.op) rollback.op.release();
 		rollback.op = null;
 	}
-	op.succeed({ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = command.mode == APPLY_WITH_REVERT });
+	op.succeed(
+		{ .mode = command.mode, .live = command.mode != TEST_ONLY, .revert_armed = command.mode == APPLY_WITH_REVERT }
+	);
 	op.release();
 }
 
 // Keep the pending change: its rollback point is forgotten.
 fn void confirm_sync(Rollback* rollback, Clock now)
 {
-	if (rollback.guard.confirm(now)) {
+	if (rollback.guard.confirm(now))
+	{
 		if (rollback.op) rollback.op.release();
 		rollback.op = null;
 	}
@@ -149,7 +172,8 @@ fn void revert_sync(SyncNative* native, Rollback* rollback, DisplayHub* hub)
 	ApplyOp* holder = rollback.op;
 	Config previous = rollback.config;
 	rollback.op = null;
-	if (catch err = native.commit(native.backend, previous, false, false)) {
+	if (catch err = native.commit(native.backend, previous, false, false))
+	{
 		// Nothing more can be done: the change stays, and the publish after this reports it.
 	}
 	if (holder) holder.release();

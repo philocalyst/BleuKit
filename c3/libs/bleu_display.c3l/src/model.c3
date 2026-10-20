@@ -182,7 +182,7 @@ alias ApplyOp = Operation{ApplyResult};
 enum CommandKind : char
 {
 	REFRESH, // read the hardware now instead of waiting for the next event
-	APPLY, // carry out `config`; complete `op`
+	APPLY,   // carry out `config`; complete `op`
 	CONFIRM, // keep the change that is waiting for confirmation
 }
 

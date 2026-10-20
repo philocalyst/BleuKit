@@ -104,22 +104,35 @@ fn Session*? attach(Allocator allocator, wl::Client* client, String root)
 fn void? bind_initial(Session* s)
 {
 	s.client.roundtrip()!;
-	wl::Global[] globals = s.client.globals_view();
-	sz wlr_index = -1;
-	for (sz i = 0; i < globals.len; i++) {
+	wl::Global[] globals =  s.client.globals_view();
+	sz wlr_index         = -1;
+	for (sz i = 0; i < globals.len; i++)
+	{
 		if (globals[i].interface_name == wlr_output_management::ZWLR_OUTPUT_MANAGER_V1.name) wlr_index = i;
 	}
-	for (sz i = 0; i < globals.len; i++) {
-		if (globals[i].interface_name == xdg_output::ZXDG_OUTPUT_MANAGER_V1.name) {
-			s.xdg_manager = (xdg_output::ZxdgOutputManagerV1*)s.client.bind(globals[i], xdg_output::ZXDG_OUTPUT_MANAGER_V1)!;
+	for (sz i = 0; i < globals.len; i++)
+	{
+		if (globals[i].interface_name == xdg_output::ZXDG_OUTPUT_MANAGER_V1.name)
+		{
+			s.xdg_manager = (xdg_output::ZxdgOutputManagerV1*)s.client.bind(
+				globals[i],
+				xdg_output::ZXDG_OUTPUT_MANAGER_V1
+			)!;
 		}
 	}
-	if (wlr_index >= 0) {
+	if (wlr_index >= 0)
+	{
 		s.wlr = true;
-		s.manager = (wlr_output_management::ZwlrOutputManagerV1*)s.client.bind(globals[wlr_index], wlr_output_management::ZWLR_OUTPUT_MANAGER_V1)!;
+		s.manager = (wlr_output_management::ZwlrOutputManagerV1*)s.client.bind(
+			globals[wlr_index],
+			wlr_output_management::ZWLR_OUTPUT_MANAGER_V1
+		)!;
 		s.manager.set_listener(&MANAGER_LISTENER, s);
-	} else {
-		for (sz i = 0; i < globals.len; i++) {
+	}
+	else
+	{
+		for (sz i = 0; i < globals.len; i++)
+		{
 			if (globals[i].interface_name == wayland::WL_OUTPUT.name) add_output(s, globals[i])!;
 		}
 	}
@@ -133,9 +146,12 @@ fn void Session.close(&self)
 	while (self.outputs.len() > 0) remove_record(self, self.outputs.get(0));
 	self.outputs.free();
 	if (self.manager) self.manager.destroy();
-	if (self.xdg_manager) {
+	if (self.xdg_manager)
+	{
 		// The connection may already be gone; there is then nothing to destroy.
-		if (catch self.xdg_manager.destroy()) {}
+		if (catch self.xdg_manager.destroy())
+		{
+		}
 	}
 	if (self.guard_op) self.guard_op.release();
 	self.client.close();
@@ -149,7 +165,8 @@ fn void on_global_added(void* context, wl::Global global)
 {
 	Session* s = (Session*)context;
 	if (s.wlr || global.interface_name != wayland::WL_OUTPUT.name) return;
-	if (catch add_output(s, global)) {
+	if (catch add_output(s, global))
+	{
 		// The output stays unknown until the compositor sends it again; nothing else can be done here.
 	}
 	s.dirty = true;
@@ -159,9 +176,11 @@ fn void on_global_added(void* context, wl::Global global)
 fn void on_global_removed(void* context, uint name)
 {
 	Session* s = (Session*)context;
-	for (sz i = 0; i < s.outputs.len(); i++) {
+	for (sz i = 0; i < s.outputs.len(); i++)
+	{
 		OutputRecord* rec = s.outputs.get(i);
-		if (rec.global == name) {
+		if (rec.global == name)
+		{
 			remove_record(s, rec);
 			s.dirty = true;
 			return;
@@ -177,7 +196,8 @@ fn void? add_output(Session* s, wl::Global global)
 	s.outputs.push(rec);
 	rec.wl_output = (wayland::WlOutput*)s.client.bind(global, wayland::WL_OUTPUT)!;
 	rec.wl_output.set_listener(&WL_OUTPUT_LISTENER, rec);
-	if (s.xdg_manager) {
+	if (s.xdg_manager)
+	{
 		rec.xdg = s.xdg_manager.get_xdg_output(rec.wl_output)!;
 		rec.xdg.set_listener(&XDG_OUTPUT_LISTENER, rec);
 	}
@@ -196,25 +216,40 @@ fn OutputRecord* new_record(Session* s)
 // Drop a record: release its objects, free its modes and text, and take it out of the session.
 fn void remove_record(Session* s, OutputRecord* rec)
 {
-	for (sz i = 0; i < s.outputs.len(); i++) {
-		if (s.outputs.get(i) == rec) {
+	for (sz i = 0; i < s.outputs.len(); i++)
+	{
+		if (s.outputs.get(i) == rec)
+		{
 			s.outputs.remove_at(i);
 			break;
 		}
 	}
-	if (rec.wl_output) {
-		if (catch rec.wl_output.release()) {}
+	if (rec.wl_output)
+	{
+		if (catch rec.wl_output.release())
+		{
+		}
 	}
-	if (rec.xdg) {
-		if (catch rec.xdg.destroy()) {}
+	if (rec.xdg)
+	{
+		if (catch rec.xdg.destroy())
+		{
+		}
 	}
-	if (rec.head) {
-		if (catch rec.head.release()) {}
+	if (rec.head)
+	{
+		if (catch rec.head.release())
+		{
+		}
 	}
-	for (sz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++)
+	{
 		ModeRecord* mode = rec.modes.get(i);
-		if (mode.object) {
-			if (catch mode.object.release()) {}
+		if (mode.object)
+		{
+			if (catch mode.object.release())
+			{
+			}
 		}
 		alloc::free(s.allocator, mode);
 	}
@@ -259,13 +294,16 @@ fn void refresh_fingerprint(OutputRecord* rec)
 	@pool()
 	{
 		String drm = string::tformat("%s/sys/class/drm", rec.session.root);
-		if (try entries = fs::list_dir(tmem, drm)) {
-			foreach (entry : entries) {
+		if (try entries = fs::list_dir(tmem, drm))
+		{
+			foreach (entry : entries)
+			{
 				String dir_name = (String)entry;
 				if (!dir_name.ends_with(string::tformat("-%s", rec.name))) continue;
 				String bytes = fs::read_file(tmem, string::tformat("%s/%s/edid", drm, dir_name)) ?? "";
 				if (bytes.len == 0) continue;
-				if (try identity = edid::parse((char[])bytes, tmem)) {
+				if (try identity = edid::parse((char[])bytes, tmem))
+				{
 					rec.fingerprint.set(identity.fingerprint());
 					return;
 				}
@@ -278,7 +316,8 @@ fn void refresh_fingerprint(OutputRecord* rec)
 fn display::State build_state(Session* s, Allocator allocator)
 {
 	display::Output[] outputs = alloc::new_array(allocator, display::Output, s.outputs.len());
-	for (sz i = 0; i < s.outputs.len(); i++) {
+	for (sz i = 0; i < s.outputs.len(); i++)
+	{
 		outputs[i] = describe(s.outputs.get(i), allocator);
 	}
 	return { .outputs = outputs, .serial = s.serial };
@@ -302,13 +341,20 @@ fn display::Output describe(OutputRecord* rec, Allocator allocator)
 	if (rec.physical_width > 0) out.width_mm.set((display::Millimetre)rec.physical_width);
 	if (rec.physical_height > 0) out.height_mm.set((display::Millimetre)rec.physical_height);
 	out.modes = alloc::new_array(allocator, display::Mode, rec.modes.len());
-	for (sz i = 0; i < rec.modes.len(); i++) {
+	for (sz i = 0; i < rec.modes.len(); i++)
+	{
 		ModeRecord* mode = rec.modes.get(i);
-		out.modes[i] = { .width = mode.width, .height = mode.height, .refresh = mode.refresh, .preferred = mode.preferred };
+		out.modes[i] = {
+			.width = mode.width,
+			.height = mode.height,
+			.refresh = mode.refresh,
+			.preferred = mode.preferred
+		};
 		if (mode.current && rec.enabled) out.current.set(out.modes[i]);
 	}
 	double scale = rec.scale;
-	if (out.current.has_value && rec.has_logical_size) {
+	if (out.current.has_value && rec.has_logical_size)
+	{
 		double derived = display::scale_from_logical_width(out.current.value, rec.transform, rec.logical_width);
 		if (derived > 0.0) scale = derived;
 	}
