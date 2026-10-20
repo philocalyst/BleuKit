@@ -16,7 +16,7 @@ fn void encrypted_round_trip_with_events() @test
 	Reader{Event}* events = keyring.subscribe()!!;
 	defer events.release();
 
-	Entry key                = {
+	Entry key = {
 		.service = "bleu.wifi",
 		.account = "home",
 		.label = "Home Wi-Fi",

@@ -122,7 +122,7 @@ fn Entry? store(Entry entry, Secret value)
 	cf::Ref data = cf::from_bytes(value.bytes);
 	defer data.close();
 
-	cf::CFTypeRef[6] keys   = {
+	cf::CFTypeRef[6] keys = {
 		keychain::KSEC_CLASS,
 		keychain::KSEC_ATTR_SERVICE,
 		keychain::KSEC_ATTR_ACCOUNT,
@@ -138,7 +138,7 @@ fn Entry? store(Entry entry, Secret value)
 		comment.ptr,
 		data.ptr
 	};
-	cf::Ref add             = keychain::dictionary(keys[..], values[..]);
+	cf::Ref add = keychain::dictionary(keys[..], values[..]);
 	defer add.close();
 	int status = keychain::sec_item_add(add.ptr, null);
 	if (status == keychain::ERR_SEC_DUPLICATE_ITEM)
@@ -157,7 +157,7 @@ fn int update_item(cf::Ref* service, cf::Ref* account, cf::Ref* label, cf::Ref* 
 	cf::CFTypeRef[3] match_values = { keychain::KSEC_CLASS_GENERIC_PASSWORD, service.ptr, account.ptr };
 	cf::Ref match                 = keychain::dictionary(match_keys[..], match_values[..]);
 	defer match.close();
-	cf::CFTypeRef[3] change_keys   = {
+	cf::CFTypeRef[3] change_keys = {
 		keychain::KSEC_VALUE_DATA,
 		keychain::KSEC_ATTR_LABEL,
 		keychain::KSEC_ATTR_COMMENT
@@ -189,7 +189,7 @@ fn Secret? read_secret(Entry entry, Allocator allocator)
 		keychain::KSEC_ATTR_ACCOUNT,
 		keychain::KSEC_RETURN_DATA
 	};
-	cf::Ref yes           = cf::from_bool(true);
+	cf::Ref yes = cf::from_bool(true);
 	defer yes.close();
 	cf::CFTypeRef[4] values = { keychain::KSEC_CLASS_GENERIC_PASSWORD, service.ptr, account.ptr, yes.ptr };
 	cf::Ref query           = keychain::dictionary(keys[..], values[..]);

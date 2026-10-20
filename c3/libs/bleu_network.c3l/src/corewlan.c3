@@ -1,30 +1,19 @@
 // The macOS backend: CoreWLAN, the public Wi-Fi framework.
 //
-// Everything here is compiled for macOS and type-checked on the other
-// platforms' targets; it has not been run (no macOS machine is available to
-// the project). docs/research/network.md section 2.2.1 gives the sources.
+// Compiled for macOS; type-checked for every other target. It has not been run
+// (no macOS machine is available to the project). The sources of every selector
+// and constant are in docs/research/network.md section 2.2.1 and
+// src/corewlan_convert.c3.
 //
 // What macOS hides: SSIDs and BSSIDs are withheld from an app without Location
-// authorization (CWInterface.h, CWNetwork.h: "not available unless Location
-// Services is enabled and the user has authorized the calling app"). They show
-// as empty SSIDs and empty BSSIDs, and `State.location` says why.
+// authorization (CWInterface.h and CWNetwork.h: "not available unless Location
+// Services is enabled and the user has authorized the calling app"). They read
+// as empty here, and `State.location` says why.
 //
-// Threading: every CoreWLAN call runs on the worker. The delegate's callbacks
-// (on CoreWLAN's threads) only post a refresh to the mailbox.
+// Threading: CoreWLAN calls run on the worker. The event callbacks (on
+// CoreWLAN's threads, in corewlan_events.c3) only post a refresh to the mailbox.
 module bleu::network::corewlan @feat(DARWIN) @link("CoreWLAN.framework");
 import std::io, std::time, std::collections::maybe, bleu::availability, bleu::error, bleu::network, bleu::network::corewlan_convert, bleu::network::corewlan_location, bleu::objc, bleu::objc::foundation, bleu::rt::poller, bleu::rt::worker;
-
-<* CWEventType values (CoreWLANTypes.rs 613-636): the events the backend listens to. *>
-const long CW_EVENT_POWER_DID_CHANGE      = 1;
-const long CW_EVENT_SSID_DID_CHANGE       = 2;
-const long CW_EVENT_BSSID_DID_CHANGE      = 3;
-const long CW_EVENT_LINK_DID_CHANGE       = 5;
-const long CW_EVENT_LINK_QUALITY_CHANGE   = 6;
-const long CW_EVENT_MODE_DID_CHANGE       = 7;
-const long CW_EVENT_SCAN_CACHE_UPDATED    = 8;
-
-<* The ObjC class of the event delegate this backend registers at run time. *>
-const ZString DELEGATE_CLASS = "BleuCoreWLANEvents";
 
 <* Commands taken from the mailbox per pass of the loop. *>
 const usz COMMAND_BATCH = 16;
@@ -35,8 +24,8 @@ struct Backend
 	Allocator allocator;
 	Duration poll;
 	String interface_name;
-	Obj client;     // CWWiFiClient.sharedWiFiClient
-	Obj interface;  // CWInterface of the first Wi-Fi interface, retained
+	objc::Obj client;     // CWWiFiClient.sharedWiFiClient, retained
+	objc::Obj interface;  // the first Wi-Fi CWInterface, retained
 }
 
 const Driver DRIVER = {
@@ -51,27 +40,34 @@ const Driver DRIVER = {
 fn bool probe(Options* options) => true;
 
 <*
- Find the Wi-Fi interface. The real check needs the framework, so `create`
- makes it; a Mac without a Wi-Fi interface reports UNAVAILABLE here.
+ Find the Wi-Fi interface. A Mac without one reports UNAVAILABLE here.
 
  @return? error::UNAVAILABLE : "This Mac has no Wi-Fi interface"
 *>
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
-	Backend* self = alloc::new(allocator, Backend, { .allocator = allocator, .poll = options.poll });
-	self.client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
-	ObjId found = self.client.send_id("interface");
+	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
+	ObjId found = client.send_id("interface");
 	if (found == null)
 	{
-		self.client.close();
-		alloc::free(allocator, self);
+		client.close();
 		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "this Mac has no Wi-Fi interface")~;
 	}
-	self.interface = objc::borrow(found);
-	self.interface_name = foundation::to_string(self.interface.send_id("interfaceName"), allocator)!!;
+	objc::Obj iface = objc::borrow(found);
+	String name = foundation::to_string(iface.send_id("interfaceName"), allocator) ?? "";
+	Backend* self = alloc::new(allocator, Backend, {
+		.allocator = allocator,
+		.poll = options.poll,
+		.interface_name = name,
+		.client = client,
+		.interface = iface,
+	});
 	fill_capabilities(capabilities);
 	return self;
 }
+
+// A view of an object that the caller does not own: sends on it take no reference.
+fn objc::Obj view(ObjId object) @inline => { .ptr = object };
 
 // CoreWLAN can do: radio power, scan, open and password joins, disconnect. The rest is listed with its reason.
 fn void fill_capabilities(Capabilities* capabilities) @local
@@ -99,7 +95,7 @@ fn void destroy(Allocator allocator, void* state)
 	Backend* b = (Backend*)state;
 	b.interface.close();
 	b.client.close();
-	alloc::free(allocator, b.interface_name.ptr);
+	if (b.interface_name.len > 0) alloc::free(allocator, b.interface_name.ptr);
 	alloc::free(allocator, b);
 }
 
@@ -107,8 +103,8 @@ fn void destroy(Allocator allocator, void* state)
 fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 {
 	Backend* b = (Backend*)state;
-	Obj delegate = install_delegate(b, host.mailbox());
-	defer uninstall_delegate(b, delegate);
+	objc::Obj delegate = install_delegate(host.mailbox());
+	defer uninstall_delegate(delegate);
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 2)) return;
 	defer poller.free();
@@ -121,12 +117,15 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 		{
 			// TIMEOUT is the normal tick.
 		}
-		usz count = host.mailbox().take_all(commands[..]);
-		for (usz i = 0; i < count; i++)
+		objc::@autorelease_pool()
 		{
-			execute(b, &commands[i]);
-		}
-		refresh(b, hub);
+			usz count = host.mailbox().take_all(commands[..]);
+			for (usz i = 0; i < count; i++)
+			{
+				execute(b, &commands[i]);
+			}
+			refresh(b, hub);
+		};
 	}
 }
 
@@ -137,20 +136,21 @@ fn void refresh(Backend* b, NetworkHub* hub)
 	publish_snapshot(hub, snapshot);
 }
 
-<* Route one command. Every CoreWLAN request here completes synchronously. *>
+<* Route one command. Every CoreWLAN request completes synchronously on the worker. *>
 fn void execute(Backend* b, Command* c)
 {
 	switch (c.kind)
 	{
 		case REFRESH: return;
 		case SCAN: finish_settle(c.settle, scan(b));
-		case CONNECT: finish_connect(c.connect, connect(b, c));
+		case CONNECT: finish_connect(c.connect, b, c);
 		case DISCONNECT: finish_settle(c.settle, disconnect(b));
 		case SET_RADIO: finish_settle(c.settle, set_radio(b, c.flag));
 		case FORGET:
 		case SET_AUTOCONNECT:
-			// Refused by the capability check before the command was posted; reaching here is a bug.
-			finish_settle(c.settle, error::UNSUPPORTED~);
+			// The capability check refuses these before they are posted; reaching here is a bug.
+			c.settle.fail(error::UNSUPPORTED);
+			c.settle.release();
 	}
 }
 
@@ -167,24 +167,25 @@ fn void finish_settle(SettleOp* op, Settled? outcome)
 	op.release();
 }
 
-fn void finish_connect(ConnectOp* op, Connected? outcome)
+fn void finish_connect(ConnectOp* op, Backend* b, Command* c)
 {
-	if (catch err = outcome)
+	Connected? joined = connect(b, c, op.allocator());
+	if (catch err = joined)
 	{
 		op.fail(err);
 	}
 	else
 	{
-		op.succeed(outcome);
+		op.succeed(joined);
 	}
 	op.release();
 }
 
-<* The error an NSError from CoreWLAN stands for, as a Bleu excuse with its code in the detail. *>
-fn fault ns_error(ObjId error, String what) @local
+<* The error an NSError from CoreWLAN stands for: a Bleu excuse, with its code in the detail. *>
+fn fault ns_error(ObjId failure, String what) @local
 {
-	long code = objc::Obj.borrow(error).send_long("code");
-	return error::raise(fault_from_cw_error(code), error::Domain.NS_ERROR, (int)code, "%s", what);
+	long code = view(failure).send_long("code");
+	return error::raise(corewlan_convert::fault_from_cw_error(code), error::Domain.NS_ERROR, (int)code, "%s", what);
 }
 
 fn Settled? scan(Backend* b)
@@ -195,8 +196,8 @@ fn Settled? scan(Backend* b)
 	return Settled.CHANGED;
 }
 
-<* Join a network from the last scan: by its octets, when they are not withheld. *>
-fn Connected? connect(Backend* b, Command* c)
+<* Join a network from the last scan, found by its octets. Withheld names cannot be matched. *>
+fn Connected? connect(Backend* b, Command* c, Allocator out)
 {
 	char[] ssid = c.ssid.bytes[0 : c.ssid.len];
 	ObjId network = find_scanned(b, ssid);
@@ -206,25 +207,29 @@ fn Connected? connect(Backend* b, Command* c)
 	ObjId err = null;
 	bool joined = b.interface.send_bool("associateToNetwork:password:error:", network, password, &err);
 	if (!joined) return ns_error(err, "the network refused the join")~;
-	return { .ssid = network::make_ssid(tmem, ssid), .interface_name = b.interface_name.copy(tmem) };
+	return { .ssid = network::make_ssid(out, ssid), .interface_name = b.interface_name.copy(out) };
 }
 
 // The scanned network whose SSID octets equal `ssid`, or nil.
 fn ObjId find_scanned(Backend* b, char[] ssid) @local
 {
-	ObjId set = b.interface.send_id("cachedScanResults");
-	if (set == null) return null;
-	ObjId[] members = foundation::set_members(set);
-	foreach (network : members)
+	ObjId list = scan_list(b);
+	usz count = foundation::array_count(list);
+	for (usz i = 0; i < count; i++)
 	{
-		ObjId data = objc::Obj.borrow(network).send_id("ssidData");
-		if (data == null) continue;
-		if (try octets = foundation::data_bytes(data, tmem))
-		{
-			if (network::same_ssid(octets, ssid)) return network;
-		}
+		ObjId network = foundation::array_at(list, i);
+		char[] octets = data_or_empty(view(network).send_id("ssidData"), tmem);
+		if (octets.len > 0 && network::same_ssid(octets, ssid)) return network;
 	}
 	return null;
+}
+
+// The last scan's networks as an NSArray (possibly empty; never nil).
+fn ObjId scan_list(Backend* b) @local
+{
+	ObjId set = b.interface.send_id("cachedScanResults");
+	if (set == null) return objc::class_named("NSArray").send(ObjId, "array");
+	return foundation::set_members(set);
 }
 
 fn Settled? disconnect(Backend* b)
@@ -242,21 +247,18 @@ fn Settled? set_radio(Backend* b, bool on)
 	return Settled.CHANGED;
 }
 
-<* The state as CoreWLAN shows it right now. Withheld names are empty; the location says why. *>
+<* The state as CoreWLAN shows it right now. Withheld names are empty; `location` says why. *>
 fn State read_state(Backend* b, Allocator out)
 {
 	Wifi wifi = { .present = true, .interface_name = b.interface_name.copy(out) };
 	wifi.radio_enabled = b.interface.send_bool("powerOn");
-	wifi.ssid_visible = false;
 	ObjId ssid = b.interface.send_id("ssid");
 	ObjId bssid = b.interface.send_id("bssid");
-	if (ssid != null)
+	char[] octets = data_or_empty(b.interface.send_id("ssidData"), out);
+	if (ssid != null && octets.len > 0)
 	{
-		if (try octets = foundation::data_bytes(b.interface.send_id("ssidData"), out))
-		{
-			wifi.connected_ssid = network::make_ssid(out, octets);
-			wifi.ssid_visible = true;
-		}
+		wifi.connected_ssid = network::make_ssid(out, octets);
+		wifi.ssid_visible = true;
 	}
 	bool associated = ssid != null || bssid != null;
 	wifi.phase = associated ? CONNECTED : IDLE;
@@ -265,39 +267,42 @@ fn State read_state(Backend* b, Allocator out)
 	{
 		if (network.in_use) wifi.signal = network.signal;
 	}
+	Interface[] interfaces = alloc::new_array(out, Interface, 1);
+	interfaces[0] = { .name = b.interface_name.copy(out), .kind = WIFI, .link = UNKNOWN };
 	return {
 		.connectivity = UNKNOWN,
 		.location = corewlan_location::authorization(),
 		.primary_interface = associated ? b.interface_name.copy(out) : "",
 		.wifi = wifi,
-		.interfaces = alloc::clone_slice(out, { { .name = b.interface_name.copy(out), .kind = WIFI, .link = UNKNOWN } }),
+		.interfaces = interfaces,
 	};
 }
 
-<* One entry per scanned access point. CoreWLAN gives no saved-profile information, so `known` stays false. *>
+<* One entry per scanned access point. CoreWLAN has no saved-profile information, so `known` stays false. *>
 fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid) @local
 {
-	ObjId set = b.interface.send_id("cachedScanResults");
-	if (set == null) return {};
-	ObjId[] members = foundation::set_members(set);
-	AccessPoint[] found = alloc::new_array(out, AccessPoint, members.len);
-	foreach (i, network : members)
+	ObjId list = scan_list(b);
+	usz count = foundation::array_count(list);
+	AccessPoint[] found = alloc::new_array(out, AccessPoint, count);
+	for (usz i = 0; i < count; i++)
 	{
-		Obj object = objc::Obj.borrow(network);
+		ObjId network = foundation::array_at(list, i);
+		objc::Obj object = view(network);
 		long rssi = object.send_long("rssiValue");
 		ObjId channel = object.send_id("wlanChannel");
-		long number = channel == null ? 0 : objc::Obj.borrow(channel).send_long("channelNumber");
-		long band = channel == null ? 0 : objc::Obj.borrow(channel).send_long("channelBand");
+		long number = channel == null ? 0 : view(channel).send_long("channelNumber");
+		long band = channel == null ? 0 : view(channel).send_long("channelBand");
+		String bssid = bssid_text(object.send_id("bssid"), out);
 		AccessPoint entry = {
 			.ssid = network::make_ssid(out, data_or_empty(object.send_id("ssidData"), out)),
-			.bssid = bssid_text(object.send_id("bssid"), out),
+			.bssid = bssid,
 			.band = corewlan_convert::band_from_cw(band),
 			.security = security_of(object),
 			.signal = maybe::value((Dbm)rssi),
 			.quality = maybe::value(((Dbm)rssi).quality()),
+			.in_use = current_bssid != null && bssid_text(current_bssid, tmem) == bssid && bssid.len > 0,
 		};
 		if (try mhz = corewlan_convert::frequency_from_channel(band, number)) entry.frequency = maybe::value(mhz);
-		entry.in_use = current_bssid != null && entry.bssid == bssid_text(current_bssid, out);
 		found[i] = entry;
 	}
 	return found;
@@ -307,21 +312,24 @@ fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid
 fn char[] data_or_empty(ObjId data, Allocator out) @local
 {
 	if (data == null) return {};
-	return foundation::data_bytes(data, out) ?? {};
+	if (try octets = foundation::data_bytes(data, out)) return octets;
+	return {};
 }
 
+// The text of an NSString, or "" when it is nil (withheld).
 fn String bssid_text(ObjId text, Allocator out) @local
 {
 	if (text == null) return "";
-	return foundation::to_string(text, out) ?? "";
+	if (try s = foundation::to_string(text, out)) return s;
+	return "";
 }
 
 // The strongest security class the network supports, probed in PROBE_ORDER.
-fn Security security_of(Obj network) @local
+fn Security security_of(objc::Obj network) @local
 {
 	foreach (candidate : corewlan_convert::probe_order())
 	{
 		if (network.send_bool("supportsSecurity:", candidate)) return corewlan_convert::security_from_cw(candidate);
 	}
-	return UNKNOWN;
+	return Security.UNKNOWN;
 }
