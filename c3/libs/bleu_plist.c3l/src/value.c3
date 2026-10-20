@@ -13,7 +13,7 @@
  `NOT_FOUND` when the key or index is absent or the value has another kind.
 *>
 module bleu::plist::value;
-import bleu::error, std::collections::list, std::collections::set;
+import bleu::error, bleu::plist::text, std::collections::list, std::collections::set;
 
 const long UNIX_TO_CF_EPOCH_SECONDS    = 978307200;
 const long SECONDS_PER_DAY             = 86400;
@@ -26,6 +26,12 @@ const int DATE_LENGTH                  = 20;
 const int MONTHS_PER_YEAR              = 12;
 <* Deepest container nesting the readers accept; deeper input is refused, not followed. *>
 const int MAX_NESTING                  = 512;
+<*
+ Default budget, in bytes, for the tree a binary property list decodes into (see
+ `binary::parse_limited`). 64 MiB is far above any real `Info.plist` and far below the
+ amplification a shared object could otherwise cause.
+*>
+const usz DEFAULT_MAX_DECODED_BYTES    = 64 * 1024 * 1024;
 
 <* The eight types a property list can hold. *>
 enum Kind : char
@@ -285,16 +291,17 @@ fn long? digits(String text) @local
  strings with the output of Python's `plistlib`; it is also useful in logs.
 
  @param [&inout] allocator : "Allocator for the text"
+ @return? error::PROTOCOL : "A string in the tree is not well-formed UTF-8"
 *>
-fn String canonical(Allocator allocator, Value* root)
+fn String? canonical(Allocator allocator, Value* root)
 {
 	DString out;
 	out.init(tmem);
-	write_canonical(&out, root);
+	write_canonical(&out, root)!;
 	return out.copy_str(allocator);
 }
 
-fn void write_canonical(DString* out, Value* node) @local
+fn void? write_canonical(DString* out, Value* node) @local
 {
 	switch (node.kind)
 	{
@@ -303,9 +310,9 @@ fn void write_canonical(DString* out, Value* node) @local
 			foreach (i, &member : node.members)
 			{
 				if (i > 0) out.append_char(',');
-				write_quoted(out, member.key);
+				write_quoted(out, member.key)!;
 				out.append_char(':');
-				write_canonical(out, &member.value);
+				write_canonical(out, &member.value)!;
 			}
 			out.append_char('}');
 		case ARRAY:
@@ -313,12 +320,12 @@ fn void write_canonical(DString* out, Value* node) @local
 			foreach (i, &item : node.items)
 			{
 				if (i > 0) out.append_char(',');
-				write_canonical(out, item);
+				write_canonical(out, item)!;
 			}
 			out.append_char(']');
 		case STRING:
 			out.append_char('s');
-			write_quoted(out, node.text);
+			write_quoted(out, node.text)!;
 		case INTEGER:
 			out.append_string(string::tformat("i%d", node.integer));
 		case REAL:
@@ -335,12 +342,15 @@ fn void write_canonical(DString* out, Value* node) @local
 	}
 }
 
-fn void write_quoted(DString* out, String text) @local
+fn void? write_quoted(DString* out, String quoted) @local
 {
 	out.append_char('"');
-	Char32[] code_points = text.to_temp_utf32()!!;
-	foreach (code_point : code_points)
+	usz at = 0;
+	while (at < quoted.len)
 	{
+		text::CodePoint point = text::decode_at(quoted, at)!;
+		at += point.width;
+		uint code_point = point.value;
 		if (code_point == '\\')
 		{
 			out.append_string("\\\\");

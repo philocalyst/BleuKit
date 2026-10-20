@@ -58,11 +58,11 @@ fn compositor::Workspace[] workspaces(Replies replies, Allocator allocator) @pri
 	for (sz i = 0; i < count; i++)
 	{
 		Object* workspace = wire::item(replies.workspaces, i);
-		long id           = wire::integer_member(workspace, "id");
+		Maybe{long} id    = wire::optional_integer(workspace, "id");
 		String output     = wire::text_member(workspace, "monitor", allocator);
-		bool active       = shows_on_monitor(replies.monitors, id);
+		bool active       = id.has_value && shows_on_monitor(replies.monitors, id.value);
 		out[i] = {
-			.id = id_text(id, allocator),
+			.id = id.has_value ? id_text(id.value, allocator) : "",
 			.name = wire::text_member(workspace, "name", allocator),
 			.output = output,
 			.active = active,
@@ -80,7 +80,6 @@ fn compositor::Window[] windows(Replies replies, String focused, Allocator alloc
 	for (sz i = 0; i < count; i++)
 	{
 		Object* client = wire::item(replies.clients, i);
-		long mode      = wire::integer_member(client, "fullscreen");
 		String address = wire::text_member(client, "address", allocator);
 		out[i] = {
 			.id = address,
@@ -91,8 +90,8 @@ fn compositor::Window[] windows(Replies replies, String focused, Allocator alloc
 			.output = monitor_name(replies.monitors, wire::integer_member(client, "monitor", -1), allocator),
 			.focused = focused.len > 0 && address == focused,
 			.floating = wire::flag_member(client, "floating"),
-			.fullscreen = { .value = (mode & FULLSCREEN_BIT) != 0, .has_value = true },
-			.maximized = { .value = (mode & FULLSCREEN_MAXIMIZED_BIT) != 0, .has_value = true },
+			.fullscreen = mode_bit(client, FULLSCREEN_BIT),
+			.maximized = mode_bit(client, FULLSCREEN_MAXIMIZED_BIT),
 			.urgent = wire::optional_flag(client, "urgent"),
 			.geometry = client_geometry(client),
 		};
@@ -139,6 +138,7 @@ fn compositor::KeyboardLayouts layouts(Object* devices, Allocator allocator) @pr
 fn compositor::KeyboardLayouts keyboard_layouts(Object* keyboard, Allocator allocator) @private
 {
 	return {
+		.keyboard = wire::text_member(keyboard, "name", allocator),
 		.names = { },
 		.current = { },
 		.current_name = wire::text_member(keyboard, "active_keymap", allocator),
@@ -151,6 +151,14 @@ fn Maybe{int} pid_of(Object* client) @private
 	Maybe{long} pid = wire::optional_integer(client, "pid");
 	if (!pid.has_value || pid.value <= 0) return { };
 	return { .value = (int)pid.value, .has_value = true };
+}
+
+// One bit of a client's `fullscreen` mode, or absent when the client does not report a mode.
+fn Maybe{bool} mode_bit(Object* client, long bit) @private
+{
+	Maybe{long} mode = wire::optional_integer(client, "fullscreen");
+	if (!mode.has_value) return { };
+	return { .value = (mode.value & bit) != 0, .has_value = true };
 }
 
 // The `id` of a nested object such as `workspace` or `activeWorkspace`, as text.
@@ -366,25 +374,28 @@ fn backend::Refresh window_titled(compositor::Model* model, Allocator allocator,
 	return UPDATED;
 }
 
-// `0` or `1`, for the focused window.
+// `0` or `1`, for the focused window. Any other payload asks for a snapshot.
 fn backend::Refresh fullscreen_changed(compositor::Model* model, String payload) @private
 {
 	sz target = focused_index(model);
-	if (target < 0) return REFRESH_NEEDED;
+	if (target < 0 || !is_flag(payload)) return REFRESH_NEEDED;
 	model.windows[target].fullscreen = { .value = payload == "1", .has_value = true };
 	return UPDATED;
 }
 
-// `ADDRESS,FLOATING` where FLOATING is `0` or `1`.
+// `ADDRESS,FLOATING` where FLOATING is `0` or `1`. A missing or other value asks for a snapshot.
 fn backend::Refresh floating_changed(compositor::Model* model, String payload) @private
 {
 	String address  = wire::nth_field(payload, 0, 2) ?? "";
 	String floating = wire::nth_field(payload, 1, 2) ?? "";
 	sz target       = window_index(model, address);
-	if (target < 0) return REFRESH_NEEDED;
+	if (target < 0 || !is_flag(floating)) return REFRESH_NEEDED;
 	model.windows[target].floating = floating == "1";
 	return UPDATED;
 }
+
+// True for the two values Hyprland writes for a boolean event field.
+fn bool is_flag(String text) @private => text == "0" || text == "1";
 
 // `ADDRESS`.
 fn backend::Refresh urgent_set(compositor::Model* model, String payload) @private
@@ -409,11 +420,14 @@ fn backend::Refresh window_moved(compositor::Model* model, String payload) @priv
 	return UPDATED;
 }
 
-// `KEYBOARD,LAYOUT`: the layout name of the keyboard that changed.
+// `KEYBOARD,LAYOUT`. The model holds the main keyboard's layout: a change on any other
+// keyboard leaves it alone, and a payload without both fields asks for a snapshot.
 fn backend::Refresh layout_changed(compositor::Model* model, Allocator allocator, String payload) @private
 {
-	String layout = wire::nth_field(payload, 1, 2) ?? "";
-	if (layout.len == 0) return REFRESH_NEEDED;
+	String keyboard = wire::nth_field(payload, 0, 2) ?? "";
+	String layout   = wire::nth_field(payload, 1, 2) ?? "";
+	if (keyboard.len == 0 || layout.len == 0 || model.layouts.keyboard.len == 0) return REFRESH_NEEDED;
+	if (keyboard != model.layouts.keyboard) return NONE;
 	model.layouts.current_name = layout.copy(allocator);
 	return UPDATED;
 }

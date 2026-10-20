@@ -16,9 +16,13 @@
 
  Refused, never followed: a file whose length does not match its trailer exactly,
  an offset or reference outside the file or the object region, a reference to the
- object itself, nesting deeper than `value::MAX_NESTING`, and more than
- `MAX_DECODED_VALUES` values in one document (a dictionary may share its values,
- so an unbounded reader could be made to build exponentially many). Integers wider
+ object itself, nesting deeper than `value::MAX_NESTING`, and a decoded tree larger
+ than its byte budget. A reference decodes its object again, so one object shared
+ by many references costs once per reference (a dictionary may share its values, so
+ an unbounded reader could be made to build exponentially many). The budget, which
+ `parse` sets to `value::DEFAULT_MAX_DECODED_BYTES` and `parse_limited` lets the
+ caller choose, counts the struct of every decoded value plus the bytes of every
+ string and data run, so a 1 MiB file cannot expand past the budget. Integers wider
  than 64 bits are refused when they do not sign-extend; Apple truncates them.
 
  Not done: the writer (the XML writer covers output). Sets (0xC0) are read as
@@ -39,7 +43,9 @@ const usz WORD_BYTES            = 8;
 const usz MAX_INTEGER_BYTES     = 16;
 const usz MAX_ID_BYTES          = 8;
 const usz MAX_OBJECTS           = 1 << 28;
-const usz MAX_DECODED_VALUES    = 1 << 20;
+// A UTF-16 code unit becomes at most three UTF-8 bytes (a surrogate pair is two units
+// for four bytes), so this is the worst-case size of a transcoded string.
+const usz UTF8_MAX_BYTES_PER_UNIT = 3;
 const uint TYPE_MASK            = 0xF0;
 const uint LENGTH_MASK          = 0x0F;
 const uint EXTENDED_LENGTH      = 0x0F;
@@ -64,20 +70,36 @@ const uint ASCII_LIMIT          = 0x80;
 const ulong SIGN_EXTENSION      = 0xFFFFFFFFFFFFFFFF;
 
 <*
- Decode a binary property list.
+ Decode a binary property list within `value::DEFAULT_MAX_DECODED_BYTES`.
 
  @param [&inout] allocator : "Allocator for the value tree"
  @param data : "The complete file, starting with `bplist0`"
- @return? error::PROTOCOL : "The trailer, offsets or an object are malformed, or the file is nested or holds more values than the readers accept"
- @return? error::OUT_OF_RANGE : "An integer does not fit in 64 bits, or the document holds more than `MAX_DECODED_VALUES` values"
+ @return? error::PROTOCOL : "The trailer, offsets or an object are malformed, or the file is nested"
+ @return? error::OUT_OF_RANGE : "An integer does not fit in 64 bits, or the decoded tree is larger than the default budget"
 *>
 fn Value? parse(Allocator allocator, char[] data)
+{
+	return parse_limited(allocator, data, value::DEFAULT_MAX_DECODED_BYTES);
+}
+
+<*
+ Decode a binary property list whose decoded tree may not exceed `max_decoded_bytes`.
+ The budget is charged as the tree is built, so the reader refuses before it
+ allocates past it. See the module note for what is counted.
+
+ @param [&inout] allocator : "Allocator for the value tree"
+ @param data : "The complete file, starting with `bplist0`"
+ @param max_decoded_bytes : "The byte budget for the decoded tree"
+ @return? error::PROTOCOL : "The trailer, offsets or an object are malformed, or the file is nested"
+ @return? error::OUT_OF_RANGE : "An integer does not fit in 64 bits, or the decoded tree is larger than `max_decoded_bytes`"
+*>
+fn Value? parse_limited(Allocator allocator, char[] data, usz max_decoded_bytes)
 {
 	if (data.len < MAGIC_LENGTH + TRAILER_LENGTH + 1 || (String)data[0:MAGIC_PREFIX.len] != MAGIC_PREFIX)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not a binary property list")~;
 	}
-	Parser parser = trailer_parser(allocator, data)!;
+	Parser parser = trailer_parser(allocator, data, max_decoded_bytes)!;
 	return parser.object(parser.top_object, 0)!;
 }
 
@@ -96,11 +118,12 @@ struct Parser
 	usz table_offset;
 	usz offset_size;
 	usz ref_size;
-	usz decoded;
+	usz budget;
+	usz decoded_bytes;
 }
 
 // Read and validate the trailer and offset table of `data`.
-fn Parser? trailer_parser(Allocator allocator, char[] data) @local
+fn Parser? trailer_parser(Allocator allocator, char[] data, usz budget) @local
 {
 	usz trailer_at   = data.len - TRAILER_LENGTH;
 	usz object_count = read_word(data, trailer_at + TRAILER_OBJECT_COUNT);
@@ -131,7 +154,8 @@ fn Parser? trailer_parser(Allocator allocator, char[] data) @local
 		.top_object = top_object,
 		.table_offset = table_offset,
 		.offset_size = offset_size,
-		.ref_size = ref_size
+		.ref_size = ref_size,
+		.budget = budget
 	};
 	for (usz index = 0; index < object_count; index++) parser.offset_index(index)!;
 	return parser;
@@ -146,14 +170,7 @@ fn Value? Parser.object(&self, usz index, int depth)
 		"values are nested deeper than %d",
 		value::MAX_NESTING
 	)~;
-	if (self.decoded >= MAX_DECODED_VALUES) return error::raise(
-		error::OUT_OF_RANGE,
-		error::Domain.INTERNAL,
-		0,
-		"more than %d values in one document",
-		MAX_DECODED_VALUES
-	)~;
-	self.decoded++;
+	self.charge(node_bytes())!;
 	usz at      = self.offset_index(index)!;
 	uint marker = (uint)(self.data[at] & 0xFF);
 	uint type   = marker & TYPE_MASK;
@@ -203,6 +220,26 @@ fn Value? Parser.object(&self, usz index, int depth)
 		default:
 			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "unknown object marker 0x%02X", marker)~;
 	}
+}
+
+// Count `bytes` of decoded memory against the budget, refusing when it would be exceeded.
+fn void? Parser.charge(&self, usz bytes)
+{
+	if (bytes > self.budget - self.decoded_bytes) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"the decoded tree exceeds %d bytes",
+		self.budget
+	)~;
+	self.decoded_bytes += bytes;
+}
+
+// The bytes one decoded value takes in the tree: its struct, which every reference creates again.
+fn usz node_bytes() @local
+{
+	Value probe = {};
+	return @sizeof(probe);
 }
 
 // The integer of an 0x1n object: 1, 2, 4, 8 or 16 bytes big-endian.
@@ -280,6 +317,7 @@ fn char[]? Parser.copy_bytes(&self, usz start, usz length)
 {
 	if (length == 0) return { };
 	self.checked(start, length)!;
+	self.charge(length)!;
 	char[] copy = alloc::new_array(self.allocator, char, (sz)length);
 	mem::copy(copy.ptr, self.data.ptr + start, (sz)length);
 	return copy;
@@ -308,6 +346,7 @@ fn String? Parser.utf16(&self, usz start, usz units)
 {
 	usz size = units * 2;
 	self.checked(start, size)!;
+	self.charge(units * UTF8_MAX_BYTES_PER_UNIT)!;
 	char[] wide = self.data[start:size];
 	return text::utf16_to_utf8(self.allocator, wide, true);
 }

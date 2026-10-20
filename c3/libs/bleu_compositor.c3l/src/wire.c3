@@ -21,6 +21,7 @@ struct Buffer
 	usz capacity;
 	usz start; // First unread byte.
 	usz filled; // One past the last byte received.
+	usz scanned; // Unread bytes before this offset are known to hold no newline.
 }
 
 <*
@@ -36,6 +37,7 @@ fn void Buffer.init(&self, Allocator allocator, usz capacity)
 	self.capacity = capacity;
 	self.start = 0;
 	self.filled = 0;
+	self.scanned = 0;
 }
 
 <* Release the storage. The buffer must not be used afterwards. *>
@@ -72,13 +74,16 @@ fn usz? Buffer.feed(&self, char[] bytes)
 *>
 fn String? Buffer.take_line(&self)
 {
-	for (usz i = self.start; i < self.filled; i++)
+	// Resume where the last search stopped, so a line that arrives in pieces is scanned once.
+	usz from = self.scanned > self.start ? self.scanned : self.start;
+	for (usz i = from; i < self.filled; i++)
 	{
 		if (self.data[i] != '\n') continue;
 		String line = (String)self.data[self.start:i - self.start];
 		self.start = i + 1;
 		return line;
 	}
+	self.scanned = self.filled;
 	return NOT_FOUND~;
 }
 
@@ -128,6 +133,7 @@ fn void Buffer.compact(&self)
 	if (self.start == 0) return;
 	usz pending = self.pending();
 	for (usz i = 0; i < pending; i++) self.data[i] = self.data[self.start + i];
+	self.scanned = self.scanned > self.start ? self.scanned - self.start : 0;
 	self.start = 0;
 	self.filled = pending;
 }

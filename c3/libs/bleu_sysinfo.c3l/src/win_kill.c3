@@ -9,6 +9,12 @@ import std::os::win32, bleu::error, bleu::win::errors, bleu::sysinfo::win;
 const uint PROCESS_TERMINATE_ACCESS = 0x0001;
 const uint EXIT_CODE_KILLED         = 1;
 
+<* The id of this process (GetCurrentProcessId). *>
+fn uint own_process_id()
+{
+	return (uint)win32::getCurrentProcessId();
+}
+
 <*
  Terminate process `pid`.
 

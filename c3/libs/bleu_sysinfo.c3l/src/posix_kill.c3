@@ -11,7 +11,8 @@ const CInt SIGKILL_NUMBER = 9;
 const CInt SIGTERM_NUMBER = 15;
 
 <*
- Send the signal for `mode` to `pid`.
+ Send the signal for `mode` to `pid`. `pid` must already have passed
+ `check_kill_target`: the conversion to `pid_t` below is only safe for ids up to INT_MAX.
 
  @return? NOT_FOUND : "No process has that id"
  @return? error::PERMISSION_DENIED : "The system refused, typically another account's process"
@@ -25,4 +26,11 @@ fn void? send_signal(uint pid, KillMode mode)
 	return unix::errno_fault("kill", err)~;
 }
 
+<* The id of this process (getpid(2)). *>
+fn uint own_process_id()
+{
+	return (uint)sys_getpid();
+}
+
 extern fn CInt sys_kill(Pid_t pid, CInt signal) @cname("kill");
+extern fn CInt sys_getpid() @cname("getpid");

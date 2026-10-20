@@ -63,7 +63,7 @@ fn void? start_stream(unix::UnixSocket* socket, wire::Buffer* lines) @private
 	@pool()
 	{
 		socket.send_all(string::tformat("%s\n", niri::REQUEST_EVENT_STREAM))!;
-		String line   = io::await_line(socket, lines)!;
+		String line   = io::await_line(socket, lines, io::REPLY_TIMEOUT)!;
 		Object* reply = wire::parse_document(line, "niri EventStream reply")!;
 		niri::unwrap(reply, "EventStream")!;
 	};
@@ -78,7 +78,7 @@ fn String? request_line(String path, String request) @private
 	lines.init(mem, io::REPLY_BUFFER_BYTES);
 	defer lines.free();
 	socket.send_all(string::tformat("%s\n", request))!;
-	return io::await_line(&socket, &lines);
+	return io::await_line(&socket, &lines, io::REPLY_TIMEOUT);
 }
 
 // A query: the reply's `Ok` payload, which is an object holding one member named `key`.

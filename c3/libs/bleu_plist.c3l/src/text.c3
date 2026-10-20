@@ -7,7 +7,9 @@
  `Unicode` value holds U+1F600 and was encoded by Python's `plistlib`.
 
  Surrogates that are unpaired, and code points above U+10FFFF, are errors: the
- readers never produce invalid UTF-8.
+ readers never produce invalid UTF-8. Text that arrives as UTF-8 (the XML path)
+ is checked with `check_utf8` before it is used, and the writers check every string
+ with `decode_at` so that a hand-built tree cannot abort the process.
 *>
 module bleu::plist::text;
 import bleu::error;
@@ -32,6 +34,108 @@ const uint FOUR_BYTE_TAG        = 0xF0;
 const uint UTF16_UNIT_BYTES     = 2;
 const char UTF16_BE_BOM_HIGH    = 0xFE;
 const char UTF16_BE_BOM_LOW     = 0xFF;
+const uint LEAD_TWO_FIRST       = 0xC2;
+const uint LEAD_TWO_LAST        = 0xDF;
+const uint LEAD_THREE_FIRST     = 0xE0;
+const uint LEAD_THREE_LAST      = 0xEF;
+const uint LEAD_FOUR_FIRST      = 0xF0;
+const uint LEAD_FOUR_LAST       = 0xF4;
+const uint LEAD_TWO_MASK        = 0x1F;
+const uint LEAD_THREE_MASK      = 0x0F;
+const uint LEAD_FOUR_MASK       = 0x07;
+
+<*
+ One code point read from UTF-8: its value and the number of bytes it occupied.
+*>
+struct CodePoint
+{
+	uint value;
+	usz width;
+}
+
+<*
+ Decode the code point that starts at byte `at` of `bytes`. The sequence must be
+ well-formed UTF-8 (RFC 3629): no overlong forms, no surrogates, nothing above U+10FFFF.
+
+ @param bytes : "The text"
+ @param at : "The index of the first byte of the code point; must be below `bytes.len`"
+ @return? error::PROTOCOL : "The bytes at `at` do not start one well-formed UTF-8 sequence"
+*>
+fn CodePoint? decode_at(String bytes, usz at)
+{
+	uint lead = (uint)(bytes[at] & 0xFF);
+	if (lead < ONE_BYTE_LIMIT) return { .value = lead, .width = 1 };
+	usz width      = 0;
+	uint value     = 0;
+	uint minimum   = 0;
+	if (lead >= LEAD_TWO_FIRST && lead <= LEAD_TWO_LAST)
+	{
+		width = 2;
+		value = lead & LEAD_TWO_MASK;
+		minimum = ONE_BYTE_LIMIT;
+	}
+	else if (lead >= LEAD_THREE_FIRST && lead <= LEAD_THREE_LAST)
+	{
+		width = 3;
+		value = lead & LEAD_THREE_MASK;
+		minimum = TWO_BYTE_LIMIT;
+	}
+	else if (lead >= LEAD_FOUR_FIRST && lead <= LEAD_FOUR_LAST)
+	{
+		width = 4;
+		value = lead & LEAD_FOUR_MASK;
+		minimum = THREE_BYTE_LIMIT;
+	}
+	else
+	{
+		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "byte 0x%02X cannot start UTF-8", lead)~;
+	}
+	if (at + width > bytes.len) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"UTF-8 sequence at byte %d is cut short",
+		at
+	)~;
+	for (usz i = 1; i < width; i++)
+	{
+		uint continuation = (uint)(bytes[at + i] & 0xFF);
+		if ((continuation & ~CONTINUATION_MASK) != CONTINUATION_TAG) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"UTF-8 sequence at byte %d has no continuation byte",
+			at
+		)~;
+		value = (value << CONTINUATION_BITS) | (continuation & CONTINUATION_MASK);
+	}
+	if (value < minimum || value > MAX_CODE_POINT || (value >= FIRST_HIGH_SURROGATE && value <= LAST_LOW_SURROGATE))
+	{
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"UTF-8 sequence at byte %d is not a character",
+			at
+		)~;
+	}
+	return { .value = value, .width = width };
+}
+
+<*
+ Check that `bytes` is well-formed UTF-8, as `decode_at` defines it.
+
+ @return? error::PROTOCOL : "The text holds a byte sequence that is not UTF-8"
+*>
+fn void? check_utf8(String bytes)
+{
+	usz at = 0;
+	while (at < bytes.len)
+	{
+		CodePoint point = decode_at(bytes, at)!;
+		at += point.width;
+	}
+}
 
 <*
  Append one code point to `out` as UTF-8.

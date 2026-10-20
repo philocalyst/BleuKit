@@ -79,7 +79,7 @@ fn int main(String[] args)
 	defer server.stop();
 
 	String[] command = { "python3", "-I", script, path };
-	int code         = process::run(
+	int code = process::run(
 		command,
 		process::SpawnOptions.INHERIT_ENV,
 		{ },

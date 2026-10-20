@@ -264,7 +264,9 @@ fn bool Server.process_lines(&self, Connection* conn)
 	}
 }
 
-// Handle one request line: answer it here, or send it to a handler thread.
+// Handle one request line: answer it here, or send it to a handler thread. The
+// request's arena (its params and method name) lives until this function is done
+// with them, which is why it is released only after the replies are queued.
 fn bool Server.handle_line(&self, Connection* conn, String line)
 {
 	Job* job = alloc::new(self.allocator, Job);
@@ -278,24 +280,23 @@ fn bool Server.handle_line(&self, Connection* conn, String line)
 		return self.reply_error(conn, 0, message);
 	}
 	ParsedRequest request = parsed;
+	bool alive            = true;
 	if (request.method == "ping")
 	{
-		job.free();
-		return self.reply_result(conn, request.id, "{\"pong\":true}");
+		alive = self.reply_result(conn, request.id, "{\"pong\":true}");
 	}
-	if (request.method == "subscribe")
+	else if (request.method == "subscribe")
 	{
-		job.free();
-		if (catch self.subscribe(conn, request.id, request.params)) return false;
-		return true;
+		if (catch self.subscribe(conn, request.id, request.params)) alive = false;
 	}
-	Method* method = self.find_method(request.method);
-	if (method == null)
+	else
 	{
-		job.free();
-		return self.reply_unknown(conn, request.id, request.method);
+		Method* method = self.find_method(request.method);
+		if (method != null) return self.dispatch(conn, job, method, request);
+		alive = self.reply_unknown(conn, request.id, request.method);
 	}
-	return self.dispatch(conn, job, method, request);
+	job.free();
+	return alive;
 }
 
 // Send a request to a handler thread, on the least busy one.

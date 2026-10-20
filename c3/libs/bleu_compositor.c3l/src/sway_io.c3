@@ -73,7 +73,7 @@ fn void? subscribe(unix::UnixSocket* socket, wire::Buffer* frames, String types)
 	@pool()
 	{
 		socket.send_all(i3ipc::encode(tmem, (uint)i3ipc::MessageType.SUBSCRIBE, types))!;
-		i3ipc::Frame reply = io::await_frame(socket, frames)!;
+		i3ipc::Frame reply = io::await_frame(socket, frames, io::REPLY_TIMEOUT)!;
 		Object* outcome    = wire::parse_document(reply.payload, "sway subscribe reply")!;
 		if (!wire::flag_member(
 			outcome,
@@ -91,7 +91,7 @@ fn String? request(String path, uint type, String payload) @private
 	frames.init(mem, io::REPLY_BUFFER_BYTES);
 	defer frames.free();
 	socket.send_all(i3ipc::encode(tmem, type, payload))!;
-	i3ipc::Frame reply = io::await_frame(&socket, &frames)!;
+	i3ipc::Frame reply = io::await_frame(&socket, &frames, io::REPLY_TIMEOUT)!;
 	return reply.payload.copy(tmem);
 }
 

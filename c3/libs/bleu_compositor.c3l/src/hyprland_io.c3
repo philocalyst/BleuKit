@@ -21,8 +21,9 @@ struct HyprlandBackend (backend::Backend)
 }
 
 <*
- Connect to the Hyprland instance `detection` names: open the event socket and
- check that the command socket path is reachable.
+ Connect to the Hyprland instance `detection` names: open the event socket. The
+ command socket is not contacted here; its path is used by the first request, and
+ a failure is reported by that request.
 
  @param allocator : "Long-lived allocator for the backend (not tmem)"
  @return? error::UNAVAILABLE : "No socket path was found in the environment"
@@ -58,7 +59,7 @@ fn String? command(String path, String request) @private
 	unix::UnixSocket socket = unix::connect(path, unix::SocketKind.STREAM)!;
 	defer (void)socket.close();
 	socket.send_all(request)!;
-	return io::read_to_end(&socket);
+	return io::read_to_end(&socket, io::REPLY_TIMEOUT);
 }
 
 // A JSON query (`j/...`). Temporary memory: call inside a `@pool()`.
@@ -184,7 +185,8 @@ fn void? HyprlandBackend.move_window(&self, String window_id, String workspace_i
 	return run(self.command_path, string::tformat("j/dispatch movetoworkspace %s,address:%s", workspace_id, window_id));
 }
 
-// `fullscreen` acts on the focused window only, so the window is focused first.
+// `fullscreen` acts on the focused window only, so the window is focused first. The two
+// requests are separate, so a focus change between them toggles a different window (README).
 fn void? HyprlandBackend.toggle_fullscreen(&self, String window_id) @dynamic
 {
 	if (!wire::is_token(

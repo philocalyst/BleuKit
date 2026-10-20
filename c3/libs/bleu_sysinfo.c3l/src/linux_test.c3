@@ -3,7 +3,7 @@
 // Nothing outside the fake root is read, except statvfs on the fake mount point
 // (a directory inside the fake root) and the kernel's uname.
 module bleu::sysinfo::linux_test @feat(LINUX);
-import std::core::test, std::io::path, std::time, std::time::clock, bleu::error, bleu::observe, bleu::operation, bleu::rt::fs, bleu::stream, bleu::sysinfo;
+import std::core::test, std::io::path, std::os::process, std::time, std::time::clock, bleu::error, bleu::observe, bleu::operation, bleu::rt::fs, bleu::stream, bleu::sysinfo;
 
 // Creates `root`/`relative` with `text`, creating directories as needed.
 fn void write_file(String root, String relative, String text) @local
@@ -180,6 +180,43 @@ fn void kill_of_a_missing_process_fails_with_not_found() @test
 		Operation{KillReceipt}* operation = service.kill(2147483646, TERMINATE)!!;
 		defer operation.release();
 		test::@error(operation.wait(time::sec(2)), NOT_FOUND);
+	};
+}
+
+fn void kill_of_pid_zero_is_refused_before_anything_is_signalled() @test
+{
+	@pool()
+	{
+		String root      = make_root();
+		Sysinfo* service = sysinfo::open(mem, { .backend = PROCFS, .root = root, .interval = time::ms(200) })!!;
+		defer service.close();
+		// kill(0) signals the caller's whole process group, this test runner included: the refusal must be synchronous.
+		test::@error(service.kill(0, TERMINATE), error::INVALID_ARGUMENT);
+	};
+}
+
+fn void killing_a_child_this_test_spawned_ends_it() @test
+{
+	@pool()
+	{
+		String root      = make_root();
+		Sysinfo* service = sysinfo::open(mem, { .backend = PROCFS, .root = root, .interval = time::ms(200) })!!;
+		defer service.close();
+		std::os::process::Process child = process::spawn(
+			{ "sleep", "30" },
+			process::SpawnOptions.INHERIT_ENV,
+			{},
+			process::INHERIT,
+			process::INHERIT,
+			process::INHERIT
+		)!!;
+		defer (void)child.destroy();
+		uint target = (uint)child.child;
+		Operation{KillReceipt}* operation = service.kill(target, TERMINATE)!!;
+		defer operation.release();
+		KillReceipt receipt = operation.wait(time::sec(5))!!;
+		test::@check(receipt.pid == target && receipt.mode == TERMINATE, "the receipt names the child and the mode");
+		(void)child.join()!!;
 	};
 }
 

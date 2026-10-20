@@ -18,7 +18,7 @@
  XML serializer ends after the boolean case).
 *>
 module bleu::plist::xml;
-import bleu::error, bleu::plist::value, std::encoding::base64, std::encoding::xml, std::collections::list, std::collections::set, std::math;
+import bleu::error, bleu::plist::value, bleu::plist::text, std::encoding::base64, std::encoding::xml, std::collections::list, std::collections::set, std::math;
 
 <* The DOM node kinds of `std::encoding::xml`. *>
 alias NodeKind = std::encoding::xml::XmlEventKind;
@@ -39,20 +39,26 @@ const String TRUE_NAME          = "true";
 const String FALSE_NAME         = "false";
 const String KEY_NAME           = "key";
 const String UID_KEY            = "CF$UID";
+const uint LAST_BEFORE_SURROGATES = 0xD7FF;
+const uint FIRST_AFTER_SURROGATES = 0xE000;
+const uint LAST_BMP_CHARACTER   = 0xFFFD;
+const uint FIRST_SUPPLEMENTARY  = 0x10000;
+const uint LAST_CODE_POINT      = 0x10FFFF;
 
 <*
  Parse an XML property list.
 
  @param [&inout] allocator : "Allocator for the value tree"
- @param text : "The complete document, UTF-8; a byte-order mark is allowed"
- @return? error::PROTOCOL : "The document is not well-formed XML, is not a plist, or holds a malformed value"
+ @param document : "The complete document, UTF-8; a byte-order mark is allowed"
+ @return? error::PROTOCOL : "The document is not well-formed XML or not UTF-8, is not a plist, or holds a malformed value"
 *>
-fn Value? parse(Allocator allocator, String text)
+fn Value? parse(Allocator allocator, String document)
 {
-	String source                              = text.starts_with(
+	String source                              = document.starts_with(
 		UTF8_BOM
-	) ? text[UTF8_BOM.len:text.len - UTF8_BOM.len]
-		: text;
+	) ? document[UTF8_BOM.len:document.len - UTF8_BOM.len]
+		: document;
+	text::check_utf8(source)!;
 	std::encoding::xml::XmlDocument*? document = std::encoding::xml::tparse(source);
 	if (catch document) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not well-formed XML")~;
 	std::encoding::xml::XmlNode* root = document.root;
@@ -216,6 +222,8 @@ fn char[]? data_of(Allocator allocator, std::encoding::xml::XmlNode* node) @loca
 }
 
 // The character data of an element with no child elements, in `allocator`.
+// A character reference the DOM decodes (`&#xD800;`, `&#x1;`) is checked here, so a
+// string never holds a surrogate or a control character XML 1.0 forbids.
 fn String? text_of(Allocator allocator, std::encoding::xml::XmlNode* node) @local
 {
 	DString out;
@@ -231,7 +239,33 @@ fn String? text_of(Allocator allocator, std::encoding::xml::XmlNode* node) @loca
 			node.name
 		)~;
 	}
+	check_xml_chars(out.str_view())!;
 	return out.copy_str(allocator);
+}
+
+// Refuse text that holds a code point XML 1.0 does not allow (the Char production,
+// XML 1.0 section 2.2): tab, line feed, carriage return, and the ranges
+// U+0020-D7FF, U+E000-FFFD and U+10000-10FFFF.
+fn void? check_xml_chars(String bytes) @local
+{
+	usz at = 0;
+	while (at < bytes.len)
+	{
+		text::CodePoint point = text::decode_at(bytes, at)!;
+		at += point.width;
+		uint code = point.value;
+		bool allowed = code == TAB_CODE || code == LINE_FEED_CODE || code == CARRIAGE_RETURN_CODE
+			|| (code >= FIRST_CONTROL && code <= LAST_BEFORE_SURROGATES)
+			|| (code >= FIRST_AFTER_SURROGATES && code <= LAST_BMP_CHARACTER)
+			|| (code >= FIRST_SUPPLEMENTARY && code <= LAST_CODE_POINT);
+		if (!allowed) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"XML 1.0 cannot hold character U+%X",
+			code
+		)~;
+	}
 }
 
 // The character data of `node`, without surrounding blanks, in temporary memory.

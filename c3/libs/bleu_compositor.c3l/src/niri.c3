@@ -201,12 +201,13 @@ fn compositor::KeyboardLayouts build_layouts(Object* layouts, Allocator allocato
 	sz count       = wire::length(list);
 	String[] names = alloc::new_array(allocator, String, count);
 	for (sz i = 0; i < count; i++) names[i] = wire::text_element(list, i, allocator);
+	// An index outside the list names no layout: it is absent, not passed through.
 	Maybe{long} current = wire::optional_integer(layouts, "current_idx");
-	String current_name = "";
-	if (current.has_value && current.value >= 0 && current.value < (long)count) current_name = names[current.value];
+	bool known          = current.has_value && current.value >= 0 && current.value < (long)count;
+	String current_name = known ? names[current.value] : "";
 	return {
 		.names = names,
-		.current = current.has_value ? { .value = (int)current.value, .has_value = true } : { },
+		.current = known ? { .value = (int)current.value, .has_value = true } : { },
 		.current_name = current_name.copy(allocator),
 	};
 }
@@ -250,7 +251,7 @@ fn backend::Refresh apply(compositor::Model* model, Allocator allocator, backend
 		{
 			case event.name == "WorkspacesChanged": return workspaces_changed(model, allocator, body);
 			case event.name == "WorkspaceUrgencyChanged": return workspace_urgency(model, body);
-			case event.name == "WorkspaceActivated": return workspace_activated(model, body);
+			case event.name == "WorkspaceActivated": return workspace_activated(model, allocator, body);
 			case event.name == "WindowsChanged": return windows_changed(model, allocator, body);
 			case event.name == "WindowOpenedOrChanged": return window_opened(model, allocator, body);
 			case event.name == "WindowClosed": return window_closed(model, allocator, body);
@@ -270,6 +271,7 @@ fn backend::Refresh workspaces_changed(compositor::Model* model, Allocator alloc
 	if (catch err = list) return REFRESH_NEEDED;
 	model.workspaces = build_workspaces(list, allocator);
 	relabel_windows(model, allocator);
+	model.sync_outputs(allocator);
 	return UPDATED;
 }
 
@@ -291,7 +293,7 @@ fn backend::Refresh workspace_urgency(compositor::Model* model, Object* body) @p
 }
 
 // Activating a workspace shows it on its output and, when `focused`, moves focus to it.
-fn backend::Refresh workspace_activated(compositor::Model* model, Object* body) @private
+fn backend::Refresh workspace_activated(compositor::Model* model, Allocator allocator, Object* body) @private
 {
 	String id = id_member(body, "id");
 	sz target = workspace_index(model, id);
@@ -304,6 +306,8 @@ fn backend::Refresh workspace_activated(compositor::Model* model, Object* body) 
 		if (workspace.output == output) workspace.active = workspace.id == id;
 		if (focused) workspace.focused = workspace.id == id;
 	}
+	// The output's shown workspace and the focused output follow the workspaces just changed.
+	model.sync_outputs(allocator);
 	return UPDATED;
 }
 

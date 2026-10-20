@@ -143,12 +143,14 @@ fn Reader{Event}*? Sysinfo.subscribe(&self) => self.hub.events.subscribe();
  another account ends it `FAILED` with `error::PERMISSION_DENIED`.
 
  @return? error::UNSUPPORTED : "This backend cannot end processes"
+ @return? error::INVALID_ARGUMENT : "The id is 0, is above MAX_TARGET_PID, names this process, or is init without FORCE"
  @return? error::UNAVAILABLE : "The request queue is closed or full"
 *>
 fn Operation{KillReceipt}*? Sysinfo.kill(&self, uint pid, KillMode mode)
 {
 	Availability availability = self.capability(PROCESS_KILL);
 	if (!availability.ok()) return availability.refusal()~;
+	check_kill_target(pid, mode, own_process_id())!;
 	Operation{KillReceipt}* operation = operation::begin{KillReceipt}(self.allocator);
 	// One reference for the caller, one for the worker, which releases its own when done.
 	operation.retain();
