@@ -1,8 +1,8 @@
 <*
  Parser for the MCCS capabilities string, e.g.
 
-     (prot(monitor)type(LCD)model(Wacom One 13)cmds(01 02 03 07 F3)
-      vcp(04 05 08 12 14(04 05 06 08 0B) 16 18 1A 60(11 12 0F) AC AE)mccs_ver(2.2))
+ (prot(monitor)type(LCD)model(Wacom One 13)cmds(01 02 03 07 F3)
+ vcp(04 05 08 12 14(04 05 06 08 0B) 16 18 1A 60(11 12 0F) AC AE)mccs_ver(2.2))
 
  Grammar (MCCS 2.2a section 6 and DDC/CI 4.6): a parenthesised list of segments.
  A segment is a name, then a parenthesised value. Values of `vcp` are hex
@@ -12,12 +12,12 @@
 
  * the whole string may lack its outer parentheses (Apple Cinema Display);
  * codes and values may run together (`0203(10 00)0405`), since the Access.bus
-   specification allows values without separators;
+ specification allows values without separators;
  * a segment may omit its parentheses (`model LCDPB287`);
  * vendor segments such as `vcpname(...)` are skipped, with their nested
-   parentheses balanced;
+ parentheses balanced;
  * a parenthesis may be missing, which happens when the reply was truncated.
-   The codes read so far are kept and the result is `INVALID`.
+ The codes read so far are kept and the result is `INVALID`.
 
  The parser never fails: it returns what it understood, and `validity` says how
  much to trust it. A result that is `INVALID` is a reason for the caller to
@@ -31,9 +31,9 @@ import std::collections::list, std::core::mem, std::core::string, bleu::ddc::vcp
 
  - VALID: every segment parsed.
  - USABLE: parsed, with something ignored (an invalid code, a bad value, a
-   missing `vcp` segment). The codes that are present can be trusted.
+ missing `vcp` segment). The codes that are present can be trusted.
  - INVALID: the string is truncated or unbalanced. The codes present were read
-   from a damaged string and may be incomplete.
+ from a damaged string and may be incomplete.
 *>
 enum Validity : char
 {
@@ -149,12 +149,12 @@ fn Capabilities parse(String text, Allocator allocator)
 		{
 			if (body.len >= 2 && body[body.len - 1] == ')')
 			{
-				body = body[1 : body.len - 2];
+				body = body[1:body.len - 2];
 			}
 			else
 			{
 				p.flag(INVALID, "capabilities string lacks its closing parenthesis");
-				body = body[1 : body.len - 1];
+				body = body[1:body.len - 1];
 			}
 		}
 		parse_segments(&p, body);
@@ -168,24 +168,22 @@ fn Capabilities parse(String text, Allocator allocator)
 fn Capabilities finish(Parse* p, Allocator allocator) @private
 {
 	Feature[] features = alloc::new_array(allocator, Feature, p.features.len());
-	char[] all_values = p.values.array_view();
+	char[] all_values  = p.values.array_view();
 	for (usz i = 0; i < features.len; i++)
 	{
 		Pending pending = p.features.get((sz)i);
 		features[i] = {
 			.code = pending.code,
 			.has_values = pending.has_values,
-			.values = copy_bytes(all_values[pending.first_value : pending.value_count], allocator),
+			.values = copy_bytes(all_values[pending.first_value:pending.value_count], allocator),
 		};
 	}
 	return {
 		.validity = p.validity,
 		.problem = p.problem.copy(allocator),
-		.model = printable(p.model).copy(allocator),
-		.mccs_version = printable(p.mccs_version).copy(allocator),
-		.commands = copy_bytes(p.commands.array_view(), allocator),
-		.features = features,
-	};
+		.model = printable(p.model)
+		.copy(allocator), .mccs_version = printable(p.mccs_version)
+			.copy(allocator), .commands = copy_bytes(p.commands.array_view(), allocator), .features = features, };
 }
 
 // Parse the segments of one level, from `text[pos]` to its end.
@@ -198,7 +196,7 @@ fn void parse_segments(Parse* p, String text) @private
 		if (pos >= text.len) return;
 		usz name_start = pos;
 		while (pos < text.len && text[pos] != '(' && text[pos] != ' ') pos++;
-		String name = text[name_start : pos - name_start];
+		String name = text[name_start:pos - name_start];
 		pos = skip_blanks(text, pos);
 		if (pos >= text.len)
 		{
@@ -211,7 +209,7 @@ fn void parse_segments(Parse* p, String text) @private
 			usz value_start = pos;
 			while (pos < text.len && text[pos] != ' ') pos++;
 			p.flag(USABLE, string::tformat("segment '%s' has no parentheses", name));
-			segment(p, name, text[value_start : pos - value_start]);
+			segment(p, name, text[value_start:pos - value_start]);
 			continue;
 		}
 		if (name.len == 0)
@@ -225,12 +223,12 @@ fn void parse_segments(Parse* p, String text) @private
 		if (close == text.len)
 		{
 			p.flag(INVALID, string::tformat("segment '%s' is missing its closing parenthesis", name));
-			value = text[pos + 1 : text.len - pos - 1];
+			value = text[pos + 1:text.len - pos - 1];
 			pos = text.len;
 		}
 		else
 		{
-			value = text[pos + 1 : close - pos - 1];
+			value = text[pos + 1:close - pos - 1];
 			pos = close + 1;
 		}
 		segment(p, name, value);
@@ -269,7 +267,7 @@ fn void parse_commands(Parse* p, String value) @private
 		if (pos >= value.len) return;
 		usz start = pos;
 		while (pos < value.len && value[pos] != ' ') pos++;
-		String token = value[start : pos - start];
+		String token = value[start:pos - start];
 		if (!add_hex_pairs(token, &p.commands))
 		{
 			p.flag(USABLE, string::tformat("command token '%s' is not hex pairs", token));
@@ -287,7 +285,7 @@ fn void parse_vcp(Parse* p, String value) @private
 		if (pos >= value.len) return;
 		usz start = pos;
 		while (pos < value.len && value[pos] != ' ' && value[pos] != '(') pos++;
-		String token = value[start : pos - start];
+		String token  = value[start:pos - start];
 		String list;
 		bool has_list = pos < value.len && value[pos] == '(';
 		if (has_list)
@@ -296,12 +294,12 @@ fn void parse_vcp(Parse* p, String value) @private
 			if (close == value.len)
 			{
 				p.flag(INVALID, string::tformat("values of VCP '%s' are missing their closing parenthesis", token));
-				list = value[pos + 1 : value.len - pos - 1];
+				list = value[pos + 1:value.len - pos - 1];
 				pos = value.len;
 			}
 			else
 			{
-				list = value[pos + 1 : close - pos - 1];
+				list = value[pos + 1:close - pos - 1];
 				pos = close + 1;
 			}
 		}
@@ -332,12 +330,14 @@ fn void add_feature(Parse* p, VcpCode code, bool has_list, String list) @private
 	}
 	usz first = (usz)p.values.len();
 	if (has_list) parse_value_list(p, list);
-	p.features.push({
-		.code = code,
-		.has_values = has_list,
-		.first_value = first,
-		.value_count = (usz)p.values.len() - first,
-	});
+	p.features.push(
+		{
+			.code = code,
+			.has_values = has_list,
+			.first_value = first,
+			.value_count = (usz)p.values.len() - first,
+		}
+	);
 }
 
 // Values of one feature: hex pairs, blank-separated or run together.
@@ -350,7 +350,7 @@ fn void parse_value_list(Parse* p, String list) @private
 		if (pos >= list.len) return;
 		usz start = pos;
 		while (pos < list.len && list[pos] != ' ') pos++;
-		String token = list[start : pos - start];
+		String token = list[start:pos - start];
 		if (!add_hex_pairs(token, &p.values))
 		{
 			p.flag(USABLE, string::tformat("value token '%s' is not hex pairs", token));
@@ -431,11 +431,11 @@ fn char[] copy_bytes(char[] source, Allocator allocator) @private
 // The text without bytes that are not printable ASCII, so that `model` is valid UTF-8.
 fn String printable(String text) @private
 {
-	usz kept = 0;
+	usz kept      = 0;
 	char[] buffer = alloc::new_array(tmem, char, text.len);
 	foreach (c : text)
 	{
 		if (c >= 0x20 && c < 0x7F) buffer[kept++] = c;
 	}
-	return (String)buffer[0 : kept];
+	return (String)buffer[0:kept];
 }

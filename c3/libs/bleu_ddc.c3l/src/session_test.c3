@@ -34,8 +34,8 @@ fn void get_reads_value_and_keeps_the_gap() @test
 		MockMonitor m = mock::new_monitor("(vcp(10))");
 		m.add_feature(VcpCode.LUMINANCE, 50, 100);
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t        = &m;
+		Session s          = session_for(t, &rec);
 		session::Reading r = s.get_vcp(VcpCode.LUMINANCE)!!;
 		test::eq(r.current, (ushort)50);
 		test::eq(r.maximum, (ushort)100);
@@ -58,7 +58,7 @@ fn void transport_latency_extends_the_read_wait() @test
 		m.latency = time::ms(60);
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		s.get_vcp(VcpCode.LUMINANCE)!!;
 		test::eq(rec.waits[0], time::ms(60));
 	};
@@ -72,8 +72,8 @@ fn void corrupt_reply_is_retried() @test
 		m.add_feature(VcpCode.LUMINANCE, 7, 9);
 		m.corrupt_replies = 1;
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t        = &m;
+		Session s          = session_for(t, &rec);
 		session::Reading r = s.get_vcp(VcpCode.LUMINANCE)!!;
 		test::eq(r.current, (ushort)7);
 		test::eq(s.stats.attempts, (ulong)2);
@@ -94,7 +94,7 @@ fn void dropped_reply_is_a_io_error_and_is_retried() @test
 		m.drop_replies = 1;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		s.get_vcp(VcpCode.LUMINANCE)!!;
 		test::eq(s.stats.io_errors, (ulong)1);
 		test::eq(s.stats.retries, (ulong)1);
@@ -110,7 +110,7 @@ fn void repeated_null_messages_mean_unsupported() @test
 		m.null_replies = 10;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		test::@error(s.get_vcp(VcpCode.LUMINANCE), error::UNSUPPORTED);
 		// max_null_replies is 3: the fourth null message is the refusal.
 		test::eq(s.stats.null_replies, (ulong)4);
@@ -127,8 +127,8 @@ fn void a_single_null_message_is_retried() @test
 		m.add_feature(VcpCode.LUMINANCE, 7, 9);
 		m.null_replies = 1;
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t        = &m;
+		Session s          = session_for(t, &rec);
 		session::Reading r = s.get_vcp(VcpCode.LUMINANCE)!!;
 		test::eq(r.current, (ushort)7);
 		test::eq(s.stats.null_replies, (ulong)1);
@@ -141,8 +141,8 @@ fn void unsupported_code_is_final() @test
 	{
 		MockMonitor m = mock::new_monitor("(vcp(10))");
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t   = &m;
+		Session s     = session_for(t, &rec);
 		test::@error(s.get_vcp((VcpCode)0xE0), error::UNSUPPORTED);
 		// Result 0x01 is an answer, not a fault of the channel: no retry.
 		test::eq(s.stats.attempts, (ulong)1);
@@ -160,7 +160,7 @@ fn void persistent_corruption_gives_up_after_max_tries() @test
 		m.corrupt_replies = 100;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		test::@error(s.get_vcp(VcpCode.LUMINANCE), error::PROTOCOL);
 		test::eq(s.stats.attempts, (ulong)5);
 		test::eq(s.stats.protocol_errors, (ulong)5);
@@ -178,7 +178,7 @@ fn void set_then_get_reflects_the_value() @test
 		m.add_feature(VcpCode.CONTRAST, 0, 100);
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		s.set_vcp(VcpCode.CONTRAST, 33)!!;
 		test::eq(m.value(VcpCode.CONTRAST), (ushort)33);
 		test::eq(s.get_vcp(VcpCode.CONTRAST)!!.current, (ushort)33);
@@ -193,7 +193,7 @@ fn void set_vcp_verified_returns_the_read_back() @test
 		m.add_feature(VcpCode.CONTRAST, 0, 100);
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		test::eq(s.set_vcp_verified(VcpCode.CONTRAST, 41)!!, (ushort)41);
 		test::eq(s.stats.verify_mismatches, (ulong)0);
 	};
@@ -208,7 +208,7 @@ fn void set_vcp_verified_detects_a_lagging_monitor() @test
 		m.lag_reads = 1;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		test::@error(s.set_vcp_verified(VcpCode.CONTRAST, 41), error::BACKEND_FAILURE);
 		test::eq(s.stats.verify_mismatches, (ulong)1);
 		// The lagging monitor applies the value after that read.
@@ -225,7 +225,7 @@ fn void refused_writes_are_retried_then_succeed() @test
 		m.fail_writes = 2;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		s.set_vcp(VcpCode.CONTRAST, 9)!!;
 		test::eq(s.stats.io_errors, (ulong)2);
 		test::eq(s.stats.attempts, (ulong)3);
@@ -242,8 +242,8 @@ fn void save_waits_for_the_settle_time() @test
 	{
 		MockMonitor m = mock::new_monitor("(vcp(12))");
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t   = &m;
+		Session s     = session_for(t, &rec);
 		s.save_settings()!!;
 		test::eq(m.saves, (uint)1);
 		test::eq(rec.count, (usz)1);
@@ -257,10 +257,10 @@ fn void read_capabilities_joins_fragments() @test
 {
 	@pool()
 	{
-		MockMonitor m = mock::new_monitor(CAPS);
+		MockMonitor m     = mock::new_monitor(CAPS);
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t       = &m;
+		Session s         = session_for(t, &rec);
 		Capabilities caps = s.read_capabilities(tmem)!!;
 		test::eq(caps.validity, capabilities::Validity.VALID);
 		test::eq(caps.model, "Test Panel");
@@ -281,8 +281,8 @@ fn void read_capabilities_tolerates_a_repeated_fragment() @test
 		MockMonitor m = mock::new_monitor(CAPS);
 		m.duplicate_fragments = 1;
 		Recorder rec;
-		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Transport t       = &m;
+		Session s         = session_for(t, &rec);
 		Capabilities caps = s.read_capabilities(tmem)!!;
 		test::eq(caps.validity, capabilities::Validity.VALID);
 		test::eq(caps.features.len, (sz)6);
@@ -294,9 +294,9 @@ fn void read_capabilities_refuses_an_endless_string() @test
 {
 	@pool()
 	{
-		MockMonitor m = mock::new_monitor(CAPS);
+		MockMonitor m   = mock::new_monitor(CAPS);
 		Recorder rec;
-		Transport t = &m;
+		Transport t     = &m;
 		Options options = session::default_options();
 		options.max_capabilities = 40;
 		Session s = session::open(t, { .sleep = &record, .context = (void*)&rec }, options);
@@ -312,7 +312,7 @@ fn void retry_of_a_null_capabilities_fragment_is_refused() @test
 		m.null_replies = 10;
 		Recorder rec;
 		Transport t = &m;
-		Session s = session_for(t, &rec);
+		Session s   = session_for(t, &rec);
 		test::@error(s.read_capabilities(tmem), error::UNSUPPORTED);
 	};
 }

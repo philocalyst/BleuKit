@@ -247,7 +247,7 @@ fn Win32_LRESULT window_proc(void* window, uint message, uptr wparam, iptr lpara
 	Loop* loop = (Loop*)win32::getWindowLongPtrW(window, win32::GWLP_USERDATA);
 	if (loop)
 	{
-		@foreign_entry()
+		foreign::@foreign_entry()
 		{
 			dispatch(loop, message, wparam, lparam);
 		};

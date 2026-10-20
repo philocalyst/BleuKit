@@ -23,7 +23,7 @@ fn void checksums_match_ddcutil() @test
 fn void get_vcp_i2c_form() @test
 {
 	char[8] out;
-	usz n = packet::get_vcp(vcp::VcpCode.LUMINANCE).encode_i2c(out[..])!!;
+	usz n            = packet::get_vcp(vcp::VcpCode.LUMINANCE).encode_i2c(out[..])!!;
 	char[5] expected = { 0x51, 0x82, 0x01, 0x10, 0xAC };
 	test::eq(n, (usz)5);
 	test::eq(same_bytes(out[0:n], expected[..]), true);
@@ -32,7 +32,7 @@ fn void get_vcp_i2c_form() @test
 fn void set_vcp_i2c_form() @test
 {
 	char[8] out;
-	usz n = packet::set_vcp(vcp::VcpCode.LUMINANCE, 50).encode_i2c(out[..])!!;
+	usz n            = packet::set_vcp(vcp::VcpCode.LUMINANCE, 50).encode_i2c(out[..])!!;
 	char[7] expected = { 0x51, 0x84, 0x03, 0x10, 0x00, 0x32, 0x9A };
 	test::eq(n, (usz)7);
 	test::eq(same_bytes(out[0:n], expected[..]), true);
@@ -51,7 +51,7 @@ fn void set_vcp_value_is_big_endian() @test
 fn void capabilities_request_offset() @test
 {
 	char[8] out;
-	usz n = packet::capabilities_request(0x0100).encode_i2c(out[..])!!;
+	usz n            = packet::capabilities_request(0x0100).encode_i2c(out[..])!!;
 	char[6] expected = { 0x51, 0x83, 0xF3, 0x01, 0x00, 0x4E };
 	test::eq(n, (usz)6);
 	test::eq(same_bytes(out[0:n], expected[..]), true);
@@ -60,7 +60,7 @@ fn void capabilities_request_offset() @test
 fn void save_settings_i2c_form() @test
 {
 	char[8] out;
-	usz n = packet::save_settings().encode_i2c(out[..])!!;
+	usz n            = packet::save_settings().encode_i2c(out[..])!!;
 	char[4] expected = { 0x51, 0x81, 0x0C, 0xB2 };
 	test::eq(n, (usz)4);
 	test::eq(same_bytes(out[0:n], expected[..]), true);
@@ -69,7 +69,7 @@ fn void save_settings_i2c_form() @test
 fn void frame_form_starts_with_destination() @test
 {
 	char[8] out;
-	usz n = packet::get_vcp(vcp::VcpCode.LUMINANCE).encode_frame(out[..])!!;
+	usz n            = packet::get_vcp(vcp::VcpCode.LUMINANCE).encode_frame(out[..])!!;
 	char[6] expected = { 0x6E, 0x51, 0x82, 0x01, 0x10, 0xAC };
 	test::eq(n, (usz)6);
 	test::eq(same_bytes(out[0:n], expected[..]), true);
@@ -87,7 +87,7 @@ fn void encode_rejects_small_buffer() @test
 fn void parse_get_vcp_reply() @test
 {
 	// Luminance 50 of 100, set-parameter (DDC/CI 4.3). Checksum 0xF2 derived in the research note.
-	char[11] bytes = { 0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32, 0xF2 };
+	char[11] bytes  = { 0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32, 0xF2 };
 	packet::Reply r = packet::parse_reply(bytes[..])!!;
 	test::eq(r.kind, packet::ReplyKind.GET_VCP);
 	test::eq(r.code, vcp::VcpCode.LUMINANCE);
@@ -145,7 +145,7 @@ fn void get_vcp_reply_needs_eight_bytes() @test
 fn void null_message() @test
 {
 	char[3] null_bytes = { 0x6E, 0x80, 0xBE };
-	packet::Reply r = packet::parse_reply(null_bytes[..])!!;
+	packet::Reply r    = packet::parse_reply(null_bytes[..])!!;
 	test::eq(r.kind, packet::ReplyKind.NULL_MESSAGE);
 	char[3] bad = { 0x6E, 0x80, 0xBF };
 	test::@error(packet::parse_reply(bad[..]), error::PROTOCOL);
@@ -153,14 +153,14 @@ fn void null_message() @test
 
 fn void duplicate_leading_destination_is_skipped() @test
 {
-	char[12] bytes = { 0x6E, 0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32, 0xF2 };
+	char[12] bytes  = { 0x6E, 0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32, 0xF2 };
 	packet::Reply r = packet::parse_reply(bytes[..])!!;
 	test::eq(r.current, (ushort)50);
 }
 
 fn void capabilities_fragment_reply() @test
 {
-	char[12] bytes = { 0x6E, 0x89, 0xE3, 0x00, 0x00, 0x28, 0x70, 0x72, 0x6F, 0x74, 0x28, 0x4D };
+	char[12] bytes  = { 0x6E, 0x89, 0xE3, 0x00, 0x00, 0x28, 0x70, 0x72, 0x6F, 0x74, 0x28, 0x4D };
 	packet::Reply r = packet::parse_reply(bytes[..])!!;
 	test::eq(r.kind, packet::ReplyKind.CAPABILITIES_FRAGMENT);
 	test::eq(r.offset, (ushort)0);
@@ -171,7 +171,7 @@ fn void capabilities_fragment_reply() @test
 
 fn void capabilities_end_of_string() @test
 {
-	char[6] bytes = { 0x6E, 0x83, 0xE3, 0x00, 0x06, 0x58 };
+	char[6] bytes   = { 0x6E, 0x83, 0xE3, 0x00, 0x06, 0x58 };
 	packet::Reply r = packet::parse_reply(bytes[..])!!;
 	test::eq(r.kind, packet::ReplyKind.CAPABILITIES_FRAGMENT);
 	test::eq(r.offset, (ushort)6);
@@ -189,7 +189,7 @@ fn void encode_reply_roundtrip() @test
 {
 	char[11] out;
 	char[8] payload = { 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32 };
-	usz n = packet::encode_reply(payload[..], out[..])!!;
+	usz n           = packet::encode_reply(payload[..], out[..])!!;
 	test::eq(n, (usz)11);
 	char[11] expected = { 0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32, 0xF2 };
 	test::eq(same_bytes(out[0:n], expected[..]), true);

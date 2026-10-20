@@ -12,11 +12,11 @@ import std::time, bleu::error, bleu::ddc::packet, bleu::ddc::vcp, bleu::ddc::cap
 import std::collections::list;
 
 <* Bytes of a Get VCP Feature Reply: destination, length, 8 payload bytes, checksum. *>
-const usz GET_VCP_FRAME_BYTES = 11;
+const usz GET_VCP_FRAME_BYTES  = 11;
 <* Bytes read for a capabilities fragment: the largest reply frame. *>
 const usz FRAGMENT_FRAME_BYTES = packet::MAX_REPLY_PAYLOAD + 3;
 <* Bytes of the largest request frame this module sends. *>
-const usz REQUEST_WIRE_BYTES = packet::MAX_PAYLOAD + 3;
+const usz REQUEST_WIRE_BYTES   = packet::MAX_PAYLOAD + 3;
 
 <*
  Timing and retry policy. `default_options` gives the values, and each field
@@ -191,8 +191,15 @@ fn ushort? Session.set_vcp_verified(&self, VcpCode code, ushort value)
 	if (read.current != value)
 	{
 		self.stats.verify_mismatches++;
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0,
-			"VCP 0x%02x reads back %d after writing %d", (char)code, read.current, value)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"VCP 0x%02x reads back %d after writing %d",
+			(char)code,
+			read.current,
+			value
+		)~;
 	}
 	return read.current;
 }
@@ -231,12 +238,17 @@ fn Capabilities? Session.read_capabilities(&self, Allocator allocator)
 // Read fragments from offset 0 until the monitor sends an empty one.
 fn void? Session.read_fragments(&self, List{char}* text) @private
 {
-	usz offset = 0;
+	usz offset   = 0;
 	uint repeats = 0;
 	char[FRAGMENT_FRAME_BYTES] buffer;
 	while (true)
 	{
-		Reply reply = self.exchange(packet::capabilities_request((ushort)offset), packet::ReplyKind.CAPABILITIES_FRAGMENT, (VcpCode)0, buffer[..])!;
+		Reply reply = self.exchange(
+			packet::capabilities_request((ushort)offset),
+			packet::ReplyKind.CAPABILITIES_FRAGMENT,
+			(VcpCode)0,
+			buffer[..]
+		)!;
 		self.pause(self.options.between_commands);
 		if (reply.offset != (ushort)offset)
 		{
@@ -246,19 +258,35 @@ fn void? Session.read_fragments(&self, List{char}* text) @private
 				self.stats.duplicate_fragments++;
 				if (++repeats > self.options.max_tries)
 				{
-					return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0,
-						"monitor repeated earlier fragments %d times", repeats)~;
+					return error::raise(
+						error::PROTOCOL,
+						error::Domain.INTERNAL,
+						0,
+						"monitor repeated earlier fragments %d times",
+						repeats
+					)~;
 				}
 				continue;
 			}
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0,
-				"capabilities fragment at offset %d, expected %d", reply.offset, offset)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"capabilities fragment at offset %d, expected %d",
+				reply.offset,
+				offset
+			)~;
 		}
 		if (reply.fragment_len == 0) return;
 		if (offset + reply.fragment_len > self.options.max_capabilities)
 		{
-			return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0,
-				"capabilities string exceeds %d bytes", self.options.max_capabilities)~;
+			return error::raise(
+				error::OUT_OF_RANGE,
+				error::Domain.INTERNAL,
+				0,
+				"capabilities string exceeds %d bytes",
+				self.options.max_capabilities
+			)~;
 		}
 		text.push_all(reply.fragment[0:reply.fragment_len]);
 		offset += reply.fragment_len;
@@ -275,7 +303,7 @@ fn void? Session.read_fragments(&self, List{char}* text) @private
 fn Reply? Session.exchange(&self, Request request, packet::ReplyKind expected, VcpCode code, char[] buffer) @private
 {
 	char[REQUEST_WIRE_BYTES] wire;
-	usz n = request.encode_i2c(wire[..])!!;
+	usz n      = request.encode_i2c(wire[..])!!;
 	fault last = error::BACKEND_FAILURE;
 	uint nulls = 0;
 	for (uint attempt = 1; attempt <= self.options.max_tries; attempt++)
@@ -306,8 +334,13 @@ fn Reply? Session.exchange(&self, Request request, packet::ReplyKind expected, V
 		if (++nulls > self.options.max_null_replies)
 		{
 			self.stats.unsupported++;
-			return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0,
-				"monitor answered %d times with a null message", nulls)~;
+			return error::raise(
+				error::UNSUPPORTED,
+				error::Domain.INTERNAL,
+				0,
+				"monitor answered %d times with a null message",
+				nulls
+			)~;
 		}
 		last = error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "null message");
 	}
@@ -346,13 +379,25 @@ fn Reply? Session.attempt(&self, char[] wire, packet::ReplyKind expected, VcpCod
 	if (reply.kind == packet::ReplyKind.NULL_MESSAGE) return reply;
 	if (reply.kind != expected)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0,
-			"reply of kind %d where %d was expected", (char)reply.kind, (char)expected)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"reply of kind %d where %d was expected",
+			(char)reply.kind,
+			(char)expected
+		)~;
 	}
 	if (expected == packet::ReplyKind.GET_VCP && reply.code != code)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0,
-			"reply for VCP 0x%02x where 0x%02x was asked", (char)reply.code, (char)code)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"reply for VCP 0x%02x where 0x%02x was asked",
+			(char)reply.code,
+			(char)code
+		)~;
 	}
 	return reply;
 }

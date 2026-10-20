@@ -13,7 +13,7 @@ module bleu::ddc::mock;
 import std::core::mem, std::time, bleu::error, bleu::ddc::packet, bleu::ddc::vcp, bleu::ddc::transport;
 
 <* Number of VCP codes a monitor can hold: one per byte value. *>
-const usz VCP_CODES = 256;
+const usz VCP_CODES      = 256;
 <* Bytes a capabilities fragment carries (the most one reply holds). *>
 const usz FRAGMENT_BYTES = packet::MAX_FRAGMENT;
 
@@ -128,12 +128,12 @@ fn void MockMonitor.handle(&self, char[] bytes)
 		return;
 	}
 	usz n = (usz)(bytes[1] & 0x7F);
-	if (n == 0 || bytes.len != n + 3 || bytes[n + 2] != packet::checksum(packet::WRITE_ADDRESS, bytes[0 : n + 2]))
+	if (n == 0 || bytes.len != n + 3 || bytes[n + 2] != packet::checksum(packet::WRITE_ADDRESS, bytes[0:n + 2]))
 	{
 		self.bad_requests++;
 		return;
 	}
-	char[] payload = bytes[2 : n];
+	char[] payload = bytes[2:n];
 	switch ((packet::Opcode)payload[0])
 	{
 		case packet::Opcode.GET_VCP_REQUEST:
@@ -214,7 +214,7 @@ fn void MockMonitor.answer_fragment(&self, usz offset) @private
 	payload[1] = (char)(at >> 8);
 	payload[2] = (char)(at & 0xFF);
 	for (usz i = 0; i < length; i++) payload[3 + i] = self.capabilities[at + i];
-	self.send_reply(payload[0 : length + 3]);
+	self.send_reply(payload[0:length + 3]);
 }
 
 // Frame a reply and apply the faults that are due: a null message replaces it, and a

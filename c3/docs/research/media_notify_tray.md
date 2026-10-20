@@ -25,7 +25,7 @@ Source short names:
 * `DBUS-spec` = https://dbus.freedesktop.org/doc/dbus-specification.html.
 * `PORTAL-notif` = https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Notification.html (portal version 2 docs).
 * `APPLE-JSON` = https://developer.apple.com/tutorials/data/documentation/<path>.json (the JSON behind the doc pages; the HTML pages are JavaScript shells).
-* `MS-*` = https://learn.microsoft.com/... (URL given per claim).
+* `MS-*` = learn.microsoft.com pages; the full URL of each short name is listed below.
 * `windows-rs` = crate `windows` 0.62.2, `src/Windows/Media/Control/mod.rs` and `src/Windows/UI/Notifications/Management/mod.rs`.
 * `ungive-adapter` = https://github.com/ungive/mediaremote-adapter (raw files via raw.githubusercontent.com, branch master, fetched 2026-10-20).
 * `MS-manager` = https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager; `MS-session` = same path ending `...controls.globalsystemmediatransportcontrolssession`; `MS-playbackinfo` = `...globalsystemmediatransportcontrolssessionplaybackinfo`; `MS-timeline` = `...globalsystemmediatransportcontrolssessiontimelineproperties`; `MS-media` = `...globalsystemmediatransportcontrolssessionmediaproperties`; `MS-controls` = `...globalsystemmediatransportcontrolssessionplaybackcontrols`; all under https://learn.microsoft.com/en-us/uwp/api/windows.media.control.

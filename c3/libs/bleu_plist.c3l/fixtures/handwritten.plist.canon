@@ -1,0 +1,1 @@
+{"Escapes":s"A & B <tag> \"q\" 'a' AB \u{1f600}","Cdata":s"before <raw> & text after","Spaced":s"\u{a}\u{9}\u{9}padded value\u{a}\u{9}","Nums":[i-12,rbfd0000000000000,r408f400000000000],"Empty element":{},"Dates":d41c5c8a8ff800000,"Data":x000102ff}

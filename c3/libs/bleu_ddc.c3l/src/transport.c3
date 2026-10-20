@@ -16,15 +16,15 @@ import std::thread, std::time, bleu::deadline;
  a time (the service's worker thread).
 
  - `write` sends the whole buffer as one transfer. The bytes are the I2C form
-   (`packet.Request.encode_i2c`); the destination address is the transfer's
-   device address, so it is not in the buffer.
+ (`packet.Request.encode_i2c`); the destination address is the transfer's
+ device address, so it is not in the buffer.
  - `read` fills at most `buffer.len` bytes and returns how many arrived. Zero
-   means nothing arrived within `timeout`, which is not an error. A transport
-   that cannot do a short read must still return what the device supplied.
+ means nothing arrived within `timeout`, which is not an error. A transport
+ that cannot do a short read must still return what the device supplied.
  - `min_interval_after_write` is the least time the transport needs between a
-   write and the next read. The session waits at least that long. Some AMD
-   graphics need about 30 ms more than the specification (Lunar `DDC.c`,
-   `DDCDelay`).
+ write and the next read. The session waits at least that long. Some AMD
+ graphics need about 30 ms more than the specification (Lunar `DDC.c`,
+ `DDCDelay`).
 *>
 interface Transport
 {
@@ -62,6 +62,8 @@ fn void sleep_at_least(void* context, Duration duration) @private
 	while (!until.expired())
 	{
 		// An interrupted sleep returns early; the loop above waits the rest.
-		if (catch thread::sleep(until.remaining())) {}
+		if (catch thread::sleep(until.remaining()))
+		{
+		}
 	}
 }

@@ -21,24 +21,24 @@ module bleu::ddc::vcp;
 constset VcpCode : char
 {
 	// Image: brightness is called "Brightness" in MCCS 2.x and "Luminosity" in 3.0.
-	LUMINANCE = 0x10,
-	CONTRAST = 0x12,
-	SELECT_COLOR_PRESET = 0x14,
-	RED_VIDEO_GAIN = 0x16,
-	GREEN_VIDEO_GAIN = 0x18,
-	BLUE_VIDEO_GAIN = 0x1A,
+	LUMINANCE            = 0x10,
+	CONTRAST             = 0x12,
+	SELECT_COLOR_PRESET  = 0x14,
+	RED_VIDEO_GAIN       = 0x16,
+	GREEN_VIDEO_GAIN     = 0x18,
+	BLUE_VIDEO_GAIN      = 0x1A,
 	// Miscellaneous
-	INPUT_SOURCE = 0x60,
+	INPUT_SOURCE         = 0x60,
 	AUDIO_SPEAKER_VOLUME = 0x62,
-	AUDIO_MUTE = 0x8D,
-	POWER_MODE = 0xD6,
-	VCP_VERSION = 0xDF,
-	OSD_LANGUAGE = 0xCC,
+	AUDIO_MUTE           = 0x8D,
+	POWER_MODE           = 0xD6,
+	VCP_VERSION          = 0xDF,
+	OSD_LANGUAGE         = 0xCC,
 	HORIZONTAL_FREQUENCY = 0xAC,
-	VERTICAL_FREQUENCY = 0xAE,
-	FIRMWARE_LEVEL = 0xC9,
-	OSD_BUTTON_CONTROL = 0xCA,
-	DISPLAY_TECHNOLOGY = 0xB6,
+	VERTICAL_FREQUENCY   = 0xAE,
+	FIRMWARE_LEVEL       = 0xC9,
+	OSD_BUTTON_CONTROL   = 0xCA,
+	DISPLAY_TECHNOLOGY   = 0xB6,
 }
 
 <*
@@ -47,7 +47,7 @@ constset VcpCode : char
  - CONTINUOUS: a range from 0 to the reported maximum.
  - NON_CONTINUOUS: a set of discrete values, listed in the capabilities string.
  - TABLE: a byte table read with Table Read (0xE2). No code in this module is a
-   table in MCCS 2.x; MCCS 3.0 makes 0x60 a table (ddcutil comment on 0x60).
+ table in MCCS 2.x; MCCS 3.0 makes 0x60 a table (ddcutil comment on 0x60).
 *>
 enum VcpKind : char
 {
@@ -79,13 +79,21 @@ struct VcpFeature
 
 const VcpFeature[] FEATURES = {
 	{ .code = LUMINANCE, .name = "Luminance", .kind = CONTINUOUS, .access = READ_WRITE },
-	{ .code = CONTRAST, .name = "Contrast", .kind = CONTINUOUS, .access = READ_WRITE },
-	// 2.0 "Select color preset" is SIMPLE_NC; 2.2 and 3.0 are COMPLEX_NC.
+	{
+		.code = CONTRAST,
+		.name = "Contrast",
+		.kind = CONTINUOUS,
+		.access = READ_WRITE
+	}, // 2.0 "Select color preset" is SIMPLE_NC; 2.2 and 3.0 are COMPLEX_NC.
 	{ .code = SELECT_COLOR_PRESET, .name = "Select color preset", .kind = NON_CONTINUOUS, .access = READ_WRITE },
 	{ .code = RED_VIDEO_GAIN, .name = "Video gain: Red", .kind = CONTINUOUS, .access = READ_WRITE },
 	{ .code = GREEN_VIDEO_GAIN, .name = "Video gain: Green", .kind = CONTINUOUS, .access = READ_WRITE },
-	{ .code = BLUE_VIDEO_GAIN, .name = "Video gain: Blue", .kind = CONTINUOUS, .access = READ_WRITE },
-	// Quirk: MCCS 2.2a section 8.6 calls 0x62 non-continuous with reserved values, while
+	{
+		.code = BLUE_VIDEO_GAIN,
+		.name = "Video gain: Blue",
+		.kind = CONTINUOUS,
+		.access = READ_WRITE
+	}, // Quirk: MCCS 2.2a section 8.6 calls 0x62 non-continuous with reserved values, while
 	// its summary table calls it continuous (ddcutil comment). Continuous is used here.
 	{ .code = AUDIO_SPEAKER_VOLUME, .name = "Audio speaker volume", .kind = CONTINUOUS, .access = READ_WRITE },
 	{ .code = INPUT_SOURCE, .name = "Input source", .kind = NON_CONTINUOUS, .access = READ_WRITE },
@@ -122,24 +130,24 @@ fn VcpFeature? feature(VcpCode code)
 *>
 constset InputSource : char
 {
-	VGA_1 = 0x01,
-	VGA_2 = 0x02,
-	DVI_1 = 0x03,
-	DVI_2 = 0x04,
-	COMPOSITE_1 = 0x05,
-	COMPOSITE_2 = 0x06,
-	S_VIDEO_1 = 0x07,
-	S_VIDEO_2 = 0x08,
-	TUNER_1 = 0x09,
-	TUNER_2 = 0x0A,
-	TUNER_3 = 0x0B,
-	COMPONENT_1 = 0x0C,
-	COMPONENT_2 = 0x0D,
-	COMPONENT_3 = 0x0E,
+	VGA_1         = 0x01,
+	VGA_2         = 0x02,
+	DVI_1         = 0x03,
+	DVI_2         = 0x04,
+	COMPOSITE_1   = 0x05,
+	COMPOSITE_2   = 0x06,
+	S_VIDEO_1     = 0x07,
+	S_VIDEO_2     = 0x08,
+	TUNER_1       = 0x09,
+	TUNER_2       = 0x0A,
+	TUNER_3       = 0x0B,
+	COMPONENT_1   = 0x0C,
+	COMPONENT_2   = 0x0D,
+	COMPONENT_3   = 0x0E,
 	DISPLAYPORT_1 = 0x0F,
 	DISPLAYPORT_2 = 0x10,
-	HDMI_1 = 0x11,
-	HDMI_2 = 0x12,
+	HDMI_1        = 0x11,
+	HDMI_2        = 0x12,
 }
 
 <*
@@ -151,9 +159,9 @@ constset InputSource : char
 *>
 constset PowerMode : char
 {
-	ON = 0x01,
-	STANDBY = 0x02,
-	SUSPEND = 0x03,
+	ON       = 0x01,
+	STANDBY  = 0x02,
+	SUSPEND  = 0x03,
 	OFF_SOFT = 0x04,
 	OFF_HARD = 0x05,
 }

@@ -170,9 +170,9 @@ const time::Duration ASYNC_POLL_SLICE = (time::Duration)10_000;
  @param operation : "An owned pointer to the async object; it is not released"
  @param timeout : "How long to wait; `time::FOREVER` waits without limit"
  @return "The final status: COMPLETED, CANCELED or ERRORED"
- @return? error::TIMEOUT : "The operation was still running at the deadline"
+ @return? TIMEOUT : "The operation was still running at the deadline"
 *>
-fn AsyncStatus? wait_async(com_ptr::Com{com::IUnknown}* operation, Duration timeout)
+fn AsyncStatus? wait_async(com_ptr::Com{com::IUnknown}* operation, time::Duration timeout)
 {
 	com_ptr::Com{IAsyncInfo} info = com_ptr::query_interface{com::IUnknown, IAsyncInfo}(operation, IID_IASYNCINFO)!;
 	defer info.release();
@@ -182,7 +182,7 @@ fn AsyncStatus? wait_async(com_ptr::Com{com::IUnknown}* operation, Duration time
 		AsyncStatus status = status_of(info.ptr)!;
 		if (status != AsyncStatus.STARTED) return status;
 		if (deadline.expired()) return error::raise(TIMEOUT, error::Domain.INTERNAL, 0, "async operation still running")~;
-		Duration slice = deadline.remaining();
+		time::Duration slice = deadline.remaining();
 		if (slice > ASYNC_POLL_SLICE) slice = ASYNC_POLL_SLICE;
 		message_loop::pump(slice);
 	}

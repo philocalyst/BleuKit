@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Name</key>
+	<string>Sample &amp; &lt;Test&gt; "quoted" \ back</string>
+	<key>Count</key>
+	<integer>42</integer>
+	<key>Negative</key>
+	<integer>-7</integer>
+	<key>Big</key>
+	<integer>1099511627776</integer>
+	<key>NegBig</key>
+	<integer>-1099511627776</integer>
+	<key>Max64</key>
+	<integer>9223372036854775807</integer>
+	<key>Min64</key>
+	<integer>-9223372036854775808</integer>
+	<key>Zero</key>
+	<integer>0</integer>
+	<key>Pi</key>
+	<real>3.141592653589793</real>
+	<key>Half</key>
+	<real>0.5</real>
+	<key>Tiny</key>
+	<real>-1e-300</real>
+	<key>Yes</key>
+	<true/>
+	<key>No</key>
+	<false/>
+	<key>When</key>
+	<date>2013-06-22T10:18:00Z</date>
+	<key>Epoch</key>
+	<date>2001-01-01T00:00:00Z</date>
+	<key>Blob</key>
+	<data>
+	AAEC/2JpbmFyeQ==
+	</data>
+	<key>List</key>
+	<array>
+		<integer>1</integer>
+		<string>two</string>
+		<real>3.0</real>
+		<array/>
+		<dict/>
+	</array>
+	<key>Unicode</key>
+	<string>héllo — 世界 😀</string>
+	<key>Empty</key>
+	<string></string>
+	<key>Long</key>
+	<string>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</string>
+	<key>Shared</key>
+	<string>same</string>
+	<key>Nested</key>
+	<dict>
+		<key>Deep</key>
+		<dict>
+			<key>Deeper</key>
+			<array>
+				<dict>
+					<key>Deepest</key>
+					<string>bottom</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+</dict>
+</plist>

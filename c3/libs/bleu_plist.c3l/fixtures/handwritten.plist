@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- A comment before the root element -->
+<plist version="1.0">
+<dict>
+	<key>Escapes</key>
+	<string>A &amp; B &lt;tag&gt; &quot;q&quot; &apos;a&apos; &#x41;&#66; &#x1F600;</string>
+	<key>Cdata</key>
+	<string>before <![CDATA[<raw> & text]]> after</string>
+	<!-- a comment between members -->
+	<key>Spaced</key>
+	<string>
+		padded value
+	</string>
+	<key>Nums</key>
+	<array>
+		<integer>-12</integer>
+		<real>-0.25</real>
+		<real>1e3</real>
+	</array>
+	<key>Empty element</key>
+	<dict/>
+	<key>Dates</key>
+	<date>2024-02-29T23:59:59Z</date>
+	<key>Data</key>
+	<data>
+	AAEC/w==
+	</data>
+</dict>
+</plist>

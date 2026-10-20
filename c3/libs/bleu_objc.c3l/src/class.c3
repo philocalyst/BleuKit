@@ -14,8 +14,10 @@
 
  Sources: Apple objc4 `runtime/runtime.h` (objc_allocateClassPair,
  class_addMethod, class_addIvar, class_addProtocol, objc_getProtocol,
- objc_registerClassPair) and `runtime/objc.h` (BOOL is `signed char` on macOS, so
- `bool` maps to encoding `c`); cross-checked with the stdlib's
+ objc_registerClassPair) and `runtime/objc.h` (the `OBJC_BOOL_IS_BOOL` rule, which
+ defers to `__OBJC_BOOL_IS_BOOL` when clang defines it); the arm64/x86_64 split of
+ BOOL is from the objc2 crate's `src/runtime/bool.rs`, which says clang always defines
+ `__OBJC_BOOL_IS_BOOL`; cross-checked with the stdlib's
  `std/gfx/private/gfx_macos.c3` (lines ~1097-1151), a working C3 delegate class.
 *>
 module bleu::objc @feat(DARWIN) @link("Foundation.framework");
@@ -36,8 +38,8 @@ const ZString CONTEXT_IVAR_ENCODING = "^v";
 <*
  The Objective-C type code for a C3 type, at compile time.
 
- Mapping (from `objc/runtime.h` and `@encode`): void `v`, BOOL and C3 `bool`
- `c` (BOOL is `signed char` on macOS), signed integers `c s i q` by size,
+ Mapping (from `@encode`): void `v`, C3 `bool` `B` on arm64 and `c` on x86_64
+ (BOOL is C `_Bool` on arm64 macOS and `signed char` on x86_64 macOS), signed integers `c s i q` by size,
  unsigned integers `C S I Q`, `float` `f`, `double` `d`, pointers `@`.
  Pointers are encoded as objects because almost every AppKit, CoreWLAN and
  CoreAudio callback argument is an `id`. A raw `void*` argument must be
@@ -50,7 +52,11 @@ macro ZString type_code($Type)
 		$case VOID:
 			return "v";
 		$case BOOL:
-			return "c";
+			$if $feat(AARCH64):
+				return "B";
+			$else
+				return "c";
+			$endif
 		$case SIGNED_INT:
 			$switch $Type::size:
 				$case 1:

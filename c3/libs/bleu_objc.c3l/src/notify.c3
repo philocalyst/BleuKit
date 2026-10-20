@@ -50,10 +50,6 @@ const ZString DISTRIBUTED_APPEARANCE_CHANGED = "AppleInterfaceThemeChangedNotifi
 const ZString DISTRIBUTED_SCREEN_LOCKED = "com.apple.screenIsLocked";
 
 <*
- Distributed notification posted when the screen is unlocked. Same verification status as `DISTRIBUTED_SCREEN_LOCKED`.
-*>
-
-<*
  The notification center of `kind`, borrowed.
 
  @return "the center; nil only if the framework is not loaded"

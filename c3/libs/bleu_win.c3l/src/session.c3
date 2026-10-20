@@ -80,7 +80,7 @@ fn bool? is_locked(uint session)
 		return errors::raise_last("WTSQuerySessionInformation(WTSSessionInfoEx)")~;
 	}
 	defer wtsFreeMemory(buffer);
-	if (bytes < WtsInfoEx.size) return error::raise(error::PROTOCOL, error::Domain.WIN32, 0, "WTSSessionInfoEx is %d bytes", bytes)~;
+	if (bytes < WtsInfoEx::size) return error::raise(error::PROTOCOL, error::Domain.WIN32, 0, "WTSSessionInfoEx is %d bytes", bytes)~;
 	WtsInfoEx* info = (WtsInfoEx*)buffer;
 	switch (info.session_flags)
 	{

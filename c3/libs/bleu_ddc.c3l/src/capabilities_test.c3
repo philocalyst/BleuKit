@@ -24,7 +24,17 @@ fn void wacom_one_13() @test
 {
 	@pool()
 	{
-		Capabilities caps = capabilities::parse(string::tformat("%s%s%s%s%s", "(prot(monitor)type(LCD)model(Wacom One 13)cmds(01 02 03 06 07 E3 F3)", "vcp(04 05 08 12 14(04 05 06 08 0B) 16 18 1A 6B AC AE B2 B6 C8 C9 ", "CC(01 02 03 04 05 06 07 08 09 0A 0D 14 1E 26) D6(01 04 ) DA(00 01) DF", " E1(00 01 02) E4(04 05 06 08 0B) EF(00 01 02 03) F2)", "mswhql(1)asset_eep(40)mccs_ver(2.2))"), tmem);
+		Capabilities caps = capabilities::parse(
+			string::tformat(
+				"%s%s%s%s%s",
+				"(prot(monitor)type(LCD)model(Wacom One 13)cmds(01 02 03 06 07 E3 F3)",
+				"vcp(04 05 08 12 14(04 05 06 08 0B) 16 18 1A 6B AC AE B2 B6 C8 C9 ",
+				"CC(01 02 03 04 05 06 07 08 09 0A 0D 14 1E 26) D6(01 04 ) DA(00 01) DF",
+				" E1(00 01 02) E4(04 05 06 08 0B) EF(00 01 02 03) F2)",
+				"mswhql(1)asset_eep(40)mccs_ver(2.2))"
+			),
+			tmem
+		);
 		test::eq(caps.validity, capabilities::Validity.VALID);
 		test::eq(caps.model, "Wacom One 13");
 		test::eq(caps.mccs_version, "2.2");
@@ -34,7 +44,10 @@ fn void wacom_one_13() @test
 		test::eq(caps.supports(VcpCode.SELECT_COLOR_PRESET), true);
 		test::eq(caps.supports(VcpCode.INPUT_SOURCE), false);
 		// 0x14 lists five values; 0x12 has no list, so its value list is empty.
-		test::eq(same_bytes(caps.allowed_values(VcpCode.SELECT_COLOR_PRESET)!!, { 0x04, 0x05, 0x06, 0x08, 0x0B }), true);
+		test::eq(
+			same_bytes(caps.allowed_values(VcpCode.SELECT_COLOR_PRESET)!!, { 0x04, 0x05, 0x06, 0x08, 0x0B }),
+			true
+		);
 		test::eq(caps.allowed_values(VcpCode.CONTRAST)!!.len, (sz)0);
 		test::eq(caps.allowed_values((VcpCode)0xDF)!!.len, (sz)0);
 		// 0xCC lists 14 values.
@@ -51,7 +64,16 @@ fn void asus_pb287_bare_model() @test
 	{
 		// "model LCDPB287" has no parentheses. The value is taken as the next word
 		// and the result is USABLE, not INVALID.
-		Capabilities caps = capabilities::parse(string::tformat("%s%s%s%s", "(prot(monitor) type(LCD)model LCDPB287 cmds(01 02 03 07 0C F3) ", "vcp(02 04 05 08 0B 0C 10 12 14(05 06 08 0B) 16 18 1A 60(11 12 0F) ", "62 6C 6E 70 8D(01 02) A8 AC AE B6 C6 C8 C9 D6(01 04) DF) ", "mccs_ver(2.1)asset_eep(32)mpu(01)mswhql(1))"), tmem);
+		Capabilities caps = capabilities::parse(
+			string::tformat(
+				"%s%s%s%s",
+				"(prot(monitor) type(LCD)model LCDPB287 cmds(01 02 03 07 0C F3) ",
+				"vcp(02 04 05 08 0B 0C 10 12 14(05 06 08 0B) 16 18 1A 60(11 12 0F) ",
+				"62 6C 6E 70 8D(01 02) A8 AC AE B6 C6 C8 C9 D6(01 04) DF) ",
+				"mccs_ver(2.1)asset_eep(32)mpu(01)mswhql(1))"
+			),
+			tmem
+		);
 		test::eq(caps.validity, capabilities::Validity.USABLE);
 		test::eq(caps.model, "LCDPB287");
 		test::eq(caps.mccs_version, "2.1");
@@ -66,7 +88,14 @@ fn void run_together_codes_and_values() @test
 	@pool()
 	{
 		// Codes and values run together, as the Access.bus specification allows.
-		Capabilities caps = capabilities::parse(string::tformat("%s%s", "(vcp(0203(10 00)0405080B0C101214(05 07 08 0B) 16181A5260(3033 04)6C6E70", "87ACAEB6C0C6C8C9D6(01 04)DFE4E5E6E7E8E9EAEBED(00 10 20 40)EE(00 01)FE(01 02 03)FF)mccs_ver(2.1))"), tmem);
+		Capabilities caps = capabilities::parse(
+			string::tformat(
+				"%s%s",
+				"(vcp(0203(10 00)0405080B0C101214(05 07 08 0B) 16181A5260(3033 04)6C6E70",
+				"87ACAEB6C0C6C8C9D6(01 04)DFE4E5E6E7E8E9EAEBED(00 10 20 40)EE(00 01)FE(01 02 03)FF)mccs_ver(2.1))"
+			),
+			tmem
+		);
 		test::eq(caps.validity, capabilities::Validity.VALID);
 		test::eq(caps.supports((VcpCode)0x02), true);
 		test::eq(caps.allowed_values((VcpCode)0x02)!!.len, (sz)0);
