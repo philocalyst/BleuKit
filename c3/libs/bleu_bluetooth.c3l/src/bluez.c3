@@ -22,26 +22,24 @@
  at the master revision; docs/research/bluetooth.md, section 2.1).
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection,
-	bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::error, bleu::observe, bleu::rt::poller,
-	bleu::rt::worker, bleu::service;
+import std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 <* The well-known name of BlueZ on the system bus. *>
-const BLUEZ_NAME = "org.bluez";
+const BLUEZ_NAME               = "org.bluez";
 <* The root of BlueZ's object tree. *>
-const BLUEZ_ROOT = "/";
-const ADAPTER_IFACE = "org.bluez.Adapter1";
-const DEVICE_IFACE = "org.bluez.Device1";
-const BATTERY_IFACE = "org.bluez.Battery1";
+const BLUEZ_ROOT               = "/";
+const ADAPTER_IFACE            = "org.bluez.Adapter1";
+const DEVICE_IFACE             = "org.bluez.Device1";
+const BATTERY_IFACE            = "org.bluez.Battery1";
 <* Where the system bus socket lives on current distributions; the first that exists is used by `probe`. *>
-const SYSTEM_BUS_SOCKET = "/run/dbus/system_bus_socket";
+const SYSTEM_BUS_SOCKET        = "/run/dbus/system_bus_socket";
 const SYSTEM_BUS_SOCKET_LEGACY = "/var/run/dbus/system_bus_socket";
 <* How many commands one pass of the worker takes from the mailbox. *>
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH        = 8;
 <* Poller tag of the bus socket; the wake-up has its own tag. *>
-const usz BUS_TAG = 1;
+const usz BUS_TAG              = 1;
 <* Native sources the worker waits on: the bus socket only. *>
-const usz POLL_CAPACITY = 2;
+const usz POLL_CAPACITY        = 2;
 
 <* The one descriptor-level state of the backend. The bus is used only by the worker thread. *>
 struct Bluez
@@ -86,11 +84,15 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	bool owned = probe_bus.name_has_owner(BLUEZ_NAME)!;
 	if (!owned) return error::UNAVAILABLE~;
 	fill_capabilities(capabilities);
-	Bluez* self = alloc::new(allocator, Bluez, {
-		.allocator = allocator,
-		.bus_address = bluetooth::copy_text(options.bus_address, allocator),
-		.root = bluetooth::copy_text(options.root, allocator),
-	});
+	Bluez* self = alloc::new(
+		allocator,
+		Bluez,
+		{
+			.allocator = allocator,
+			.bus_address = bluetooth::copy_text(options.bus_address, allocator),
+			.root = bluetooth::copy_text(options.root, allocator),
+		}
+	);
 	return self;
 }
 
@@ -168,7 +170,6 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 			self.dirty = true;
 			count = host.mailbox().take_all(commands[..]);
 		}
-
 	}
 	// Finish what the bus still owes (pending replies fail as the bus closes), then say the service is gone.
 	fail_queued(host);
@@ -187,7 +188,9 @@ fn bool wait_for_bus(Bluez* self, Poller* poller) @private
 	interest.writable = self.bus.has_pending_output();
 	if (catch poller.add({ .handle = (Native)fd, .interest = interest, .tag = BUS_TAG })) return false;
 	// A wait without a timeout returns on socket activity or on the wake-up; TIMEOUT cannot occur.
-	if (catch poller.wait(time::FOREVER)) {}
+	if (catch poller.wait(time::FOREVER))
+	{
+	}
 	if (catch poller.remove(BUS_TAG)) return false;
 	return true;
 }
@@ -211,9 +214,10 @@ fn void fail_queued(Host{Request}* host) @private
 // Subscribes to every BlueZ change that makes the state stale, and to device disconnections.
 fn void? subscribe(Bluez* self) @private
 {
-	Proxy objects = proxy::for_object(&self.bus, BLUEZ_NAME, BLUEZ_ROOT, proxy::OBJECT_MANAGER_INTERFACE)!;
+	String manager               = proxy::OBJECT_MANAGER_INTERFACE;
+	Proxy objects                = proxy::for_object(&self.bus, BLUEZ_NAME, BLUEZ_ROOT, manager)!;
 	SubscriptionId objects_watch = objects.watch_objects(&on_objects, self)!;
-	SubscriptionId props_watch = objects.watch_properties(&on_properties, self, true)!;
+	SubscriptionId props_watch   = objects.watch_properties(&on_properties, self, true)!;
 	Match rule;
 	rule.init(self.allocator);
 	rule.with_type(MessageType.SIGNAL)!!;

@@ -33,9 +33,23 @@ fn void? ObjectServer.emit_signal(&self, String path, String interface_name, Str
 	Target target = self.find_target(path);
 	if (!target.found) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no object at %s", path)~;
 	Interface* i = find_interface(target.interfaces, interface_name);
-	if (i == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no interface %s at %s", interface_name, path)~;
+	if (i == null) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"no interface %s at %s",
+		interface_name,
+		path
+	)~;
 	Signal* s = find_signal(i, member);
-	if (s == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no signal %s in %s", member, interface_name)~;
+	if (s == null) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"no signal %s in %s",
+		member,
+		interface_name
+	)~;
 	return send_signal(self, path, interface_name, member, s.signature, args);
 }
 
@@ -56,7 +70,14 @@ fn void? ObjectServer.emit_properties_changed(&self, String path, String interfa
 		Target target = self.find_target(path);
 		if (!target.found) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no object at %s", path)~;
 		Interface* i = find_interface(target.interfaces, interface_name);
-		if (i == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no interface %s at %s", interface_name, path)~;
+		if (i == null) return error::raise(
+			NOT_FOUND,
+			error::Domain.INTERNAL,
+			0,
+			"no interface %s at %s",
+			interface_name,
+			path
+		)~;
 		List{Value} changed;
 		changed.init(tmem);
 		List{Value} invalidated;
@@ -64,12 +85,25 @@ fn void? ObjectServer.emit_properties_changed(&self, String path, String interfa
 		foreach (name : names)
 		{
 			Property* p = find_property(i, name);
-			if (p == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no property %s in %s", name, interface_name)~;
+			if (p == null) return error::raise(
+				NOT_FOUND,
+				error::Domain.INTERNAL,
+				0,
+				"no property %s in %s",
+				name,
+				interface_name
+			)~;
 			switch (p.changes)
 			{
 				case NEVER:
 				case CONST:
-					return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property %s does not announce changes", name)~;
+					return error::raise(
+						error::INVALID_ARGUMENT,
+						error::Domain.INTERNAL,
+						0,
+						"property %s does not announce changes",
+						name
+					)~;
 				case INVALIDATES:
 					invalidated.push(value::str(tmem, name)!);
 				case EMITS_CHANGED:
@@ -90,7 +124,7 @@ fn void? ObjectServer.emit_properties_changed(&self, String path, String interfa
 fn void? announce_property(ObjectServer* server, String path, Interface* i, Property* p) @private
 {
 	if (p.changes != EMITS_CHANGED && p.changes != INVALIDATES) return;
-	String[1] one = { p.name };
+	String[1] one  = { p.name };
 	String[] names = one[..];
 	return server.emit_properties_changed(path, i.name, names);
 }
@@ -107,7 +141,14 @@ fn void? ObjectServer.announce_added(&self, Export* e)
 				value::path(tmem, e.path.str_view())!,
 				interfaces_value(tmem, e.path.str_view(), e.interfaces)!,
 			};
-			send_signal(self, root.path.str_view(), INTERFACE_OBJECT_MANAGER, SIGNAL_INTERFACES_ADDED, "oa{sa{sv}}", body)!;
+			send_signal(
+				self,
+				root.path.str_view(),
+				INTERFACE_OBJECT_MANAGER,
+				SIGNAL_INTERFACES_ADDED,
+				"oa{sa{sv}}",
+				body
+			)!;
 		}
 	};
 }
@@ -134,7 +175,14 @@ fn void? ObjectServer.announce_removed(&self, Export* e)
 }
 
 // Builds a signal from `path` whose body is `args` for `signature`, and sends it.
-fn void? send_signal(ObjectServer* server, String path, String interface_name, String member, String signature, Value[] args) @private
+fn void? send_signal(
+	ObjectServer* server,
+	String path,
+	String interface_name,
+	String member,
+	String signature,
+	Value[] args
+) @private
 {
 	Message* m = message::signal(server.allocator, path, interface_name, member)!;
 	defer m.release();

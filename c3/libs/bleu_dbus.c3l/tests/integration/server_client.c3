@@ -8,8 +8,8 @@ module bleu::dbus::server_client_test;
 import bleu::error, bleu::deadline, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::proxy, bleu::dbus::transport, bleu::dbus::value;
 import std::io, std::time;
 
-const SERVICE_NAME = "org.bleu.ServerTest";
-const OBJECT_PATH = "/org/bleu/ServerTest";
+const SERVICE_NAME   = "org.bleu.ServerTest";
+const OBJECT_PATH    = "/org/bleu/ServerTest";
 const TEST_INTERFACE = "org.bleu.Test";
 
 // Longest wait for the bus to hand over a name, in milliseconds.
@@ -93,10 +93,13 @@ fn int main()
 	@pool()
 	{
 		Proxy test = proxy::for_object(&bus, SERVICE_NAME, OBJECT_PATH, TEST_INTERFACE)!!;
-		check(call_text(&bus, &test, "Echo", "from c3", tmem)!! == "from c3", "a C3 client's Echo is answered by the C3 server");
+		check(
+			call_text(&bus, &test, "Echo", "from c3", tmem)!! == "from c3",
+			"a C3 client's Echo is answered by the C3 server"
+		);
 
 		Message* add = test.new_call(tmem, "Add")!!;
-		Writer* w = add.body_writer("uu")!!;
+		Writer* w    = add.body_writer("uu")!!;
 		w.append_u32(40)!!;
 		w.append_u32(2)!!;
 		Message* sum = bus.call(add)!!;
@@ -150,13 +153,19 @@ fn int main()
 	waiter.init(mem);
 	defer waiter.free();
 	waiter.open_session()!!;
-	OwnedName* queued = waiter.own_name(SERVICE_NAME, bus::NAME_ALLOW_REPLACEMENT, &on_name_acquired, &on_name_lost, null)!!;
+	OwnedName* queued = waiter.own_name(
+		SERVICE_NAME,
+		bus::NAME_ALLOW_REPLACEMENT,
+		&on_name_acquired,
+		&on_name_lost,
+		null
+	)!!;
 	check(!events.acquired, "a queued request waits while the name is owned elsewhere");
 
 	@pool()
 	{
-		Proxy test = proxy::for_object(&bus, SERVICE_NAME, OBJECT_PATH, TEST_INTERFACE)!!;
-		Message* quit = test.new_call(tmem, "Quit")!!;
+		Proxy test     = proxy::for_object(&bus, SERVICE_NAME, OBJECT_PATH, TEST_INTERFACE)!!;
+		Message* quit  = test.new_call(tmem, "Quit")!!;
 		Message* reply = bus.call(quit)!!;
 		check(reply.type == METHOD_RETURN, "Quit is answered before the server exits");
 		reply.release();

@@ -21,7 +21,7 @@ fn void? peer_call(Call* c) @private
 	if (c.member == "Ping")
 	{
 		if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "Ping takes no arguments");
-		return c.reply({});
+		return c.reply({ });
 	}
 	if (c.member == "GetMachineId")
 	{
@@ -68,14 +68,21 @@ fn void? properties_call(Call* c, Target* target) @private
 fn void? get_property(Call* c, Target* target) @private
 {
 	if (!arguments_are(c, "ss")) return c.reply_error(ERROR_INVALID_ARGS, "Get takes an interface and a property name");
-	Reader r            = c.reader()!;
+	Reader r              = c.reader()!;
 	String interface_name = r.read_string()!;
-	String name         = r.read_string()!;
-	Interface* i = find_interface(target.interfaces, interface_name);
-	if (i == null) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s here", interface_name));
+	String name           = r.read_string()!;
+	Interface* i          = find_interface(target.interfaces, interface_name);
+	if (i == null) return c.reply_error(
+		ERROR_UNKNOWN_INTERFACE,
+		string::tformat("no interface %s here", interface_name)
+	);
 	Property* p = find_property(i, name);
-	if (p == null || p.access == WRITE) {
-		return c.reply_error(ERROR_UNKNOWN_PROPERTY, string::tformat("%s has no readable property %s", interface_name, name));
+	if (p == null || p.access == WRITE)
+	{
+		return c.reply_error(
+			ERROR_UNKNOWN_PROPERTY,
+			string::tformat("%s has no readable property %s", interface_name, name)
+		);
 	}
 	Value v = p.get(p.context, c.path, tmem)!;
 	c.out_signature = "v";
@@ -86,23 +93,36 @@ fn void? get_property(Call* c, Target* target) @private
 // Properties.Set(interface, name, variant). A successful set announces the change, if the property does.
 fn void? set_property(Call* c, Target* target) @private
 {
-	if (!arguments_are(c, "ssv")) return c.reply_error(ERROR_INVALID_ARGS, "Set takes an interface, a property name and a variant");
+	if (!arguments_are(
+		c,
+		"ssv"
+	)) return c.reply_error(ERROR_INVALID_ARGS, "Set takes an interface, a property name and a variant");
 	Reader r              = c.reader()!;
 	String interface_name = r.read_string()!;
 	String name           = r.read_string()!;
 	Value boxed           = r.read_value(tmem)!;
-	Interface* i = find_interface(target.interfaces, interface_name);
-	if (i == null) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s here", interface_name));
+	Interface* i          = find_interface(target.interfaces, interface_name);
+	if (i == null) return c.reply_error(
+		ERROR_UNKNOWN_INTERFACE,
+		string::tformat("no interface %s here", interface_name)
+	);
 	Property* p = find_property(i, name);
-	if (p == null) return c.reply_error(ERROR_UNKNOWN_PROPERTY, string::tformat("%s has no property %s", interface_name, name));
+	if (p == null) return c.reply_error(
+		ERROR_UNKNOWN_PROPERTY,
+		string::tformat("%s has no property %s", interface_name, name)
+	);
 	if (p.access == READ) return c.reply_error(ERROR_PROPERTY_READ_ONLY, string::tformat("%s is read-only", name));
 	Value v = boxed.items[0];
-	if (v.sig != p.signature) {
-		return c.reply_error(ERROR_INVALID_ARGS, string::tformat("%s has type '%s', not '%s'", name, p.signature, v.sig));
+	if (v.sig != p.signature)
+	{
+		return c.reply_error(
+			ERROR_INVALID_ARGS,
+			string::tformat("%s has type '%s', not '%s'", name, p.signature, v.sig)
+		);
 	}
 	p.set(p.context, c.path, v)!;
 	announce_property(c.server, c.path, i, p)!;
-	return c.reply({});
+	return c.reply({ });
 }
 
 // Properties.GetAll(interface) -> a{sv} of the readable properties.
@@ -111,8 +131,11 @@ fn void? get_all_properties(Call* c, Target* target) @private
 	if (!arguments_are(c, "s")) return c.reply_error(ERROR_INVALID_ARGS, "GetAll takes an interface name");
 	Reader r              = c.reader()!;
 	String interface_name = r.read_string()!;
-	Interface* i = find_interface(target.interfaces, interface_name);
-	if (i == null) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s here", interface_name));
+	Interface* i          = find_interface(target.interfaces, interface_name);
+	if (i == null) return c.reply_error(
+		ERROR_UNKNOWN_INTERFACE,
+		string::tformat("no interface %s here", interface_name)
+	);
 	c.out_signature = "a{sv}";
 	Value props = readable_properties(tmem, c.path, i)!;
 	Value[] out = { props };
@@ -142,11 +165,14 @@ fn Value? readable_properties(Allocator allocator, String path, Interface* i) @p
 // ObjectManager.GetManagedObjects() -> a{oa{sa{sv}}}, for a root's objects below it.
 fn void? managed_objects_call(Call* c) @private
 {
-	if (c.member != "GetManagedObjects") return c.reply_error(ERROR_UNKNOWN_METHOD, string::tformat("no method %s here", c.member));
+	if (c.member != "GetManagedObjects") return c.reply_error(
+		ERROR_UNKNOWN_METHOD,
+		string::tformat("no method %s here", c.member)
+	);
 	if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "GetManagedObjects takes no arguments");
 	c.out_signature = "a{oa{sa{sv}}}";
 	Value objects = managed_objects(c.server, tmem, c.path)!;
-	Value[] out = { objects };
+	Value[] out   = { objects };
 	return c.reply(out);
 }
 

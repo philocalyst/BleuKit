@@ -8,11 +8,7 @@ import bleu::wl::proto::wayland;
  zwlr_output_power_manager_v1 version 1.
  This interface is a manager that allows creating per-output power management mode controls.
 *>
-const display::Interface ZWLR_OUTPUT_POWER_MANAGER_V1 = {
-	.name = "zwlr_output_power_manager_v1",
-	.version = 1,
-	.dispatch = &zwlr_output_power_manager_v1_dispatch
-};
+const display::Interface ZWLR_OUTPUT_POWER_MANAGER_V1 = { .name = "zwlr_output_power_manager_v1", .version = 1, .dispatch = &zwlr_output_power_manager_v1_dispatch };
 
 <*
  Typed view of a zwlr_output_power_manager_v1 object. The proxy is the first field, so a
@@ -53,23 +49,12 @@ fn void? ZwlrOutputPowerManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_output_power_manager_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? zwlr_output_power_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of zwlr_output_power_manager_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_power_manager_v1", opcode)~;
 	}
 }
 
@@ -77,11 +62,7 @@ fn void? zwlr_output_power_manager_v1_dispatch(
  zwlr_output_power_v1 version 1.
  This object offers requests to set the power management mode of an output.
 *>
-const display::Interface ZWLR_OUTPUT_POWER_V1 = {
-	.name = "zwlr_output_power_v1",
-	.version = 1,
-	.dispatch = &zwlr_output_power_v1_dispatch
-};
+const display::Interface ZWLR_OUTPUT_POWER_V1 = { .name = "zwlr_output_power_v1", .version = 1, .dispatch = &zwlr_output_power_v1_dispatch };
 
 <*
  Typed view of a zwlr_output_power_v1 object. The proxy is the first field, so a pointer to
@@ -98,7 +79,7 @@ struct ZwlrOutputPowerV1
 constset ZwlrOutputPowerV1Mode : uint
 {
 	OFF = 0,
-	ON  = 1,
+	ON = 1,
 }
 
 <*
@@ -179,31 +160,23 @@ fn void? zwlr_output_power_v1_dispatch(display::Display* conn, display::Proxy* p
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			ZwlrOutputPowerV1Mode mode = (ZwlrOutputPowerV1Mode)(args.get_uint()!);
+			if (!proxy.zombie && listener != null && listener.mode != null)
 			{
-				ZwlrOutputPowerV1Mode mode = (ZwlrOutputPowerV1Mode)(args.get_uint()!);
-				if (!proxy.zombie && listener != null && listener.mode != null)
-				{
-					listener.mode(proxy.context, (ZwlrOutputPowerV1*)proxy, mode);
-				}
-				return;
+				listener.mode(proxy.context, (ZwlrOutputPowerV1*)proxy, mode);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			if (!proxy.zombie && listener != null && listener.failed != null)
 			{
-				if (!proxy.zombie && listener != null && listener.failed != null)
-				{
-					listener.failed(proxy.context, (ZwlrOutputPowerV1*)proxy);
-				}
-				return;
+				listener.failed(proxy.context, (ZwlrOutputPowerV1*)proxy);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of zwlr_output_power_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_power_v1", opcode)~;
 	}
 }

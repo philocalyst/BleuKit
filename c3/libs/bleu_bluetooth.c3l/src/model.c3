@@ -52,19 +52,19 @@ enum Icon : char
 <* A profile this library knows by name. Each one has a Bluetooth service UUID. *>
 enum Profile : char
 {
-	A2DP_SOURCE, // audio source: this computer sends audio
-	A2DP_SINK, // audio sink: this computer plays audio
-	HSP_HEADSET, // headset profile, headset role
-	HSP_GATEWAY, // headset profile, audio gateway role
+	A2DP_SOURCE,   // audio source: this computer sends audio
+	A2DP_SINK,     // audio sink: this computer plays audio
+	HSP_HEADSET,   // headset profile, headset role
+	HSP_GATEWAY,   // headset profile, audio gateway role
 	HFP_HANDSFREE, // hands-free profile, hands-free role
-	HFP_GATEWAY, // hands-free profile, audio gateway role
+	HFP_GATEWAY,   // hands-free profile, audio gateway role
 }
 
 <* Which PnP id source a modalias names. *>
 enum PnpSource : char
 {
 	BLUETOOTH, // the vendor id is a Bluetooth SIG company id
-	USB, // the vendor id is a USB-IF id
+	USB,       // the vendor id is a USB-IF id
 	OTHER,
 }
 
@@ -113,26 +113,26 @@ struct State
 <* Which optional operation. `Bluetooth.capability` says whether it works here. *>
 enum Cap : char
 {
-	POWER, // switch a controller on and off
-	DISCOVERABLE, // make a controller visible to others, with a timeout
-	PAIRABLE, // accept pairing requests on a controller
-	DISCOVERY, // scan for nearby devices, with a filter
-	PAIR, // pair with a device
-	CANCEL_PAIRING, // stop a pairing that is in progress
-	PAIRING_PROMPTS, // receive pairing prompts as events and answer them
-	CONNECT, // connect a whole device
-	DISCONNECT, // disconnect a whole device
-	PROFILE_CONNECT, // connect one profile of a device
+	POWER,              // switch a controller on and off
+	DISCOVERABLE,       // make a controller visible to others, with a timeout
+	PAIRABLE,           // accept pairing requests on a controller
+	DISCOVERY,          // scan for nearby devices, with a filter
+	PAIR,               // pair with a device
+	CANCEL_PAIRING,     // stop a pairing that is in progress
+	PAIRING_PROMPTS,    // receive pairing prompts as events and answer them
+	CONNECT,            // connect a whole device
+	DISCONNECT,         // disconnect a whole device
+	PROFILE_CONNECT,    // connect one profile of a device
 	PROFILE_DISCONNECT, // disconnect one profile of a device
-	TRUST, // set whether a device may connect without asking
-	BLOCK, // set whether a device's connections are refused
-	RENAME, // change a device's alias
-	REMOVE, // forget a device
-	BATTERY, // read a device's battery level
-	RSSI, // read a device's signal strength
-	SERVICE_UUIDS, // read a device's service UUIDs
-	MODALIAS, // read a device's vendor and product
-	RFKILL_STATE, // report a radio held off by a kill switch
+	TRUST,              // set whether a device may connect without asking
+	BLOCK,              // set whether a device's connections are refused
+	RENAME,             // change a device's alias
+	REMOVE,             // forget a device
+	BATTERY,            // read a device's battery level
+	RSSI,               // read a device's signal strength
+	SERVICE_UUIDS,      // read a device's service UUIDs
+	MODALIAS,           // read a device's vendor and product
+	RFKILL_STATE,       // report a radio held off by a kill switch
 }
 
 <*
@@ -141,11 +141,11 @@ enum Cap : char
 *>
 enum PromptKind : char
 {
-	CONFIRM, // show the number; the user says whether it matches
-	PIN, // the user types a PIN for the device
+	CONFIRM,         // show the number; the user says whether it matches
+	PIN,             // the user types a PIN for the device
 	PASSKEY_DISPLAY, // show the passkey; the user types it on the device
-	PASSKEY_ENTRY, // the user types the passkey shown on the device
-	AUTHORIZE, // the user says whether this device may pair without a code
+	PASSKEY_ENTRY,   // the user types the passkey shown on the device
+	AUTHORIZE,       // the user says whether this device may pair without a code
 }
 
 <*
@@ -163,8 +163,8 @@ struct PairingRequest
 <* Which link a discovery scan uses. *>
 enum Transport : char
 {
-	AUTO, // whatever the controller prefers
-	LE, // Bluetooth Low Energy only
+	AUTO,   // whatever the controller prefers
+	LE,     // Bluetooth Low Energy only
 	BR_EDR, // classic Bluetooth only
 }
 
@@ -183,10 +183,10 @@ struct DiscoveryFilter
 <* Which mechanism provides the data. *>
 enum Backend : char
 {
-	AUTO, // every backend of the platform, best first
-	BLUEZ, // Linux: org.bluez on the D-Bus system bus
+	AUTO,        // every backend of the platform, best first
+	BLUEZ,       // Linux: org.bluez on the D-Bus system bus
 	IOBLUETOOTH, // macOS: IOBluetooth (public calls, plus private calls when enabled)
-	WIN32, // Windows: the Bluetooth Win32 functions, loaded at run time
+	WIN32,       // Windows: the Bluetooth Win32 functions, loaded at run time
 }
 
 <*
@@ -213,8 +213,8 @@ enum EventKind : char
 	DEVICE_REMOVED,
 	DEVICE_CHANGED,
 	DEVICE_DISCONNECTED, // `text` is the reason the bus or the controller gave
-	PAIRING_REQUEST, // `request` holds the prompt
-	PAIRING_ENDED, // `request.id` names the prompt that is no longer waiting for an answer
+	PAIRING_REQUEST,     // `request` holds the prompt
+	PAIRING_ENDED,       // `request.id` names the prompt that is no longer waiting for an answer
 }
 
 <* A transient. `address` is the controller or device concerned, "" when none. *>

@@ -20,11 +20,7 @@ import bleu::wl::proto::wayland;
  and deactivate workspaces. After a client binds the ext_workspace_manager_v1, each workspace
  will be sent via the workspace event.
 *>
-const display::Interface EXT_WORKSPACE_MANAGER_V1 = {
-	.name = "ext_workspace_manager_v1",
-	.version = 1,
-	.dispatch = &ext_workspace_manager_v1_dispatch
-};
+const display::Interface EXT_WORKSPACE_MANAGER_V1 = { .name = "ext_workspace_manager_v1", .version = 1, .dispatch = &ext_workspace_manager_v1_dispatch };
 
 <*
  Typed view of a ext_workspace_manager_v1 object. The proxy is the first field, so a pointer
@@ -41,11 +37,7 @@ struct ExtWorkspaceManagerV1
  be sent immediately after this event via the corresponding events in
  ext_workspace_group_handle_v1 and ext_workspace_handle_v1.
 *>
-alias ExtWorkspaceManagerV1WorkspaceGroupFn = fn void(
-	void* context,
-	ExtWorkspaceManagerV1* target,
-	ExtWorkspaceGroupHandleV1* workspace_group
-);
+alias ExtWorkspaceManagerV1WorkspaceGroupFn = fn void(void* context, ExtWorkspaceManagerV1* target, ExtWorkspaceGroupHandleV1* workspace_group);
 
 <*
  Event ext_workspace_manager_v1.workspace: This event is emitted whenever a new workspace has
@@ -53,11 +45,7 @@ alias ExtWorkspaceManagerV1WorkspaceGroupFn = fn void(
  immediately after this event via the corresponding events in ext_workspace_handle_v1.
  Workspaces start off unassigned to any workspace group.
 *>
-alias ExtWorkspaceManagerV1WorkspaceFn = fn void(
-	void* context,
-	ExtWorkspaceManagerV1* target,
-	ExtWorkspaceHandleV1* workspace
-);
+alias ExtWorkspaceManagerV1WorkspaceFn = fn void(void* context, ExtWorkspaceManagerV1* target, ExtWorkspaceHandleV1* workspace);
 
 <*
  Event ext_workspace_manager_v1.done: This event is sent after all changes in all workspaces
@@ -138,73 +126,50 @@ fn void ExtWorkspaceManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_workspace_manager_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_workspace_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtWorkspaceManagerV1Listener* listener = (ExtWorkspaceManagerV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			uint workspace_group_id = args.get_new_id()!;
+			ExtWorkspaceGroupHandleV1* workspace_group = (ExtWorkspaceGroupHandleV1*)(conn.server_object(workspace_group_id, EXT_WORKSPACE_GROUP_HANDLE_V1, proxy.version)!);
+			if (!proxy.zombie && listener != null && listener.workspace_group != null)
 			{
-				uint workspace_group_id                    = args.get_new_id()!;
-				ExtWorkspaceGroupHandleV1* workspace_group = (ExtWorkspaceGroupHandleV1*)(conn.server_object(
-					workspace_group_id,
-					EXT_WORKSPACE_GROUP_HANDLE_V1,
-					proxy.version
-				)!);
-				if (!proxy.zombie && listener != null && listener.workspace_group != null)
-				{
-					listener.workspace_group(proxy.context, (ExtWorkspaceManagerV1*)proxy, workspace_group);
-				}
-				return;
+				listener.workspace_group(proxy.context, (ExtWorkspaceManagerV1*)proxy, workspace_group);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			uint workspace_id = args.get_new_id()!;
+			ExtWorkspaceHandleV1* workspace = (ExtWorkspaceHandleV1*)(conn.server_object(workspace_id, EXT_WORKSPACE_HANDLE_V1, proxy.version)!);
+			if (!proxy.zombie && listener != null && listener.workspace != null)
 			{
-				uint workspace_id               = args.get_new_id()!;
-				ExtWorkspaceHandleV1* workspace = (ExtWorkspaceHandleV1*)(conn.server_object(
-					workspace_id,
-					EXT_WORKSPACE_HANDLE_V1,
-					proxy.version
-				)!);
-				if (!proxy.zombie && listener != null && listener.workspace != null)
-				{
-					listener.workspace(proxy.context, (ExtWorkspaceManagerV1*)proxy, workspace);
-				}
-				return;
+				listener.workspace(proxy.context, (ExtWorkspaceManagerV1*)proxy, workspace);
 			}
+			return;
+		}
 		case 2:
-
+		{
+			if (!proxy.zombie && listener != null && listener.done != null)
 			{
-				if (!proxy.zombie && listener != null && listener.done != null)
-				{
-					listener.done(proxy.context, (ExtWorkspaceManagerV1*)proxy);
-				}
-				return;
+				listener.done(proxy.context, (ExtWorkspaceManagerV1*)proxy);
 			}
+			return;
+		}
 		case 3:
-
+		{
+			if (!proxy.zombie && listener != null && listener.finished != null)
 			{
-				if (!proxy.zombie && listener != null && listener.finished != null)
-				{
-					listener.finished(proxy.context, (ExtWorkspaceManagerV1*)proxy);
-				}
-				conn.retire(proxy);
-				return;
+				listener.finished(proxy.context, (ExtWorkspaceManagerV1*)proxy);
 			}
+			conn.retire(proxy);
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_workspace_manager_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_workspace_manager_v1", opcode)~;
 	}
 }
 
@@ -218,11 +183,7 @@ fn void? ext_workspace_manager_v1_dispatch(
  compositor where a workspace spans all outputs may advertise a single workspace group for
  all outputs.
 *>
-const display::Interface EXT_WORKSPACE_GROUP_HANDLE_V1 = {
-	.name = "ext_workspace_group_handle_v1",
-	.version = 1,
-	.dispatch = &ext_workspace_group_handle_v1_dispatch
-};
+const display::Interface EXT_WORKSPACE_GROUP_HANDLE_V1 = { .name = "ext_workspace_group_handle_v1", .version = 1, .dispatch = &ext_workspace_group_handle_v1_dispatch };
 
 <*
  Typed view of a ext_workspace_group_handle_v1 object. The proxy is the first field, so a
@@ -253,53 +214,33 @@ constset ExtWorkspaceGroupHandleV1GroupCapabilities : uint
  ext_workspace_group_handle_v1. When the capabilities change, compositors must send this
  event again.
 *>
-alias ExtWorkspaceGroupHandleV1CapabilitiesFn = fn void(
-	void* context,
-	ExtWorkspaceGroupHandleV1* target,
-	ExtWorkspaceGroupHandleV1GroupCapabilities capabilities
-);
+alias ExtWorkspaceGroupHandleV1CapabilitiesFn = fn void(void* context, ExtWorkspaceGroupHandleV1* target, ExtWorkspaceGroupHandleV1GroupCapabilities capabilities);
 
 <*
  Event ext_workspace_group_handle_v1.output_enter: This event is emitted whenever an output
  is assigned to the workspace group or a new `wl_output` object is bound by the client, which
  was already assigned to this workspace_group.
 *>
-alias ExtWorkspaceGroupHandleV1OutputEnterFn = fn void(
-	void* context,
-	ExtWorkspaceGroupHandleV1* target,
-	wayland::WlOutput* output
-);
+alias ExtWorkspaceGroupHandleV1OutputEnterFn = fn void(void* context, ExtWorkspaceGroupHandleV1* target, wayland::WlOutput* output);
 
 <*
  Event ext_workspace_group_handle_v1.output_leave: This event is emitted whenever an output
  is removed from the workspace group.
 *>
-alias ExtWorkspaceGroupHandleV1OutputLeaveFn = fn void(
-	void* context,
-	ExtWorkspaceGroupHandleV1* target,
-	wayland::WlOutput* output
-);
+alias ExtWorkspaceGroupHandleV1OutputLeaveFn = fn void(void* context, ExtWorkspaceGroupHandleV1* target, wayland::WlOutput* output);
 
 <*
  Event ext_workspace_group_handle_v1.workspace_enter: This event is emitted whenever a
  workspace is assigned to this group. A workspace may only ever be assigned to a single group
  at a single point in time, but can be re-assigned during its lifetime.
 *>
-alias ExtWorkspaceGroupHandleV1WorkspaceEnterFn = fn void(
-	void* context,
-	ExtWorkspaceGroupHandleV1* target,
-	ExtWorkspaceHandleV1* workspace
-);
+alias ExtWorkspaceGroupHandleV1WorkspaceEnterFn = fn void(void* context, ExtWorkspaceGroupHandleV1* target, ExtWorkspaceHandleV1* workspace);
 
 <*
  Event ext_workspace_group_handle_v1.workspace_leave: This event is emitted whenever a
  workspace is removed from this group.
 *>
-alias ExtWorkspaceGroupHandleV1WorkspaceLeaveFn = fn void(
-	void* context,
-	ExtWorkspaceGroupHandleV1* target,
-	ExtWorkspaceHandleV1* workspace
-);
+alias ExtWorkspaceGroupHandleV1WorkspaceLeaveFn = fn void(void* context, ExtWorkspaceGroupHandleV1* target, ExtWorkspaceHandleV1* workspace);
 
 <*
  Event ext_workspace_group_handle_v1.removed: This event is send when the group associated
@@ -364,104 +305,70 @@ fn void? ExtWorkspaceGroupHandleV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_workspace_group_handle_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_workspace_group_handle_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtWorkspaceGroupHandleV1Listener* listener = (ExtWorkspaceGroupHandleV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			ExtWorkspaceGroupHandleV1GroupCapabilities capabilities = (ExtWorkspaceGroupHandleV1GroupCapabilities)(args.get_uint()!);
+			if (!proxy.zombie && listener != null && listener.capabilities != null)
 			{
-				ExtWorkspaceGroupHandleV1GroupCapabilities capabilities = (ExtWorkspaceGroupHandleV1GroupCapabilities)(args
-					.get_uint()!);
-				if (!proxy.zombie && listener != null && listener.capabilities != null)
-				{
-					listener.capabilities(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, capabilities);
-				}
-				return;
+				listener.capabilities(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, capabilities);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			uint output = args.get_object()!;
+			display::Proxy* output_obj = conn.find(output);
+			if (!proxy.zombie && listener != null && listener.output_enter != null)
 			{
-				uint output                = args.get_object()!;
-				display::Proxy* output_obj = conn.find(output);
-				if (!proxy.zombie && listener != null && listener.output_enter != null)
-				{
-					listener.output_enter(
-						proxy.context,
-						(ExtWorkspaceGroupHandleV1*)proxy,
-						(wayland::WlOutput*)output_obj
-					);
-				}
-				return;
+				listener.output_enter(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, (wayland::WlOutput*)output_obj);
 			}
+			return;
+		}
 		case 2:
-
+		{
+			uint output = args.get_object()!;
+			display::Proxy* output_obj = conn.find(output);
+			if (!proxy.zombie && listener != null && listener.output_leave != null)
 			{
-				uint output                = args.get_object()!;
-				display::Proxy* output_obj = conn.find(output);
-				if (!proxy.zombie && listener != null && listener.output_leave != null)
-				{
-					listener.output_leave(
-						proxy.context,
-						(ExtWorkspaceGroupHandleV1*)proxy,
-						(wayland::WlOutput*)output_obj
-					);
-				}
-				return;
+				listener.output_leave(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, (wayland::WlOutput*)output_obj);
 			}
+			return;
+		}
 		case 3:
-
+		{
+			uint workspace = args.get_object()!;
+			display::Proxy* workspace_obj = conn.find(workspace);
+			if (!proxy.zombie && listener != null && listener.workspace_enter != null)
 			{
-				uint workspace                = args.get_object()!;
-				display::Proxy* workspace_obj = conn.find(workspace);
-				if (!proxy.zombie && listener != null && listener.workspace_enter != null)
-				{
-					listener.workspace_enter(
-						proxy.context,
-						(ExtWorkspaceGroupHandleV1*)proxy,
-						(ExtWorkspaceHandleV1*)workspace_obj
-					);
-				}
-				return;
+				listener.workspace_enter(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, (ExtWorkspaceHandleV1*)workspace_obj);
 			}
+			return;
+		}
 		case 4:
-
+		{
+			uint workspace = args.get_object()!;
+			display::Proxy* workspace_obj = conn.find(workspace);
+			if (!proxy.zombie && listener != null && listener.workspace_leave != null)
 			{
-				uint workspace                = args.get_object()!;
-				display::Proxy* workspace_obj = conn.find(workspace);
-				if (!proxy.zombie && listener != null && listener.workspace_leave != null)
-				{
-					listener.workspace_leave(
-						proxy.context,
-						(ExtWorkspaceGroupHandleV1*)proxy,
-						(ExtWorkspaceHandleV1*)workspace_obj
-					);
-				}
-				return;
+				listener.workspace_leave(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy, (ExtWorkspaceHandleV1*)workspace_obj);
 			}
+			return;
+		}
 		case 5:
-
+		{
+			if (!proxy.zombie && listener != null && listener.removed != null)
 			{
-				if (!proxy.zombie && listener != null && listener.removed != null)
-				{
-					listener.removed(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy);
-				}
-				return;
+				listener.removed(proxy.context, (ExtWorkspaceGroupHandleV1*)proxy);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_workspace_group_handle_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_workspace_group_handle_v1", opcode)~;
 	}
 }
 
@@ -476,11 +383,7 @@ fn void? ext_workspace_group_handle_v1_dispatch(
  be workspaces with the same name in different workspace groups, but these workspaces are
  still separate (e.g. one of them might be active while the other is not).
 *>
-const display::Interface EXT_WORKSPACE_HANDLE_V1 = {
-	.name = "ext_workspace_handle_v1",
-	.version = 1,
-	.dispatch = &ext_workspace_handle_v1_dispatch
-};
+const display::Interface EXT_WORKSPACE_HANDLE_V1 = { .name = "ext_workspace_handle_v1", .version = 1, .dispatch = &ext_workspace_handle_v1_dispatch };
 
 <*
  Typed view of a ext_workspace_handle_v1 object. The proxy is the first field, so a pointer
@@ -508,10 +411,10 @@ constset ExtWorkspaceHandleV1State : uint
 *>
 constset ExtWorkspaceHandleV1WorkspaceCapabilities : uint
 {
-	ACTIVATE   = 1,
+	ACTIVATE = 1,
 	DEACTIVATE = 2,
-	REMOVE     = 4,
-	ASSIGN     = 8,
+	REMOVE = 4,
+	ASSIGN = 8,
 }
 
 <*
@@ -558,11 +461,7 @@ alias ExtWorkspaceHandleV1CoordinatesFn = fn void(void* context, ExtWorkspaceHan
  of a compositor action or because of a request in this protocol. Missing states convey the
  opposite meaning, e.g. an unset active bit means the workspace is currently inactive.
 *>
-alias ExtWorkspaceHandleV1StateFn = fn void(
-	void* context,
-	ExtWorkspaceHandleV1* target,
-	ExtWorkspaceHandleV1State state
-);
+alias ExtWorkspaceHandleV1StateFn = fn void(void* context, ExtWorkspaceHandleV1* target, ExtWorkspaceHandleV1State state);
 
 <*
  Event ext_workspace_handle_v1.capabilities: This event advertises the capabilities supported
@@ -574,11 +473,7 @@ alias ExtWorkspaceHandleV1StateFn = fn void(
  Compositors must send this event once after creation of an ext_workspace_handle_v1 . When
  the capabilities change, compositors must send this event again.
 *>
-alias ExtWorkspaceHandleV1CapabilitiesFn = fn void(
-	void* context,
-	ExtWorkspaceHandleV1* target,
-	ExtWorkspaceHandleV1WorkspaceCapabilities capabilities
-);
+alias ExtWorkspaceHandleV1CapabilitiesFn = fn void(void* context, ExtWorkspaceHandleV1* target, ExtWorkspaceHandleV1WorkspaceCapabilities capabilities);
 
 <*
  Event ext_workspace_handle_v1.removed: This event is send when the workspace associated with
@@ -679,83 +574,65 @@ fn void? ExtWorkspaceHandleV1.remove(&self)
 	self.base.conn.send(&w)!;
 }
 
-fn void? ext_workspace_handle_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_workspace_handle_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtWorkspaceHandleV1Listener* listener = (ExtWorkspaceHandleV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			String id = args.get_string()!;
+			if (!proxy.zombie && listener != null && listener.id != null)
 			{
-				String id = args.get_string()!;
-				if (!proxy.zombie && listener != null && listener.id != null)
-				{
-					listener.id(proxy.context, (ExtWorkspaceHandleV1*)proxy, id);
-				}
-				return;
+				listener.id(proxy.context, (ExtWorkspaceHandleV1*)proxy, id);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			String name = args.get_string()!;
+			if (!proxy.zombie && listener != null && listener.name != null)
 			{
-				String name = args.get_string()!;
-				if (!proxy.zombie && listener != null && listener.name != null)
-				{
-					listener.name(proxy.context, (ExtWorkspaceHandleV1*)proxy, name);
-				}
-				return;
+				listener.name(proxy.context, (ExtWorkspaceHandleV1*)proxy, name);
 			}
+			return;
+		}
 		case 2:
-
+		{
+			char[] coordinates = args.get_array()!;
+			if (!proxy.zombie && listener != null && listener.coordinates != null)
 			{
-				char[] coordinates = args.get_array()!;
-				if (!proxy.zombie && listener != null && listener.coordinates != null)
-				{
-					listener.coordinates(proxy.context, (ExtWorkspaceHandleV1*)proxy, coordinates);
-				}
-				return;
+				listener.coordinates(proxy.context, (ExtWorkspaceHandleV1*)proxy, coordinates);
 			}
+			return;
+		}
 		case 3:
-
+		{
+			ExtWorkspaceHandleV1State state = (ExtWorkspaceHandleV1State)(args.get_uint()!);
+			if (!proxy.zombie && listener != null && listener.state != null)
 			{
-				ExtWorkspaceHandleV1State state = (ExtWorkspaceHandleV1State)(args.get_uint()!);
-				if (!proxy.zombie && listener != null && listener.state != null)
-				{
-					listener.state(proxy.context, (ExtWorkspaceHandleV1*)proxy, state);
-				}
-				return;
+				listener.state(proxy.context, (ExtWorkspaceHandleV1*)proxy, state);
 			}
+			return;
+		}
 		case 4:
-
+		{
+			ExtWorkspaceHandleV1WorkspaceCapabilities capabilities = (ExtWorkspaceHandleV1WorkspaceCapabilities)(args.get_uint()!);
+			if (!proxy.zombie && listener != null && listener.capabilities != null)
 			{
-				ExtWorkspaceHandleV1WorkspaceCapabilities capabilities = (ExtWorkspaceHandleV1WorkspaceCapabilities)(args
-					.get_uint()!);
-				if (!proxy.zombie && listener != null && listener.capabilities != null)
-				{
-					listener.capabilities(proxy.context, (ExtWorkspaceHandleV1*)proxy, capabilities);
-				}
-				return;
+				listener.capabilities(proxy.context, (ExtWorkspaceHandleV1*)proxy, capabilities);
 			}
+			return;
+		}
 		case 5:
-
+		{
+			if (!proxy.zombie && listener != null && listener.removed != null)
 			{
-				if (!proxy.zombie && listener != null && listener.removed != null)
-				{
-					listener.removed(proxy.context, (ExtWorkspaceHandleV1*)proxy);
-				}
-				return;
+				listener.removed(proxy.context, (ExtWorkspaceHandleV1*)proxy);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_workspace_handle_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_workspace_handle_v1", opcode)~;
 	}
 }

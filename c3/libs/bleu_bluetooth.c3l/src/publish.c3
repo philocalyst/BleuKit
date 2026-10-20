@@ -44,7 +44,10 @@ fn void emit_differences(BluetoothHub* hub, State* before, State* after)
 	}
 	foreach (&adapter : before.adapters)
 	{
-		if (find_adapter(after.adapters, adapter.address) < 0) emit(hub, EventKind.ADAPTER_REMOVED, adapter.address, "");
+		if (find_adapter(
+			after.adapters,
+			adapter.address
+		) < 0) emit(hub, EventKind.ADAPTER_REMOVED, adapter.address, "");
 	}
 	foreach (&device : after.devices)
 	{
@@ -86,8 +89,12 @@ fn sz find_device(Device[] devices, String address)
 fn void emit(BluetoothHub* hub, EventKind kind, String address, String text)
 {
 	Snapshot{Event}* packet = hub.emit_begin();
-	Allocator arena = packet.allocator();
-	packet.value = { .kind = kind, .address = bluetooth::copy_text(address, arena), .text = bluetooth::copy_text(text, arena) };
+	Allocator arena         = packet.allocator();
+	packet.value = {
+		.kind = kind,
+		.address = bluetooth::copy_text(address, arena),
+		.text = bluetooth::copy_text(text, arena)
+	};
 	hub.emit(packet);
 }
 
@@ -106,7 +113,7 @@ fn void sort_adapters(Adapter[] adapters)
 	for (sz i = 1; i < adapters.len; i++)
 	{
 		Adapter key = adapters[i];
-		sz j = i - 1;
+		sz j        = i - 1;
 		while (j >= 0 && adapters[j].address.compare_to(key.address) > 0)
 		{
 			adapters[j + 1] = adapters[j];
@@ -122,7 +129,7 @@ fn void sort_devices(Device[] devices)
 	for (sz i = 1; i < devices.len; i++)
 	{
 		Device key = devices[i];
-		sz j = i - 1;
+		sz j       = i - 1;
 		while (j >= 0 && devices[j].address.compare_to(key.address) > 0)
 		{
 			devices[j + 1] = devices[j];

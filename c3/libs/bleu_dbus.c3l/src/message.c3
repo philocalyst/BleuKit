@@ -198,8 +198,12 @@ fn Message*? reply_to(Allocator parent, String destination, uint reply_serial)
 
  @return? error::INVALID_ARGUMENT : "The error name is not valid"
 *>
-fn Message*? error_reply(Allocator parent, Message* call, String error_name, String text)
-	=> error_reply_to(parent, call.sender, call.serial, error_name, text);
+fn Message*? error_reply(
+	Allocator parent,
+	Message* call,
+	String error_name,
+	String text
+) => error_reply_to(parent, call.sender, call.serial, error_name, text);
 
 <*
  An ERROR to `destination`, answering the call whose serial is `reply_serial`.

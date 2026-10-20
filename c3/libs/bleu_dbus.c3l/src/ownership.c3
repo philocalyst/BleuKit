@@ -83,11 +83,23 @@ fn OwnedName*? Connection.own_name(
 		case EXISTS:
 			o.unsubscribe_signals();
 			free_owned(o);
-			return error::raise(error::BUSY, error::Domain.DBUS, 0, "the name %s is owned and the request does not queue", name)~;
+			return error::raise(
+				error::BUSY,
+				error::Domain.DBUS,
+				0,
+				"the name %s is owned and the request does not queue",
+				name
+			)~;
 		case UNKNOWN_REPLY:
 			o.unsubscribe_signals();
 			free_owned(o);
-			return error::raise(error::BACKEND_FAILURE, error::Domain.DBUS, 0, "the bus gave no answer to RequestName for %s", name)~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.DBUS,
+				0,
+				"the bus gave no answer to RequestName for %s",
+				name
+			)~;
 	}
 	return o;
 }
@@ -119,8 +131,12 @@ fn void? OwnedName.subscribe_signals(&self)
 fn void OwnedName.unsubscribe_signals(&self)
 {
 	Connection* c = self.connection;
-	if (catch c.unsubscribe(self.acquired)) {}
-	if (catch c.unsubscribe(self.lost)) {}
+	if (catch c.unsubscribe(self.acquired))
+	{
+	}
+	if (catch c.unsubscribe(self.lost))
+	{
+	}
 }
 
 // A match rule for one of the bus's signals about `name`: sent by the bus, with the name as its first argument.

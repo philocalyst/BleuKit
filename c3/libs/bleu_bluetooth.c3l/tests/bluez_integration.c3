@@ -10,13 +10,13 @@ alias Task = bluetooth::Task;
 alias Bluetooth = bluetooth::Bluetooth;
 alias Event = bluetooth::Event;
 
-const String HEADSET = "AA:BB:CC:DD:EE:01";
-const String MOUSE = "AA:BB:CC:DD:EE:02";
-const String KEYBOARD = "AA:BB:CC:DD:EE:03";
-const String PHONE = "AA:BB:CC:DD:EE:04";
-const ulong WAIT_MS = 200;
-const int WAIT_ROUNDS = 50;
-const ulong TASK_MS = 10000;
+const String HEADSET   = "AA:BB:CC:DD:EE:01";
+const String MOUSE     = "AA:BB:CC:DD:EE:02";
+const String KEYBOARD  = "AA:BB:CC:DD:EE:03";
+const String PHONE     = "AA:BB:CC:DD:EE:04";
+const ulong WAIT_MS    = 200;
+const int WAIT_ROUNDS  = 50;
+const ulong TASK_MS    = 10000;
 const int EVENT_ROUNDS = 2000;
 
 alias Check = fn bool(State* state);
@@ -115,8 +115,11 @@ fn int main(String[] args)
 		return 2;
 	}
 	String address = args[1];
-	String root = args[2];
-	Bluetooth* bt = bluetooth::open(mem, { .backend = bluetooth::Backend.BLUEZ, .bus_address = address, .root = root }) ?? null;
+	String root    = args[2];
+	Bluetooth* bt  = bluetooth::open(
+		mem,
+		{ .backend = bluetooth::Backend.BLUEZ, .bus_address = address, .root = root }
+	) ?? null;
 	if (!bt)
 	{
 		io::printfn("FAIL open: %s", error::last().message());
@@ -126,7 +129,10 @@ fn int main(String[] args)
 	expect(bt.backend_name() == "bluez", "backend is bluez");
 	expect(!bt.capability(bluetooth::Cap.PAIRING_PROMPTS).ok(), "pairing prompts are reported unavailable");
 	stream::Reader{Event}* events = bt.subscribe() ?? null;
-	defer { if (events != null) events.release(); }
+	defer
+	{
+		if (events != null) events.release();
+	}
 
 	// Initial state: one controller, off, and the remembered headset with its battery and identity.
 	Snapshot{State}* first = bt.wait_after(0, time::ms(5000)) ?? null;
@@ -141,7 +147,10 @@ fn int main(String[] args)
 		expect(h != null, "remembered headset is known");
 		if (h)
 		{
-			expect(h.display_name == "Bleu Headset" && h.icon == bluetooth::Icon.HEADPHONES, "headset name and icon from class");
+			expect(
+				h.display_name == "Bleu Headset" && h.icon == bluetooth::Icon.HEADPHONES,
+				"headset name and icon from class"
+			);
 			expect(h.battery.has_value && (float)h.battery.value == 0.75f, "headset battery 75 percent");
 			expect(h.pnp.has_value && h.pnp.value.vendor == 0x1D6B, "headset vendor from modalias");
 			expect(h.profiles.len == 2, "headset has two known profiles");
@@ -171,12 +180,15 @@ fn int main(String[] args)
 	Task* pair_refused = bt.pair(MOUSE) ?? null;
 	if (pair_refused)
 	{
-		expect(!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE, "refused pairing fails as BACKEND_FAILURE");
+		expect(
+			!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE,
+			"refused pairing fails as BACKEND_FAILURE"
+		);
 		pair_refused.release();
 	}
 
 	Task* pair_cancel = bt.pair(KEYBOARD) ?? null;
-	Task* cancel = bt.cancel_pairing(KEYBOARD) ?? null;
+	Task* cancel      = bt.cancel_pairing(KEYBOARD) ?? null;
 	if (cancel)
 	{
 		expect(succeeded(cancel), "cancel_pairing completes");
@@ -217,7 +229,8 @@ fn int main(String[] args)
 			if (try packet = events.next(time::ms(WAIT_MS)))
 			{
 				defer packet.release();
-				if (packet.value.kind == bluetooth::EventKind.DEVICE_DISCONNECTED && packet.value.address == HEADSET && packet.value.text == "org.bluez.Reason.Local")
+				if (packet.value.kind == bluetooth::EventKind.DEVICE_DISCONNECTED && packet.value.address == HEADSET
+					&& packet.value.text == "org.bluez.Reason.Local")
 				{
 					reason_seen = true;
 				}
@@ -228,26 +241,50 @@ fn int main(String[] args)
 
 	// Trust, block, rename.
 	Task* trust = bt.set_trusted(HEADSET, true) ?? null;
-	if (trust) { expect(succeeded(trust), "set_trusted completes"); trust.release(); }
+	if (trust)
+	{
+		expect(succeeded(trust), "set_trusted completes");
+		trust.release();
+	}
 	Task* block = bt.set_blocked(HEADSET, true) ?? null;
-	if (block) { expect(succeeded(block), "set_blocked completes"); block.release(); }
+	if (block)
+	{
+		expect(succeeded(block), "set_blocked completes");
+		block.release();
+	}
 	Task* rename = bt.rename(HEADSET, "Renamed Headset") ?? null;
-	if (rename) { expect(succeeded(rename), "rename completes"); rename.release(); }
+	if (rename)
+	{
+		expect(succeeded(rename), "rename completes");
+		rename.release();
+	}
 	expect(settle(bt, &headset_managed), "trust, block and alias are in the state");
 
 	// Remove: the mouse was scanned, and is forgotten.
 	Task* remove = bt.remove(MOUSE) ?? null;
-	if (remove) { expect(succeeded(remove), "remove completes"); remove.release(); }
+	if (remove)
+	{
+		expect(succeeded(remove), "remove completes");
+		remove.release();
+	}
 	expect(settle(bt, &mouse_gone), "removed device leaves the state");
 
 	// Kill switch: sysfs says blocked; the library reports it and does not clear it.
 	write_file(string::tformat("%s/sys/class/rfkill/rfkill0/soft", root), "1");
 	Task* refresh = bt.refresh() ?? null;
-	if (refresh) { succeeded(refresh); refresh.release(); }
+	if (refresh)
+	{
+		succeeded(refresh);
+		refresh.release();
+	}
 	expect(settle(bt, &dev_blocked), "rfkill soft block is reported as blocked");
 	write_file(string::tformat("%s/sys/class/rfkill/rfkill0/soft", root), "0");
 	refresh = bt.refresh() ?? null;
-	if (refresh) { succeeded(refresh); refresh.release(); }
+	if (refresh)
+	{
+		succeeded(refresh);
+		refresh.release();
+	}
 	expect(settle(bt, &dev_unblocked), "clearing the switch in sysfs is seen");
 
 	// Pairing prompts are not offered on this backend: the request is refused at once.

@@ -7,9 +7,9 @@
 module bleu::bluetooth::bluez @feat(LINUX);
 import std::io::path, bleu::rt::fs;
 
-const String RFKILL_DIR = "/sys/class/rfkill";
+const String RFKILL_DIR            = "/sys/class/rfkill";
 const String RFKILL_BLUETOOTH_TYPE = "bluetooth";
-const sz RFKILL_TEXT_CAPACITY = 32;
+const sz RFKILL_TEXT_CAPACITY      = 32;
 
 <*
  True when a Bluetooth rfkill switch is set, soft or hard. Missing sysfs

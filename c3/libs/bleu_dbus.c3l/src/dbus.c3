@@ -26,7 +26,8 @@
  "/org/freedesktop/login1", "org.freedesktop.login1.Manager")!;
  Value sessions = login.get_property("NAutoVTs", alloc)!;
 
- Server-side object export is not implemented yet.
+ Server-side object export is in `bleu::dbus::server` (objects, standard
+ interfaces, signals, deferred replies) and name ownership in `bleu::dbus::ownership`.
 
  Sources for the whole library are listed in `docs/research/bleu_dbus.md`.
 *>

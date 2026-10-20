@@ -8,55 +8,55 @@ module bleu::bluetooth;
 import std::collections::maybe, bleu::unit;
 
 // Major device class (bits 8-12 of the class of device): Bluetooth Assigned Numbers, Baseband, Class of Device.
-const uint MAJOR_COMPUTER = 0x01;
-const uint MAJOR_PHONE = 0x02;
+const uint MAJOR_COMPUTER    = 0x01;
+const uint MAJOR_PHONE       = 0x02;
 const uint MAJOR_AUDIO_VIDEO = 0x04;
-const uint MAJOR_PERIPHERAL = 0x05;
-const uint MAJOR_IMAGING = 0x06;
-const uint MAJOR_WEARABLE = 0x07;
+const uint MAJOR_PERIPHERAL  = 0x05;
+const uint MAJOR_IMAGING     = 0x06;
+const uint MAJOR_WEARABLE    = 0x07;
 
 // Minor device class (bits 2-7), as the value of (class >> 2) & 0x3f.
-const uint MINOR_AV_WEARABLE_HEADSET = 0x01;
-const uint MINOR_AV_HANDSFREE = 0x02;
-const uint MINOR_AV_MICROPHONE = 0x04;
-const uint MINOR_AV_LOUDSPEAKER = 0x05;
-const uint MINOR_AV_HEADPHONES = 0x06;
-const uint MINOR_AV_PORTABLE_AUDIO = 0x07;
-const uint MINOR_AV_VIDEO_CAMERA = 0x0C;
-const uint MINOR_AV_CAMCORDER = 0x0D;
-const uint MINOR_PERIPHERAL_JOYSTICK = 0x01;
-const uint MINOR_PERIPHERAL_GAMEPAD = 0x02;
+const uint MINOR_AV_WEARABLE_HEADSET     = 0x01;
+const uint MINOR_AV_HANDSFREE            = 0x02;
+const uint MINOR_AV_MICROPHONE           = 0x04;
+const uint MINOR_AV_LOUDSPEAKER          = 0x05;
+const uint MINOR_AV_HEADPHONES           = 0x06;
+const uint MINOR_AV_PORTABLE_AUDIO       = 0x07;
+const uint MINOR_AV_VIDEO_CAMERA         = 0x0C;
+const uint MINOR_AV_CAMCORDER            = 0x0D;
+const uint MINOR_PERIPHERAL_JOYSTICK     = 0x01;
+const uint MINOR_PERIPHERAL_GAMEPAD      = 0x02;
 const uint MINOR_PERIPHERAL_KEYBOARD_BIT = 0x10;
 const uint MINOR_PERIPHERAL_POINTING_BIT = 0x20;
-const uint MINOR_IMAGING_DISPLAY_BIT = 0x04;
-const uint MINOR_IMAGING_CAMERA_BIT = 0x08;
-const uint MINOR_IMAGING_PRINTER_BIT = 0x20;
-const uint MINOR_WEARABLE_WRISTWATCH = 0x01;
+const uint MINOR_IMAGING_DISPLAY_BIT     = 0x04;
+const uint MINOR_IMAGING_CAMERA_BIT      = 0x08;
+const uint MINOR_IMAGING_PRINTER_BIT     = 0x20;
+const uint MINOR_WEARABLE_WRISTWATCH     = 0x01;
 
 // Bits of the class of device (24 bits in all).
-const uint CLASS_MAJOR_MASK = 0x1F00;
+const uint CLASS_MAJOR_MASK  = 0x1F00;
 const uint CLASS_MAJOR_SHIFT = 8;
-const uint CLASS_MINOR_MASK = 0xFC;
+const uint CLASS_MINOR_MASK  = 0xFC;
 const uint CLASS_MINOR_SHIFT = 2;
 
 // BLE appearance: the category is the high ten bits, the subtype the low six.
-const ushort APPEARANCE_CATEGORY_SHIFT = 6;
-const ushort APPEARANCE_SUBTYPE_MASK = 0x3F;
-const ushort APPEARANCE_CATEGORY_PHONE = 1;
+const ushort APPEARANCE_CATEGORY_SHIFT    = 6;
+const ushort APPEARANCE_SUBTYPE_MASK      = 0x3F;
+const ushort APPEARANCE_CATEGORY_PHONE    = 1;
 const ushort APPEARANCE_CATEGORY_COMPUTER = 2;
-const ushort APPEARANCE_CATEGORY_WATCH = 3;
-const ushort APPEARANCE_CATEGORY_DISPLAY = 5;
-const ushort APPEARANCE_CATEGORY_HID = 15;
-const ushort APPEARANCE_HID_KEYBOARD = 1;
-const ushort APPEARANCE_HID_MOUSE = 2;
-const ushort APPEARANCE_HID_JOYSTICK = 3;
-const ushort APPEARANCE_HID_GAMEPAD = 4;
+const ushort APPEARANCE_CATEGORY_WATCH    = 3;
+const ushort APPEARANCE_CATEGORY_DISPLAY  = 5;
+const ushort APPEARANCE_CATEGORY_HID      = 15;
+const ushort APPEARANCE_HID_KEYBOARD      = 1;
+const ushort APPEARANCE_HID_MOUSE         = 2;
+const ushort APPEARANCE_HID_JOYSTICK      = 3;
+const ushort APPEARANCE_HID_GAMEPAD       = 4;
 
 // Battery percentages are 0 to 100; BlueZ sends 255 (UINT8_MAX) when the level is unknown.
 const uint BATTERY_PERCENT_MAX = 100;
 
 // Modalias text: "<source>:v<vendor>p<product>d<version>", each number four hex digits.
-const sz MODALIAS_HEX_DIGITS = 4;
+const sz MODALIAS_HEX_DIGITS          = 4;
 // Characters from the ":" of a modalias to the end of its last number: ":v" + three numbers + two letters.
 const sz MODALIAS_LENGTH_AFTER_SOURCE = 16;
 
@@ -185,14 +185,19 @@ fn Maybe{PnpId} parse_modalias(String modalias)
 	sz colon = modalias.index_of_char(':') ?? 0;
 	if (colon == 0 || modalias.len < colon + MODALIAS_LENGTH_AFTER_SOURCE) return { };
 	if (modalias[colon + 1] != 'v' || modalias[colon + 6] != 'p' || modalias[colon + 11] != 'd') return { };
-	if (try vendor = hex_number(modalias[colon + 2 : MODALIAS_HEX_DIGITS]))
+	if (try vendor = hex_number(modalias[colon + 2:MODALIAS_HEX_DIGITS]))
 	{
-		if (try product = hex_number(modalias[colon + 7 : MODALIAS_HEX_DIGITS]))
+		if (try product = hex_number(modalias[colon + 7:MODALIAS_HEX_DIGITS]))
 		{
-			if (try version = hex_number(modalias[colon + 12 : MODALIAS_HEX_DIGITS]))
+			if (try version = hex_number(modalias[colon + 12:MODALIAS_HEX_DIGITS]))
 			{
 				return maybe::value(
-					(PnpId) { .source = pnp_source(modalias[0 : colon]), .vendor = vendor, .product = product, .version = version }
+					(PnpId) {
+						.source = pnp_source(modalias[0:colon]),
+						.vendor = vendor,
+						.product = product,
+						.version = version
+					}
 				);
 			}
 		}
@@ -255,7 +260,7 @@ fn Profile? profile_from_uuid(String uuid)
 }
 
 // "dev_" before the address, and the address in its 17 characters.
-const sz DEVICE_PATH_PREFIX = 4;
+const sz DEVICE_PATH_PREFIX  = 4;
 const sz ADDRESS_TEXT_LENGTH = 17;
 
 <*
@@ -269,7 +274,7 @@ fn String? address_of_device_path(String path, Allocator allocator)
 {
 	sz tail_len = DEVICE_PATH_PREFIX + ADDRESS_TEXT_LENGTH;
 	if (path.len < tail_len) return NOT_FOUND~;
-	String tail = path[path.len - tail_len : tail_len];
+	String tail = path[path.len - tail_len:tail_len];
 	if (!tail.starts_with("dev_")) return NOT_FOUND~;
 	char[ADDRESS_TEXT_LENGTH] text;
 	for (sz i = 0; i < ADDRESS_TEXT_LENGTH; i++)
@@ -319,6 +324,48 @@ fn String dashes_from_address(String address, Allocator allocator)
 	for (sz i = 0; i < ADDRESS_TEXT_LENGTH && i < address.len; i++)
 	{
 		out[i] = address[i] == ':' ? '-' : address[i];
+	}
+	return ((String)out[..]).copy(allocator);
+}
+
+<*
+ The 48-bit value of an address as Windows' BLUETOOTH_ADDRESS holds it (the
+ first pair is the most significant byte), for "AA:BB:CC:DD:EE:FF".
+
+ @return? NOT_FOUND : "The text is not six hex pairs separated by colons"
+*>
+fn ulong? address_value(String address)
+{
+	if (address.len != ADDRESS_TEXT_LENGTH) return NOT_FOUND~;
+	ulong value = 0;
+	for (sz i = 0; i < 6; i++)
+	{
+		sz at = i * 3;
+		if (i > 0 && address[at - 1] != ':') return NOT_FOUND~;
+		int high = hex_digit(address[at]);
+		int low  = hex_digit(address[at + 1]);
+		if (high < 0 || low < 0) return NOT_FOUND~;
+		value = (value << 8) | (ulong)(high * 16 + low);
+	}
+	return value;
+}
+
+<*
+ The address text of a 48-bit BLUETOOTH_ADDRESS value, "AA:BB:CC:DD:EE:FF", in upper case.
+
+ @param allocator : "Allocator for the returned text"
+*>
+fn String address_text(ulong value, Allocator allocator)
+{
+	const String DIGITS = "0123456789ABCDEF";
+	char[ADDRESS_TEXT_LENGTH] out;
+	for (sz i = 0; i < 6; i++)
+	{
+		ulong byte_value = (value >> (ulong)(8 * (5 - i))) & 0xFF;
+		sz at            = i * 3;
+		out[at] = DIGITS[(sz)(byte_value >> 4)];
+		out[at + 1] = DIGITS[(sz)(byte_value & 0xF)];
+		if (i < 5) out[at + 2] = ':';
 	}
 	return ((String)out[..]).copy(allocator);
 }

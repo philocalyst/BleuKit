@@ -18,7 +18,7 @@ const long CL_AUTHORIZATION_WHEN_IN_USE = 4;
 <* This process's Location Services authorization for Wi-Fi names. *>
 fn LocationAccess authorization()
 {
-	ObjClass manager = objc::class_named("CLLocationManager");
+	objc::ObjClass manager = objc::class_named("CLLocationManager");
 	if (manager == null) return UNKNOWN;
 	switch (manager.send(long, "authorizationStatus"))
 	{

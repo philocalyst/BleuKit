@@ -3,8 +3,7 @@
  two states. Everything here runs on the worker thread.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::collections::list, std::collections::maybe, bleu::bluetooth, bleu::dbus::connection,
-	bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
+import std::collections::list, std::collections::maybe, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
 
 // Which adapter object path belongs to which adapter address, for resolving a device's adapter.
 struct AdapterLink
@@ -32,8 +31,8 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 {
 	@pool()
 	{
-		Proxy root = proxy::for_object(&self.bus, BLUEZ_NAME, BLUEZ_ROOT, proxy::OBJECT_MANAGER_INTERFACE)!;
-		Value tree = root.get_managed_objects(tmem)!;
+		Proxy root       = proxy::for_object(&self.bus, BLUEZ_NAME, BLUEZ_ROOT, proxy::OBJECT_MANAGER_INTERFACE)!;
+		Value tree       = root.get_managed_objects(tmem)!;
 		bool kill_switch = rfkill_blocked(self.root);
 		List{AdapterLink} links;
 		links.init(tmem);
@@ -69,15 +68,17 @@ fn Value? interface_props(Value object, String interface_name) @inline => object
 
 fn Adapter read_adapter(Value props, bool kill_switch, Allocator allocator) @private
 {
-	String address = text_prop(props, "Address", allocator);
-	String name = text_prop(props, "Name", allocator);
+	String address  = text_prop(props, "Address", allocator);
+	String name     = text_prop(props, "Name", allocator);
 	String nickname = text_prop(props, "Alias", allocator);
 	return {
 		.address = address,
 		.name = name,
 		.display_name = nickname.len > 0 ? nickname : name,
-		.powered = bool_prop(props, "Powered"),
-		// BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
+		.powered = bool_prop(
+			props,
+			"Powered"
+		), // BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
 		.blocked = kill_switch || text_prop(props, "PowerState", allocator) == "off-blocked",
 		.discoverable = bool_prop(props, "Discoverable"),
 		.discoverable_timeout_s = u32_prop(props, "DiscoverableTimeout"),
@@ -88,20 +89,20 @@ fn Adapter read_adapter(Value props, bool kill_switch, Allocator allocator) @pri
 
 fn Device read_device(Value object, Value props, AdapterLink[] links, Allocator allocator) @private
 {
-	String address = text_prop(props, "Address", allocator);
-	String name = text_prop(props, "Name", allocator);
-	String nickname = text_prop(props, "Alias", allocator);
+	String address      = text_prop(props, "Address", allocator);
+	String name         = text_prop(props, "Name", allocator);
+	String nickname     = text_prop(props, "Alias", allocator);
 	String adapter_path = path_prop(props, "Adapter", tmem);
-	String adapter = "";
+	String adapter      = "";
 	foreach (link : links)
 	{
 		if (link.path == adapter_path) adapter = link.address;
 	}
 	uint class_of_device = u32_prop(props, "Class");
-	ushort appearance = u16_prop(props, "Appearance");
-	String modalias = text_prop(props, "Modalias", allocator);
-	String[] uuids = string_list(props, "UUIDs", allocator);
-	Profile[] profiles = profiles_of(uuids, allocator);
+	ushort appearance    = u16_prop(props, "Appearance");
+	String modalias      = text_prop(props, "Modalias", allocator);
+	String[] uuids       = string_list(props, "UUIDs", allocator);
+	Profile[] profiles   = profiles_of(uuids, allocator);
 	Maybe{Level} battery = { };
 	if (try battery_props = interface_props(object, BATTERY_IFACE))
 	{
@@ -177,7 +178,7 @@ fn String[] string_list(Value props, String name, Allocator allocator) @private
 {
 	if (try v = props.dict_get(name))
 	{
-		Value array = v.unwrap();
+		Value array  = v.unwrap();
 		String[] out = alloc::new_array(allocator, String, (sz)array.count());
 		for (usz i = 0; i < out.len; i++)
 		{

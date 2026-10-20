@@ -5,10 +5,10 @@
 module bleu::dbus::server_test;
 import bleu::error, bleu::dbus::server, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::value, bleu::dbus::errors, bleu::dbus::testing;
 
-const TEST_PATH = "/org/bleu/test";
-const TEST_INTERFACE = "org.bleu.Test";
+const TEST_PATH           = "/org/bleu/test";
+const TEST_INTERFACE      = "org.bleu.Test";
 const ERROR_ACCESS_DENIED = "org.freedesktop.DBus.Error.AccessDenied";
-const ERROR_CUSTOM = "org.bleu.Test.Error.Custom";
+const ERROR_CUSTOM        = "org.bleu.Test.Error.Custom";
 
 // What the sink saw: how many messages, and the last one's type, error name, body and signature.
 struct Capture
@@ -57,7 +57,7 @@ struct TestState
 
 fn void? echo(void* context, Call* call)
 {
-	Reader r = call.reader()!;
+	Reader r    = call.reader()!;
 	String text = r.read_string()!;
 	Value[] out = { value::str(tmem, text)! };
 	return call.reply(out);
@@ -65,9 +65,9 @@ fn void? echo(void* context, Call* call)
 
 fn void? add(void* context, Call* call)
 {
-	Reader r = call.reader()!;
-	uint a = r.read_u32()!;
-	uint b = r.read_u32()!;
+	Reader r    = call.reader()!;
+	uint a      = r.read_u32()!;
+	uint b      = r.read_u32()!;
 	Value[] out = { value::u32(a + b) };
 	return call.reply(out);
 }
@@ -146,14 +146,28 @@ fn void Rig.start(&self)
 	self.server.init(mem);
 	self.cap.start();
 	self.server.use_sink(&record, &self.cap);
-	self.echo_in  = { "text" };
+	self.echo_in = { "text" };
 	self.echo_out = { "text" };
-	self.add_in   = { "a", "b" };
-	self.add_out  = { "sum" };
+	self.add_in = { "a", "b" };
+	self.add_out = { "sum" };
 	self.notice_args = { "text" };
 	self.methods = {
-		{ .name = "Echo", .in_signature = "s", .out_signature = "s", .in_names = self.echo_in[..], .out_names = self.echo_out[..], .handler = &echo },
-		{ .name = "Add", .in_signature = "uu", .out_signature = "u", .in_names = self.add_in[..], .out_names = self.add_out[..], .handler = &add },
+		{
+			.name = "Echo",
+			.in_signature = "s",
+			.out_signature = "s",
+			.in_names = self.echo_in[..],
+			.out_names = self.echo_out[..],
+			.handler = &echo
+		},
+		{
+			.name = "Add",
+			.in_signature = "uu",
+			.out_signature = "u",
+			.in_names = self.add_in[..],
+			.out_names = self.add_out[..],
+			.handler = &add
+		},
 		{ .name = "Fail", .handler = &fail },
 		{ .name = "Named", .handler = &named },
 		{ .name = "Broken", .out_signature = "u", .handler = &broken },
@@ -161,12 +175,32 @@ fn void Rig.start(&self)
 		{ .name = "Defer", .in_signature = "s", .out_signature = "s", .handler = &defer_it, .context = &self.state },
 	};
 	self.properties = {
-		{ .name = "Count", .signature = "u", .access = READ_WRITE, .changes = EMITS_CHANGED, .get = &get_count, .set = &set_count, .context = &self.state },
+		{
+			.name = "Count",
+			.signature = "u",
+			.access = READ_WRITE,
+			.changes = EMITS_CHANGED,
+			.get = &get_count,
+			.set = &set_count,
+			.context = &self.state
+		},
 		{ .name = "Label", .signature = "s", .access = READ, .changes = CONST, .get = &get_label },
-		{ .name = "Secret", .signature = "s", .access = WRITE, .changes = NEVER, .set = &set_secret, .context = &self.state },
+		{
+			.name = "Secret",
+			.signature = "s",
+			.access = WRITE,
+			.changes = NEVER,
+			.set = &set_secret,
+			.context = &self.state
+		},
 	};
 	self.signals = { { .name = "Notice", .signature = "s", .arg_names = self.notice_args[..] } };
-	self.interfaces[0] = { .name = TEST_INTERFACE, .methods = self.methods[..], .properties = self.properties[..], .signals = self.signals[..] };
+	self.interfaces[0] = {
+		.name = TEST_INTERFACE,
+		.methods = self.methods[..],
+		.properties = self.properties[..],
+		.signals = self.signals[..]
+	};
 }
 
 fn void Rig.stop(&self)
@@ -182,12 +216,20 @@ fn void Rig.export_test(&self)
 }
 
 // Hands one METHOD_CALL to the server. `args` is the body, written for `sig`.
-fn void deliver(ObjectServer* server, String path, String iface, String member, String sig, Value[] args, char flags = 0)
+fn void deliver(
+	ObjectServer* server,
+	String path,
+	String iface,
+	String member,
+	String sig,
+	Value[] args,
+	char flags = 0
+)
 {
 	Message* call = message::method_call(mem, "org.bleu.Test", path, iface, member)!!;
 	defer call.release();
 	call.serial = 7;
-	call.flags  = flags;
+	call.flags = flags;
 	Writer* w = call.body_writer(sig)!!;
 	foreach (v : args) w.append_value(v)!!;
 	w.finish()!!;
@@ -237,11 +279,11 @@ fn void unknown_targets_are_named_and_mismatched_arguments_refused() @test
 	{
 		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Echo", "u", { value::u32(1) });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.InvalidArgs");
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Nope", "", {});
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Nope", "", { });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.UnknownMethod");
-		deliver(&rig.server, TEST_PATH, "org.bleu.Missing", "Echo", "", {});
+		deliver(&rig.server, TEST_PATH, "org.bleu.Missing", "Echo", "", { });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.UnknownInterface");
-		deliver(&rig.server, "/org/bleu/none", TEST_INTERFACE, "Echo", "", {});
+		deliver(&rig.server, "/org/bleu/none", TEST_INTERFACE, "Echo", "", { });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.UnknownObject");
 	};
 }
@@ -259,9 +301,9 @@ fn void methods_answer_and_handler_faults_become_names() @test
 		Reader r;
 		r.init(rig.cap.body.str_view(), "u")!!;
 		assert(r.read_u32()!! == 3);
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Fail", "", {});
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Fail", "", { });
 		expect_error(&rig.cap, ERROR_ACCESS_DENIED);
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Named", "", {});
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Named", "", { });
 		expect_error(&rig.cap, ERROR_CUSTOM);
 	};
 }
@@ -274,9 +316,9 @@ fn void a_reply_that_breaks_its_signature_is_failed() @test
 	rig.export_test();
 	@pool()
 	{
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Broken", "", {});
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Broken", "", { });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.Failed");
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Silent", "", {});
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Silent", "", { });
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.Failed");
 	};
 }
@@ -290,39 +332,89 @@ fn void properties_read_write_and_refuse_by_access_and_type() @test
 	rig.state.count = 5;
 	@pool()
 	{
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "Get", "ss", {
-			value::str(tmem, TEST_INTERFACE)!!, value::str(tmem, "Count")!!,
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"Get",
+			"ss",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+				value::str(tmem, "Count")!!,
+			}
+		);
 		assert(rig.cap.type == METHOD_RETURN && rig.cap.signature.str_view() == "v");
 		Reader r;
 		r.init(rig.cap.body.str_view(), "v")!!;
 		assert(r.read_value(tmem)!!.as_u32()!! == 5);
 
 		rig.cap.messages = 0;
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "Set", "ssv", {
-			value::str(tmem, TEST_INTERFACE)!!, value::str(tmem, "Count")!!, value::variant(tmem, value::u32(9)),
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"Set",
+			"ssv",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+				value::str(tmem, "Count")!!,
+				value::variant(tmem, value::u32(9)),
+			}
+		);
 		assert(rig.cap.messages == 2, "a set of an EMITS_CHANGED property announces it, then answers");
 		assert(rig.cap.type == METHOD_RETURN && rig.state.count == 9);
 
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "Set", "ssv", {
-			value::str(tmem, TEST_INTERFACE)!!, value::str(tmem, "Label")!!, value::variant(tmem, value::str(tmem, "x")!!),
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"Set",
+			"ssv",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+				value::str(tmem, "Label")!!,
+				value::variant(tmem, value::str(tmem, "x")!!),
+			}
+		);
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.PropertyReadOnly");
 
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "Set", "ssv", {
-			value::str(tmem, TEST_INTERFACE)!!, value::str(tmem, "Count")!!, value::variant(tmem, value::str(tmem, "x")!!),
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"Set",
+			"ssv",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+				value::str(tmem, "Count")!!,
+				value::variant(tmem, value::str(tmem, "x")!!),
+			}
+		);
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.InvalidArgs");
 
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "Get", "ss", {
-			value::str(tmem, TEST_INTERFACE)!!, value::str(tmem, "Secret")!!,
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"Get",
+			"ss",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+				value::str(tmem, "Secret")!!,
+			}
+		);
 		expect_error(&rig.cap, "org.freedesktop.DBus.Error.UnknownProperty");
 
-		deliver(&rig.server, TEST_PATH, "org.freedesktop.DBus.Properties", "GetAll", "s", {
-			value::str(tmem, TEST_INTERFACE)!!,
-		});
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			"org.freedesktop.DBus.Properties",
+			"GetAll",
+			"s",
+			{
+				value::str(tmem, TEST_INTERFACE)!!,
+			}
+		);
 		assert(rig.cap.type == METHOD_RETURN && rig.cap.signature.str_view() == "a{sv}");
 		Reader all;
 		all.init(rig.cap.body.str_view(), "a{sv}")!!;
@@ -341,8 +433,16 @@ fn void no_reply_expected_sends_nothing() @test
 	rig.export_test();
 	@pool()
 	{
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Echo", "s", { value::str(tmem, "x")!! }, message::FLAG_NO_REPLY_EXPECTED);
-		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Fail", "", {}, message::FLAG_NO_REPLY_EXPECTED);
+		deliver(
+			&rig.server,
+			TEST_PATH,
+			TEST_INTERFACE,
+			"Echo",
+			"s",
+			{ value::str(tmem, "x")!! },
+			message::FLAG_NO_REPLY_EXPECTED
+		);
+		deliver(&rig.server, TEST_PATH, TEST_INTERFACE, "Fail", "", { }, message::FLAG_NO_REPLY_EXPECTED);
 		assert(rig.cap.messages == 0, "no reply is sent to a call that expects none");
 	};
 }
@@ -374,11 +474,12 @@ fn void peer_answers_on_any_path() @test
 	defer rig.stop();
 	@pool()
 	{
-		deliver(&rig.server, "/nowhere/at/all", "org.freedesktop.DBus.Peer", "Ping", "", {});
+		deliver(&rig.server, "/nowhere/at/all", "org.freedesktop.DBus.Peer", "Ping", "", { });
 		assert(rig.cap.type == METHOD_RETURN && rig.cap.signature.str_view() == "");
-		deliver(&rig.server, "/nowhere/at/all", "org.freedesktop.DBus.Peer", "GetMachineId", "", {});
+		deliver(&rig.server, "/nowhere/at/all", "org.freedesktop.DBus.Peer", "GetMachineId", "", { });
 		// The sandbox may have no machine id file; either answer is the contract.
-		assert(rig.cap.type == METHOD_RETURN ? rig.cap.signature.str_view() == "s" : rig.cap.error_name.str_view() == "org.freedesktop.DBus.Error.Failed");
+		assert(rig.cap.type == METHOD_RETURN ? rig.cap.signature.str_view() == "s"
+			: rig.cap.error_name.str_view() == "org.freedesktop.DBus.Error.Failed");
 	};
 }
 
@@ -391,18 +492,24 @@ fn void invalid_descriptions_are_refused() @test
 		{ .name = "Same", .handler = &named },
 		{ .name = "Same", .handler = &named },
 	};
-	Method[1] no_handler = { { .name = "Nothing" } };
-	Method[1] bad_sig = { { .name = "Bad", .in_signature = "a", .handler = &named } };
-	Method[1] bad_names = { { .name = "Count", .in_signature = "ss", .in_names = rig.echo_in[..], .handler = &named } };
-	Property[1] write_only = { { .name = "W", .signature = "u", .access = WRITE, .changes = EMITS_CHANGED, .set = &set_count } };
-	Property[1] const_rw = { { .name = "C", .signature = "u", .access = READ_WRITE, .changes = CONST, .get = &get_count, .set = &set_count } };
+	Method[1] no_handler   = { { .name = "Nothing" } };
+	Method[1] bad_sig      = { { .name = "Bad", .in_signature = "a", .handler = &named } };
+	Method[1] bad_names    = {
+		{ .name = "Count", .in_signature = "ss", .in_names = rig.echo_in[..], .handler = &named }
+	};
+	Property[1] write_only = {
+		{ .name = "W", .signature = "u", .access = WRITE, .changes = EMITS_CHANGED, .set = &set_count }
+	};
+	Property[1] const_rw   = {
+		{ .name = "C", .signature = "u", .access = READ_WRITE, .changes = CONST, .get = &get_count, .set = &set_count }
+	};
 	Interface[1] dup_iface = { { .name = "org.bleu.Dup", .methods = dup[..] } };
-	Interface[1] nh = { { .name = "org.bleu.Nh", .methods = no_handler[..] } };
-	Interface[1] bs = { { .name = "org.bleu.Bs", .methods = bad_sig[..] } };
-	Interface[1] bn = { { .name = "org.bleu.Bn", .methods = bad_names[..] } };
-	Interface[1] wo = { { .name = "org.bleu.Wo", .properties = write_only[..] } };
-	Interface[1] cr = { { .name = "org.bleu.Cr", .properties = const_rw[..] } };
-	Interface[1] bi = { { .name = "bad" } };
+	Interface[1] nh        = { { .name = "org.bleu.Nh", .methods = no_handler[..] } };
+	Interface[1] bs        = { { .name = "org.bleu.Bs", .methods = bad_sig[..] } };
+	Interface[1] bn        = { { .name = "org.bleu.Bn", .methods = bad_names[..] } };
+	Interface[1] wo        = { { .name = "org.bleu.Wo", .properties = write_only[..] } };
+	Interface[1] cr        = { { .name = "org.bleu.Cr", .properties = const_rw[..] } };
+	Interface[1] bi        = { { .name = "bad" } };
 	testing::@expect_fault(rig.server.export("/org/bleu/a", dup_iface[..]), error::INVALID_ARGUMENT);
 	testing::@expect_fault(rig.server.export("/org/bleu/b", nh[..]), error::INVALID_ARGUMENT);
 	testing::@expect_fault(rig.server.export("/org/bleu/c", bs[..]), error::INVALID_ARGUMENT);
@@ -420,7 +527,10 @@ fn void fallbacks_serve_the_paths_below_their_prefix() @test
 	Rig rig;
 	rig.start();
 	defer rig.stop();
-	testing::@expect_fault(rig.server.register_fallback("/org/bleu/items", rig.interfaces[..]), error::INVALID_ARGUMENT);
+	testing::@expect_fault(
+		rig.server.register_fallback("/org/bleu/items", rig.interfaces[..]),
+		error::INVALID_ARGUMENT
+	);
 	rig.server.register_fallback("/org/bleu/items/", rig.interfaces[..])!!;
 	@pool()
 	{
@@ -441,7 +551,7 @@ fn void object_manager_announces_and_lists_its_objects() @test
 	assert(rig.cap.messages == 1 && rig.cap.type == SIGNAL && rig.cap.signature.str_view() == "oa{sa{sv}}");
 	@pool()
 	{
-		deliver(&rig.server, "/org/bleu", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects", "", {});
+		deliver(&rig.server, "/org/bleu", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects", "", { });
 		assert(rig.cap.type == METHOD_RETURN && rig.cap.signature.str_view() == "a{oa{sa{sv}}}");
 		assert(rig.cap.body.str_view().contains("/org/bleu/test"));
 		rig.cap.messages = 0;
@@ -462,10 +572,16 @@ fn void signals_and_changes_follow_their_declarations() @test
 		rig.cap.messages = 0;
 		rig.server.emit_properties_changed(TEST_PATH, TEST_INTERFACE, { "Count" })!!;
 		assert(rig.cap.messages == 1 && rig.cap.signature.str_view() == "sa{sv}as");
-		testing::@expect_fault(rig.server.emit_properties_changed(TEST_PATH, TEST_INTERFACE, { "Secret" }), error::INVALID_ARGUMENT);
+		testing::@expect_fault(
+			rig.server.emit_properties_changed(TEST_PATH, TEST_INTERFACE, { "Secret" }),
+			error::INVALID_ARGUMENT
+		);
 		rig.server.emit_signal(TEST_PATH, TEST_INTERFACE, "Notice", { value::str(tmem, "hello")!! })!!;
 		assert(rig.cap.type == SIGNAL && rig.cap.signature.str_view() == "s");
-		testing::@expect_fault(rig.server.emit_signal(TEST_PATH, TEST_INTERFACE, "Notice", { value::u32(1) }), error::INVALID_ARGUMENT);
+		testing::@expect_fault(
+			rig.server.emit_signal(TEST_PATH, TEST_INTERFACE, "Notice", { value::u32(1) }),
+			error::INVALID_ARGUMENT
+		);
 	};
 }
 

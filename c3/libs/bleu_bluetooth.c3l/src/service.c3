@@ -18,8 +18,7 @@
  Every method may be called from any thread.
 *>
 module bleu::bluetooth;
-import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation,
-	bleu::stream, bleu::service;
+import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::service;
 
 <* The result of a request that can fail or take time. *>
 alias Task = Operation{Done};
@@ -45,7 +44,7 @@ struct Bluetooth
 *>
 fn Bluetooth*? open(Allocator allocator, Options options = { })
 {
-	Driver* driver = select_driver(options)!;
+	Driver* driver  = select_driver(options)!;
 	Bluetooth* self = alloc::new(allocator, Bluetooth);
 	self.allocator = allocator;
 	self.driver = driver;
@@ -100,7 +99,11 @@ fn Snapshot{State}*? Bluetooth.wait_after(&self, ulong seen, Duration timeout = 
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Bluetooth.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Bluetooth.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Bluetooth.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
@@ -280,13 +283,13 @@ fn void? ensure_available(Bluetooth* self, Cap cap) @private
 // Queue `request` for the worker. The task is created here; the worker releases the request's reference.
 fn Task*? submit(Bluetooth* self, Request request) @private
 {
-	Task* task        = operation::begin{Done}(self.allocator);
-	Allocator arena   = task.allocator();
-	request.adapter   = copy_text(request.adapter, arena);
-	request.device    = copy_text(request.device, arena);
-	request.text      = copy_text(request.text, arena);
+	Task* task      = operation::begin{Done}(self.allocator);
+	Allocator arena = task.allocator();
+	request.adapter = copy_text(request.adapter, arena);
+	request.device = copy_text(request.device, arena);
+	request.text = copy_text(request.text, arena);
 	request.filter.pattern = copy_text(request.filter.pattern, arena);
-	request.op        = task.retain();
+	request.op = task.retain();
 	if (catch err = self.hub.post(request))
 	{
 		task.release();

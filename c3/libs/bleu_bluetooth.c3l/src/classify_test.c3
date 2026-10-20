@@ -78,3 +78,21 @@ fn void mac_addresses_convert_both_ways() @test
 		assert(@catch(bleu::bluetooth::address_from_dashes("00:1a:7d:da:71:13", tmem)) == NOT_FOUND);
 	};
 }
+
+fn void windows_address_values_round_trip() @test
+{
+	@pool()
+	{
+		if (try value = bleu::bluetooth::address_value("AA:BB:CC:DD:EE:01"))
+		{
+			assert(value == 0xAABBCCDDEE01);
+			assert(bleu::bluetooth::address_text(value, tmem) == "AA:BB:CC:DD:EE:01");
+		}
+		else
+		{
+			assert(false, "a colon address has a value");
+		}
+		assert(@catch(bleu::bluetooth::address_value("AA:BB:CC:DD:EE")) == NOT_FOUND);
+		assert(@catch(bleu::bluetooth::address_value("AA-BB-CC-DD-EE-01")) == NOT_FOUND);
+	};
+}

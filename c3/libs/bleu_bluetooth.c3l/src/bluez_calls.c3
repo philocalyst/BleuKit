@@ -4,18 +4,17 @@
  Connect, ...) return at once; their reply completes the task.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::collections::list, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy,
-	bleu::dbus::value, bleu::error, bleu::operation;
+import std::collections::list, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::operation;
 
 // BlueZ's names for conditions that a request asks for but which already hold.
-const String ALREADY_CONNECTED = "org.bluez.Error.AlreadyConnected";
-const String ALREADY_EXISTS = "org.bluez.Error.AlreadyExists";
-const String NOT_CONNECTED = "org.bluez.Error.NotConnected";
-const String CANCELED = "org.bluez.Error.Canceled";
+const String ALREADY_CONNECTED       = "org.bluez.Error.AlreadyConnected";
+const String ALREADY_EXISTS          = "org.bluez.Error.AlreadyExists";
+const String NOT_CONNECTED           = "org.bluez.Error.NotConnected";
+const String CANCELED                = "org.bluez.Error.Canceled";
 const String AUTHENTICATION_CANCELED = "org.bluez.Error.AuthenticationCanceled";
-const String DOES_NOT_EXIST = "org.bluez.Error.DoesNotExist";
-const String NOT_AVAILABLE = "org.bluez.Error.NotAvailable";
-const String NOT_READY = "org.bluez.Error.NotReady";
+const String DOES_NOT_EXIST          = "org.bluez.Error.DoesNotExist";
+const String NOT_AVAILABLE           = "org.bluez.Error.NotAvailable";
+const String NOT_READY               = "org.bluez.Error.NotReady";
 
 // What an asynchronous call needs when its reply arrives. Lives in the task's arena.
 struct Pending
@@ -136,7 +135,7 @@ fn String? find_object(Bluez* self, String interface_name, String address, Alloc
 // Sets one property of the adapter a request names.
 fn void? write_adapter(Bluez* self, Request* r, String name, Value v) @private
 {
-	String path = adapter_path(self, r)!;
+	String path   = adapter_path(self, r)!;
 	Proxy adapter = object_proxy(self, path, ADAPTER_IFACE)!;
 	adapter.set_property(name, v)!;
 }
@@ -144,7 +143,7 @@ fn void? write_adapter(Bluez* self, Request* r, String name, Value v) @private
 // Sets one property of the device a request names.
 fn void? write_device(Bluez* self, Request* r, String name, Value v) @private
 {
-	String path = device_path(self, r)!;
+	String path  = device_path(self, r)!;
 	Proxy device = object_proxy(self, path, DEVICE_IFACE)!;
 	device.set_property(name, v)!;
 }
@@ -152,7 +151,7 @@ fn void? write_device(Bluez* self, Request* r, String name, Value v) @private
 // Calls a method without arguments on the adapter a request names.
 fn void? adapter_method(Bluez* self, Request* r, String member) @private
 {
-	String path = adapter_path(self, r)!;
+	String path   = adapter_path(self, r)!;
 	Proxy adapter = object_proxy(self, path, ADAPTER_IFACE)!;
 	Message* call = adapter.new_call(tmem, member)!;
 	call_sync(self, call)!;
@@ -160,8 +159,8 @@ fn void? adapter_method(Bluez* self, Request* r, String member) @private
 
 fn void? start_discovery(Bluez* self, Request* r) @private
 {
-	String path = adapter_path(self, r)!;
-	Proxy adapter = object_proxy(self, path, ADAPTER_IFACE)!;
+	String path     = adapter_path(self, r)!;
+	Proxy adapter   = object_proxy(self, path, ADAPTER_IFACE)!;
 	Message* filter = adapter.new_call(tmem, "SetDiscoveryFilter")!;
 	filter.body_writer("a{sv}")!.append_value(discovery_filter(r)!)!;
 	call_sync(self, filter)!;
@@ -207,8 +206,8 @@ fn String transport_name(Transport transport) @private
 // Calls a method on the device a request names. `argument` is a string argument ("" for none).
 fn void? device_method(Bluez* self, Request* r, String member, String argument, String tolerated) @private
 {
-	String path = device_path(self, r)!;
-	Proxy device = object_proxy(self, path, DEVICE_IFACE)!;
+	String path   = device_path(self, r)!;
+	Proxy device  = object_proxy(self, path, DEVICE_IFACE)!;
 	Message* call = device.new_call(tmem, member)!;
 	if (argument.len > 0) call.body_writer("s")!.append_string(argument)!;
 	// Synchronous methods finish here; the others complete their task when the reply arrives.
@@ -223,12 +222,12 @@ fn void? device_method(Bluez* self, Request* r, String member, String argument, 
 // Removes a device from its adapter. BlueZ's RemoveDevice is a method of the adapter, so the adapter is read first.
 fn void? remove_device(Bluez* self, Request* r) @private
 {
-	String path = device_path(self, r)!;
-	Proxy device = object_proxy(self, path, DEVICE_IFACE)!;
-	Value adapter_value = device.get_property("Adapter", r.op.allocator())!;
+	String path           = device_path(self, r)!;
+	Proxy device          = object_proxy(self, path, DEVICE_IFACE)!;
+	Value adapter_value   = device.get_property("Adapter", r.op.allocator())!;
 	String adapter_object = adapter_value.as_object_path()!;
-	Proxy adapter = object_proxy(self, adapter_object, ADAPTER_IFACE)!;
-	Message* call = adapter.new_call(tmem, "RemoveDevice")!;
+	Proxy adapter         = object_proxy(self, adapter_object, ADAPTER_IFACE)!;
+	Message* call         = adapter.new_call(tmem, "RemoveDevice")!;
 	call.body_writer("o")!.append_object_path(path)!;
 	call_sync(self, call)!;
 }
@@ -257,7 +256,7 @@ fn void? call_async(Bluez* self, Task* task, Message* call, String tolerated) @p
 fn void on_reply(void* context, Message* reply, error::Status status)
 {
 	Pending* pending = (Pending*)context;
-	Task* task = pending.task;
+	Task* task       = pending.task;
 	if (reply != null || tolerated_error(pending.tolerated))
 	{
 		task.succeed(bluetooth::Done.DONE);
@@ -281,7 +280,7 @@ fn bool tolerated_error(String name) @private
 fn String error_name(String text) @private
 {
 	sz colon = text.index_of_char(':') ?? text.len;
-	return text[0 : colon];
+	return text[0:colon];
 }
 
 // The excuse for a failed reply: BlueZ's own names where the meaning is clear, otherwise the status.

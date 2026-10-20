@@ -10,11 +10,7 @@ import bleu::wl::proto::wayland;
  clients can create ext_idle_notification_v1 objects to get notified when the user is idle
  for a given amount of time.
 *>
-const display::Interface EXT_IDLE_NOTIFIER_V1 = {
-	.name = "ext_idle_notifier_v1",
-	.version = 2,
-	.dispatch = &ext_idle_notifier_v1_dispatch
-};
+const display::Interface EXT_IDLE_NOTIFIER_V1 = { .name = "ext_idle_notifier_v1", .version = 2, .dispatch = &ext_idle_notifier_v1_dispatch };
 
 <*
  Typed view of a ext_idle_notifier_v1 object. The proxy is the first field, so a pointer to
@@ -74,13 +70,7 @@ fn ExtIdleNotificationV1*? ExtIdleNotifierV1.get_input_idle_notification(&self, 
 	w.begin(self.base.id, 2);
 	if (self.base.version < 2)
 	{
-		return error::raise(
-			error::UNSUPPORTED,
-			error::Domain.INTERNAL,
-			0,
-			"ext_idle_notifier_v1.get_input_idle_notification needs version 2, bound at version %d",
-			self.base.version
-		)~;
+		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "ext_idle_notifier_v1.get_input_idle_notification needs version 2, bound at version %d", self.base.version)~;
 	}
 	display::Proxy* created = self.base.conn.new_object(EXT_IDLE_NOTIFICATION_V1, self.base.version)!;
 	w.put_new_id(created.id)!;
@@ -95,13 +85,7 @@ fn void? ext_idle_notifier_v1_dispatch(display::Display* conn, display::Proxy* p
 	switch (opcode)
 	{
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_idle_notifier_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_idle_notifier_v1", opcode)~;
 	}
 }
 
@@ -121,11 +105,7 @@ fn void? ext_idle_notifier_v1_dispatch(display::Display* conn, display::Proxy* p
  the notification object stops being idle, a resumed event is sent and the timeout is
  restarted.
 *>
-const display::Interface EXT_IDLE_NOTIFICATION_V1 = {
-	.name = "ext_idle_notification_v1",
-	.version = 2,
-	.dispatch = &ext_idle_notification_v1_dispatch
-};
+const display::Interface EXT_IDLE_NOTIFICATION_V1 = { .name = "ext_idle_notification_v1", .version = 2, .dispatch = &ext_idle_notification_v1_dispatch };
 
 <*
  Typed view of a ext_idle_notification_v1 object. The proxy is the first field, so a pointer
@@ -184,41 +164,28 @@ fn void? ExtIdleNotificationV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_idle_notification_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_idle_notification_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtIdleNotificationV1Listener* listener = (ExtIdleNotificationV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			if (!proxy.zombie && listener != null && listener.idled != null)
 			{
-				if (!proxy.zombie && listener != null && listener.idled != null)
-				{
-					listener.idled(proxy.context, (ExtIdleNotificationV1*)proxy);
-				}
-				return;
+				listener.idled(proxy.context, (ExtIdleNotificationV1*)proxy);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			if (!proxy.zombie && listener != null && listener.resumed != null)
 			{
-				if (!proxy.zombie && listener != null && listener.resumed != null)
-				{
-					listener.resumed(proxy.context, (ExtIdleNotificationV1*)proxy);
-				}
-				return;
+				listener.resumed(proxy.context, (ExtIdleNotificationV1*)proxy);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_idle_notification_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_idle_notification_v1", opcode)~;
 	}
 }

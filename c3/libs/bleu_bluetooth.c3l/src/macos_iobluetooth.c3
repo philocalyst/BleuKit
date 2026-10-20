@@ -18,22 +18,21 @@
  blueutil.m:919, 1165, 1196, 493, 533-541, read in the research spike).
 *>
 module bleu::bluetooth::iobluetooth @feat(DARWIN) @link("IOBluetooth.framework");
-import std::collections::maybe, std::os::darwin::objc, std::time, bleu::availability, bleu::bluetooth, bleu::error, bleu::mach, bleu::objc,
-	bleu::objc::foundation, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::collections::list, std::collections::maybe, std::os::darwin::objc, std::time, bleu::availability, bleu::bluetooth, bleu::error, bleu::mach, bleu::objc, bleu::objc::foundation, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::unit;
 
 <* How often the paired-device list is read again. *>
-const Duration POLL_INTERVAL = (Duration)2_000_000;
+const Duration POLL_INTERVAL               = (Duration)2_000_000;
 <* Commands taken from the mailbox in one pass. *>
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH                    = 8;
 <* The RSSI value IOBluetooth reports when it cannot read the signal. *>
-const char RSSI_UNREADABLE = 127;
+const char RSSI_UNREADABLE                 = 127;
 <* The IOBluetooth class names and selectors this backend uses. *>
-const ZString CLASS_DEVICE = "IOBluetoothDevice";
-const ZString SELECTOR_PAIRED = "pairedDevices";
-const ZString SELECTOR_ADDRESS = "addressString";
-const ZString SELECTOR_NAME = "name";
-const ZString SELECTOR_CONNECTED = "isConnected";
-const ZString SELECTOR_RSSI = "rawRSSI";
+const ZString CLASS_DEVICE                 = "IOBluetoothDevice";
+const ZString SELECTOR_PAIRED              = "pairedDevices";
+const ZString SELECTOR_ADDRESS             = "addressString";
+const ZString SELECTOR_NAME                = "name";
+const ZString SELECTOR_CONNECTED           = "isConnected";
+const ZString SELECTOR_RSSI                = "rawRSSI";
 const ZString SELECTOR_DEVICE_WITH_ADDRESS = "deviceWithAddressString:";
 
 <* The state of the backend: the allocator for the snapshots and the poll interval. *>
@@ -55,7 +54,7 @@ const Driver DRIVER = {
 // The IOBluetooth device class exists in this process.
 fn bool probe(Options* options)
 {
-	return objc::class_named(CLASS_DEVICE) != null;
+	return (void*)objc::class_named(CLASS_DEVICE) != null;
 }
 
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
@@ -111,7 +110,9 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	while (!host.stopping())
 	{
 		// A timeout is the normal poll tick; a wake-up means a command is waiting.
-		if (catch poller.wait(self.poll)) {}
+		if (catch poller.wait(self.poll))
+		{
+		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(&commands[i]);
 		refresh(hub);
@@ -188,9 +189,9 @@ fn void? call_device(String address, bool connect) @private
 {
 	@pool()
 	{
-		Obj text = foundation::from_string(bluetooth::dashes_from_address(address, tmem));
+		Obj text     = foundation::from_string(bluetooth::dashes_from_address(address, tmem));
 		ObjId device = objc::class_named(CLASS_DEVICE).send(ObjId, SELECTOR_DEVICE_WITH_ADDRESS, text.ptr);
-		if (!device) return error::NOT_FOUND~;
+		if (!device) return NOT_FOUND~;
 		int code = connect ? device.send(int, "openConnection") : device.send(int, "closeConnection");
 		mach::check(code, connect ? "openConnection" : "closeConnection")!;
 	};
@@ -202,7 +203,7 @@ fn void? read_devices(Allocator allocator, State* state) @private
 	@pool()
 	{
 		ObjId paired = objc::class_named(CLASS_DEVICE).send(ObjId, SELECTOR_PAIRED);
-		usz count = foundation::array_count(paired);
+		usz count    = foundation::array_count(paired);
 		List{Device} devices;
 		devices.init(tmem);
 		for (usz i = 0; i < count; i++)
@@ -222,8 +223,8 @@ fn Device? device_from(ObjId item, Allocator allocator) @private
 	{
 		if (try address = bluetooth::address_from_dashes(dashed, allocator))
 		{
-			String name = foundation::to_string(item.send(ObjId, SELECTOR_NAME), allocator) ?? "";
-			int rssi_raw = item.send(char, SELECTOR_RSSI);
+			String name     = foundation::to_string(item.send(ObjId, SELECTOR_NAME), allocator) ?? "";
+			int rssi_raw    = item.send(char, SELECTOR_RSSI);
 			Maybe{Dbm} rssi = { };
 			if (rssi_raw != RSSI_UNREADABLE) rssi = maybe::value((Dbm)rssi_raw);
 			return {

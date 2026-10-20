@@ -8,11 +8,7 @@ import bleu::wl::proto::wayland;
  ext_data_control_manager_v1 version 1.
  This interface is a manager that allows creating per-seat data device controls.
 *>
-const display::Interface EXT_DATA_CONTROL_MANAGER_V1 = {
-	.name = "ext_data_control_manager_v1",
-	.version = 1,
-	.dispatch = &ext_data_control_manager_v1_dispatch
-};
+const display::Interface EXT_DATA_CONTROL_MANAGER_V1 = { .name = "ext_data_control_manager_v1", .version = 1, .dispatch = &ext_data_control_manager_v1_dispatch };
 
 <*
  Typed view of a ext_data_control_manager_v1 object. The proxy is the first field, so a
@@ -66,23 +62,12 @@ fn void? ExtDataControlManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_data_control_manager_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_data_control_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_data_control_manager_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_data_control_manager_v1", opcode)~;
 	}
 }
 
@@ -91,11 +76,7 @@ fn void? ext_data_control_manager_v1_dispatch(
  This interface allows a client to manage a seat's selection. When the seat is destroyed,
  this object becomes inert.
 *>
-const display::Interface EXT_DATA_CONTROL_DEVICE_V1 = {
-	.name = "ext_data_control_device_v1",
-	.version = 1,
-	.dispatch = &ext_data_control_device_v1_dispatch
-};
+const display::Interface EXT_DATA_CONTROL_DEVICE_V1 = { .name = "ext_data_control_device_v1", .version = 1, .dispatch = &ext_data_control_device_v1_dispatch };
 
 <*
  Typed view of a ext_data_control_device_v1 object. The proxy is the first field, so a
@@ -123,11 +104,7 @@ constset ExtDataControlDeviceV1Error : uint
  object will send out ext_data_control_offer.offer events to describe the MIME types it
  offers.
 *>
-alias ExtDataControlDeviceV1DataOfferFn = fn void(
-	void* context,
-	ExtDataControlDeviceV1* target,
-	ExtDataControlOfferV1* id
-);
+alias ExtDataControlDeviceV1DataOfferFn = fn void(void* context, ExtDataControlDeviceV1* target, ExtDataControlOfferV1* id);
 
 <*
  Event ext_data_control_device_v1.selection: The selection event is sent out to notify the
@@ -140,11 +117,7 @@ alias ExtDataControlDeviceV1DataOfferFn = fn void(
  previous selection will be ignored once a new selection ext_data_control_offer is received.
  The first selection event is sent upon binding the ext_data_control_device object.
 *>
-alias ExtDataControlDeviceV1SelectionFn = fn void(
-	void* context,
-	ExtDataControlDeviceV1* target,
-	ExtDataControlOfferV1* id
-);
+alias ExtDataControlDeviceV1SelectionFn = fn void(void* context, ExtDataControlDeviceV1* target, ExtDataControlOfferV1* id);
 
 <*
  Event ext_data_control_device_v1.finished: This data control object is no longer valid and
@@ -165,11 +138,7 @@ alias ExtDataControlDeviceV1FinishedFn = fn void(void* context, ExtDataControlDe
  selection, the first primary_selection event is sent upon binding the
  ext_data_control_device object.
 *>
-alias ExtDataControlDeviceV1PrimarySelectionFn = fn void(
-	void* context,
-	ExtDataControlDeviceV1* target,
-	ExtDataControlOfferV1* id
-);
+alias ExtDataControlDeviceV1PrimarySelectionFn = fn void(void* context, ExtDataControlDeviceV1* target, ExtDataControlOfferV1* id);
 
 <*
  Event handlers of ext_data_control_device_v1. A null field ignores its event. Strings and
@@ -237,74 +206,51 @@ fn void? ExtDataControlDeviceV1.set_primary_selection(&self, ExtDataControlSourc
 	self.base.conn.send(&w)!;
 }
 
-fn void? ext_data_control_device_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_data_control_device_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtDataControlDeviceV1Listener* listener = (ExtDataControlDeviceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			uint id_id = args.get_new_id()!;
+			ExtDataControlOfferV1* id = (ExtDataControlOfferV1*)(conn.server_object(id_id, EXT_DATA_CONTROL_OFFER_V1, proxy.version)!);
+			if (!proxy.zombie && listener != null && listener.data_offer != null)
 			{
-				uint id_id                = args.get_new_id()!;
-				ExtDataControlOfferV1* id = (ExtDataControlOfferV1*)(conn.server_object(
-					id_id,
-					EXT_DATA_CONTROL_OFFER_V1,
-					proxy.version
-				)!);
-				if (!proxy.zombie && listener != null && listener.data_offer != null)
-				{
-					listener.data_offer(proxy.context, (ExtDataControlDeviceV1*)proxy, id);
-				}
-				return;
+				listener.data_offer(proxy.context, (ExtDataControlDeviceV1*)proxy, id);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			uint id = args.get_object()!;
+			display::Proxy* id_obj = conn.find(id);
+			if (!proxy.zombie && listener != null && listener.selection != null)
 			{
-				uint id                = args.get_object()!;
-				display::Proxy* id_obj = conn.find(id);
-				if (!proxy.zombie && listener != null && listener.selection != null)
-				{
-					listener.selection(proxy.context, (ExtDataControlDeviceV1*)proxy, (ExtDataControlOfferV1*)id_obj);
-				}
-				return;
+				listener.selection(proxy.context, (ExtDataControlDeviceV1*)proxy, (ExtDataControlOfferV1*)id_obj);
 			}
+			return;
+		}
 		case 2:
-
+		{
+			if (!proxy.zombie && listener != null && listener.finished != null)
 			{
-				if (!proxy.zombie && listener != null && listener.finished != null)
-				{
-					listener.finished(proxy.context, (ExtDataControlDeviceV1*)proxy);
-				}
-				return;
+				listener.finished(proxy.context, (ExtDataControlDeviceV1*)proxy);
 			}
+			return;
+		}
 		case 3:
-
+		{
+			uint id = args.get_object()!;
+			display::Proxy* id_obj = conn.find(id);
+			if (!proxy.zombie && listener != null && listener.primary_selection != null)
 			{
-				uint id                = args.get_object()!;
-				display::Proxy* id_obj = conn.find(id);
-				if (!proxy.zombie && listener != null && listener.primary_selection != null)
-				{
-					listener.primary_selection(
-						proxy.context,
-						(ExtDataControlDeviceV1*)proxy,
-						(ExtDataControlOfferV1*)id_obj
-					);
-				}
-				return;
+				listener.primary_selection(proxy.context, (ExtDataControlDeviceV1*)proxy, (ExtDataControlOfferV1*)id_obj);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_data_control_device_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_data_control_device_v1", opcode)~;
 	}
 }
 
@@ -314,11 +260,7 @@ fn void? ext_data_control_device_v1_dispatch(
  created by the source client in a data transfer and provides a way to describe the offered
  data and a way to respond to requests to transfer the data.
 *>
-const display::Interface EXT_DATA_CONTROL_SOURCE_V1 = {
-	.name = "ext_data_control_source_v1",
-	.version = 1,
-	.dispatch = &ext_data_control_source_v1_dispatch
-};
+const display::Interface EXT_DATA_CONTROL_SOURCE_V1 = { .name = "ext_data_control_source_v1", .version = 1, .dispatch = &ext_data_control_source_v1_dispatch };
 
 <*
  Typed view of a ext_data_control_source_v1 object. The proxy is the first field, so a
@@ -341,12 +283,7 @@ constset ExtDataControlSourceV1Error : uint
  Event ext_data_control_source_v1.send: Request for data from the client. Send the data as
  the specified MIME type over the passed file descriptor, then close it.
 *>
-alias ExtDataControlSourceV1SendFn = fn void(
-	void* context,
-	ExtDataControlSourceV1* target,
-	String mime_type,
-	Native fd
-);
+alias ExtDataControlSourceV1SendFn = fn void(void* context, ExtDataControlSourceV1* target, String mime_type, Native fd);
 
 <*
  Event ext_data_control_source_v1.cancelled: This data source is no longer valid. The data
@@ -402,48 +339,35 @@ fn void? ExtDataControlSourceV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_data_control_source_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_data_control_source_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtDataControlSourceV1Listener* listener = (ExtDataControlSourceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			String mime_type = args.get_string()!;
+			Native fd = args.get_fd()!;
+			if (!proxy.zombie && listener != null && listener.send != null)
 			{
-				String mime_type = args.get_string()!;
-				Native fd        = args.get_fd()!;
-				if (!proxy.zombie && listener != null && listener.send != null)
-				{
-					listener.send(proxy.context, (ExtDataControlSourceV1*)proxy, mime_type, fd);
-				}
-				else
-				{
-					conn.close_native(fd);
-				}
-				return;
+				listener.send(proxy.context, (ExtDataControlSourceV1*)proxy, mime_type, fd);
 			}
+			else
+			{
+				conn.close_native(fd);
+			}
+			return;
+		}
 		case 1:
-
+		{
+			if (!proxy.zombie && listener != null && listener.cancelled != null)
 			{
-				if (!proxy.zombie && listener != null && listener.cancelled != null)
-				{
-					listener.cancelled(proxy.context, (ExtDataControlSourceV1*)proxy);
-				}
-				return;
+				listener.cancelled(proxy.context, (ExtDataControlSourceV1*)proxy);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_data_control_source_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_data_control_source_v1", opcode)~;
 	}
 }
 
@@ -454,11 +378,7 @@ fn void? ext_data_control_source_v1_dispatch(
  converted to and provides the mechanism for transferring the data directly from the source
  client.
 *>
-const display::Interface EXT_DATA_CONTROL_OFFER_V1 = {
-	.name = "ext_data_control_offer_v1",
-	.version = 1,
-	.dispatch = &ext_data_control_offer_v1_dispatch
-};
+const display::Interface EXT_DATA_CONTROL_OFFER_V1 = { .name = "ext_data_control_offer_v1", .version = 1, .dispatch = &ext_data_control_offer_v1_dispatch };
 
 <*
  Typed view of a ext_data_control_offer_v1 object. The proxy is the first field, so a pointer
@@ -525,33 +445,21 @@ fn void? ExtDataControlOfferV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_data_control_offer_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? ext_data_control_offer_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	ExtDataControlOfferV1Listener* listener = (ExtDataControlOfferV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			String mime_type = args.get_string()!;
+			if (!proxy.zombie && listener != null && listener.offer != null)
 			{
-				String mime_type = args.get_string()!;
-				if (!proxy.zombie && listener != null && listener.offer != null)
-				{
-					listener.offer(proxy.context, (ExtDataControlOfferV1*)proxy, mime_type);
-				}
-				return;
+				listener.offer(proxy.context, (ExtDataControlOfferV1*)proxy, mime_type);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of ext_data_control_offer_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_data_control_offer_v1", opcode)~;
 	}
 }

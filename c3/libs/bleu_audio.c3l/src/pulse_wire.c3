@@ -496,6 +496,8 @@ fn Property[]? TagReader.proplist(&self, Allocator allocator)
 	self.expect(TAG_PROPLIST)!;
 	List{Property} props;
 	props.init(allocator);
+	bool handed_over = false;
+	defer if (!handed_over) props.free();
 	while (self.peek() != TAG_STRING_NULL)
 	{
 		String key = self.string()!;
@@ -503,9 +505,13 @@ fn Property[]? TagReader.proplist(&self, Allocator allocator)
 		uint declared = self.u32()!;
 		char[] value = self.arbitrary()!;
 		if (declared != value.len) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "proplist '%s' declares %d bytes, has %d", key, declared, value.len)~;
-		props.push({ .key = key, .value = (String)value });
+		// PulseAudio stores each value with its terminating NUL inside the blob; the text is what precedes it.
+		String text = (String)value;
+		if (text.len > 0 && text[text.len - 1] == (char)0) text = text[0 : text.len - 1];
+		props.push({ .key = key, .value = text });
 	}
 	self.pos++;
+	handed_over = true;
 	return props.array_view();
 }
 

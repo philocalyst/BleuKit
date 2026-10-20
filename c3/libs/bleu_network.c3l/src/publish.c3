@@ -41,3 +41,17 @@ fn void emit(NetworkHub* hub, EventKind kind, Ssid ssid) @local
 	packet.value = { .kind = kind, .ssid = make_ssid(packet.allocator(), ssid.bytes) };
 	hub.emit(packet);
 }
+
+<* The security the last published scan saw for this SSID; UNKNOWN when the network has not been seen. *>
+fn Security security_on_air(NetworkHub* hub, char[] ssid)
+{
+	if (try snapshot = hub.latest())
+	{
+		defer snapshot.release();
+		foreach (network : snapshot.value.wifi.networks)
+		{
+			if (same_ssid(network.ssid.bytes, ssid)) return network.security;
+		}
+	}
+	return UNKNOWN;
+}

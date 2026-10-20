@@ -122,31 +122,89 @@ struct Interface
 *>
 fn void? validate_interface(Interface* i)
 {
-	if (!names::is_interface(i.name)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "interface name '%s' is not valid", i.name)~;
+	if (!names::is_interface(
+		i.name
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"interface name '%s' is not valid",
+		i.name
+	)~;
 	for (sz k = 0; k < i.methods.len; k++)
 	{
 		Method* m = &i.methods[k];
-		if (!names::is_member(m.name)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method name '%s' is not valid", m.name)~;
+		if (!names::is_member(
+			m.name
+		)) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"method name '%s' is not valid",
+			m.name
+		)~;
 		if (!signature::valid(m.in_signature) || !signature::valid(m.out_signature))
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method '%s' has an invalid signature", m.name)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"method '%s' has an invalid signature",
+				m.name
+			)~;
 		}
-		if (!m.handler) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method '%s' has no handler", m.name)~;
+		if (!m.handler) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"method '%s' has no handler",
+			m.name
+		)~;
 		if (!arg_names_fit(m.in_names, m.in_signature) || !arg_names_fit(m.out_names, m.out_signature))
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method '%s' has the wrong number of argument names", m.name)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"method '%s' has the wrong number of argument names",
+				m.name
+			)~;
 		}
-		if (find_method_index(i, m.name, k) >= 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "method '%s' is declared twice", m.name)~;
+		if (find_method_index(
+			i,
+			m.name,
+			k
+		) >= 0) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"method '%s' is declared twice",
+			m.name
+		)~;
 	}
 	for (sz k = 0; k < i.properties.len; k++) validate_property(i, k)!;
 	for (sz k = 0; k < i.signals.len; k++)
 	{
 		Signal* s = &i.signals[k];
-		if (!names::is_member(s.name) || !signature::valid(s.signature)) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "signal '%s' is not valid", s.name)~;
+		if (!names::is_member(s.name) || !signature::valid(s.signature))
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"signal '%s' is not valid",
+				s.name
+			)~;
 		}
-		if (!arg_names_fit(s.arg_names, s.signature)) {
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "signal '%s' has the wrong number of argument names", s.name)~;
+		if (!arg_names_fit(s.arg_names, s.signature))
+		{
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"signal '%s' has the wrong number of argument names",
+				s.name
+			)~;
 		}
 	}
 }
@@ -155,16 +213,58 @@ fn void? validate_interface(Interface* i)
 fn void? validate_property(Interface* i, sz index) @private
 {
 	Property* p = &i.properties[index];
-	if (!names::is_member(p.name) || !signature::is_single(p.signature)) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' has no valid single type", p.name)~;
+	if (!names::is_member(p.name) || !signature::is_single(p.signature))
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"property '%s' has no valid single type",
+			p.name
+		)~;
 	}
-	if (p.access != WRITE && !p.get) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' can be read but has no getter", p.name)~;
-	if (p.access != READ && !p.set) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' can be written but has no setter", p.name)~;
-	if (p.access == WRITE && (p.changes == EMITS_CHANGED || p.changes == INVALIDATES)) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "write-only property '%s' cannot announce its value", p.name)~;
+	if (p.access != WRITE && !p.get) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"property '%s' can be read but has no getter",
+		p.name
+	)~;
+	if (p.access != READ && !p.set) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"property '%s' can be written but has no setter",
+		p.name
+	)~;
+	if (p.access == WRITE && (p.changes == EMITS_CHANGED || p.changes == INVALIDATES))
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"write-only property '%s' cannot announce its value",
+			p.name
+		)~;
 	}
-	if (p.changes == CONST && p.access != READ) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "constant property '%s' must be read-only", p.name)~;
-	if (find_property_index(i, p.name, index) >= 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "property '%s' is declared twice", p.name)~;
+	if (p.changes == CONST && p.access != READ) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"constant property '%s' must be read-only",
+		p.name
+	)~;
+	if (find_property_index(
+		i,
+		p.name,
+		index
+	) >= 0) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"property '%s' is declared twice",
+		p.name
+	)~;
 }
 
 // True when `names` is empty, or has one name for each complete type of `sig`.
@@ -177,7 +277,7 @@ fn bool arg_names_fit(String[] names, String sig) @private
 // The number of complete types in a valid signature.
 fn usz count_types(String sig) @private
 {
-	usz count = 0;
+	usz count       = 0;
 	TypeIterator it = signature::iterate(sig);
 	while (it.has_next())
 	{

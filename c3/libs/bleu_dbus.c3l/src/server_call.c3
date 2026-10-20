@@ -46,7 +46,7 @@ fn Reader? Call.reader(&self) => self.message.reader();
  @return? error::INVALID_STATE : "The call has already been answered"
  @return? error::INVALID_ARGUMENT : "The values do not match the out-signature"
 *>
-fn void? Call.reply(&self, Value[] values, int[] fds = {})
+fn void? Call.reply(&self, Value[] values, int[] fds = { })
 {
 	if (self.answered) return error::INVALID_STATE~;
 	self.answered = true;
@@ -94,7 +94,7 @@ fn ReplyToken? Call.defer_reply(&self)
  @return? NOT_FOUND : "No deferred call has this token"
  @return? error::INVALID_ARGUMENT : "The values do not match the out-signature"
 *>
-fn void? ObjectServer.reply(&self, ReplyToken token, Value[] values, int[] fds = {})
+fn void? ObjectServer.reply(&self, ReplyToken token, Value[] values, int[] fds = { })
 {
 	Deferred* d = self.take(token)!;
 	defer free_deferred(self, d);
@@ -118,10 +118,16 @@ fn void? ObjectServer.reply_error(&self, ReplyToken token, String name, String t
 }
 
 // Records a reply that will be sent later, and returns its token.
-fn ReplyToken park(ObjectServer* server, String destination, uint serial, String out_signature, bool expects_reply) @private
+fn ReplyToken park(
+	ObjectServer* server,
+	String destination,
+	uint serial,
+	String out_signature,
+	bool expects_reply
+) @private
 {
 	Deferred* d = alloc::new(server.allocator, Deferred);
-	uint token = server.next_token++;
+	uint token  = server.next_token++;
 	// Zero means "no token", so it is skipped when the counter wraps.
 	if (token == 0) token = server.next_token++;
 	*d = { .token = (ReplyToken)token, .serial = serial, .expects_reply = expects_reply };
@@ -148,14 +154,23 @@ fn Deferred*? ObjectServer.take(&self, ReplyToken token)
 
 // Builds a METHOD_RETURN with `values` and `fds` and sends it. A body that does not
 // match `out_signature` is replaced by a Failed error, and the mismatch is returned.
-fn void? send_return_to(ObjectServer* server, String destination, uint serial, String out_signature, Value[] values, int[] fds) @private
+fn void? send_return_to(
+	ObjectServer* server,
+	String destination,
+	uint serial,
+	String out_signature,
+	Value[] values,
+	int[] fds
+) @private
 {
 	Message* m = message::reply_to(server.allocator, destination, serial)!;
 	defer m.release();
 	if (catch err = fill_body(m, out_signature, values, fds))
 	{
 		// If this send fails too, the connection is gone; the mismatch is what the handler needs to see.
-		if (catch send_error_reply(server, destination, serial, ERROR_FAILED, "the reply does not match its signature")) {}
+		if (catch send_error_reply(server, destination, serial, ERROR_FAILED, "the reply does not match its signature"))
+		{
+		}
 		return err~;
 	}
 	return send_message(server, m);

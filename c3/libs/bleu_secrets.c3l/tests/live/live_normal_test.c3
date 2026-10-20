@@ -49,7 +49,8 @@ fn void search_finds_by_attribute_and_delete_removes() @test
 {
 	Keyring* keyring = open_keyring();
 	defer keyring.close();
-	Entry key = { .service = "bleu.vpn", .account = "work", .attributes = { { .key = "profile", .value = "office" } } };
+	Attribute[] profile      = { { .key = "profile", .value = "office" } };
+	Entry key                = { .service = "bleu.vpn", .account = "work", .attributes = profile };
 	Operation{Entry}* stored = keyring.store(key, (char[])"s3cret")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;

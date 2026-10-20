@@ -12,12 +12,12 @@
  Routing, for an incoming METHOD_CALL:
 
  * Peer, Introspectable.Introspect and the object's own standard interfaces
-   (Properties, ObjectManager) are answered by the server.
+ (Properties, ObjectManager) are answered by the server.
  * The object is the exported object at the path, or else the fallback with
-   the longest prefix that covers the path.
+ the longest prefix that covers the path.
  * The method is found in the interface the call names (or in any interface,
-   when the call names none). The body's signature must equal the declared
-   in-signature, or the call gets `org.freedesktop.DBus.Error.InvalidArgs`.
+ when the call names none). The body's signature must equal the declared
+ in-signature, or the call gets `org.freedesktop.DBus.Error.InvalidArgs`.
  * Anything else gets `UnknownObject`, `UnknownInterface` or `UnknownMethod`.
 
  The server keeps references to the interface tables, not copies. Free it
@@ -44,12 +44,12 @@ const INTERFACE_PROPERTIES = "org.freedesktop.DBus.Properties";
 const INTERFACE_OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager";
 
 <* The D-Bus errors the server answers with itself. *>
-const ERROR_FAILED = "org.freedesktop.DBus.Error.Failed";
-const ERROR_INVALID_ARGS = "org.freedesktop.DBus.Error.InvalidArgs";
-const ERROR_UNKNOWN_METHOD = "org.freedesktop.DBus.Error.UnknownMethod";
-const ERROR_UNKNOWN_OBJECT = "org.freedesktop.DBus.Error.UnknownObject";
-const ERROR_UNKNOWN_INTERFACE = "org.freedesktop.DBus.Error.UnknownInterface";
-const ERROR_UNKNOWN_PROPERTY = "org.freedesktop.DBus.Error.UnknownProperty";
+const ERROR_FAILED             = "org.freedesktop.DBus.Error.Failed";
+const ERROR_INVALID_ARGS       = "org.freedesktop.DBus.Error.InvalidArgs";
+const ERROR_UNKNOWN_METHOD     = "org.freedesktop.DBus.Error.UnknownMethod";
+const ERROR_UNKNOWN_OBJECT     = "org.freedesktop.DBus.Error.UnknownObject";
+const ERROR_UNKNOWN_INTERFACE  = "org.freedesktop.DBus.Error.UnknownInterface";
+const ERROR_UNKNOWN_PROPERTY   = "org.freedesktop.DBus.Error.UnknownProperty";
 const ERROR_PROPERTY_READ_ONLY = "org.freedesktop.DBus.Error.PropertyReadOnly";
 
 <*
@@ -154,9 +154,9 @@ fn void ObjectServer.free(&self)
 *>
 fn void ObjectServer.attach(&self, Connection* connection)
 {
-	self.sink         = &send_on_connection;
+	self.sink = &send_on_connection;
 	self.sink_context = connection;
-	self.connection   = connection;
+	self.connection = connection;
 	connection.set_incoming_handler(&route_call, self);
 }
 
@@ -168,7 +168,7 @@ fn void ObjectServer.attach(&self, Connection* connection)
 *>
 fn void ObjectServer.use_sink(&self, MessageSink sink, void* context)
 {
-	self.sink         = sink;
+	self.sink = sink;
 	self.sink_context = context;
 }
 
@@ -225,7 +225,10 @@ fn void? ObjectServer.dispatch(&self, Call* c)
 	if (c.interface_name == INTERFACE_PROPERTIES) return properties_call(c, &target);
 	if (c.interface_name == INTERFACE_OBJECT_MANAGER)
 	{
-		if (!target.manager) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s at %s", c.interface_name, c.path));
+		if (!target.manager) return c.reply_error(
+			ERROR_UNKNOWN_INTERFACE,
+			string::tformat("no interface %s at %s", c.interface_name, c.path)
+		);
 		return managed_objects_call(c);
 	}
 	return self.user_call(c, &target);
@@ -245,17 +248,24 @@ fn void? ObjectServer.user_call(&self, Call* c, Target* target)
 	else
 	{
 		Interface* i = find_interface(target.interfaces, c.interface_name);
-		if (i == null) return c.reply_error(ERROR_UNKNOWN_INTERFACE, string::tformat("no interface %s at %s", c.interface_name, c.path));
+		if (i == null) return c.reply_error(
+			ERROR_UNKNOWN_INTERFACE,
+			string::tformat("no interface %s at %s", c.interface_name, c.path)
+		);
 		method = find_method(i, c.member);
 	}
 	if (method == null) return c.reply_error(ERROR_UNKNOWN_METHOD, string::tformat("no method %s here", c.member));
 	String received = incoming_signature(c.message);
-	if (received != method.in_signature) {
-		return c.reply_error(ERROR_INVALID_ARGS, string::tformat("%s takes '%s', not '%s'", c.member, method.in_signature, received));
+	if (received != method.in_signature)
+	{
+		return c.reply_error(
+			ERROR_INVALID_ARGS,
+			string::tformat("%s takes '%s', not '%s'", c.member, method.in_signature, received)
+		);
 	}
 	c.out_signature = method.out_signature;
 	method.handler(method.context, c)!;
-	if (!c.answered) return c.reply({});
+	if (!c.answered) return c.reply({ });
 }
 
 // Answers a call whose handler failed with `failure`, unless the handler answered it already.
@@ -265,7 +275,9 @@ fn void fail_call(Call* c, fault failure) @private
 	c.answered = true;
 	if (!c.expects_reply) return;
 	// If the connection is gone the send fails; the next process() reports that, so nothing is lost here.
-	if (catch send_error_reply(c.server, c.sender, c.serial, error_name_for(failure), detail_text(failure))) {}
+	if (catch send_error_reply(c.server, c.sender, c.serial, error_name_for(failure), detail_text(failure)))
+	{
+	}
 }
 
 // The signature of a call's body: the written one, for a message built in memory; else the received one.
@@ -292,7 +304,7 @@ fn Target ObjectServer.find_target(&self, String path)
 		if (!path.starts_with(f.prefix.str_view())) continue;
 		if (best == null || f.prefix.len() > best.prefix.len()) best = f;
 	}
-	if (best == null) return {};
+	if (best == null) return { };
 	return { .found = true, .interfaces = best.interfaces };
 }
 
@@ -308,19 +320,34 @@ fn Target ObjectServer.find_target(&self, String path)
 *>
 fn void? ObjectServer.export(&self, String path, Interface[] interfaces)
 {
-	if (!names::is_object_path(path)) {
+	if (!names::is_object_path(path))
+	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "object path '%s' is not valid", path)~;
 	}
-	if (self.export_at(path) != null) {
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "an object is already exported at %s", path)~;
+	if (self.export_at(path) != null)
+	{
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"an object is already exported at %s",
+			path
+		)~;
 	}
 	for (sz k = 0; k < interfaces.len; k++)
 	{
 		validate_interface(&interfaces[k])!;
 		for (sz j = 0; j < k; j++)
 		{
-			if (interfaces[j].name == interfaces[k].name) {
-				return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "interface %s is listed twice", interfaces[k].name)~;
+			if (interfaces[j].name == interfaces[k].name)
+			{
+				return error::raise(
+					error::INVALID_STATE,
+					error::Domain.INTERNAL,
+					0,
+					"interface %s is listed twice",
+					interfaces[k].name
+				)~;
 			}
 		}
 	}
@@ -362,7 +389,7 @@ fn void? ObjectServer.make_object_manager(&self, String path)
 	Export* e = self.export_at(path);
 	if (e == null)
 	{
-		self.export(path, {})!;
+		self.export(path, { })!;
 		e = self.export_at(path);
 	}
 	e.manager = true;
@@ -381,13 +408,27 @@ fn void? ObjectServer.make_object_manager(&self, String path)
 *>
 fn void? ObjectServer.register_fallback(&self, String prefix, Interface[] interfaces)
 {
-	if (!is_prefix(prefix)) {
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "fallback prefix '%s' is not valid", prefix)~;
+	if (!is_prefix(prefix))
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"fallback prefix '%s' is not valid",
+			prefix
+		)~;
 	}
 	foreach (f : self.fallbacks)
 	{
-		if (f.prefix.str_view() == prefix) {
-			return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "prefix %s is already registered", prefix)~;
+		if (f.prefix.str_view() == prefix)
+		{
+			return error::raise(
+				error::INVALID_STATE,
+				error::Domain.INTERNAL,
+				0,
+				"prefix %s is already registered",
+				prefix
+			)~;
 		}
 	}
 	for (sz k = 0; k < interfaces.len; k++) validate_interface(&interfaces[k])!;
@@ -403,7 +444,7 @@ fn bool is_prefix(String prefix) @private
 {
 	if (prefix == "/") return true;
 	if (prefix.len < 2 || prefix[prefix.len - 1] != '/') return false;
-	return names::is_object_path(prefix[0 : prefix.len - 1]);
+	return names::is_object_path(prefix[0:prefix.len - 1]);
 }
 
 // True when `path` lies strictly below `root` in the object tree.

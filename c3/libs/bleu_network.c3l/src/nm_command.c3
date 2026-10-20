@@ -144,20 +144,6 @@ fn String display_id(char[] ssid) @local
 	return names::is_utf8_text(text) ? text : FALLBACK_PROFILE_NAME;
 }
 
-<* The security the last scan saw for this SSID; UNKNOWN when the network has not been seen. *>
-fn Security security_on_air(NetworkHub* hub, char[] ssid) @local
-{
-	if (try snapshot = hub.latest())
-	{
-		defer snapshot.release();
-		foreach (network : snapshot.value.wifi.networks)
-		{
-			if (network::same_ssid(network.ssid.bytes, ssid)) return network.security;
-		}
-	}
-	return Security.UNKNOWN;
-}
-
 <* Start a scan. The request completes when NetworkManager reports a new LastScan. *>
 fn void? try_scan(Backend* b, SettleOp* op)
 {

@@ -65,9 +65,11 @@ fn bool ObjectServer.has_node(&self, String path)
 fn void? introspect_call(Call* c) @private
 {
 	if (!arguments_are(c, "")) return c.reply_error(ERROR_INVALID_ARGS, "Introspect takes no arguments");
-	if (!c.server.has_node(c.path)) return c.reply_error(ERROR_UNKNOWN_OBJECT, string::tformat("no object at %s", c.path));
+	if (!c.server.has_node(
+		c.path
+	)) return c.reply_error(ERROR_UNKNOWN_OBJECT, string::tformat("no object at %s", c.path));
 	c.out_signature = "s";
-	String xml = c.server.introspection(c.path, tmem);
+	String xml  = c.server.introspection(c.path, tmem);
 	Value[] out = { value::str(tmem, xml)! };
 	return c.reply(out);
 }
@@ -84,9 +86,9 @@ fn void ObjectServer.write_children(&self, DString* out, String path)
 		{
 			if (!is_below(e.path.str_view(), path)) continue;
 			String full = e.path.str_view();
-			sz end = start;
+			sz end      = start;
 			while (end < full.len && full[end] != '/') end++;
-			String child = full[start : end - start];
+			String child = full[start:end - start];
 			if (contains_text(&seen, child)) continue;
 			seen.push(child);
 			out.append_string("  <node name=\"");
@@ -248,7 +250,9 @@ fn void write_object_manager(DString* out) @private
 {
 	out.append_string("  <interface name=\"org.freedesktop.DBus.ObjectManager\">\n");
 	out.append_string("    <method name=\"GetManagedObjects\">\n");
-	out.append_string("      <arg name=\"objpath_interfaces_and_properties\" type=\"a{oa{sa{sv}}}\" direction=\"out\"/>\n");
+	out.append_string(
+		"      <arg name=\"objpath_interfaces_and_properties\" type=\"a{oa{sa{sv}}}\" direction=\"out\"/>\n"
+	);
 	out.append_string("    </method>\n");
 	out.append_string("    <signal name=\"InterfacesAdded\">\n");
 	out.append_string("      <arg name=\"object_path\" type=\"o\"/>\n");

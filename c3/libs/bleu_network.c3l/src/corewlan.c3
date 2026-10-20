@@ -46,8 +46,8 @@ fn bool probe(Options* options) => true;
 *>
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
-	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
-	ObjId found = client.send_id("interface");
+	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(objc::ObjId, "sharedWiFiClient"));
+	objc::ObjId found = client.send_id("interface");
 	if (found == null)
 	{
 		client.close();
@@ -67,7 +67,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 }
 
 // A view of an object that the caller does not own: sends on it take no reference.
-fn objc::Obj view(ObjId object) @inline => { .ptr = object };
+fn objc::Obj view(objc::ObjId object) @inline => { .ptr = object };
 
 // CoreWLAN can do: radio power, scan, open and password joins, disconnect. The rest is listed with its reason.
 fn void fill_capabilities(Capabilities* capabilities) @local
@@ -182,7 +182,7 @@ fn void finish_connect(ConnectOp* op, Backend* b, Command* c)
 }
 
 <* The error an NSError from CoreWLAN stands for: a Bleu excuse, with its code in the detail. *>
-fn fault ns_error(ObjId failure, String what) @local
+fn fault ns_error(objc::ObjId failure, String what) @local
 {
 	long code = view(failure).send_long("code");
 	return error::raise(corewlan_convert::fault_from_cw_error(code), error::Domain.NS_ERROR, (int)code, "%s", what);
@@ -190,8 +190,8 @@ fn fault ns_error(ObjId failure, String what) @local
 
 fn Settled? scan(Backend* b)
 {
-	ObjId err = null;
-	ObjId results = b.interface.send_id("scanForNetworksWithName:includeHidden:error:", (ObjId)null, false, &err);
+	objc::ObjId err = null;
+	objc::ObjId results = b.interface.send_id("scanForNetworksWithName:includeHidden:error:", (objc::ObjId)null, false, &err);
 	if (results == null) return ns_error(err, "the scan failed")~;
 	return Settled.CHANGED;
 }
@@ -200,24 +200,24 @@ fn Settled? scan(Backend* b)
 fn Connected? connect(Backend* b, Command* c, Allocator out)
 {
 	char[] ssid = c.ssid.bytes[0 : c.ssid.len];
-	ObjId network = find_scanned(b, ssid);
+	objc::ObjId network = find_scanned(b, ssid);
 	if (network == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "that network is not in the last scan (or its name is withheld)")~;
-	ObjId password = null;
+	objc::ObjId password = null;
 	if (c.secret.len > 0) password = foundation::from_string((String)c.secret.bytes[0 : c.secret.len]).ptr;
-	ObjId err = null;
+	objc::ObjId err = null;
 	bool joined = b.interface.send_bool("associateToNetwork:password:error:", network, password, &err);
 	if (!joined) return ns_error(err, "the network refused the join")~;
 	return { .ssid = network::make_ssid(out, ssid), .interface_name = b.interface_name.copy(out) };
 }
 
 // The scanned network whose SSID octets equal `ssid`, or nil.
-fn ObjId find_scanned(Backend* b, char[] ssid) @local
+fn objc::ObjId find_scanned(Backend* b, char[] ssid) @local
 {
-	ObjId list = scan_list(b);
+	objc::ObjId list = scan_list(b);
 	usz count = foundation::array_count(list);
 	for (usz i = 0; i < count; i++)
 	{
-		ObjId network = foundation::array_at(list, i);
+		objc::ObjId network = foundation::array_at(list, i);
 		char[] octets = data_or_empty(view(network).send_id("ssidData"), tmem);
 		if (octets.len > 0 && network::same_ssid(octets, ssid)) return network;
 	}
@@ -225,10 +225,10 @@ fn ObjId find_scanned(Backend* b, char[] ssid) @local
 }
 
 // The last scan's networks as an NSArray (possibly empty; never nil).
-fn ObjId scan_list(Backend* b) @local
+fn objc::ObjId scan_list(Backend* b) @local
 {
-	ObjId set = b.interface.send_id("cachedScanResults");
-	if (set == null) return objc::class_named("NSArray").send(ObjId, "array");
+	objc::ObjId set = b.interface.send_id("cachedScanResults");
+	if (set == null) return objc::class_named("NSArray").send(objc::ObjId, "array");
 	return foundation::set_members(set);
 }
 
@@ -242,7 +242,7 @@ fn Settled? disconnect(Backend* b)
 fn Settled? set_radio(Backend* b, bool on)
 {
 	if (b.interface.send_bool("powerOn") == on) return Settled.ALREADY;
-	ObjId err = null;
+	objc::ObjId err = null;
 	if (!b.interface.send_bool("setPower:error:", on, &err)) return ns_error(err, "the radio did not change")~;
 	return Settled.CHANGED;
 }
@@ -252,8 +252,8 @@ fn State read_state(Backend* b, Allocator out)
 {
 	Wifi wifi = { .present = true, .interface_name = b.interface_name.copy(out) };
 	wifi.radio_enabled = b.interface.send_bool("powerOn");
-	ObjId ssid = b.interface.send_id("ssid");
-	ObjId bssid = b.interface.send_id("bssid");
+	objc::ObjId ssid = b.interface.send_id("ssid");
+	objc::ObjId bssid = b.interface.send_id("bssid");
 	char[] octets = data_or_empty(b.interface.send_id("ssidData"), out);
 	if (ssid != null && octets.len > 0)
 	{
@@ -279,17 +279,17 @@ fn State read_state(Backend* b, Allocator out)
 }
 
 <* One entry per scanned access point. CoreWLAN has no saved-profile information, so `known` stays false. *>
-fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid) @local
+fn AccessPoint[] scanned_networks(Backend* b, Allocator out, objc::ObjId current_bssid) @local
 {
-	ObjId list = scan_list(b);
+	objc::ObjId list = scan_list(b);
 	usz count = foundation::array_count(list);
 	AccessPoint[] found = alloc::new_array(out, AccessPoint, count);
 	for (usz i = 0; i < count; i++)
 	{
-		ObjId network = foundation::array_at(list, i);
+		objc::ObjId network = foundation::array_at(list, i);
 		objc::Obj object = view(network);
 		long rssi = object.send_long("rssiValue");
-		ObjId channel = object.send_id("wlanChannel");
+		objc::ObjId channel = object.send_id("wlanChannel");
 		long number = channel == null ? 0 : view(channel).send_long("channelNumber");
 		long band = channel == null ? 0 : view(channel).send_long("channelBand");
 		String bssid = bssid_text(object.send_id("bssid"), out);
@@ -309,7 +309,7 @@ fn AccessPoint[] scanned_networks(Backend* b, Allocator out, ObjId current_bssid
 }
 
 // The octets of an NSData, or an empty slice when it is nil (withheld).
-fn char[] data_or_empty(ObjId data, Allocator out) @local
+fn char[] data_or_empty(objc::ObjId data, Allocator out) @local
 {
 	if (data == null) return {};
 	if (try octets = foundation::data_bytes(data, out)) return octets;
@@ -317,7 +317,7 @@ fn char[] data_or_empty(ObjId data, Allocator out) @local
 }
 
 // The text of an NSString, or "" when it is nil (withheld).
-fn String bssid_text(ObjId text, Allocator out) @local
+fn String bssid_text(objc::ObjId text, Allocator out) @local
 {
 	if (text == null) return "";
 	if (try s = foundation::to_string(text, out)) return s;

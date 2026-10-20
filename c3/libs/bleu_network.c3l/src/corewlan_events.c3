@@ -7,10 +7,13 @@
 // Selectors and encodings: CWWiFiClient.h via objc2-core-wlan 0.3.0
 // (src/generated/CWWiFiClient.rs lines 22-150: the delegate methods, and
 // CWEventType in CoreWLANTypes.rs 613-636). Registration: startMonitoringEventWithType:error:
-// (CWWiFiClient.rs 267). The class is created with objc's ClassBuilder, as in
+// (CWWiFiClient.rs 267). The class is created with objc's objc::ClassBuilder, as in
 // bleu::objc (class.c3). Not run on macOS (see corewlan.c3).
 module bleu::network::corewlan @feat(DARWIN) @link("CoreWLAN.framework");
 import bleu::objc, bleu::rt::mailbox, bleu::network;
+
+<* The ObjC class of the delegate this backend registers at run time. *>
+const ZString DELEGATE_CLASS = "BleuCoreWLANEvents";
 
 <* The CWEventType values the backend listens to (CoreWLANTypes.rs 613-636). *>
 const long[7] EVENT_TYPES = {
@@ -24,7 +27,7 @@ const long[7] EVENT_TYPES = {
 };
 
 <* Ask the worker to refresh: the only thing a callback does. *>
-fn void post_refresh(ObjId self) @local
+fn void post_refresh(objc::ObjId self) @local
 {
 	Mailbox{Command}* box = (Mailbox{Command}*)objc::context_of(self);
 	if (box == null) return;
@@ -33,19 +36,19 @@ fn void post_refresh(ObjId self) @local
 }
 
 // powerStateDidChangeForWiFiInterfaceWithName:, ssidDidChange..., bssidDidChange..., linkDidChange..., modeDidChange..., scanCacheUpdatedForWiFiInterfaceWithName:
-fn void on_interface_change(ObjId self, ObjSel selector, ObjId interface_name)
+fn void on_interface_change(objc::ObjId self, objc::ObjSel selector, objc::ObjId interface_name)
 {
 	post_refresh(self);
 }
 
 // linkQualityDidChangeForWiFiInterfaceWithName:rssi:transmitRate:
-fn void on_link_quality(ObjId self, ObjSel selector, ObjId interface_name, long rssi, double transmit_rate)
+fn void on_link_quality(objc::ObjId self, objc::ObjSel selector, objc::ObjId interface_name, long rssi, double transmit_rate)
 {
 	post_refresh(self);
 }
 
 // clientConnectionInterrupted, clientConnectionInvalidated: the framework's daemon went away or came back.
-fn void on_client_state(ObjId self, ObjSel selector)
+fn void on_client_state(objc::ObjId self, objc::ObjSel selector)
 {
 	post_refresh(self);
 }
@@ -57,11 +60,11 @@ fn void on_client_state(ObjId self, ObjSel selector)
 *>
 fn objc::Obj install_delegate(Mailbox{Command}* box)
 {
-	ObjClass cls = objc::class_named(DELEGATE_CLASS);
+	objc::ObjClass cls = objc::class_named(DELEGATE_CLASS);
 	if (cls == null)
 	{
 		// The class is new in this process; a failure here means the Objective-C runtime is broken.
-		ClassBuilder builder = objc::begin_class(objc::class_named("NSObject"), DELEGATE_CLASS)!!;
+		objc::ClassBuilder builder = objc::begin_class(objc::class_named("NSObject"), DELEGATE_CLASS)!!;
 		builder.add_context_ivar()!!;
 		builder.method("powerStateDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
 		builder.method("ssidDidChangeForWiFiInterfaceWithName:", (void*)&on_interface_change, "v@:@")!!;
@@ -75,14 +78,14 @@ fn objc::Obj install_delegate(Mailbox{Command}* box)
 		builder.method("clientConnectionInvalidated", (void*)&on_client_state, "v@:")!!;
 		cls = builder.finish();
 	}
-	objc::Obj delegate = objc::adopt(cls.send(ObjId, "new"));
+	objc::Obj delegate = objc::adopt(cls.send(objc::ObjId, "new"));
 	objc::set_context(delegate.ptr, box);
-	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
+	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(objc::ObjId, "sharedWiFiClient"));
 	defer client.close();
 	client.send_void("setDelegate:", delegate.ptr);
 	foreach (type : EVENT_TYPES)
 	{
-		ObjId err = null;
+		objc::ObjId err = null;
 		// A refused registration means that event is not delivered; the poll tick still refreshes the state.
 		if (!client.send_bool("startMonitoringEventWithType:error:", type, &err)) continue;
 	}
@@ -92,10 +95,10 @@ fn objc::Obj install_delegate(Mailbox{Command}* box)
 <* Stop monitoring, detach the delegate and release it. Runs on the worker. *>
 fn void uninstall_delegate(objc::Obj delegate)
 {
-	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(ObjId, "sharedWiFiClient"));
+	objc::Obj client = objc::borrow(objc::class_named("CWWiFiClient").send(objc::ObjId, "sharedWiFiClient"));
 	defer client.close();
-	ObjId err = null;
+	objc::ObjId err = null;
 	client.send_bool("stopMonitoringAllEventsAndReturnError:", &err);
-	client.send_void("setDelegate:", (ObjId)null);
+	client.send_void("setDelegate:", (objc::ObjId)null);
 	delegate.close();
 }

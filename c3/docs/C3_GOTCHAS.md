@@ -111,3 +111,13 @@
 * A `foreach` loop variable declared `&x` is a pointer; `(T)*x` is needed to read it as a value (`maybe::value(*average)`).
 * Function names from another module in the same library must be prefixed (`sysinfo::fill_cpu`), even inside a sub-module of that module.
 * A C symbol with `$` in its name (`getmntinfo$INODE64`) is bound with @cname like any other; to choose one of two bindings by arch, use `$if` inside the function body (top-level `$if` is not allowed).
+* `c3c --libdir libs` fails when any `libs/*.c3l` lacks a manifest → use `--libdir "$(tools/libdir.sh)"`.
+* `$elif` does not exist → use `$switch` / `$case` / `$default` (`$endswitch`).
+* Extern callback structs (`kCFTypeDictionaryKeyCallBacks`) must be `extern const` with a struct type, and their address passed.
+* Generic service aliases (`EventPacket`, `StateSnapshot`) need `Packet{Event}` / `Snapshot{State}` from `bleu::stream` / `bleu::observe` in files outside the service module.
+* Module functions from another module need the prefix even inside the same library (`secrets::emit_local`), and C library functions too (`win32::getLastError`).
+* `String.copy` works on `String` values; `alloc::clone_slice` on `char[]`. Slicing a fixed array into a fixed array (`char[16] k = arr[:16]`) is not valid; copy element by element.
+* `char[]` has no `.copy`; cast to `String` first, or use `alloc::clone_slice`.
+* `c3fmt -i` can oscillate on long aligned struct literals (`Entry key = {...}` split and joined); bind the parts to named variables first.
+* `Connection.init` (bleu_dbus) called twice on the same struct leaks its lists; guard the init with the "initialised" flag, and set it in struct literals that skip the guard.
+* dbus-next marshals a D-Bus STRUCT from a Python list; a tuple raises `SignatureBodyMismatchError`.

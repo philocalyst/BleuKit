@@ -1,7 +1,7 @@
 // Worked example: the server side of org.freedesktop.Notifications, written
 // against bleu_dbus's object export. It is not part of the library: tests/integration.sh
 // compiles it and runs notifications_client.py against it on a private bus.
-//
+// 
 // It shows the shape a notification daemon needs: a name owned at start-up, one
 // interface with the four specified methods and their signatures, the two
 // signals the specification defines, and a method that stands in for the user
@@ -11,8 +11,8 @@ import bleu::error, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::own
 import std::io, std::time;
 
 const SERVICE_NAME = "org.freedesktop.Notifications";
-const OBJECT_PATH = "/org/freedesktop/Notifications";
-const INTERFACE = "org.freedesktop.Notifications";
+const OBJECT_PATH  = "/org/freedesktop/Notifications";
+const INTERFACE    = "org.freedesktop.Notifications";
 
 // The reason of NotificationClosed when CloseNotification closed the notification.
 const REASON_CLOSED_BY_CALL = 3;
@@ -55,7 +55,7 @@ fn void? get_server_information(void* context, Call* call)
 fn void? get_capabilities(void* context, Call* call)
 {
 	Value[] capabilities = { value::str(tmem, "body")!, value::str(tmem, "actions")! };
-	Value[] out = { value::array(tmem, "s", capabilities)! };
+	Value[] out          = { value::array(tmem, "s", capabilities)! };
 	return call.reply(out);
 }
 
@@ -83,22 +83,27 @@ fn void? notify(void* context, Call* call)
 fn void? close_notification(void* context, Call* call)
 {
 	Reader r = call.reader()!;
-	uint id = r.read_u32()!;
+	uint id  = r.read_u32()!;
 	if (forget(id))
 	{
-		call.server.emit_signal(OBJECT_PATH, INTERFACE, "NotificationClosed", { value::u32(id), value::u32(REASON_CLOSED_BY_CALL) })!;
+		call.server.emit_signal(
+			OBJECT_PATH,
+			INTERFACE,
+			"NotificationClosed",
+			{ value::u32(id), value::u32(REASON_CLOSED_BY_CALL) }
+		)!;
 	}
-	return call.reply({});
+	return call.reply({ });
 }
 
 // The user chose an action on a notification. Not part of the specification: the sketch's stand-in for the UI.
 fn void? simulate_action(void* context, Call* call)
 {
-	Reader r = call.reader()!;
-	uint id = r.read_u32()!;
+	Reader r   = call.reader()!;
+	uint id    = r.read_u32()!;
 	String key = r.read_string()!;
 	call.server.emit_signal(OBJECT_PATH, INTERFACE, "ActionInvoked", { value::u32(id), value::str(tmem, key)! })!;
-	return call.reply({});
+	return call.reply({ });
 }
 
 // Keeps the identifier of a notification that is now open, once.
@@ -136,8 +141,18 @@ fn void describe()
 		{ .name = "GetServerInformation", .out_signature = "ssss", .handler = &get_server_information },
 		{ .name = "GetCapabilities", .out_signature = "as", .handler = &get_capabilities },
 		{ .name = "Notify", .in_signature = "susssasa{sv}i", .out_signature = "u", .handler = &notify },
-		{ .name = "CloseNotification", .in_signature = "u", .in_names = daemon.close_args[..], .handler = &close_notification },
-		{ .name = "SimulateAction", .in_signature = "us", .in_names = daemon.simulate_args[..], .handler = &simulate_action },
+		{
+			.name = "CloseNotification",
+			.in_signature = "u",
+			.in_names = daemon.close_args[..],
+			.handler = &close_notification
+		},
+		{
+			.name = "SimulateAction",
+			.in_signature = "us",
+			.in_names = daemon.simulate_args[..],
+			.handler = &simulate_action
+		},
 	};
 	daemon.signals = {
 		{ .name = "NotificationClosed", .signature = "uu", .arg_names = daemon.closed_args[..] },

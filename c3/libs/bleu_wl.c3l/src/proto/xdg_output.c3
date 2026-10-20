@@ -8,11 +8,7 @@ import bleu::wl::proto::wayland;
  zxdg_output_manager_v1 version 3.
  A global factory interface for xdg_output objects.
 *>
-const display::Interface ZXDG_OUTPUT_MANAGER_V1 = {
-	.name = "zxdg_output_manager_v1",
-	.version = 3,
-	.dispatch = &zxdg_output_manager_v1_dispatch
-};
+const display::Interface ZXDG_OUTPUT_MANAGER_V1 = { .name = "zxdg_output_manager_v1", .version = 3, .dispatch = &zxdg_output_manager_v1_dispatch };
 
 <*
  Typed view of a zxdg_output_manager_v1 object. The proxy is the first field, so a pointer to
@@ -53,23 +49,12 @@ fn ZxdgOutputV1*? ZxdgOutputManagerV1.get_xdg_output(&self, wayland::WlOutput* o
 	return (ZxdgOutputV1*)created;
 }
 
-fn void? zxdg_output_manager_v1_dispatch(
-	display::Display* conn,
-	display::Proxy* proxy,
-	ushort opcode,
-	wire::Reader* args
-)
+fn void? zxdg_output_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of zxdg_output_manager_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zxdg_output_manager_v1", opcode)~;
 	}
 }
 
@@ -81,11 +66,7 @@ fn void? zxdg_output_manager_v1_dispatch(
  updated), a wl_output.done event is sent. This allows changes to the output properties to be
  seen as atomic, even if they happen via multiple events.
 *>
-const display::Interface ZXDG_OUTPUT_V1 = {
-	.name = "zxdg_output_v1",
-	.version = 3,
-	.dispatch = &zxdg_output_v1_dispatch
-};
+const display::Interface ZXDG_OUTPUT_V1 = { .name = "zxdg_output_v1", .version = 3, .dispatch = &zxdg_output_v1_dispatch };
 
 <*
  Typed view of a zxdg_output_v1 object. The proxy is the first field, so a pointer to either
@@ -204,63 +185,52 @@ fn void? zxdg_output_v1_dispatch(display::Display* conn, display::Proxy* proxy, 
 	switch (opcode)
 	{
 		case 0:
-
+		{
+			int x = args.get_int()!;
+			int y = args.get_int()!;
+			if (!proxy.zombie && listener != null && listener.logical_position != null)
 			{
-				int x = args.get_int()!;
-				int y = args.get_int()!;
-				if (!proxy.zombie && listener != null && listener.logical_position != null)
-				{
-					listener.logical_position(proxy.context, (ZxdgOutputV1*)proxy, x, y);
-				}
-				return;
+				listener.logical_position(proxy.context, (ZxdgOutputV1*)proxy, x, y);
 			}
+			return;
+		}
 		case 1:
-
+		{
+			int width = args.get_int()!;
+			int height = args.get_int()!;
+			if (!proxy.zombie && listener != null && listener.logical_size != null)
 			{
-				int width  = args.get_int()!;
-				int height = args.get_int()!;
-				if (!proxy.zombie && listener != null && listener.logical_size != null)
-				{
-					listener.logical_size(proxy.context, (ZxdgOutputV1*)proxy, width, height);
-				}
-				return;
+				listener.logical_size(proxy.context, (ZxdgOutputV1*)proxy, width, height);
 			}
+			return;
+		}
 		case 2:
-
+		{
+			if (!proxy.zombie && listener != null && listener.done != null)
 			{
-				if (!proxy.zombie && listener != null && listener.done != null)
-				{
-					listener.done(proxy.context, (ZxdgOutputV1*)proxy);
-				}
-				return;
+				listener.done(proxy.context, (ZxdgOutputV1*)proxy);
 			}
+			return;
+		}
 		case 3:
-
+		{
+			String name = args.get_string()!;
+			if (!proxy.zombie && listener != null && listener.name != null)
 			{
-				String name = args.get_string()!;
-				if (!proxy.zombie && listener != null && listener.name != null)
-				{
-					listener.name(proxy.context, (ZxdgOutputV1*)proxy, name);
-				}
-				return;
+				listener.name(proxy.context, (ZxdgOutputV1*)proxy, name);
 			}
+			return;
+		}
 		case 4:
-
+		{
+			String description = args.get_string()!;
+			if (!proxy.zombie && listener != null && listener.description != null)
 			{
-				String description = args.get_string()!;
-				if (!proxy.zombie && listener != null && listener.description != null)
-				{
-					listener.description(proxy.context, (ZxdgOutputV1*)proxy, description);
-				}
-				return;
+				listener.description(proxy.context, (ZxdgOutputV1*)proxy, description);
 			}
+			return;
+		}
 		default:
-			return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"opcode %d is not an event of zxdg_output_v1",
-				opcode
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zxdg_output_v1", opcode)~;
 	}
 }
