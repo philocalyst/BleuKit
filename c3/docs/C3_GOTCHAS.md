@@ -220,3 +220,10 @@
 * A panic on a non-test thread under the std test runner longjmps across threads and HANGS the suite (a failure looks like a hang in the next test): in thread helpers, report and `os::exit(1)` instead of asserting.
 * `c3fmt` is not idempotent on some aligned declaration groups (oscillates): format until stable, separate groups with blank lines.
 * `catch` is rejected inside `&&`; importing a module with a generic-looking `EventKind` can make it ambiguous with another lib's `EventKind`: qualify it.
+* A compile-time error that must name a member: `$error "not plain data at " +++ $path +++ "." +++ $member.name;` (`+++` concatenates compile-time strings; the manual's "Concatenation" section). `$error $member.name;` alone prints only the name, and a second `$error` in the same branch is never reached.
+* `$warning` does not exist in 0.8.5; `$Type.nameof` and `value.nameof` do not exist either (use `enum.description` for an enum's name, and recognise a generic like `Maybe{T}` by its member shape).
+* A type declared inside a function body (`struct`, `constset`, `enum`) is a parse error; declare it at file scope, and a struct literal needs a cast: `(Caps){ .charge = true }`.
+* Cross-module names inside the same library need the prefix even from a sub-module (`json::MAX_DEPTH`); a test file that is `bleu::json::x_test` cannot reach its module's constants unqualified, so test files that need them declare `module bleu::json;`.
+* `std::encoding::json` and a library module named `bleu::json` both answer to `json::`: inside `bleu::json` the bare `json::` is the library's own module; write `std::encoding::json::...` (or import it and call `json::` only where no library module is in scope).
+* A struct returned by value whose `Slice` members point at an array literal declared in the callee is dangling: the serialiser then crashed with `Out of bounds memory access` deep inside the writer. Return fixed arrays by value and build the slices in the caller.
+* A `defer` that frees a tree on error and not on success needs a guard flag (`bool handed_over = false; defer if (!handed_over) root.free();`), set just before the successful return.

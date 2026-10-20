@@ -59,3 +59,43 @@ fn void hub_publishes_state_and_events() @test
 	hub.stop();
 	assert(@catch(hub.state.latest()) == error::UNAVAILABLE, "closed hub has no state");
 }
+int abandoned_total;
+
+fn void count_abandoned(void* backend, DemoCommand* command)
+{
+	abandoned_total += command.by;
+}
+
+fn void bails_out_at_once(void* backend, DemoHub* hub, Host{DemoCommand}* host)
+{
+	// An early error exit: returns without ever serving the mailbox.
+}
+
+fn void commands_left_behind_are_abandoned_not_lost() @test
+{
+	abandoned_total = 0;
+	DemoHub hub;
+	hub.start(mem, "demo", "fake", &bails_out_at_once, null, abandon: &count_abandoned)!!;
+	// Give the worker time to run and return, then post: the mailbox is closed, so the post is refused.
+	thread::sleep_ms(50)!!;
+	assert(@catch(hub.post({ BUMP, 4 })) == error::UNAVAILABLE, "closed mailbox refuses new commands");
+	hub.stop();
+	assert(abandoned_total == 0, "nothing was queued before the bail-out");
+}
+
+fn void queued_commands_reach_abandon_on_stop() @test
+{
+	abandoned_total = 0;
+	DemoHub hub;
+	// run_slow serves nothing: it just waits for stop, so queued commands stay queued.
+	hub.start(mem, "demo", "fake", &waits_for_stop, null, abandon: &count_abandoned)!!;
+	hub.post({ BUMP, 3 })!!;
+	hub.post({ BUMP, 5 })!!;
+	hub.stop();
+	assert(abandoned_total == 8, "both queued commands were handed to abandon");
+}
+
+fn void waits_for_stop(void* backend, DemoHub* hub, Host{DemoCommand}* host)
+{
+	while (!host.stopping()) thread::sleep_ms(2)!!;
+}

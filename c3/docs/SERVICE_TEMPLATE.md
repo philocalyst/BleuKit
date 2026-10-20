@@ -27,3 +27,11 @@ downgrade per feature the backend cannot do.
 
 Testing hooks: `Options.root` (a prefix for pseudo-filesystems) and similar
 fields are how tests substitute fakes. Never read the real system in tests.
+
+Shutdown rule (added after review): `Hub.start(..., abandon: fn)` — the Hub
+closes the mailbox when the backend's `run` returns for ANY reason (stop or an
+early error exit) and hands every still-queued command to `abandon`, which must
+complete that command's `Operation` with a fault (`DISCONNECTED`/`CANCELLED`).
+A service whose commands carry Operations MUST pass `abandon`; otherwise a
+waiter can hang forever. `run` itself should still fail what it has already
+taken out of the mailbox when it bails out.

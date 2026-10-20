@@ -38,6 +38,14 @@ alias WorkerHost = Host{Command};
 *>
 alias RunFn = fn void(void* backend, Hub* hub, WorkerHost* host);
 
+<*
+ Called once for every command still queued when the backend's run function has
+ returned (normally on stop, but also when `run` bails out early on an error):
+ complete its `Operation` with a fault (typically `error::DISCONNECTED` or
+ `CANCELLED`) so no waiter hangs. Runs on the worker thread, after `run` returned.
+*>
+alias AbandonFn = fn void(void* backend, Command* command);
+
 const usz DEFAULT_QUEUE = 256;
 
 struct Hub
@@ -48,6 +56,7 @@ struct Hub
 	Worker{Command} worker;
 	String backend_name;
 	RunFn run;
+	AbandonFn abandon;
 	void* backend;
 	bool running;
 }
@@ -59,6 +68,7 @@ struct Hub
  @param name : "Service name for diagnostics, e.g. \"network\""
  @param backend_name : "Stable identifier of the chosen backend, e.g. \"networkmanager\""
  @param max_queue : "Most commands that may wait for the worker"
+ @param abandon : "Completes leftover commands' operations when the backend stops or bails out; services with Operations must pass it"
  @return? error::BACKEND_FAILURE : "The mailbox or the thread could not be created"
 *>
 fn void? Hub.start(
@@ -68,10 +78,17 @@ fn void? Hub.start(
 	String backend_name,
 	RunFn run,
 	void* backend,
-	usz max_queue = DEFAULT_QUEUE
+	usz max_queue = DEFAULT_QUEUE,
+	AbandonFn abandon = null
 )
 {
-	*self = { .allocator = allocator, .backend_name = backend_name, .run = run, .backend = backend };
+	*self = {
+		.allocator = allocator,
+		.backend_name = backend_name,
+		.run = run,
+		.abandon = abandon,
+		.backend = backend
+	};
 	self.state.init(allocator);
 	self.events.init(allocator);
 	if (catch err = self.worker.init(allocator, max_queue))
@@ -95,6 +112,19 @@ fn void hub_main(void* context, WorkerHost* host) @private
 {
 	Hub* hub = (Hub*)context;
 	hub.run(hub.backend, hub, host);
+	// `run` returned, on stop or on an early error: nothing will serve the mailbox any more.
+	// Refuse new commands and fail the queued ones so that no Operation is left pending forever.
+	host.mailbox().close();
+	if (hub.abandon)
+	{
+		Command[16] batch;
+		while (true)
+		{
+			usz count = host.mailbox().take_all(batch[..]);
+			if (count == 0) break;
+			for (usz i = 0; i < count; i++) hub.abandon(hub.backend, &batch[i]);
+		}
+	}
 }
 
 <*
