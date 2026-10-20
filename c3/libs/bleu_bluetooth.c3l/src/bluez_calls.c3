@@ -269,17 +269,10 @@ fn void? call_sync(Bluez* self, Message* call) @private
 // Sends a call whose reply completes `task`. Takes its own reference to the task. The call is listed as
 // waiting, so the worker wakes at its deadline even when nothing else arrives. `device` is the address
 // whose prompts close when the call ends ("" for none); it is copied into the task's arena.
-fn void? call_async(
-	Bluez* self,
-	Task* task,
-	Message* call,
-	String tolerated,
-	Duration timeout,
-	String device
-) @private
+fn void? call_async(Bluez* self, Task* task, Message* call, String tolerated, Duration timeout, String device) @private
 {
 	defer call.release();
-	Allocator arena  = task.allocator();
+	Allocator arena = task.allocator();
 	Pending* pending = alloc::new(
 		arena,
 		Pending,

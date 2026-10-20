@@ -37,7 +37,9 @@ fn void requests_queued_behind_a_returning_backend_all_complete() @test
 	foreach (task : tasks)
 	{
 		// Each one ends with DISCONNECTED: the backend went away before it could run the request.
-		assert(@catch(task.wait(time::ms(0))) == error::DISCONNECTED, "a queued request is completed, not left pending");
+		assert(@catch(
+			task.wait(time::ms(0))
+		) == error::DISCONNECTED, "a queued request is completed, not left pending");
 		task.release();
 	}
 }

@@ -78,6 +78,9 @@ enum Threshold : char
 	ALWAYS_BELOW,
 }
 
+<* The current time, in Unix microseconds (the wall clock). *>
+fn long now_us() => (long)time::now();
+
 <*
  The UTC offset of the local zone at `unix_us`, in microseconds. Read from the OS through
  `std::time`, so it follows the zone rules in effect at that instant.

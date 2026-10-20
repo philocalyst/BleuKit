@@ -97,9 +97,17 @@ fn void new_attributes_replace_the_entry_of_the_same_account() @test
 {
 	Keyring* keyring = open_keyring();
 	defer keyring.close();
-	Entry first      = { .service = "bleu.s2", .account = "home", .attributes = { { .key = "profile", .value = "one" } } };
-	Entry second     = { .service = "bleu.s2", .account = "home", .attributes = { { .key = "profile", .value = "two" } } };
-	Entry identity   = { .service = "bleu.s2", .account = "home" };
+	Entry first    = {
+		.service = "bleu.s2",
+		.account = "home",
+		.attributes = { { .key = "profile", .value = "one" } }
+	};
+	Entry second   = {
+		.service = "bleu.s2",
+		.account = "home",
+		.attributes = { { .key = "profile", .value = "two" } }
+	};
+	Entry identity = { .service = "bleu.s2", .account = "home" };
 
 	Operation{Entry}* stored_first = keyring.store(first, (char[])"first-value")!!;
 	defer stored_first.release();
@@ -131,8 +139,8 @@ fn void new_attributes_replace_the_entry_of_the_same_account() @test
 // frees its memory. Under valgrind, a release that touched the closed keyring's memory would be reported.
 fn void operation_outlives_keyring_close() @test
 {
-	Keyring* keyring = open_keyring();
-	Entry key        = { .service = "bleu.close", .account = "held" };
+	Keyring* keyring         = open_keyring();
+	Entry key                = { .service = "bleu.close", .account = "held" };
 	Operation{Entry}* stored = keyring.store(key, (char[])"held-value")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;

@@ -6,7 +6,9 @@
   "dependencies": [
     "bleu_core", "bleu_rt", "bleu_service", "bleu_dbus", "bleu_ddc", "bleu_dl",
     "bleu_objc", "bleu_win", "bleu_session", "bleu_power", "bleu_brightness",
-    "bleu_ipc", "bleu_json"
+    "bleu_ipc", "bleu_json", "bleu_bluetooth",
+    "bleu_clipboard", "bleu_wl", "bleu_sysinfo", "bleu_apps", "bleu_xdg", "bleu_plist",
+    "bleu_network", "bleu_display", "bleu_color", "bleu_appearance"
   ],
   "sources": [ "src/**" ],
   "targets": {

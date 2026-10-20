@@ -10,14 +10,15 @@
 
  --socket PATH      serve on PATH instead of the DMS default
  --fake-root DIR    read brightness from the sysfs tree under DIR and do not use logind (tests)
- --module-off NAME  do not start module NAME (repeatable): brightness, loginctl
+ --module-off NAME  do not start module NAME (repeatable): bluetooth, brightness, freedesktop, gamma,
+                     loginctl, network, theme.auto, wlroutput
  --debug            print what the modules do to stderr
 
  SIGINT and SIGTERM stop the daemon: the IPC server stops first, then the modules
  are stopped in reverse order of their start, and everything is freed.
 *>
 module dmsd;
-import std::io, std::collections::list, std::os::posix, libc, bleu::ipc, bleu::error, dmsd::contract, dmsd::capabilities, dmsd::server_methods, dmsd::loginctl_mod, dmsd::brightness_mod;
+import std::io, std::collections::list, std::os::posix, libc, bleu::ipc, bleu::error, dmsd::contract, dmsd::capabilities, dmsd::server_methods, dmsd::loginctl_mod, dmsd::bluetooth_mod, dmsd::brightness_mod, dmsd::sysinfo_mod, dmsd::apps_mod, dmsd::clipboard_mod, dmsd::evdev_mod, dmsd::unsupported_mod, dmsd::network_mod, dmsd::freedesktop_mod, dmsd::gamma_mod, dmsd::wlroutput_mod, dmsd::theme_auto_mod;
 
 // The pipe a signal handler writes to; `serve` blocks reading its other end.
 CInt shutdown_fd = -1;
@@ -146,8 +147,14 @@ fn int main(String[] args)
 	server.register_method("getServerInfo", &server_methods::get_server_info, &context)!!;
 	server.register_method("shell.ready", &server_methods::handle_shell_ready, &context)!!;
 
-	// Order is DMS's capability order (server.go getCapabilities): loginctl, then brightness.
-	contract::Module[2] modules = { loginctl_mod::descriptor(), brightness_mod::descriptor() };
+	// Order is DMS's capability order (server.go getCapabilities): loginctl, freedesktop, gamma, bluetooth,
+	// then brightness, wlroutput, evdev, clipboard, theme.auto.
+	contract::Module[13] modules = {
+		sysinfo_mod::descriptor(), network_mod::descriptor(), loginctl_mod::descriptor(), freedesktop_mod::descriptor(),
+		gamma_mod::descriptor(), bluetooth_mod::descriptor(), apps_mod::descriptor(), brightness_mod::descriptor(),
+		wlroutput_mod::descriptor(), clipboard_mod::descriptor(), evdev_mod::descriptor(), theme_auto_mod::descriptor(),
+		unsupported_mod::descriptor(),
+	};
 	for (sz i = 0; i < modules.len; i++)
 	{
 		contract::Module* mod = &modules[i];

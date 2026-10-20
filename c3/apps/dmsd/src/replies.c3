@@ -8,7 +8,7 @@
  A refused method is never advertised as a capability.
 *>
 module dmsd::replies;
-import bleu::ipc;
+import bleu::error, bleu::ipc;
 
 <*
  One refused method: its DMS name and the whole reply text, which starts with
@@ -50,4 +50,3 @@ fn void answer(Refusal[] table, ipc::Call* call)
 	}
 	call.respond_error("unknown method");
 }
-</content>

@@ -34,7 +34,9 @@ fn bool start(contract::Context* context, contract::Module* self)
 }
 
 // Nothing was started, so there is nothing to stop.
-fn void stop(contract::Context* context, contract::Module* self) {}
+fn void stop(contract::Context* context, contract::Module* self)
+{
+}
 
 fn void handle_refused(void* context, ipc::Call* call)
 {

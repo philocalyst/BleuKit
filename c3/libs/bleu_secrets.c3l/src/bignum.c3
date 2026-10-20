@@ -226,6 +226,9 @@ fn Num Montgomery.pow(&self, Num* base, Num* exponent)
 {
 	Num base_m = self.mul(base, &self.r2);
 	Num acc    = self.one;
+	// Both hold values that depend on the exponent: they are overwritten before the function returns.
+	defer mem::set(&base_m, 0, BYTES, 0, true);
+	defer mem::set(&acc, 0, BYTES, 0, true);
 	for (sz i = BITS - 1; i >= 0; i--)
 	{
 		acc = self.mul(&acc, &acc);

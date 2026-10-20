@@ -69,8 +69,14 @@ fn void? ensure_collection(SsBackend* b, Atomic{bool}* cancel, String service, S
 	{
 		path = create_collection(b, cancel, service, account)!;
 	}
+	// The watch needs the path, and the path is kept only once the watch exists: a failed watch is
+	// retried by the next command instead of leaving the collection cached without it.
 	b.collection = set_text(b, b.collection, path);
-	ensure_watch(b)!;
+	if (catch err = ensure_watch(b))
+	{
+		b.collection = set_text(b, b.collection, "");
+		return err~;
+	}
 }
 
 // CreateCollection under the default alias. Returns the new collection's path.

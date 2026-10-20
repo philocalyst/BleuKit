@@ -1,14 +1,14 @@
 <*
  The DMS modules with no Bleu service: every method answers `not supported: <why>`,
  and no capability is advertised. Methods come from the DMS handler tables (each
- `core/internal/server/<pkg>/handlers.go` case list, read from DMS master 8be08999):
+ `core/internal/server/<pkg>/handlers.go` case list, fetched from DMS master on 2026-10-20):
  cups, tailscale, wellbeing, sysupdate, wallpaper, plugins, themes, registries, and the
  `files.*` methods of dankgo's files package (`dankgo/files/handlers.go`, prefix
  `files.` at DMS `router.go:143`). Streaming forms (`cups.subscribe`,
  `wallpaper.subscribe`) are refused the same way: no stream exists for them here.
 
- Source of the method names: docs/research/dms_surface.md section 2.3, checked against
- the handler files. Deviations and the reasons: docs/DMSD.md.
+ The method names are the case lists of those handler files, extracted by script; the
+ golden copy is tests/golden/refused_methods.json. Deviations and the reasons: docs/DMSD.md.
 *>
 module dmsd::unsupported_mod;
 import bleu::ipc, dmsd::contract, dmsd::replies;
@@ -118,7 +118,9 @@ fn bool start(contract::Context* context, contract::Module* self)
 }
 
 // Nothing was started, so there is nothing to stop.
-fn void stop(contract::Context* context, contract::Module* self) {}
+fn void stop(contract::Context* context, contract::Module* self)
+{
+}
 
 fn void handle_refused(void* context, ipc::Call* call)
 {

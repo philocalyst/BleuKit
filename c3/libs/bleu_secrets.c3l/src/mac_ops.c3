@@ -119,8 +119,9 @@ fn Entry? store(Entry entry, Secret value)
 	defer label.close();
 	cf::Ref comment = cf::from_string(local::hex_encode(tmem, local::encode_attributes(tmem, entry.attributes)));
 	defer comment.close();
-	cf::Ref data = cf::from_bytes(value.bytes);
+	cf::Ref data = mutable_copy(value.bytes);
 	defer data.close();
+	defer wipe_data(data.ptr);
 
 	cf::CFTypeRef[6] keys = {
 		keychain::KSEC_CLASS,
@@ -203,6 +204,28 @@ fn Secret? read_secret(Entry entry, Allocator allocator)
 	char[] bytes  = cf::data_bytes(owned.ptr, allocator)!;
 	Secret secret = { .bytes = bytes };
 	return secret;
+}
+
+<*
+ A CFMutableData copy of a secret, so the copy can be zeroed in place. The keychain makes its own copy
+ when the item is added; that one is inside Security.framework and cannot be zeroed by the library.
+*>
+fn cf::Ref mutable_copy(char[] bytes)
+{
+	cf::Ref data = cf::adopt(keychain::cf_data_create_mutable(null, 0));
+	if (bytes.len > 0) keychain::cf_data_append_bytes(data.ptr, bytes.ptr, (cf::CFIndex)bytes.len);
+	return data;
+}
+
+<*
+ Zero the bytes of a CFMutableData copy and empty it. Called before the copy is released, so that the
+ released memory holds no secret.
+*>
+fn void wipe_data(cf::CFTypeRef data)
+{
+	cf::CFIndex length = keychain::cf_data_length(data);
+	if (length > 0) mem::set((void*)keychain::cf_data_mutable_bytes(data), 0, (usz)length, 0, true);
+	keychain::cf_data_set_length(data, 0);
 }
 
 <* Delete the entry. False when there was none. *>

@@ -33,7 +33,7 @@ if [ -z "$libdir" ]; then
   own_libdir="$("$repo/tools/libdir.sh")"
   libdir="$own_libdir"
 fi
-libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json)
+libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json bleu_bluetooth bleu_clipboard bleu_wl bleu_sysinfo bleu_apps bleu_xdg bleu_plist)
 largs=(); for l in "${libs[@]}"; do largs+=(--lib "$l"); done
 # c3c writes out/ and build/ into the working directory: compile from the private one.
 c3t() { (cd "$work" && c3c --libdir "$libdir" "${largs[@]}" "$@"); }
@@ -96,7 +96,7 @@ echo 1 >"$root/sys/class/leds/input5::kbd_backlight/brightness"
 echo 3 >"$root/sys/class/leds/input5::kbd_backlight/max_brightness"
 
 sock="$work/dmsd.sock"
-"$work/dmsd" --socket "$sock" --fake-root "$root" >"$work/dmsd.out" 2>"$work/dmsd.err" &
+env -u WAYLAND_DISPLAY "$work/dmsd" --socket "$sock" --fake-root "$root" >"$work/dmsd.out" 2>"$work/dmsd.err" &
 dmsd_pid=$!
 pids+=($dmsd_pid)
 for _ in $(seq 100); do [ -S "$sock" ] && break; sleep 0.05; done
@@ -167,6 +167,9 @@ else
   echo "FAIL suspend without lockerReady took ${silent_ms} ms"; cat "$work/mock.log"; status=1
 fi
 
+echo "== bluetooth module: own private bus with the BlueZ mock (tests/bluetooth.sh)"
+if ! bash "$here/bluetooth.sh" "$work/dmsd" "$python" "$work"; then status=1; fi
+
 echo "== shutdown on SIGTERM"
 kill -TERM "$dmsd_pid"
 for _ in $(seq 100); do kill -0 "$dmsd_pid" 2>/dev/null || break; sleep 0.05; done
@@ -186,7 +189,7 @@ for p in "${pids[@]}"; do [ "$p" = "$dmsd_pid" ] || keep+=("$p"); done
 pids=("${keep[@]}")
 
 echo "== absent backend is reported once and is not advertised"
-DBUS_SYSTEM_BUS_ADDRESS="unix:path=$work/no-bus.sock" "$work/dmsd" --socket "$work/absent.sock" --fake-root "$root" >/dev/null 2>"$work/absent.err" &
+env -u WAYLAND_DISPLAY DBUS_SYSTEM_BUS_ADDRESS="unix:path=$work/no-bus.sock" "$work/dmsd" --socket "$work/absent.sock" --fake-root "$root" >/dev/null 2>"$work/absent.err" &
 absent_pid=$!
 pids+=($absent_pid)
 for _ in $(seq 100); do [ -S "$work/absent.sock" ] && break; sleep 0.05; done
@@ -194,11 +197,14 @@ hs=$("$python" -c "
 import socket,sys
 s=socket.socket(socket.AF_UNIX); s.connect('$work/absent.sock'); print(s.makefile('rb').readline().decode().strip())")
 kill -TERM "$absent_pid"; wait "$absent_pid" 2>/dev/null
-if [ "$hs" = '{"apiVersion":38,"capabilities":["brightness"]}' ] && [ "$(grep -c 'loginctl: not started' "$work/absent.err")" -eq 1 ]; then
+if [ "$hs" = '{"apiVersion":38,"capabilities":["dgop","brightness"]}' ] && [ "$(grep -c 'loginctl: not started' "$work/absent.err")" -eq 1 ]; then
   echo "ok   loginctl not advertised, reported once"
 else
   echo "FAIL handshake was $hs"; cat "$work/absent.err"; status=1
 fi
+
+echo "== modules: dgop, apps, evdev, refusals, clipboard absence (own daemon, own XDG tree)"
+if ! bash "$here/modules.sh" "$work/dmsd" "$python"; then status=1; fi
 
 if [ "$status" -eq 0 ]; then echo "ALL PASSED"; else echo "FAILED"; fi
 exit "$status"

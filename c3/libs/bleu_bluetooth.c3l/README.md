@@ -7,19 +7,22 @@ Design: `docs/ARCHITECTURE.md`; the research and the cut line: `docs/research/bl
 what was implemented, verified and deviated from: `docs/research/bluetooth_impl.md`.
 
 **Status.** The Linux BlueZ backend is **run** against a python-dbus-next mock of
-`org.bluez` (`tests/run.sh`, 46 checks, all passing). The macOS and Windows backends
+`org.bluez` (`tests/run.sh`, 56 checks, all passing). The macOS and Windows backends
 are **type-checked only** (`tools/check.sh` on all six targets); nothing in them has run.
 
 ## Public API
 
-`Bluetooth* bt = bluetooth::open(allocator, Options{ backend, bus_address, root })!`,
-then `bt.close()`.
+`Bluetooth* bt = bluetooth::open(allocator, Options{ backend, bus_address, root, call_timeout, pairing_timeout })!`,
+then `bt.close()`. A request waits for its reply at most `call_timeout` (default 25 s); a pairing,
+user answers included, at most `pairing_timeout` (default 120 s). A timed-out pairing closes its
+waiting prompts, so a late answer is refused with `INVALID_STATE`.
 
 * State: `latest()`, `wait_after(seen, timeout)`, `watch`/`unwatch` (on the worker thread),
   `subscribe()` -> `Reader{Event}` for transients.
-* `State` = `Adapter[]` (address, powered, blocked, discoverable, pairable, discovering ...)
+* `State` = `Adapter[]` (address, `Maybe{bool} powered` (unknown where the backend cannot read it), blocked, discoverable, pairable, discovering ...)
   and `Device[]` (address, adapter, display_name, icon, paired, bonded, connected, trusted,
   blocked, `Maybe{Dbm} rssi`, `Maybe{Level} battery`, `Maybe{PnpId} pnp`, uuids, `Profile[]`).
+* Addresses must be `AA:BB:CC:DD:EE:FF` (or empty where the operation takes "the first controller"); any other text fails with `INVALID_ARGUMENT` at the call.
 * Operations return `Task*?` (an `Operation{Done}`; `wait`, `failure`, `release()`):
   `set_powered`, `set_discoverable(adapter, on, timeout_s)`, `set_pairable`,
   `start_discovery(adapter, DiscoveryFilter)`, `stop_discovery`, `pair`, `cancel_pairing`,
@@ -30,7 +33,8 @@ then `bt.close()`.
 * Events (`Event`): `ADAPTER_*`, `DEVICE_ADDED/CHANGED/REMOVED`, `DEVICE_DISCONNECTED` (text =
   BlueZ's reason), `PAIRING_REQUEST` (`PairingRequest{id, device, kind, passkey}`),
   `PAIRING_ENDED`. Prompts are never answered by the library: `reply_pairing` carries the user's answer;
-  an empty PIN is refused.
+  an empty PIN is refused. A `PASSKEY_DISPLAY` prompt carries the code as BlueZ sent it in `Event.text`.
+* Stopping or losing the backend completes every request still queued with `DISCONNECTED`; none is left pending.
 
 ## Coverage (capability x OS -> Run / Compiled-only / Not done)
 
@@ -68,19 +72,26 @@ the call refuses.
   `remove` selectors; the `*_private.c3` gate was not built), pairing and inquiry (need the
   IOBluetoothDevicePair / Inquiry delegates on a run loop), trust, block, rename, battery,
   per-profile, adapter list (no controller is reported).
-* **Windows:** WinRT radio power, WinRT custom pairing (`PairingRequested`), inquiry,
-  discoverable/pairable reads, connect/disconnect, per-profile service state, trust, block,
-  rename, battery, RSSI, modalias. Radio "powered" is only the fact that Win32 enumerates the
-  radio (see `bluetooth_impl.md`).
+* **Windows:** WinRT radio power (so `powered` is unknown), WinRT custom pairing
+  (`PairingRequested`), inquiry, discoverable/pairable reads, connect/disconnect, per-profile
+  service state, trust, block, rename, battery, RSSI, modalias.
 * **Linux:** GATT, LE advertising, OBEX, PAN/DUN, AVRCP, wake-on-BT, component batteries,
   `ConnectDevice`/`GetServiceRecords` [exp]; no `/dev/rfkill` write; no reconnect after
   bluetoothd restarts (a lost bus publishes an empty state and ends the worker).
 * Real hardware: nothing has been run against a real BlueZ, adapter or device.
+* Not exercised by a run: BlueZ's `Release` and `Cancel` closing waiting prompts (the mock sends
+  neither), a `DisplayPinCode` (the mock sends none), and a failing `GetManagedObjects` is only
+  simulated by the mock's fault switch (`BLEU_MOCK_FAIL_TREE`). The Windows and macOS error paths
+  (GetLastError for find functions, PIN wiping) are type-checked only.
 
 ## Verified how
 
 * `tests/run.sh`: private dbus-daemon, `tests/mock_bluez.py` as `org.bluez`, a fake rfkill tree,
-  and `tests/bluez_integration.c3`. Last run: 46 PASS, `ALL CHECKS PASSED`.
+  and `tests/bluez_integration.c3`. Last run: 56 PASS, `ALL CHECKS PASSED`. The new completion
+  checks (a short pairing timeout, an unanswered pairing and prompt, a late answer, a failed tree
+  read) were run against the review commit 2f89765 and 6 of them failed there.
+* `src/abandon_test.c3`: a hub whose backend returns while requests are queued; every request
+  completes with `DISCONNECTED`.
 * `src/classify_test.c3`: 7 `@test`s (class/appearance icons, battery, modalias, MAC and
   Windows address conversions): 66 of 66 library tests pass on Linux.
 * `tools/check.sh bleu_core bleu_rt bleu_service bleu_dbus bleu_dl bleu_objc bleu_win bleu_bluetooth`: ok on all six targets.

@@ -48,7 +48,8 @@ Run = executed on Linux against a private `dbus-daemon` and the Python mock
 | Plain transport, only when allowed | Run (refuse-dh + allow) | Not done | Not done |
 | Refusal without permission | Run (refuse-dh) | Not done | Not done |
 | Lock change by another client | Compiled-only (PropertiesChanged handler; not asserted) | Not done | Not done |
-| Pure: DH modexp, HKDF, AES-CBC, names, codes, blob, wipe | Run (27 `@test` functions in this library, plus 12 live) | Pure parts run on Linux | Pure parts run on Linux |
+| Pure: DH modexp, HKDF, AES-CBC, names, codes, blob, wipe, operation memory | Run (`@test` functions in `src/`) | Pure parts run on Linux | Pure parts run on Linux |
+| Replace by service and account, and an operation that outlives `close()` | Run (live normal; valgrind clean) | Compiled-only | Compiled-only |
 
 ## Not done
 
@@ -65,11 +66,23 @@ Run = executed on Linux against a private `dbus-daemon` and the Python mock
 * Windows: no Created time (Credential Manager does not keep one).
 * Secret Service: `Session.Close` is not sent; the service ends the session when
   the connection closes. `GetSecrets` (batch) is not used.
-* The DH modexp is not constant time (see `bignum.c3`).
-* Zeroing covers the operation's arena and the backend's AES key. Copies made by
-  callers, and the swap file, are not covered.
-* The Secret Service bus is not encrypted at the D-Bus level: with
-  `allow_plain_transport`, the value crosses the session bus unencrypted.
+* The DH modexp is not constant time (see `bignum.c3`): its exponent-dependent
+  branch is kept, which an attacker with a timing channel on this process could see.
+  A fixed-window ladder with a constant-time select would remove it.
+* Zeroing covers: the blocks of each operation's arena (when they are released),
+  the backend's AES key, the AES state and the HKDF and DH intermediates, the
+  Windows credential blobs before `CredFree`, and the library's own CFMutableData
+  copy of a macOS secret. Not covered: copies made by callers, copies inside the
+  platform (the CFData that `SecItemCopyMatching` returns, the keychain's own copy
+  on add, Credential Manager's buffers), the swap file, and registers.
+* Plain transport (`allow_plain_transport`): the value crosses the session bus
+  unencrypted, and it is held in D-Bus message buffers and in the decoded reply
+  tree, which the library does not zero. Only the copy the library makes of a
+  read value is zeroed.
+* The encrypted session protects against passive observation on the bus only. The
+  DH exchange is not authenticated and the cipher has no MAC, so an active party on
+  the bus can substitute keys or change ciphertext. The plain fallback happens only
+  when the service's OpenSession reply refuses the algorithm and the caller allowed it.
 
 ## Verified how
 

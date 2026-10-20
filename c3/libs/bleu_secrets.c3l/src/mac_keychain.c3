@@ -20,6 +20,15 @@ extern fn int sec_item_add(cf::CFTypeRef attributes, cf::CFTypeRef* result) @cna
 extern fn int sec_item_copy_matching(cf::CFTypeRef query, cf::CFTypeRef* result) @cname("SecItemCopyMatching");
 extern fn int sec_item_update(cf::CFTypeRef query, cf::CFTypeRef changes) @cname("SecItemUpdate");
 extern fn int sec_item_delete(cf::CFTypeRef query) @cname("SecItemDelete");
+// CFMutableData, so that the library's own copy of a secret can be zeroed before it is released.
+extern fn cf::CFTypeRef cf_data_create_mutable(
+	cf::CFTypeRef allocator,
+	cf::CFIndex capacity
+) @cname("CFDataCreateMutable");
+extern fn void cf_data_append_bytes(cf::CFTypeRef data, char* bytes, cf::CFIndex length) @cname("CFDataAppendBytes");
+extern fn char* cf_data_mutable_bytes(cf::CFTypeRef data) @cname("CFDataGetMutableBytePtr");
+extern fn cf::CFIndex cf_data_length(cf::CFTypeRef data) @cname("CFDataGetLength");
+extern fn void cf_data_set_length(cf::CFTypeRef data, cf::CFIndex length) @cname("CFDataSetLength");
 
 extern const cf::CFTypeRef KSEC_CLASS @cname("kSecClass");
 extern const cf::CFTypeRef KSEC_CLASS_GENERIC_PASSWORD @cname("kSecClassGenericPassword");

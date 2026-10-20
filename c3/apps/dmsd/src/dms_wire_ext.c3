@@ -8,7 +8,7 @@
  `MarshalJSON` (`time/time.go`), as the DMS structs are encoded.
 *>
 module dmsd::wire;
-import bleu::json;
+import std::collections::object, bleu::error, bleu::json;
 
 <* The text Go writes for a zero `time.Time`: the instant of year 1, which means "not set". *>
 const String GO_ZERO_TIME = "0001-01-01T00:00:00Z";
@@ -34,4 +34,15 @@ fn void? key_null(bleu::json::JsonWriter* writer, String key)
 fn void? key_zero_time(bleu::json::JsonWriter* writer, String key)
 {
 	key_string(writer, key, GO_ZERO_TIME)!;
+}
+
+<*
+ A required number, read as dankgo's `params.Float` reads it: a missing or non-numeric member is
+ the usual `missing or invalid '<key>' parameter` error.
+ @return? error::INVALID_ARGUMENT : "The member is missing, null or not a number"
+*>
+fn double? required_double(Object* params, String key)
+{
+	if (try value = json::read::get_double(params, key)) return value;
+	return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "missing or invalid '%s' parameter", key)~;
 }

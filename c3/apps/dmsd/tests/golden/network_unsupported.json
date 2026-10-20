@@ -1,0 +1,130 @@
+[
+ [
+  "network.ethernet.connect",
+  "not supported: bleu_network cannot activate a wired connection"
+ ],
+ [
+  "network.ethernet.connect.config",
+  "not supported: bleu_network cannot activate a wired connection profile"
+ ],
+ [
+  "network.ethernet.disconnect",
+  "not supported: bleu_network cannot disconnect a wired interface"
+ ],
+ [
+  "network.ethernet.info",
+  "not supported: bleu_network does not report wired profiles, addresses or DNS"
+ ],
+ [
+  "network.cellular.connect",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.cellular.connect.config",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.cellular.disconnect",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.cellular.toggle",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.cellular.enable",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.cellular.disable",
+  "not supported: bleu_network has no cellular service"
+ ],
+ [
+  "network.preference.set",
+  "not supported: bleu_network does not choose the route; the OS does"
+ ],
+ [
+  "network.qrcode",
+  "not supported: bleu_network does not read saved passphrases, so it cannot make a QR code"
+ ],
+ [
+  "network.qrcode-content",
+  "not supported: bleu_network does not read saved passphrases"
+ ],
+ [
+  "network.generate-qrcode",
+  "not supported: bleu_network has no QR code encoder"
+ ],
+ [
+  "network.delete-qrcode",
+  "not supported: bleu_network writes no QR code files"
+ ],
+ [
+  "network.subscribe",
+  "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"network\", \"network.credentials\"] instead"
+ ],
+ [
+  "network.vpn.profiles",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.active",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.connect",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.disconnect",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.disconnectAll",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.clearCredentials",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.plugins",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.import",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.getConfig",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.updateConfig",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.delete",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.vpn.setCredentials",
+  "not supported: bleu_network has no VPN service"
+ ],
+ [
+  "network.hotspot.configure",
+  "not supported: bleu_network has no hotspot"
+ ],
+ [
+  "network.hotspot.start",
+  "not supported: bleu_network has no hotspot"
+ ],
+ [
+  "network.hotspot.stop",
+  "not supported: bleu_network has no hotspot"
+ ],
+ [
+  "network.hotspot.getSecrets",
+  "not supported: bleu_network has no hotspot"
+ ]
+]

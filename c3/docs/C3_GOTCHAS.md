@@ -281,3 +281,11 @@
 * `Hub.start(..., service::DEFAULT_QUEUE, &abandon)` → "'DEFAULT_QUEUE' is a generic constant" → write `service::DEFAULT_QUEUE{State, Command, Event}` (the service's own types).
 * A `Reader` released after its owner called `Hub.free()` (or `close()` on a service) aborts with "Mutex was not initialized" in `Reader.release` → release subscriptions and join their threads before closing; a reader thread polls `next(time::ms(50))` and checks a flag.
 * A loop counter `int k` compared with a `const usz` (e.g. `MAX_HINTS`) → "Implicitly casting" or a signed/unsigned mismatch → use `usz` counters for `MAX_*` constants and cast `List.size` (`sz`) to `usz` before assigning it to a `usz`.
+* `Atomic`/`Thread`/`Mutex` used in a module → `import std::atomic` / `std::thread` explicitly (the type is not visible from `std::thread`).
+* A method of another module's struct needs its module for `Duration` fields too: `Duration` in a struct field → `import std::time` in the file that declares the struct.
+* `Phase` of a generic module (`operation::Phase`) → instantiate it: `operation::Phase{Done}`.
+* `time::ms(ulong)` → `ms` takes `long`; cast a `ulong` deadline with `(long)`.
+* `catch` cannot be combined with `&&` in one condition → write `if (catch f(x)) return ...` on its own line, then the second condition.
+* Generic functions are not written `fn void f{T}(...)` in 0.8.5 → write one typed function per type (or use a macro with `$Type`).
+* The byte size of a stdlib type is `Type::size` (`$sizeof` and `Type.sizeof` do not exist in 0.8.5).
+* A function passed as a callback to another module must be public (not `@private`) when the call site is in a different module.

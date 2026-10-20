@@ -32,4 +32,3 @@ fn String[] strings(Object* params, String key, Allocator allocator)
 	}
 	return found.to_aligned_array(allocator);
 }
-</content>

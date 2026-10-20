@@ -52,7 +52,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	capabilities.init(availability::YES);
 	if (catch err = open_encrypted(&trial))
 	{
-		if (!refused_algorithm()) return err~;
+		if (!refused_algorithm(err)) return err~;
 		capabilities.values[Cap.ENCRYPTED_TRANSPORT.ordinal] = availability::no(
 			UNSUPPORTED_BACKEND,
 			"the keyring refuses the encrypted session; secrets cross the bus unencrypted only when Options.allow_plain_transport is set"

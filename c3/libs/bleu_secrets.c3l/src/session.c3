@@ -38,9 +38,17 @@ fn char[KEY_BYTES] hkdf_sha256_key(char[] ikm)
 	// Expand: T(1) = HMAC(PRK, info || 0x01), with an empty info string.
 	char[1] counter            = { 0x01 };
 	char[HASH_BYTES] okm       = sha256::hmac(prk[..], counter[..]);
+	defer wipe_bytes(prk[..]);
+	defer wipe_bytes(okm[..]);
 	char[KEY_BYTES] key;
 	for (sz i = 0; i < KEY_BYTES; i++) key[i] = okm[i];
 	return key;
+}
+
+<* Overwrite `bytes` with zeros. Volatile, so the stores are not dropped as dead. *>
+fn void wipe_bytes(char[] bytes) @inline
+{
+	if (bytes.len > 0) mem::set(bytes.ptr, 0, bytes.len, 0, true);
 }
 
 <*
@@ -72,7 +80,7 @@ fn char[]? cbc_encrypt_blocks(Allocator allocator, char[] key, char[] iv, char[]
 	Aes aes @noinit;
 	char[AES_BLOCK] iv_block = block_of(iv);
 	aes.init(AES128, key, iv_block, CBC);
-	defer aes.destroy();
+	defer wipe_aes(&aes);
 	return aes.encrypt(allocator, blocks);
 }
 
@@ -94,20 +102,19 @@ fn char[]? decrypt_cbc(Allocator allocator, char[] key, char[] iv, char[] cipher
 	@pool()
 	{
 		char[] plain = decrypt_blocks(tmem, key, iv, cipher)!;
-		defer mem::set(plain.ptr, 0, plain.len, 0, true);
-		sz padding = (sz)plain[plain.len - 1];
-		if (padding == 0 || padding > AES_BLOCK || padding > plain.len)
+		defer wipe_bytes(plain);
+		sz padding      = (sz)plain[plain.len - 1];
+		// Every byte of the last block is visited, with no early exit, and both faults give one message,
+		// so the time taken and the text returned do not show where the padding is wrong.
+		bool valid      = padding >= 1 && padding <= AES_BLOCK && padding <= plain.len;
+		char difference = valid ? 0 : 1;
+		for (sz i = 0; i < AES_BLOCK; i++)
 		{
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid PKCS#7 padding length")~;
+			if (i < padding) difference |= plain[plain.len - 1 - i] ^ (char)padding;
 		}
-		for (sz i = plain.len - padding; i < plain.len; i++)
+		if (difference != 0)
 		{
-			if (plain[i] != (char)padding) return error::raise(
-				error::PROTOCOL,
-				error::Domain.INTERNAL,
-				0,
-				"invalid PKCS#7 padding bytes"
-			)~;
+			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid PKCS#7 padding")~;
 		}
 		return alloc::clone_slice(allocator, plain[0:plain.len - padding]);
 	};
@@ -119,8 +126,18 @@ fn char[]? decrypt_blocks(Allocator allocator, char[] key, char[] iv, char[] cip
 	Aes aes @noinit;
 	char[AES_BLOCK] iv_block = block_of(iv);
 	aes.init(AES128, key, iv_block, CBC);
-	defer aes.destroy();
+	defer wipe_aes(&aes);
 	return aes.decrypt(allocator, cipher);
+}
+
+<*
+ Destroy the AES state and overwrite its bytes. `Aes.destroy` is a plain struct assignment, which the
+ optimiser may drop as a dead store; the volatile zeroing after it is what keeps the key schedule gone.
+*>
+fn void wipe_aes(Aes* aes) @inline
+{
+	aes.destroy();
+	mem::set((void*)aes, 0, Aes::size, 0, true);
 }
 
 // The first block of `bytes`; the caller has checked the length.

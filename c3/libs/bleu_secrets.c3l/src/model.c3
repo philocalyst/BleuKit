@@ -67,7 +67,7 @@ enum Cap : char
 	DELETE,
 	SEARCH,
 	UNLOCK,              // explicit unlock, and unlock prompts shown by the keyring
-	ENCRYPTED_TRANSPORT, // the DH session is available (secrets are encrypted on the bus)
+	ENCRYPTED_TRANSPORT, // the DH session is available (values are encrypted on the bus against passive observation; the session is not authenticated)
 }
 
 <* A transient: something happened. Re-read `latest()` for the state. *>

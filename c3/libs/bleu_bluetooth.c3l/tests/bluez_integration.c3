@@ -52,7 +52,9 @@ fn Device* device_at(State* state, String address)
 
 fn bool has_device(State* state, String address) => device_at(state, address) != null;
 
-fn bool dev_powered(State* state) => state.adapters.len > 0 && state.adapters[0].powered.has_value && state.adapters[0].powered.value;
+fn bool dev_powered(
+	State* state
+) => state.adapters.len > 0 && state.adapters[0].powered.has_value && state.adapters[0].powered.value;
 
 fn bool dev_blocked(State* state) => state.adapters.len > 0 && state.adapters[0].blocked;
 
@@ -177,10 +179,10 @@ fn int main(String[] args)
 		io::printfn("usage: bluez_integration <bus address> <rfkill root> <fail-tree marker file>");
 		return 2;
 	}
-	String address = args[1];
-	String root    = args[2];
+	String address   = args[1];
+	String root      = args[2];
 	String fail_tree = args[3];
-	Bluetooth* bt  = bluetooth::open(
+	Bluetooth* bt    = bluetooth::open(
 		mem,
 		{ .backend = bluetooth::Backend.BLUEZ, .bus_address = address, .root = root }
 	) ?? null;
@@ -404,7 +406,10 @@ fn int main(String[] args)
 	if (kept)
 	{
 		defer kept.release();
-		expect(has_device(&kept.value, HEADSET) && kept.value.adapters.len == 1, "a failed tree read keeps the last state");
+		expect(
+			has_device(&kept.value, HEADSET) && kept.value.adapters.len == 1,
+			"a failed tree read keeps the last state"
+		);
 	}
 	else
 	{
@@ -438,7 +443,9 @@ fn bool is_done(Task* task)
 // Waits up to `ms` for the task, and says whether it has ended by then.
 fn bool ends_within(Task* task, ulong ms)
 {
-	if (catch task.wait(time::ms((long)ms))) {}
+	if (catch task.wait(time::ms((long)ms)))
+	{
+	}
 	return is_done(task);
 }
 

@@ -1,0 +1,75 @@
+{
+ "source": "AvengeMedia/DankMaterialShell core/internal/server/bluez (types.go, handlers.go), master, identical to the local checkout at 8be0899",
+ "structs": {
+  "BluetoothState": {
+   "file": "bluez/types.go",
+   "lines": "10-17",
+   "tags": [
+    "powered",
+    "discovering",
+    "adapters",
+    "devices",
+    "pairedDevices",
+    "connectedDevices"
+   ],
+   "omitempty": []
+  },
+  "AdapterInfo": {
+   "file": "bluez/types.go",
+   "lines": "19-25",
+   "tags": [
+    "path",
+    "name",
+    "address",
+    "powered",
+    "discovering"
+   ],
+   "omitempty": []
+  },
+  "Device": {
+   "file": "bluez/types.go",
+   "lines": "27-40",
+   "tags": [
+    "path",
+    "address",
+    "name",
+    "alias",
+    "paired",
+    "trusted",
+    "blocked",
+    "connected",
+    "class",
+    "icon",
+    "rssi",
+    "legacyPairing"
+   ],
+   "omitempty": []
+  },
+  "PairingPrompt": {
+   "file": "bluez/types.go",
+   "lines": "58-67",
+   "tags": [
+    "token",
+    "devicePath",
+    "deviceName",
+    "deviceAddr",
+    "requestType",
+    "fields",
+    "hints",
+    "passkey"
+   ],
+   "omitempty": [
+    "passkey"
+   ]
+  },
+  "PoweredResult": {
+   "file": "bluez/handlers.go",
+   "lines": "13-16",
+   "tags": [
+    "success",
+    "powered"
+   ],
+   "omitempty": []
+  }
+ }
+}

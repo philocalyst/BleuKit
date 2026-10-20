@@ -5,7 +5,7 @@
 
  * `BluetoothState` (types.go:10-16), `AdapterInfo` (types.go:19-25), `Device` (types.go:27-40);
  * `PairingPrompt` (types.go:58-67), the payload of the `bluetooth.pairing` stream, with the
-   `requestType` and `fields` that `agent.go` (`RequestPinCode` ... `AuthorizeService`) sends;
+ `requestType` and `fields` that `agent.go` (`RequestPinCode` ... `AuthorizeService`) sends;
  * `PoweredResult` (handlers.go:13-16).
 
  The values come from `bleu::bluetooth`. A field Bleu does not report is written empty
@@ -13,11 +13,6 @@
 *>
 module dmsd::bluetooth_wire;
 import std::collections::maybe, bleu::bluetooth, bleu::json, dmsd::wire;
-
-// The `fields` of each prompt kind (agent.go: the `fields` argument of `promptFor`).
-const String[1] PIN_FIELDS      = { "pin" };
-const String[1] PASSKEY_FIELDS  = { "passkey" };
-const String[1] DECISION_FIELDS = { "decision" };
 
 <*
  The BlueZ icon name for a device icon, as `Device.Icon` carries it: the name
@@ -117,7 +112,7 @@ fn String? render_state(Allocator allocator, bluetooth::State* state)
 	bool discovering = false;
 	if (state.adapters.len > 0)
 	{
-		powered     = is_on(state.adapters[0].powered);
+		powered = is_on(state.adapters[0].powered);
 		discovering = state.adapters[0].discovering;
 	}
 	wire::Line line;
@@ -177,17 +172,16 @@ fn String request_type(bluetooth::Event* event) @private
 	}
 }
 
-// The `fields` a prompt asks the shell to answer (agent.go). A display asks for nothing.
-fn String[] prompt_fields(bluetooth::Event* event) @private
+// The one field a prompt asks the shell to answer (agent.go: the `fields` argument of `promptFor`), "" for a display.
+fn String field_of(bluetooth::Event* event) @private
 {
-	String[] none;
 	switch (event.request.kind)
 	{
-		case bluetooth::PromptKind.CONFIRM: return DECISION_FIELDS[..];
-		case bluetooth::PromptKind.PIN: return PIN_FIELDS[..];
-		case bluetooth::PromptKind.PASSKEY_DISPLAY: return none;
-		case bluetooth::PromptKind.PASSKEY_ENTRY: return PASSKEY_FIELDS[..];
-		case bluetooth::PromptKind.AUTHORIZE: return DECISION_FIELDS[..];
+		case bluetooth::PromptKind.CONFIRM: return "decision";
+		case bluetooth::PromptKind.PIN: return "pin";
+		case bluetooth::PromptKind.PASSKEY_DISPLAY: return "";
+		case bluetooth::PromptKind.PASSKEY_ENTRY: return "passkey";
+		case bluetooth::PromptKind.AUTHORIZE: return "decision";
 	}
 }
 
@@ -215,12 +209,16 @@ fn String hint_of(bluetooth::Event* event) @private
 *>
 fn String? render_prompt(Allocator allocator, String token, bluetooth::Event* event, bluetooth::State* state)
 {
-	String address = event.request.device;
-	String hint    = hint_of(event);
-	String[1] hint_items = { hint };
+	String address        = event.request.device;
+	String hint           = hint_of(event);
+	String field          = field_of(event);
+	String[1] hint_items  = { hint };
+	String[1] field_items = { field };
 	String[] none;
-	String[] hints = none;
+	String[] hints        = none;
+	String[] fields       = none;
 	if (hint.len > 0) hints = hint_items[..];
+	if (field.len > 0) fields = field_items[..];
 	wire::Line line;
 	line.begin(allocator);
 	json::JsonWriter* w = &line.writer;
@@ -230,7 +228,7 @@ fn String? render_prompt(Allocator allocator, String token, bluetooth::Event* ev
 	wire::key_string(w, "deviceName", device_name(state, address))!;
 	wire::key_string(w, "deviceAddr", address)!;
 	wire::key_string(w, "requestType", request_type(event))!;
-	wire::key_strings(w, "fields", prompt_fields(event))!;
+	wire::key_strings(w, "fields", fields)!;
 	wire::key_strings(w, "hints", hints)!;
 	if (shows_passkey(event)) wire::key_uint(w, "passkey", (ulong)event.request.passkey.value)!;
 	w.end_object()!;

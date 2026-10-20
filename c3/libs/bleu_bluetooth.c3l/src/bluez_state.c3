@@ -22,7 +22,8 @@ fn void refresh(Bluez* self, BluetoothHub* hub)
 	Snapshot{State}* snapshot = hub.begin();
 	if (catch read_tree(self, snapshot.allocator(), &snapshot.value))
 	{
-		io::eprintfn("bleu: bluetooth: could not read BlueZ's objects (%s); keeping the last state", error::last().message());
+		io::eprintfn("bleu: bluetooth: could not read BlueZ's objects (%s); keeping the last state", error::last()
+			.message());
 		snapshot.release();
 		return;
 	}
@@ -81,7 +82,9 @@ fn Adapter read_adapter(Value props, bool kill_switch, Allocator allocator) @pri
 		.address = address,
 		.name = name,
 		.display_name = nickname.len > 0 ? nickname : name,
-		.powered = maybe::value(bool_prop(props, "Powered")), // BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
+		.powered = maybe::value(
+			bool_prop(props, "Powered")
+		), // BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
 		.blocked = kill_switch || text_prop(props, "PowerState", allocator) == "off-blocked",
 		.discoverable = bool_prop(props, "Discoverable"),
 		.discoverable_timeout_s = u32_prop(props, "DiscoverableTimeout"),

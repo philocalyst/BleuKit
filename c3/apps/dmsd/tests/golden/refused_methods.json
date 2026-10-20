@@ -1,0 +1,126 @@
+{
+ "source": "AvengeMedia/DankMaterialShell core/internal/server handler files, fetched from raw.githubusercontent.com master on 2026-10-20 (files: dankgo master files/handlers.go, reached through the files. prefix at router.go:143)",
+ "modules": {
+  "cups": {
+   "file": "core/internal/server/cups/handlers.go",
+   "methods": [
+    "cups.subscribe",
+    "cups.getPrinters",
+    "cups.getJobs",
+    "cups.pausePrinter",
+    "cups.resumePrinter",
+    "cups.cancelJob",
+    "cups.purgeJobs",
+    "cups.getDevices",
+    "cups.getPPDs",
+    "cups.getClasses",
+    "cups.createPrinter",
+    "cups.deletePrinter",
+    "cups.acceptJobs",
+    "cups.rejectJobs",
+    "cups.setPrinterShared",
+    "cups.setPrinterLocation",
+    "cups.setPrinterInfo",
+    "cups.moveJob",
+    "cups.printTestPage",
+    "cups.addPrinterToClass",
+    "cups.removePrinterFromClass",
+    "cups.deleteClass",
+    "cups.restartJob",
+    "cups.holdJob",
+    "cups.testConnection"
+   ]
+  },
+  "tailscale": {
+   "file": "core/internal/server/tailscale/handlers.go",
+   "methods": [
+    "tailscale.getStatus",
+    "tailscale.refresh",
+    "tailscale.connect",
+    "tailscale.disconnect",
+    "tailscale.setExitNode",
+    "tailscale.setAllowLanAccess"
+   ]
+  },
+  "wellbeing": {
+   "file": "core/internal/server/wellbeing/handlers.go",
+   "methods": [
+    "wellbeing.getState",
+    "wellbeing.setState",
+    "wellbeing.setLimits",
+    "wellbeing.summary",
+    "wellbeing.clear"
+   ]
+  },
+  "sysupdate": {
+   "file": "core/internal/server/sysupdate/handlers.go",
+   "methods": [
+    "sysupdate.getState",
+    "sysupdate.refresh",
+    "sysupdate.upgrade",
+    "sysupdate.cancel",
+    "sysupdate.acquire",
+    "sysupdate.release",
+    "sysupdate.releases",
+    "sysupdate.setInterval"
+   ]
+  },
+  "wallpaper": {
+   "file": "core/internal/server/wallpaper/handlers.go",
+   "methods": [
+    "wallpaper.getState",
+    "wallpaper.setConfig",
+    "wallpaper.trigger",
+    "wallpaper.subscribe"
+   ]
+  },
+  "plugins": {
+   "file": "core/internal/server/plugins/handlers.go",
+   "methods": [
+    "plugins.list",
+    "plugins.listInstalled",
+    "plugins.install",
+    "plugins.uninstall",
+    "plugins.update",
+    "plugins.search"
+   ]
+  },
+  "themes": {
+   "file": "core/internal/server/themes/handlers.go",
+   "methods": [
+    "themes.list",
+    "themes.listInstalled",
+    "themes.install",
+    "themes.uninstall",
+    "themes.update",
+    "themes.search"
+   ]
+  },
+  "registries": {
+   "file": "core/internal/server/registries/handlers.go",
+   "methods": [
+    "registries.list",
+    "registries.add",
+    "registries.remove"
+   ]
+  },
+  "files": {
+   "file": "dankgo files/handlers.go (dankgo master)",
+   "methods": [
+    "files.list",
+    "files.watch",
+    "files.unwatch",
+    "files.stat",
+    "files.count",
+    "files.thumbnail",
+    "files.icon",
+    "files.size",
+    "files.sizeCancel",
+    "files.userDirs",
+    "files.mkdir",
+    "files.rename",
+    "files.trash"
+   ]
+  }
+ }
+}

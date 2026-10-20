@@ -170,6 +170,7 @@ fn Montgomery? group()
 fn Num? random_private()
 {
 	char[ELEMENT_BYTES] bytes;
+	defer mem::set(bytes[..].ptr, 0, bytes.len, 0, true);
 	if (catch err = entropy::fill(bytes[..]))
 	{
 		return error::raise(
@@ -217,5 +218,6 @@ fn void? dh_shared(Montgomery* group, Num* exponent, Num* peer, char[] out)
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "DH public value out of range")~;
 	}
 	Num shared = group.pow(peer, exponent);
+	defer mem::set(&shared, 0, bignum::BYTES, 0, true);
 	shared.to_be(out);
 }

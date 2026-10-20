@@ -68,3 +68,39 @@ Counts: HIGH 5, MEDIUM 8, LOW 11. Line numbers refer to HEAD.
 - `tools/check.sh` for bleu_core through bleu_secrets and through bleu_bluetooth: ok on all six targets before the 08:04 bleu_core change. A linux-x64 recheck at HEAD fails on observe.c3:290.
 - Scratch reproductions (in the session scratchpad, not in libs/): bignum edge vectors (130 rows, pass); valgrind use-after-close (S1); replace semantics (S2); Bluetooth bus-drop (B1, B2) and idle-timeout (B3, B4) runs against the mock; rfkill String pattern (B7); optimised IR for `Aes.destroy` (S6); Secret Service and BlueZ and Win32 facts checked against the primary sources named above.
 - Not run: the Windows and macOS code (never executed), real keyring daemons (gnome-keyring, KWallet, KeePassXC), real BlueZ and real hardware.
+
+## Status after the fix pass
+
+Every HIGH and MEDIUM finding, and every LOW that was cheap, is fixed. The one LOW that is not
+(S10) is kept as a documented limit. "Run" means the regression check ran on Linux; "compiled" means
+type-checked on all six targets only. The "fails on 2f89765" column reports a regression test run
+against the review commit (bleu_bluetooth and bleu_secrets only; the rest of the tree is current).
+
+| ID | Status | What changed | Test (fails on 2f89765?) |
+| --- | --- | --- | --- |
+| S1 | FIXED | `wipe.c3` `OperationArena`: operations allocate from a counted arena that outlives `close()` and frees itself at the last release | live `operation_outlives_keyring_close` run under valgrind: invalid read on 2f89765, clean now; `wipe_test` unit tests |
+| S2 | FIXED | Read, delete and store find items by service and account only; `store` removes superseded items after the new one exists; search keeps attribute filtering | live `new_attributes_replace_the_entry_of_the_same_account` (yes) |
+| S3 | FIXED (compiled) | Credential blobs zeroed before `CredFree`, on read and on enumeration | not runnable here |
+| S4 | FIXED (compiled) | The library's copy of a macOS secret is a CFMutableData zeroed before release; Security.framework's own copies are a documented limit | not runnable here |
+| S5 | PARTLY FIXED | The library's copy of a plain-transport read value is zeroed; D-Bus message buffers and the decoded reply tree are a documented limit (bleu_dbus is not ours) | none (code path) |
+| S6 | FIXED | `wipe_aes`: `destroy` then a volatile zeroing of `Aes::size` bytes | none (code path; optimised IR not re-inspected) |
+| S7 | FIXED | Exponent, shared secret, derived key, PRK, OKM and modexp temporaries are wiped on every path | none (code path) |
+| S8 | FIXED | Plain fallback only when the OpenSession fault is UNSUPPORTED and the reply is NotSupported; capability note and README say "passive observation", unauthenticated | `live_plain_test` refuse-dh (passes) |
+| S9 | FIXED | Padding: every byte of the last block is compared, one error message | `session_test` (passes) |
+| S10 | WONTFIX | The modexp keeps its exponent-dependent branch. A constant-time fixed-window ladder is a larger change; exploitation needs a local timing channel and one exponent per session. Documented in the README | n/a |
+| S11 | FIXED | The collection path is cached only after its watch succeeds | none (code path) |
+| S12 | FIXED | Doc comments and the README zeroing and limits list match the code | n/a |
+| B1 | FIXED | `on_reply` decides from the reply status; an error name is read only from an error reply (status BACKEND_FAILURE) and never from a stale record; TIMEOUT and DISCONNECTED are never tolerated | integration "a pairing that times out is a timeout, not a success left over from an earlier AlreadyExists" (yes) |
+| B2 | FIXED | `abandon` passed to both `Hub.start` calls (bluetooth and secrets); leftovers complete with DISCONNECTED | `src/abandon_test.c3` (deterministic; the handler did not exist on 2f89765); integration stop check (passes on both: the normal path already drains) |
+| B3 | FIXED | Pending calls are listed with their deadlines; the worker's wait ends at the earliest one | integration "an unanswered pairing ends at its deadline while the worker is idle" (yes) |
+| B4 | FIXED | Pairing has its own deadline (`pairing_timeout`, 120 s default) that covers the prompts; on expiry the device's prompts close | "an unanswered pairing ends at its deadline", "the prompt of an ended pairing is closed", "an answer after the deadline is refused" (yes) |
+| B5 | FIXED | Prompts close on Release, on the end of a pairing, on CancelPairing and on RemoveDevice | prompt-close check (Pair end); Release not run (the mock sends none) |
+| B6 | FIXED | DisplayPinCode reports the text as BlueZ sent it; a passkey only for exactly six digits | not run (the mock sends no DisplayPinCode) |
+| B7 | FIXED | rfkill attributes compared inside the frame that reads them | existing rfkill checks (run) |
+| B8 | FIXED | A failed tree read keeps the last state and publishes nothing | "a failed tree read keeps the last state" (yes) |
+| B9 | FIXED (compiled) | A null find handle is "none" only with ERROR_NO_MORE_ITEMS | not runnable here |
+| B10 | FIXED | `Adapter.powered` is `Maybe{bool}`; Windows reports it unknown | Linux integration power checks (run) |
+| B11 | FIXED | Comment corrected: three BOOL fields | n/a (the size and offsets were already right) |
+| B12 | FIXED | The PIN text is zeroed after the answer (volatile); addresses are validated at submit | "a malformed device address is refused with INVALID_ARGUMENT" (run) |
+
+Not run and not fixed here: the rest of the review's "Suspicions" list (unchanged).

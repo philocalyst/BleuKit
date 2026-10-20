@@ -95,9 +95,9 @@ fn void over_aligned_blocks_are_refused() @test
 fn void operation_outlives_arena_close() @test
 {
 	wipe::OperationArena* arena = wipe::open_arena(mem);
-	Operation{bool}* op = operation::begin{bool}(arena);
-	Allocator op_arena = op.allocator();
-	String text = "a secret that lives in the operation".copy(op_arena);
+	Operation{bool}* op         = operation::begin{bool}(arena);
+	Allocator op_arena          = op.allocator();
+	String text                 = "a secret that lives in the operation".copy(op_arena);
 	arena.close();
 	assert(text == "a secret that lives in the operation");
 	op.succeed(true);

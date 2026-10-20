@@ -90,7 +90,7 @@ fn void? ensure_session(SsBackend* b)
 	if (b.session.len > 0) return;
 	if (catch err = open_encrypted(b))
 	{
-		if (!refused_algorithm()) return err~;
+		if (!refused_algorithm(err)) return err~;
 		if (!b.allow_plain)
 		{
 			return error::raise(
@@ -104,9 +104,14 @@ fn void? ensure_session(SsBackend* b)
 	}
 }
 
-// True when the last failure was the service rejecting the algorithm (org.freedesktop.DBus.Error.NotSupported).
-fn bool refused_algorithm()
+<*
+ True when `err` is the service rejecting the algorithm: the OpenSession reply was
+ org.freedesktop.DBus.Error.NotSupported. The fault is checked first, so an older error on this thread
+ cannot make an unrelated failure look like a refusal. Only `OpenSession` is sent inside `open_encrypted`.
+*>
+fn bool refused_algorithm(fault err)
 {
+	if (err != error::UNSUPPORTED) return false;
 	Detail* detail = error::last();
 	return detail.domain == error::Domain.DBUS && detail.message()
 		.starts_with("org.freedesktop.DBus.Error.NotSupported");
@@ -118,8 +123,10 @@ fn bool refused_algorithm()
 *>
 fn void? open_encrypted(SsBackend* b)
 {
-	Montgomery group     = dh::group()!;
-	Num exponent         = dh::random_private()!;
+	Montgomery group = dh::group()!;
+	Num exponent     = dh::random_private()!;
+	// The exponent and the shared secret are wiped on every path, including the error returns below.
+	defer mem::set(&exponent, 0, bignum::BYTES, 0, true);
 	Num public_key       = dh::dh_public(&group, &exponent);
 	char[] client_public = public_key.to_be_minimal(tmem);
 
@@ -135,10 +142,10 @@ fn void? open_encrypted(SsBackend* b)
 	char[] server_bytes = bytes_of(reply[0], tmem)!;
 	Num server_public   = bignum::from_be(server_bytes)!;
 	char[dh::ELEMENT_BYTES] secret;
+	defer mem::set(secret[..].ptr, 0, secret.len, 0, true);
 	dh::dh_shared(&group, &exponent, &server_public, secret[..])!;
 	char[session::KEY_BYTES] key = session::hkdf_sha256_key(secret[..]);
-	mem::set(secret[..].ptr, 0, secret.len, 0, true);
-	mem::set(&exponent, 0, bignum::BYTES, 0, true);
+	defer mem::set(key[..].ptr, 0, key.len, 0, true);
 	String path = reply[1].as_object_path()!;
 	set_session(b, path, ENCRYPTED, key[..]);
 }

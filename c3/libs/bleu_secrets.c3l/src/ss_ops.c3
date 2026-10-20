@@ -224,6 +224,8 @@ fn Secret? read_value(SsBackend* b, Entry entry, Atomic{bool}* cancel, Allocator
 	w.finish()!;
 	Value[] reply   = invoke(b, call, tmem)!;
 	WireSecret wire = read_secret(reply[0], tmem)!;
+	// The copy of the reply's value made in the temporary allocator: zeroed here, because the pool does not.
+	defer session::wipe_bytes(wire.value);
 	return open_value(b, wire, allocator);
 }
 

@@ -8,39 +8,55 @@
  editing); see `replies` and the table below.
 
  Source of every shape and rule: `core/internal/server/clipboard/` at DMS master
- 8be08999 (types.go, handlers.go). What Bleu cannot give, and what differs: docs/DMSD.md.
+ (fetched from raw.githubusercontent.com on 2026-10-20; types.go, handlers.go). What Bleu cannot give, and what differs:
+ docs/DMSD.md.
 *>
 module dmsd::clipboard_mod;
-import std::collections::list, std::time, bleu::clipboard, bleu::error, bleu::ipc, bleu::json, bleu::observe, bleu::operation, dmsd::contract, dmsd::wire, dmsd::params, dmsd::param_lists, dmsd::replies;
+import std::collections::list, std::collections::object, std::time, bleu::clipboard, bleu::error, bleu::ipc, bleu::json, bleu::observe, bleu::operation, dmsd::contract, dmsd::wire, dmsd::params, dmsd::param_lists, dmsd::replies;
 
 const String[1] TOPICS       = { "clipboard" };
 const String[1] CAPABILITIES = { "clipboard" };
 
 // DMS's `DefaultConfig` (clipboard/types.go:28-35): the history keeps 100 copies, and a copy may be 5 MiB.
 // The running service is opened with these, so `getConfig` reports what it enforces.
-const uint HISTORY_ITEMS = 100;
-const usz PAYLOAD_LIMIT  = 5 * 1024 * 1024;
+const uint HISTORY_ITEMS           = 100;
+const usz PAYLOAD_LIMIT            = 5 * 1024 * 1024;
 // How long a read, a write or a delete of the selection may take before the reply says so.
-const Duration OPERATION_TIMEOUT = (Duration)5_000_000;
+const Duration OPERATION_TIMEOUT   = (Duration)5_000_000;
 // Reply when there is no state yet: the empty history, with capture on (the service is open).
-const String EMPTY_STATE = "{\"enabled\":true,\"history\":[]}";
+const String EMPTY_STATE           = "{\"enabled\":true,\"history\":[]}";
 // Text types in the order `paste` prefers them.
-const String[5] TEXT_TYPES = { "text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING", "TEXT" };
+const String[5] TEXT_TYPES         = { "text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING", "TEXT" };
 // Reply text for `clipboard.subscribe`: the streaming form cannot reply in this protocol.
 const String SUBSCRIBE_UNSUPPORTED = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"clipboard\"] instead";
 
 // The refused methods. Each has no Bleu source; the reason is the reply.
 const replies::Refusal[10] REFUSALS = {
 	{ .method = "clipboard.subscribe", .text = SUBSCRIBE_UNSUPPORTED },
-	{ .method = "clipboard.sendPaste", .text = "not supported: Bleu cannot send a paste keystroke (it has no virtual keyboard)" },
-	{ .method = "clipboard.search", .text = "not supported: search over the clipboard history is not built; Bleu keeps text copies only, with no index" },
-	{ .method = "clipboard.store", .text = "not supported: Bleu cannot add an entry to the history without taking the selection" },
+	{
+		.method = "clipboard.sendPaste",
+		.text = "not supported: Bleu cannot send a paste keystroke (it has no virtual keyboard)"
+	},
+	{
+		.method = "clipboard.search",
+		.text = "not supported: search over the clipboard history is not built; Bleu keeps text copies only, with no index"
+	},
+	{
+		.method = "clipboard.store",
+		.text = "not supported: Bleu cannot add an entry to the history without taking the selection"
+	},
 	{ .method = "clipboard.pinEntry", .text = "not supported: Bleu's clipboard history has no pinned entries" },
 	{ .method = "clipboard.unpinEntry", .text = "not supported: Bleu's clipboard history has no pinned entries" },
-	{ .method = "clipboard.getPinnedEntries", .text = "not supported: Bleu's clipboard history has no pinned entries" },
+	{
+		.method = "clipboard.getPinnedEntries",
+		.text = "not supported: Bleu's clipboard history has no pinned entries"
+	},
 	{ .method = "clipboard.getPinnedCount", .text = "not supported: Bleu's clipboard history has no pinned entries" },
 	{ .method = "clipboard.editEntry", .text = "not supported: Bleu's clipboard history entries cannot be edited" },
-	{ .method = "clipboard.copyFile", .text = "not supported: Bleu cannot offer a file list on the clipboard (text and raw types only)" },
+	{
+		.method = "clipboard.copyFile",
+		.text = "not supported: Bleu cannot offer a file list on the clipboard (text and raw types only)"
+	},
 };
 
 <* The module's runtime state. Allocated in `start`, freed in `stop`. *>
@@ -158,7 +174,7 @@ fn String ClipboardModule.reply_state(&self, Allocator allocator)
 // Encodes the newest state for the `clipboard` topic.
 fn String? encode_state(void* context, Allocator allocator)
 {
-	ClipboardModule* m                           = (ClipboardModule*)context;
+	ClipboardModule* m                            = (ClipboardModule*)context;
 	observe::Snapshot{clipboard::State}* snapshot = m.service.latest()!;
 	defer snapshot.release();
 	return render_state(allocator, &snapshot.value);
@@ -198,7 +214,12 @@ fn ulong[]? entry_ids(Object* params, Allocator allocator) @private
 {
 	Object* raw = params.get("ids") ?? null;
 	if (!raw) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "missing 'ids' parameter")~;
-	if (!raw.is_array()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "'ids' must be an array")~;
+	if (!raw.is_array()) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"'ids' must be an array"
+	)~;
 	List{ulong} out;
 	out.init(allocator);
 	for (sz i = 0; i < raw.get_len(); i++)
@@ -240,7 +261,7 @@ fn char[]? fetch_bytes(clipboard::Clipboard* service, clipboard::Entry entry, St
 // Remove one history entry. True when it was there.
 fn bool? remove_entry(clipboard::Clipboard* service, ulong id) @private
 {
-	clipboard::Entry entry = { .id = id };
+	clipboard::Entry entry         = { .id = id };
 	operation::Operation{bool}* op = service.delete(entry)!;
 	defer op.release();
 	return op.wait(OPERATION_TIMEOUT)!;
@@ -263,7 +284,7 @@ fn String? entry_line(ClipboardModule* m, Allocator allocator, ulong id) @privat
 // `clipboard.copyEntry {id}`: own the selection with the entry's payload (`textOnly` has no alternate type to choose here).
 fn void? copy_entry(ClipboardModule* m, ipc::Call* call) @private
 {
-	ulong id = entry_id(call.params)!;
+	ulong id                                      = entry_id(call.params)!;
 	observe::Snapshot{clipboard::State}* snapshot = m.service.latest()!;
 	defer snapshot.release();
 	clipboard::Entry entry;
@@ -271,10 +292,10 @@ fn void? copy_entry(ClipboardModule* m, ipc::Call* call) @private
 	{
 		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "entry not found: %d", id)~;
 	}
-	String mime = primary_mime(entry.mime_types);
-	char[] data = fetch_bytes(m.service, entry, mime, tmem)!;
+	String mime                          = primary_mime(entry.mime_types);
+	char[] data                          = fetch_bytes(m.service, entry, mime, tmem)!;
 	clipboard::Representation[1] offered = { { .mime = mime, .bytes = data } };
-	operation::Operation{ulong}* op = m.service.set(clipboard::Slot.CLIPBOARD, offered[..])!;
+	operation::Operation{ulong}* op      = m.service.set(clipboard::Slot.CLIPBOARD, offered[..])!;
 	defer op.release();
 	op.wait(OPERATION_TIMEOUT)!;
 	wire::respond_success(call, "copied to clipboard")!;
@@ -286,13 +307,13 @@ fn void? paste_text(ClipboardModule* m, ipc::Call* call) @private
 	observe::Snapshot{clipboard::State}* snapshot = m.service.latest()!;
 	defer snapshot.release();
 	clipboard::Selection* current = &snapshot.value.current;
-	String mime = text_type(current.mime_types);
+	String mime                   = text_type(current.mime_types);
 	if (!current.present || mime == "")
 	{
 		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no text on the clipboard")~;
 	}
 	clipboard::Entry entry = { .id = current.seq, .mime_types = current.mime_types };
-	char[] data = fetch_bytes(m.service, entry, mime, tmem)!;
+	char[] data            = fetch_bytes(m.service, entry, mime, tmem)!;
 	wire::Line line;
 	line.begin(tmem);
 	line.writer.begin_object()!;
@@ -304,7 +325,7 @@ fn void? paste_text(ClipboardModule* m, ipc::Call* call) @private
 // `clipboard.copy {text}`: own the selection with UTF-8 text.
 fn void? copy_text(ClipboardModule* m, ipc::Call* call) @private
 {
-	String text = params::param_string(call.params, "text")!;
+	String text                     = params::param_string(call.params, "text")!;
 	operation::Operation{ulong}* op = m.service.set_text(clipboard::Slot.CLIPBOARD, text)!;
 	defer op.release();
 	op.wait(OPERATION_TIMEOUT)!;
@@ -314,7 +335,7 @@ fn void? copy_text(ClipboardModule* m, ipc::Call* call) @private
 // `clipboard.deleteEntries {ids}`: remove each, and count those that were there.
 fn void? delete_entries(ClipboardModule* m, ipc::Call* call) @private
 {
-	ulong[] ids = entry_ids(call.params, tmem)!;
+	ulong[] ids  = entry_ids(call.params, tmem)!;
 	long deleted = 0;
 	foreach (id : ids)
 	{
@@ -335,7 +356,11 @@ fn void? clear_history(ClipboardModule* m, ipc::Call* call) @private
 fn void? set_config(ClipboardModule* m, ipc::Call* call) @private
 {
 	if (params::opt_int(call.params, "maxHistory", HISTORY_ITEMS) != HISTORY_ITEMS) return fixed("maxHistory")~;
-	if (params::opt_int(call.params, "maxEntrySize", (long)PAYLOAD_LIMIT) != (long)PAYLOAD_LIMIT) return fixed("maxEntrySize")~;
+	if (params::opt_int(
+		call.params,
+		"maxEntrySize",
+		(long)PAYLOAD_LIMIT
+	) != (long)PAYLOAD_LIMIT) return fixed("maxEntrySize")~;
 	if (params::opt_int(call.params, "autoClearDays", 0) != 0) return fixed("autoClearDays")~;
 	if (!params::opt_bool(call.params, "clearAtStartup", true)) return fixed("clearAtStartup")~;
 	if (params::opt_bool(call.params, "disabled", false)) return fixed("disabled")~;
@@ -345,7 +370,13 @@ fn void? set_config(ClipboardModule* m, ipc::Call* call) @private
 
 fn fault fixed(String key) @private
 {
-	return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "not supported: %s cannot change while the clipboard service runs", key);
+	return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"not supported: %s cannot change while the clipboard service runs",
+		key
+	);
 }
 
 <* Start the clipboard module, or report why not and return false. *>
@@ -359,7 +390,10 @@ fn bool start(contract::Context* context, contract::Module* self)
 	}
 	else
 	{
-		contract::warn("clipboard: not started: %s", contract::failure_text("no clipboard service"));
+		// The library's own reason is not kept in the error state here, so the reason is named as the library documents it.
+		contract::warn(
+			"clipboard: not started: no clipboard is reachable (no Wayland display with a data-control protocol)"
+		);
 		return false;
 	}
 	ClipboardModule* m = alloc::new(context.allocator, ClipboardModule);
@@ -420,7 +454,10 @@ fn void handle_get_history(void* context, ipc::Call* call)
 	ClipboardModule* m = (ClipboardModule*)context;
 	@pool()
 	{
-		if (catch get_history(m, call)) call.respond_error(contract::failure_text("failed to read the clipboard history"));
+		if (catch get_history(
+			m,
+			call
+		)) call.respond_error(contract::failure_text("failed to read the clipboard history"));
 	};
 }
 
@@ -460,7 +497,7 @@ fn void handle_delete_entry(void* context, ipc::Call* call)
 
 fn void? delete_entry(ClipboardModule* m, ipc::Call* call) @private
 {
-	ulong id    = entry_id(call.params)!;
+	ulong id     = entry_id(call.params)!;
 	bool removed = remove_entry(m.service, id)!;
 	if (!removed) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "entry not found: %d", id)~;
 	wire::respond_success(call, "entry deleted")!;

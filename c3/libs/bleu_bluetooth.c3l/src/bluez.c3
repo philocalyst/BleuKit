@@ -25,25 +25,25 @@ module bleu::bluetooth::bluez @feat(LINUX);
 import std::collections::list, std::io::path, std::time, bleu::availability, bleu::bluetooth, bleu::dbus, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server, bleu::deadline, bleu::error, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 <* The well-known name of BlueZ on the system bus. *>
-const BLUEZ_NAME               = "org.bluez";
+const BLUEZ_NAME                       = "org.bluez";
 <* The root of BlueZ's object tree. *>
-const BLUEZ_ROOT               = "/";
-const ADAPTER_IFACE            = "org.bluez.Adapter1";
-const DEVICE_IFACE             = "org.bluez.Device1";
-const BATTERY_IFACE            = "org.bluez.Battery1";
+const BLUEZ_ROOT                       = "/";
+const ADAPTER_IFACE                    = "org.bluez.Adapter1";
+const DEVICE_IFACE                     = "org.bluez.Device1";
+const BATTERY_IFACE                    = "org.bluez.Battery1";
 <* Where the system bus socket lives on current distributions; the first that exists is used by `probe`. *>
-const SYSTEM_BUS_SOCKET        = "/run/dbus/system_bus_socket";
-const SYSTEM_BUS_SOCKET_LEGACY = "/var/run/dbus/system_bus_socket";
+const SYSTEM_BUS_SOCKET                = "/run/dbus/system_bus_socket";
+const SYSTEM_BUS_SOCKET_LEGACY         = "/var/run/dbus/system_bus_socket";
 <* How many commands one pass of the worker takes from the mailbox. *>
-const usz COMMAND_BATCH        = 8;
+const usz COMMAND_BATCH                = 8;
 <* How long an ordinary request may wait for BlueZ's reply: the bus's own default for a call. *>
 const Duration DEFAULT_CALL_TIMEOUT    = (Duration)25_000_000;
 <* How long a pairing may take, the user's answers to its prompts included. *>
 const Duration DEFAULT_PAIRING_TIMEOUT = (Duration)120_000_000;
 <* Poller tag of the bus socket; the wake-up has its own tag. *>
-const usz BUS_TAG              = 1;
+const usz BUS_TAG                      = 1;
 <* Native sources the worker waits on: the bus socket only. *>
-const usz POLL_CAPACITY        = 2;
+const usz POLL_CAPACITY                = 2;
 
 <* The one descriptor-level state of the backend. The bus is used only by the worker thread. *>
 struct Bluez
@@ -105,8 +105,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			.bus_address = bluetooth::copy_text(options.bus_address, allocator),
 			.root = bluetooth::copy_text(options.root, allocator),
 			.call_timeout = options.call_timeout == time::DURATION_ZERO ? DEFAULT_CALL_TIMEOUT : options.call_timeout,
-			.pairing_timeout = options.pairing_timeout == time::DURATION_ZERO
-				? DEFAULT_PAIRING_TIMEOUT
+			.pairing_timeout = options.pairing_timeout == time::DURATION_ZERO ? DEFAULT_PAIRING_TIMEOUT
 				: options.pairing_timeout,
 		}
 	);
@@ -223,7 +222,9 @@ fn bool wait_for_bus(Bluez* self, Poller* poller) @private
 	interest.writable = self.bus.has_pending_output();
 	if (catch poller.add({ .handle = (Native)fd, .interest = interest, .tag = BUS_TAG })) return false;
 	// A wait that ends by timeout returns no ready source, and the loop then processes the bus.
-	if (catch poller.wait(next_wait(self))) {}
+	if (catch poller.wait(next_wait(self)))
+	{
+	}
 	if (catch poller.remove(BUS_TAG)) return false;
 	return true;
 }

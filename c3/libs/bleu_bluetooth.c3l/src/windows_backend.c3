@@ -34,7 +34,9 @@ const uint SEARCH_PARAMS_SIZE     = 40;
 const uint DEVICE_INFO_SIZE       = 560;
 <* ERROR_SUCCESS: the Win32 functions return zero on success. *>
 const uint ERROR_SUCCESS          = 0;
-<* ERROR_NO_MORE_ITEMS (winerror.h): a find function that found nothing; a null handle with any other error is a failure. *>
+<*
+ ERROR_NO_MORE_ITEMS (winerror.h): a find function that found nothing; a null handle with any other error is a failure.
+*>
 const uint ERROR_NO_MORE_ITEMS    = 259;
 
 <* The state of the backend: the allocator for snapshots and the poll interval. *>
@@ -257,8 +259,8 @@ fn void? read_radio(
 		{
 			.address = address,
 			.name = name,
-			.display_name = name.len > 0 ? name : address,
-			// BLUETOOTH_RADIO_INFO carries no power state, so `powered` stays unknown.
+			.display_name = name.len > 0 ? name
+				: address, // BLUETOOTH_RADIO_INFO carries no power state, so `powered` stays unknown.
 		}
 	);
 	read_devices(api, radio, address, allocator, devices)!;

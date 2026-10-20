@@ -149,9 +149,26 @@ fn Secret? read_secret(Entry entry, Allocator allocator)
 		return errors::raise_last("CredReadW")~;
 	}
 	defer cred::cred_free(found);
+	// Declared after the free, so it runs first: the blob is zeroed before CredFree gives the memory back.
+	defer wipe_blob(found);
 	char[] bytes  = found.blob[0:(sz)found.blob_size];
 	Secret secret = { .bytes = alloc::clone_slice(allocator, bytes) };
 	return secret;
+}
+
+<*
+ Zero the secret blob of one native credential. CredFree releases the memory without clearing it, so
+ the library clears it first.
+*>
+fn void wipe_blob(Credential* native) @private
+{
+	if (native.blob != null && native.blob_size > 0) mem::set((void*)native.blob, 0, (sz)native.blob_size, 0, true);
+}
+
+<* Zero the secret blobs of an enumerated array of `count` credentials, before CredFree releases them. *>
+fn void wipe_blobs(Credential** found, Win32_DWORD count) @private
+{
+	for (usz i = 0; i < count; i++) wipe_blob(found[i]);
 }
 
 <* Delete the credential. False when there was none. *>
@@ -179,6 +196,7 @@ fn Entry[]? search_entries(Entry filter, Allocator allocator)
 		return errors::raise_last("CredEnumerateW")~;
 	}
 	defer cred::cred_free(found);
+	defer wipe_blobs(found, count);
 	List{Entry} matches;
 	matches.init(tmem);
 	for (usz i = 0; i < count; i++)
