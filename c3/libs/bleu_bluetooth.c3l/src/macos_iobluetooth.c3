@@ -18,7 +18,7 @@
  blueutil.m:919, 1165, 1196, 493, 533-541, read in the research spike).
 *>
 module bleu::bluetooth::iobluetooth @feat(DARWIN) @link("IOBluetooth.framework");
-import std::time, bleu::availability, bleu::bluetooth, bleu::error, bleu::mach, bleu::objc,
+import std::collections::maybe, std::os::darwin::objc, std::time, bleu::availability, bleu::bluetooth, bleu::error, bleu::mach, bleu::objc,
 	bleu::objc::foundation, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 <* How often the paired-device list is read again. *>
@@ -33,15 +33,10 @@ const ZString SELECTOR_PAIRED = "pairedDevices";
 const ZString SELECTOR_ADDRESS = "addressString";
 const ZString SELECTOR_NAME = "name";
 const ZString SELECTOR_CONNECTED = "isConnected";
-const ZString SELECTOR_PAIRED_FLAG = "isPaired";
 const ZString SELECTOR_RSSI = "rawRSSI";
 const ZString SELECTOR_DEVICE_WITH_ADDRESS = "deviceWithAddressString:";
-const ZString SELECTOR_OPEN = "openConnection";
-const ZString SELECTOR_CLOSE = "closeConnection";
-const ZString SELECTOR_COUNT = "count";
-const ZString SELECTOR_OBJECT_AT = "objectAtIndex:";
 
-<* The state of the backend: only what the worker needs. *>
+<* The state of the backend: the allocator for the snapshots and the poll interval. *>
 struct Session
 {
 	Allocator allocator;
@@ -112,21 +107,21 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	if (catch poller.init(mem, host.wakeup(), 1)) return;
 	defer poller.free();
 	Request[COMMAND_BATCH] commands;
-	refresh(hub, self.allocator);
+	refresh(hub);
 	while (!host.stopping())
 	{
 		// A timeout is the normal poll tick; a wake-up means a command is waiting.
 		if (catch poller.wait(self.poll)) {}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(&commands[i]);
-		refresh(hub, self.allocator);
+		refresh(hub);
 	}
 	fail_queued(host);
 	bluetooth::publish_empty(hub);
 }
 
 // Read the paired devices and publish them if they changed. An unreadable list is an empty one.
-fn void refresh(BluetoothHub* hub, Allocator allocator) @private
+fn void refresh(BluetoothHub* hub) @private
 {
 	Snapshot{State}* snapshot = hub.begin();
 	if (catch read_devices(snapshot.allocator(), &snapshot.value))
@@ -155,7 +150,7 @@ fn void fail_queued(Host{Request}* host) @private
 // Complete one request. Only connect and disconnect exist in this build; the rest were refused by `create`.
 fn void execute(Request* r) @private
 {
-	Operation{Done}* task = r.op;
+	Task* task = r.op;
 	defer task.release();
 	task.start();
 	objc::@autorelease_pool()
@@ -163,7 +158,7 @@ fn void execute(Request* r) @private
 		switch (r.kind)
 		{
 			case bluetooth::Command.CONNECT:
-				if (catch err = call_device(r.device, SELECTOR_OPEN, "openConnection"))
+				if (catch err = call_device(r.device, true))
 				{
 					task.fail(err);
 				}
@@ -172,7 +167,7 @@ fn void execute(Request* r) @private
 					task.succeed(bluetooth::Done.DONE);
 				}
 			case bluetooth::Command.DISCONNECT:
-				if (catch err = call_device(r.device, SELECTOR_CLOSE, "closeConnection"))
+				if (catch err = call_device(r.device, false))
 				{
 					task.fail(err);
 				}
@@ -188,17 +183,16 @@ fn void execute(Request* r) @private
 	};
 }
 
-// Looks up the device by address and sends it a connection selector; the IOReturn of the call is the outcome.
-fn void? call_device(String address, ZString selector, ZString context) @private
+// Looks up the device by address and runs its connection call. The IOReturn of the call is the outcome.
+fn void? call_device(String address, bool connect) @private
 {
 	@pool()
 	{
-		String dashed = bluetooth::dashes_from_address(address, tmem);
-		Obj text = foundation::from_string(dashed);
+		Obj text = foundation::from_string(bluetooth::dashes_from_address(address, tmem));
 		ObjId device = objc::class_named(CLASS_DEVICE).send(ObjId, SELECTOR_DEVICE_WITH_ADDRESS, text.ptr);
 		if (!device) return error::NOT_FOUND~;
-		int code = (int)device.send(int, selector);
-		mach::check(code, context)!;
+		int code = connect ? device.send(int, "openConnection") : device.send(int, "closeConnection");
+		mach::check(code, connect ? "openConnection" : "closeConnection")!;
 	};
 }
 
@@ -213,20 +207,35 @@ fn void? read_devices(Allocator allocator, State* state) @private
 		devices.init(tmem);
 		for (usz i = 0; i < count; i++)
 		{
-			ObjId item = foundation::array_at(paired, i);
-			if (try device = device_from(item, allocator)) devices.push(device);
+			if (try device = device_from(foundation::array_at(paired, i), allocator)) devices.push(device);
 		}
 		state.devices = alloc::clone_slice(allocator, devices.array_view());
 		bluetooth::sort_devices(state.devices);
 	};
 }
 
-// One paired device. A device without a readable address is skipped.
+// One paired device, or NOT_FOUND when it has no readable address.
 fn Device? device_from(ObjId item, Allocator allocator) @private
 {
-	if (try address = foundation::to_string(objc::ObjId_send_id(item, SELECTOR_ADDRESS), tmem))
+	if (!item) return NOT_FOUND~;
+	if (try dashed = foundation::to_string(item.send(ObjId, SELECTOR_ADDRESS), tmem))
 	{
-		return { };
+		if (try address = bluetooth::address_from_dashes(dashed, allocator))
+		{
+			String name = foundation::to_string(item.send(ObjId, SELECTOR_NAME), allocator) ?? "";
+			int rssi_raw = item.send(char, SELECTOR_RSSI);
+			Maybe{Dbm} rssi = { };
+			if (rssi_raw != RSSI_UNREADABLE) rssi = maybe::value((Dbm)rssi_raw);
+			return {
+				.address = address,
+				.adapter = "",
+				.name = name,
+				.display_name = name.len > 0 ? name : address,
+				.paired = true,
+				.connected = item.send(bool, SELECTOR_CONNECTED),
+				.rssi = rssi,
+			};
+		}
 	}
 	return NOT_FOUND~;
 }

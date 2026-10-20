@@ -49,16 +49,12 @@ fn void search_finds_by_attribute_and_delete_removes() @test
 {
 	Keyring* keyring = open_keyring();
 	defer keyring.close();
-	Entry key                = {
-		.service = "bleu.vpn",
-		.account = "work",
-		.attributes = { { .key = "profile", .value = "office" } }
-	};
+	Entry key = { .service = "bleu.vpn", .account = "work", .attributes = { { .key = "profile", .value = "office" } } };
 	Operation{Entry}* stored = keyring.store(key, (char[])"s3cret")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;
 
-	Operation{Entry[]}* found = keyring.search({ .attributes = { { .key = "profile", .value = "office" } } })!!;
+	Operation{Entry[]}* found = keyring.search({ .attributes = profile })!!;
 	defer found.release();
 	Entry[] hits = found.wait(time::sec(10))!!;
 	assert(hits.len >= 1, "the search finds the entry");
