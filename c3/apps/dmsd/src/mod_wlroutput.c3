@@ -22,24 +22,27 @@ const String[1] TOPICS       = { "wlroutput" };
 const String[1] CAPABILITIES = { "wlroutput" };
 
 // How long a request waits for the compositor to test or apply (DMS waits one second; the Wayland round trip here is longer).
-const Duration CONFIG_TIMEOUT = (Duration)5_000_000;
+const Duration CONFIG_TIMEOUT        = (Duration)5_000_000;
 // The reply to `wlroutput.getState` before the first reading: DMS's empty state.
-const String EMPTY_STATE = "{\"outputs\":[],\"serial\":0}";
+const String EMPTY_STATE             = "{\"outputs\":[],\"serial\":0}";
 // The highest `transform` value (wl_output.transform: 0 normal, 1-3 rotations, 4-7 flipped rotations).
-const long MAX_TRANSFORM = 7;
+const long MAX_TRANSFORM             = 7;
 // The reply text of the refused method (replies.c3).
 const String NOT_SUPPORTED_SUBSCRIBE = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"wlroutput\"] instead";
 // The reply text when a request sets adaptive sync: bleu_display's change has no field for it.
-const String NOT_SUPPORTED_ADAPTIVE = "not supported: bleu_display does not write adaptive sync (a layout change has no field for it)";
+const String NOT_SUPPORTED_ADAPTIVE  = "not supported: bleu_display does not write adaptive sync (a layout change has no field for it)";
 // The FNV-1a 32-bit parameters (the offset basis and the prime).
-const uint FNV_OFFSET = 2166136261;
-const uint FNV_PRIME  = 16777619;
+const uint FNV_OFFSET                = 2166136261;
+const uint FNV_PRIME                 = 16777619;
 
 const replies::Refusal[1] REFUSED = {
 	{ .method = "wlroutput.subscribe", .text = NOT_SUPPORTED_SUBSCRIBE },
 };
 
-<* The module's runtime state. Allocated in `start`, freed in `stop`. `command` serialises the requests that change the layout. *>
+<*
+ The module's runtime state. Allocated in `start`, freed in `stop`. `command` serialises the requests that change the
+ layout.
+*>
 struct WlrModule
 {
 	display::Display* service;
@@ -229,12 +232,17 @@ fn void? apply_head(display::Config* config, display::State* state, Object* head
 {
 	if (!head.is_map())
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "invalid heads configuration: a head is not an object")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"invalid heads configuration: a head is not an object"
+		)~;
 	}
-	String name = json::read::get_string(head, "name") ?? "";
-	sz index = find_output(state, name)!;
+	String name                   = json::read::get_string(head, "name") ?? "";
+	sz index                      = find_output(state, name)!;
 	display::OutputChange* change = &config.outputs[index];
-	bool enabled = optional_bool(head, "enabled")!;
+	bool enabled                  = optional_bool(head, "enabled")!;
 	change.enabled = enabled;
 	if (!enabled) return;
 	change.mode = requested_mode(head, &state.outputs[index], change.mode)!;
@@ -250,7 +258,13 @@ fn void? apply_head(display::Config* config, display::State* state, Object* head
 	{
 		if (transform < 0 || transform > MAX_TRANSFORM)
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "invalid transform: %d", transform)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"invalid transform: %d",
+				transform
+			)~;
 		}
 		change.transform = (display::Transform)transform;
 	}
@@ -260,7 +274,13 @@ fn void? apply_head(display::Config* config, display::State* state, Object* head
 	}
 	if (try adaptive = json::read::present(head, "adaptiveSync"))
 	{
-		if (adaptive != null) return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "%s", NOT_SUPPORTED_ADAPTIVE)~;
+		if (adaptive != null) return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"%s",
+			NOT_SUPPORTED_ADAPTIVE
+		)~;
 	}
 }
 
@@ -268,8 +288,18 @@ fn void? apply_head(display::Config* config, display::State* state, Object* head
 fn Object*? heads_of(Object* params) @private
 {
 	Object* heads = json::read::present(params, "heads")!;
-	if (heads == null) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "missing 'heads' parameter")~;
-	if (!heads.is_array()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "invalid 'heads' parameter format")~;
+	if (heads == null) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"missing 'heads' parameter"
+	)~;
+	if (!heads.is_array()) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"invalid 'heads' parameter format"
+	)~;
 	return heads;
 }
 
@@ -292,9 +322,13 @@ fn void? configure(WlrModule* m, ipc::Call* call, display::ApplyMode mode) @priv
 	if (catch err = op.wait(CONFIG_TIMEOUT))
 	{
 		String what = mode == display::ApplyMode.TEST_ONLY ? "test" : "apply";
-		return error::raise(err, error::Domain.INTERNAL, 0, "failed to %s configuration: %s", what, op.detail().message())~;
+		return error::raise(err, error::Domain.INTERNAL, 0, "failed to %s configuration: %s", what, op.detail()
+			.message())~;
 	}
-	wire::respond_success(call, mode == display::ApplyMode.TEST_ONLY ? "configuration test succeeded" : "configuration applied")!;
+	wire::respond_success(
+		call,
+		mode == display::ApplyMode.TEST_ONLY ? "configuration test succeeded" : "configuration applied"
+	)!;
 }
 
 fn void handle_get_state(void* context, ipc::Call* call)
@@ -318,7 +352,11 @@ fn void handle_apply(void* context, ipc::Call* call)
 	WlrModule* m = (WlrModule*)context;
 	@pool()
 	{
-		if (catch configure(m, call, display::ApplyMode.APPLY)) call.respond_error(contract::failure_text("failed to apply configuration"));
+		if (catch configure(
+			m,
+			call,
+			display::ApplyMode.APPLY
+		)) call.respond_error(contract::failure_text("failed to apply configuration"));
 	};
 }
 
@@ -327,7 +365,11 @@ fn void handle_test(void* context, ipc::Call* call)
 	WlrModule* m = (WlrModule*)context;
 	@pool()
 	{
-		if (catch configure(m, call, display::ApplyMode.TEST_ONLY)) call.respond_error(contract::failure_text("failed to test configuration"));
+		if (catch configure(
+			m,
+			call,
+			display::ApplyMode.TEST_ONLY
+		)) call.respond_error(contract::failure_text("failed to test configuration"));
 	};
 }
 

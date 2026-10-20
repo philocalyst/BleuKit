@@ -5,10 +5,10 @@
 
  Sources, DMS master 8be08999:
  * `core/internal/server/thememode/manager.go:361-443` (`computeSchedule`,
-   `computeTimeSchedule`, `computeLocationSchedule`, `startOfNextDay`).
+ `computeTimeSchedule`, `computeLocationSchedule`, `startOfNextDay`).
  * `core/internal/server/wayland/suncalc.go:1-150` (`CalculateSunTimesWithTwilight`, the
-   solar equations and the horizon thresholds). DMS's sun model is its own; bleu_color's
-   NOAA model is a different one (it uses a fixed horizon), so it is not used here.
+ solar equations and the horizon thresholds). DMS's sun model is its own; bleu_color's
+ NOAA model is a different one (it uses a fixed horizon), so it is not used here.
 
  Times are Unix microseconds (`long`). A "local day" is a count of days since 1970-01-01 in
  the local time zone.
@@ -17,9 +17,9 @@ module dmsd::theme_auto_calc;
 import std::math, std::time, std::time::datetime;
 
 <* Microseconds in one second, minute, and day. *>
-const long SEC_US = 1000000;
+const long SEC_US    = 1000000;
 const long MINUTE_US = 60000000;
-const long DAY_US = 86400000000;
+const long DAY_US    = 86400000000;
 
 <* Noon, in minutes of the day. *>
 const long NOON_MINUTE = 720;
@@ -205,7 +205,9 @@ fn TimeChange time_change(long current, long start, long end)
 *>
 fn double hour_angle(double latitude, double declination, double target, Threshold* state)
 {
-	double cos_hour = math::cos(target) / (math::cos(latitude) * math::cos(declination)) - math::tan(latitude) * math::tan(declination);
+	double cos_hour = math::cos(
+		target
+	) / (math::cos(latitude) * math::cos(declination)) - math::tan(latitude) * math::tan(declination);
 	if (cos_hour < -1.0)
 	{
 		*state = ALWAYS_ABOVE;
@@ -238,15 +240,21 @@ fn double orbit_angle(long year, long day_of_year) @inline
 <* The equation of time, in minutes (suncalc.go:39-45). *>
 fn double equation_of_time(double angle) @inline
 {
-	return 4 * (0.000075 + 0.001868 * math::cos(angle) - 0.032077 * math::sin(angle)
-		- 0.014615 * math::cos(2 * angle) - 0.040849 * math::sin(2 * angle));
+	return 4 * (0.000075 + 0.001868 * math::cos(
+		angle
+	) - 0.032077 * math::sin(angle) - 0.014615 * math::cos(2 * angle) - 0.040849 * math::sin(2 * angle));
 }
 
 <* The sun's declination, in radians (suncalc.go:47-55). *>
 fn double sun_declination(double angle) @inline
 {
-	return 0.006918 - 0.399912 * math::cos(angle) + 0.070257 * math::sin(angle) - 0.006758 * math::cos(2 * angle)
-		+ 0.000907 * math::sin(2 * angle) - 0.002697 * math::cos(3 * angle) + 0.00148 * math::sin(3 * angle);
+	return 0.006918 - 0.399912 * math::cos(
+		angle
+	) + 0.070257 * math::sin(
+		angle
+	) - 0.006758 * math::cos(
+		2 * angle
+	) + 0.000907 * math::sin(2 * angle) - 0.002697 * math::cos(3 * angle) + 0.00148 * math::sin(3 * angle);
 }
 
 <*
@@ -258,7 +266,13 @@ fn double sun_declination(double angle) @inline
  the minutes toward zero, and each event with `time.Duration(secs) * time.Second`, which
  truncates the seconds. Both truncations are kept.
 *>
-fn SunDay sun_times(double latitude, double longitude, double elevation_twilight, double elevation_daylight, long unix_us)
+fn SunDay sun_times(
+	double latitude,
+	double longitude,
+	double elevation_twilight,
+	double elevation_daylight,
+	long unix_us
+)
 {
 	double lat_rad          = latitude * DEG_TO_RAD;
 	double twilight_rad     = (HORIZON_ZENITH - elevation_twilight) * DEG_TO_RAD;
@@ -280,11 +294,11 @@ fn SunDay sun_times(double latitude, double longitude, double elevation_twilight
 	double daylight_hour    = hour_angle(lat_rad, declination, daylight_rad, &daylight_state);
 	if (daylight_state == ALWAYS_ABOVE) return { .condition = MIDNIGHT_SUN };
 	if (twilight_state == ALWAYS_BELOW) return { .condition = POLAR_NIGHT };
-	long day_start = reference_day * DAY_US;
-	long dawn_secs      = (long)hour_angle_seconds(math::abs(twilight_hour), equation);
-	long sunrise_secs   = (long)hour_angle_seconds(math::abs(daylight_hour), equation);
-	long sunset_secs    = (long)hour_angle_seconds(-math::abs(daylight_hour), equation);
-	long night_secs     = (long)hour_angle_seconds(-math::abs(twilight_hour), equation);
+	long day_start    = reference_day * DAY_US;
+	long dawn_secs    = (long)hour_angle_seconds(math::abs(twilight_hour), equation);
+	long sunrise_secs = (long)hour_angle_seconds(math::abs(daylight_hour), equation);
+	long sunset_secs  = (long)hour_angle_seconds(-math::abs(daylight_hour), equation);
+	long night_secs   = (long)hour_angle_seconds(-math::abs(twilight_hour), equation);
 	return {
 		.condition = NORMAL,
 		.times = {
@@ -302,7 +316,13 @@ fn SunDay sun_times(double latitude, double longitude, double elevation_twilight
 
  @param now : "Unix microseconds"
 *>
-fn Transition location_change(double latitude, double longitude, double elevation_twilight, double elevation_daylight, long now)
+fn Transition location_change(
+	double latitude,
+	double longitude,
+	double elevation_twilight,
+	double elevation_daylight,
+	long now
+)
 {
 	SunDay today = sun_times(latitude, longitude, elevation_twilight, elevation_daylight, now);
 	if (today.condition == MIDNIGHT_SUN) return { .light = true, .at = start_of_next_day(now) };

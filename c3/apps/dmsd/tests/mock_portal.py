@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A mock of the xdg-desktop-portal Settings interface, for apps/dmsd/tests/modules.sh.
+"""A mock of the xdg-desktop-portal Settings interface, for apps/dmsd/tests/desktop.sh.
 
 Runs on the private session bus named by DBUS_SESSION_BUS_ADDRESS (python-dbus-next). It owns
 org.freedesktop.portal.Desktop and exports:
@@ -22,6 +22,7 @@ from dbus_next.service import ServiceInterface, method, signal
 NAMESPACE = "org.freedesktop.appearance"
 PORTAL_NAME = "org.freedesktop.portal.Desktop"
 PORTAL_PATH = "/org/freedesktop/portal/desktop"
+CONTROL_NAME = "org.bleu.PortalMock"
 CONTROL_PATH = "/org/bleu/PortalMock"
 
 VALUES = {"color-scheme": Variant("u", 1)}
@@ -63,6 +64,7 @@ async def main():
     bus.export(PORTAL_PATH, settings)
     bus.export(CONTROL_PATH, Control(settings))
     await bus.request_name(PORTAL_NAME)
+    await bus.request_name(CONTROL_NAME)
     print("READY", flush=True)
     await asyncio.Future()
 

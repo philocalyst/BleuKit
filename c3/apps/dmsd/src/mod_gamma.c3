@@ -18,7 +18,7 @@ const String[1] TOPICS       = { "gamma" };
 const String[1] CAPABILITIES = { "gamma" };
 
 // How long a request waits for bleu_color to write the ramps (the Wayland round trips are short).
-const Duration WRITE_TIMEOUT = (Duration)5_000_000;
+const Duration WRITE_TIMEOUT         = (Duration)5_000_000;
 // The reply texts of the refused methods (replies.c3).
 const String NOT_SUPPORTED_SUBSCRIBE = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"gamma\"] instead";
 const String NOT_SUPPORTED_ICC       = "not supported: ICC profiles are not in bleu_color (its v1 cut)";
@@ -111,19 +111,19 @@ fn color::ApplyOperation*? GammaModule.command_for(&self, GammaSettings settings
 
 <*
  Check `candidate` as DMS validates a configuration, push it, and store it. Nothing is stored
- when the check or the push fails, so the settings stay as they were.
+ when the check or the push fails, so the settings stay as they were. The caller holds the
+ command mutex, which it took before reading the settings it changes.
 *>
 fn void? GammaModule.change(&self, GammaSettings candidate)
 {
-	self.command.lock()!!;
-	defer self.command.unlock();
 	if (candidate.has_manual) schedule::validate(gamma_settings::times_schedule(candidate))!;
 	self.push(candidate)!;
 	self.store(candidate);
 }
 
 <*
- The temperatures of DMS's `Validate` for a configuration: each in bleu_color's kelvin range (`kelvin::MIN` to `kelvin::MAX`).
+ The temperatures of DMS's `Validate` for a configuration: each in bleu_color's kelvin range (`kelvin::MIN` to
+ `kelvin::MAX`).
 *>
 fn void? check_temperatures(long low, long high)
 {
@@ -177,16 +177,29 @@ fn DayTimes day_times(GammaSettings s, long now)
 {
 	if (s.has_manual)
 	{
-		long day       = theme_auto_calc::local_day_of(now);
-		long duration  = (s.has_duration ? s.duration_minutes : gamma_settings::DEFAULT_MANUAL_DURATION_MINUTES) * theme_auto_calc::MINUTE_US;
-		long sunrise   = theme_auto_calc::local_instant(day, s.sunrise_minute);
+		long day        = theme_auto_calc::local_day_of(now);
+		long duration   = (s.has_duration ? s.duration_minutes
+			: gamma_settings::DEFAULT_MANUAL_DURATION_MINUTES) * theme_auto_calc::MINUTE_US;
+		long sunrise    = theme_auto_calc::local_instant(day, s.sunrise_minute);
 		long sunset_day = s.sunset_minute > s.sunrise_minute ? day : day + 1;
-		long sunset    = theme_auto_calc::local_instant(sunset_day, s.sunset_minute);
-		return { .dawn = sunrise - duration, .sunrise = sunrise, .sunset = sunset, .night = sunset + duration, .is_day = now >= sunrise && now < sunset };
+		long sunset     = theme_auto_calc::local_instant(sunset_day, s.sunset_minute);
+		return {
+			.dawn = sunrise - duration,
+			.sunrise = sunrise,
+			.sunset = sunset,
+			.night = sunset + duration,
+			.is_day = now >= sunrise && now < sunset
+		};
 	}
 	if (s.has_location)
 	{
-		theme_auto_calc::SunDay sun = theme_auto_calc::sun_times(s.latitude, s.longitude, s.elevation_twilight, s.elevation_daylight, now);
+		theme_auto_calc::SunDay sun = theme_auto_calc::sun_times(
+			s.latitude,
+			s.longitude,
+			s.elevation_twilight,
+			s.elevation_daylight,
+			now
+		);
 		if (sun.condition == theme_auto_calc::SunCondition.MIDNIGHT_SUN) return { .is_day = true };
 		if (sun.condition == theme_auto_calc::SunCondition.POLAR_NIGHT) return { };
 		return {
@@ -230,8 +243,16 @@ fn void? write_config(wire::Line* line, GammaSettings s)
 	if (s.has_manual)
 	{
 		// Go's time.Parse("15:04") gives the year-zero date: 0000-01-01T HH:MM:00Z.
-		wire::key_string(&line.writer, "ManualSunrise", string::tformat("0000-01-01T%02d:%02d:00Z", s.sunrise_minute / 60, s.sunrise_minute % 60))!;
-		wire::key_string(&line.writer, "ManualSunset", string::tformat("0000-01-01T%02d:%02d:00Z", s.sunset_minute / 60, s.sunset_minute % 60))!;
+		wire::key_string(
+			&line.writer,
+			"ManualSunrise",
+			string::tformat("0000-01-01T%02d:%02d:00Z", s.sunrise_minute / 60, s.sunrise_minute % 60)
+		)!;
+		wire::key_string(
+			&line.writer,
+			"ManualSunset",
+			string::tformat("0000-01-01T%02d:%02d:00Z", s.sunset_minute / 60, s.sunset_minute % 60)
+		)!;
 	}
 	else
 	{
@@ -267,7 +288,7 @@ fn String? render_state(Allocator allocator, GammaSettings s, color::State* stat
 	line.writer.begin_object()!;
 	line.writer.key("config")!;
 	write_config(&line, s)!;
-	sz[] order = sorted_indices(state);
+	sz[] order        = sorted_indices(state);
 	long current_temp = 0;
 	foreach (i : order)
 	{
@@ -333,7 +354,7 @@ fn String? render_state(Allocator allocator, GammaSettings s, color::State* stat
 // The pump's encoder: the settings with the newest bleu_color state, in temporary memory.
 fn String? encode_state(void* context, Allocator allocator)
 {
-	GammaModule* m = (GammaModule*)context;
+	GammaModule* m  = (GammaModule*)context;
 	GammaSettings s = m.settings_now();
 	color::State empty;
 	if (try snapshot = m.latest())
@@ -372,7 +393,7 @@ fn void? temperatures_of(Object* params, long* low, long* high) @private
 {
 	if (try value = json::read::get_double(params, "temp"))
 	{
-		*low  = (long)value;
+		*low = (long)value;
 		*high = (long)value;
 		return;
 	}
@@ -380,7 +401,7 @@ fn void? temperatures_of(Object* params, long* low, long* high) @private
 	{
 		if (try high_value = json::read::get_double(params, "high"))
 		{
-			*low  = (long)low_value;
+			*low = (long)low_value;
 			*high = (long)high_value;
 			return;
 		}
@@ -390,12 +411,14 @@ fn void? temperatures_of(Object* params, long* low, long* high) @private
 
 fn void? set_temperature(GammaModule* m, ipc::Call* call) @private
 {
+	m.command.lock()!!;
+	defer m.command.unlock();
 	long low;
 	long high;
 	temperatures_of(call.params, &low, &high)!;
 	check_temperatures(low, high)!;
 	GammaSettings candidate = m.settings_now();
-	candidate.low_temp  = low;
+	candidate.low_temp = low;
 	candidate.high_temp = high;
 	m.change(candidate)!;
 	wire::respond_success(call, "temperature set")!;
@@ -421,6 +444,8 @@ fn void handle_set_location(void* context, ipc::Call* call)
 
 fn void? set_location(GammaModule* m, ipc::Call* call) @private
 {
+	m.command.lock()!!;
+	defer m.command.unlock();
 	double latitude  = wire::required_double(call.params, "latitude")!;
 	double longitude = wire::required_double(call.params, "longitude")!;
 	if (!(latitude >= -90.0 && latitude <= 90.0))
@@ -429,7 +454,12 @@ fn void? set_location(GammaModule* m, ipc::Call* call) @private
 	}
 	if (!(longitude >= -180.0 && longitude <= 180.0))
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "longitude must be -180 to 180 degrees")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"longitude must be -180 to 180 degrees"
+		)~;
 	}
 	GammaSettings candidate = m.settings_now();
 	candidate.has_location = true;
@@ -445,30 +475,35 @@ fn void handle_set_manual_times(void* context, ipc::Call* call)
 	GammaModule* m = (GammaModule*)context;
 	@pool()
 	{
-		if (catch set_manual_times(m, call)) call.respond_error(contract::failure_text("failed to set the manual times"));
+		if (catch set_manual_times(
+			m,
+			call
+		)) call.respond_error(contract::failure_text("failed to set the manual times"));
 	};
 }
 
 // Both times are needed to set them; otherwise they are cleared, with their duration (handlers.go:106-140).
 fn void? set_manual_times(GammaModule* m, ipc::Call* call) @private
 {
+	m.command.lock()!!;
+	defer m.command.unlock();
 	GammaSettings candidate = m.settings_now();
-	String sunrise_text = json::read::get_string(call.params, "sunrise") ?? "";
-	String sunset_text  = json::read::get_string(call.params, "sunset") ?? "";
+	String sunrise_text     = json::read::get_string(call.params, "sunrise") ?? "";
+	String sunset_text      = json::read::get_string(call.params, "sunset") ?? "";
 	if (sunrise_text.len == 0 || sunset_text.len == 0)
 	{
-		candidate.has_manual   = false;
+		candidate.has_manual = false;
 		candidate.has_duration = false;
 		m.change(candidate)!;
 		wire::respond_success(call, "manual times cleared")!;
 		return;
 	}
 	candidate.sunrise_minute = clock_or_raise(sunrise_text, "invalid sunrise format (use HH:MM)")!;
-	candidate.sunset_minute  = clock_or_raise(sunset_text, "invalid sunset format (use HH:MM)")!;
-	candidate.has_manual     = true;
+	candidate.sunset_minute = clock_or_raise(sunset_text, "invalid sunset format (use HH:MM)")!;
+	candidate.has_manual = true;
 	if (try minutes = json::read::get_double(call.params, "durationMinutes"))
 	{
-		candidate.has_duration     = true;
+		candidate.has_duration = true;
 		candidate.duration_minutes = (long)minutes;
 	}
 	else
@@ -491,7 +526,10 @@ fn void handle_set_use_ip_location(void* context, ipc::Call* call)
 	GammaModule* m = (GammaModule*)context;
 	@pool()
 	{
-		if (catch set_use_ip_location(m, call)) call.respond_error(contract::failure_text("failed to set the IP location preference"));
+		if (catch set_use_ip_location(
+			m,
+			call
+		)) call.respond_error(contract::failure_text("failed to set the IP location preference"));
 	};
 }
 
@@ -540,7 +578,9 @@ fn void handle_set_enabled(void* context, ipc::Call* call)
 
 fn void? set_enabled(GammaModule* m, ipc::Call* call) @private
 {
-	bool enabled = params::param_bool(call.params, "enabled")!;
+	m.command.lock()!!;
+	defer m.command.unlock();
+	bool enabled            = params::param_bool(call.params, "enabled")!;
 	GammaSettings candidate = m.settings_now();
 	candidate.enabled = enabled;
 	m.change(candidate)!;

@@ -9,10 +9,12 @@
  bounded by WRITE_TIMEOUT, so a refusal reaches the caller as an error.
 *>
 module dmsd::network_actions;
-import std::collections::object, std::time, bleu::network, bleu::observe, bleu::ipc, bleu::error, bleu::json, dmsd::contract, dmsd::wire, dmsd::params, dmsd::network_state;
+import std::collections::object, std::time, bleu::network, bleu::observe, bleu::ipc, bleu::error, bleu::json, bleu::deadline, dmsd::contract, dmsd::wire, dmsd::params, dmsd::network_state;
 
 // How long a request waits for its operation to finish.
 const Duration WRITE_TIMEOUT      = (Duration)5_000_000;
+// How long a request waits for the state a re-read publishes (brightness waits as long for its write's state).
+const Duration SETTLE_TIMEOUT     = (Duration)500_000;
 // The 802.1X fields of DMS's `wifi.connect` (handlers.go:208-214). Bleu refuses enterprise networks.
 const String[8] ENTERPRISE_FIELDS = {
 	"username",
@@ -34,7 +36,7 @@ fn String opt_text(Object* params, String key, String fallback) @private
 	return fallback;
 }
 
-// A required object member, with dankgo's error text (params.Object is not in dmsd's params).
+// A required object member, with the error text of the other required members (dankgo's `params` package).
 fn Object*? param_object(Object* params, String key) @private
 {
 	if (try value = json::read::get_object(params, key)) return value;
@@ -97,14 +99,15 @@ fn void? refuse_enterprise(Object* params) @private
 {
 	foreach (field : ENTERPRISE_FIELDS)
 	{
-		if (opt_text(params, field, "")
-			.len > 0) return error::raise(
-				error::UNSUPPORTED,
-				error::Domain.INTERNAL,
-				0,
-				"not supported: 802.1X sign-in ('%s') is not available in bleu_network",
-				field
-			)~;
+		String value = opt_text(params, field, "");
+		if (value.len == 0) continue;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"not supported: 802.1X sign-in ('%s') is not available in bleu_network",
+			field
+		)~;
 	}
 	if (try found = json::read::present(params, "useSystemCACerts"))
 	{
@@ -246,7 +249,7 @@ fn void? forget_wifi(network::Network* service, ipc::Call* call) @private
 	if (catch err = result) return refused(err, "cannot forget the network")~;
 	defer result.release();
 	await_settle(result, "failed to forget the network", "no saved network has this name")!;
-	if (catch err = service.refresh()) return refused(err, "cannot re-read the networks")~;
+	reread_profile(service, ssid, false, false)!;
 	wire::respond_success(call, "forgotten")!;
 }
 
@@ -257,6 +260,7 @@ fn void? set_radio(network::Network* service, ipc::Call* call, bool enabled) @pr
 	if (catch err = result) return refused(err, "cannot switch the Wi-Fi radio")~;
 	defer result.release();
 	await_settle(result, "failed to switch the Wi-Fi radio", "")!;
+	settle_radio(service, enabled);
 	call.respond_raw(enabled_reply(tmem, enabled)!)!;
 }
 
@@ -320,8 +324,54 @@ fn void handle_wifi_set_autoconnect(void* context, ipc::Call* call)
 	};
 }
 
-// The autoconnect flag of a saved profile is not published until the next re-read, so the re-read is asked for
-// here: the state then shows the new flag, as DMS's state does at once.
+// The saved profile of `ssid` as the published state shows it: not known, or known with this autoconnect.
+// A network that is not in the last scan shows nothing, so it counts as settled.
+fn bool profile_settled(network::State* state, String ssid, bool known, bool autoconnect) @private
+{
+	foreach (&ap : state.wifi.networks)
+	{
+		if ((String)ap.ssid.bytes != ssid) continue;
+		return ap.known == known && (!known || ap.autoconnect == autoconnect);
+	}
+	return true;
+}
+
+// Ask for a re-read of the saved profiles (Bleu publishes their flags only on a re-read), then wait for the
+// state that shows `ssid` as the change says. A re-read that changes nothing publishes nothing.
+fn void? reread_profile(network::Network* service, String ssid, bool known, bool autoconnect) @private
+{
+	if (catch err = service.refresh()) return refused(err, "cannot re-read the networks")~;
+	Deadline deadline = deadline::after(SETTLE_TIMEOUT);
+	ulong seen        = 0;
+	while (!deadline.expired())
+	{
+		observe::Snapshot{network::State}*? next = service.wait_after(seen, deadline.remaining());
+		if (catch next) return;
+		seen = next.generation;
+		bool settled = profile_settled(&next.value, ssid, known, autoconnect);
+		next.release();
+		if (settled) return;
+	}
+}
+
+// Wait, up to SETTLE_TIMEOUT, for a published state whose radio is `enabled`: the platform reports the
+// operation's end before Bleu publishes the state. A state that does not come is not an error; the reply
+// then carries the newest one.
+fn void settle_radio(network::Network* service, bool enabled) @private
+{
+	Deadline deadline = deadline::after(SETTLE_TIMEOUT);
+	ulong seen        = 0;
+	while (!deadline.expired())
+	{
+		observe::Snapshot{network::State}*? next = service.wait_after(seen, deadline.remaining());
+		if (catch next) return;
+		seen = next.generation;
+		bool settled = next.value.wifi.radio_enabled == enabled;
+		next.release();
+		if (settled) return;
+	}
+}
+
 fn void? set_autoconnect(network::Network* service, ipc::Call* call) @private
 {
 	String ssid                = params::param_string(call.params, "ssid")!;
@@ -330,7 +380,7 @@ fn void? set_autoconnect(network::Network* service, ipc::Call* call) @private
 	if (catch err = result) return refused(err, "cannot change autoconnect")~;
 	defer result.release();
 	await_settle(result, "failed to set autoconnect", "no saved network has this name")!;
-	if (catch err = service.refresh()) return refused(err, "cannot re-read the networks")~;
+	reread_profile(service, ssid, true, autoconnect)!;
 	wire::respond_success(call, "autoconnect updated")!;
 }
 

@@ -63,7 +63,7 @@ fn void time_mode_equal_times() @test
 // Mid-latitude sun: sunrise comes before sunset, and both fall in the same local day.
 fn void sun_rises_before_it_sets() @test
 {
-	long now = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 19 }), 0);
+	long now   = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 19 }), 0);
 	SunDay day = sun_times(52.52, 13.405, -6.0, 3.0, now);
 	test::eq(day.condition, SunCondition.NORMAL);
 	test::@check(day.times.dawn < day.times.sunrise, "dawn is before sunrise");
@@ -85,12 +85,12 @@ fn void polar_days() @test
 // Location mode at night: the next change is today's sunrise, and in daylight it is today's sunset.
 fn void location_change_follows_the_sun() @test
 {
-	long night = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 20 }), 180);
-	SunDay today = sun_times(52.52, 13.405, -6.0, 3.0, night);
+	long night             = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 20 }), 180);
+	SunDay today           = sun_times(52.52, 13.405, -6.0, 3.0, night);
 	Transition before_dawn = location_change(52.52, 13.405, -6.0, 3.0, night);
 	test::eq(before_dawn.light, false);
 	test::eq(before_dawn.at, today.times.sunrise);
-	long noon = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 20 }), 720);
+	long noon         = local_instant(days_from_civil({ .year = 2026, .month = 10, .day = 20 }), 720);
 	Transition midday = location_change(52.52, 13.405, -6.0, 3.0, noon);
 	test::eq(midday.light, true);
 	test::eq(midday.at, today.times.sunset);

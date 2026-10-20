@@ -13,10 +13,10 @@
  * disabled, or no schedule: `reset()`.
  * low equal to high: `set_temperature(ALL_OUTPUTS, low)`.
  * manual times: a TIMES schedule. DMS ramps from `sunrise - duration` to `sunrise` and from
-   `sunset` to `sunset + duration`; bleu_color centres each change on its event, so each edge is
-   moved by half the duration (`mod_gamma_settings.c3` `times_schedule`).
+ `sunset` to `sunset + duration`; bleu_color centres each change on its event, so each edge is
+ moved by half the duration (`mod_gamma_settings.c3` `times_schedule`).
  * a location: a SCHEDULE at that place. bleu_color's sun model and its 30-minute change differ
-   from DMS's (docs/DMSD.md).
+ from DMS's (docs/DMSD.md).
 *>
 module dmsd::gamma_settings;
 import bleu::color, bleu::error, bleu::unit, std::time;
@@ -26,15 +26,15 @@ const long MINUTE_US = 60000000;
 const long DAY_US    = 86400000000;
 
 <* The defaults dmsd starts with (not read from DMS: its defaults live in code this port did not fetch). *>
-const long DEFAULT_LOW_TEMP   = 4500;
-const long DEFAULT_HIGH_TEMP  = 6500;
-const double DEFAULT_GAMMA    = 1.0;
-const double DEFAULT_CONTRAST = 1.0;
+const long DEFAULT_LOW_TEMP                =  4500;
+const long DEFAULT_HIGH_TEMP               =  6500;
+const double DEFAULT_GAMMA                 =  1.0;
+const double DEFAULT_CONTRAST              =  1.0;
 // DMS's elevations for twilight and daylight (`thememode` defaults, manager.go:19-20).
-const double DEFAULT_ELEVATION_TWILIGHT = -6.0;
-const double DEFAULT_ELEVATION_DAYLIGHT = 3.0;
+const double DEFAULT_ELEVATION_TWILIGHT    = -6.0;
+const double DEFAULT_ELEVATION_DAYLIGHT    =  3.0;
 // DMS's default length of a manual transition: one hour (manager.go:132, `dur := time.Hour`).
-const long DEFAULT_MANUAL_DURATION_MINUTES = 60;
+const long DEFAULT_MANUAL_DURATION_MINUTES =  60;
 
 <*
  The settings a client sets. `has_location`, `has_manual` and `has_duration` are DMS's nil
@@ -105,7 +105,7 @@ fn long wrap_day(long us) @inline => ((us % DAY_US) + DAY_US) % DAY_US;
 *>
 fn color::Schedule times_schedule(GammaSettings settings)
 {
-	long minutes = settings.has_duration ? settings.duration_minutes : DEFAULT_MANUAL_DURATION_MINUTES;
+	long minutes  = settings.has_duration ? settings.duration_minutes : DEFAULT_MANUAL_DURATION_MINUTES;
 	long duration = minutes * MINUTE_US;
 	return {
 		.mode = color::Mode.TIMES,
@@ -168,4 +168,3 @@ fn fault invalid_clock(String text) @private
 {
 	return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a clock value: %s", text);
 }
-</content>

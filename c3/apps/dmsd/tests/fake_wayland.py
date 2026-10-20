@@ -382,7 +382,7 @@ class Compositor:
                 change["transform"] = values[0]
                 self.note("config.set_transform %s %d" % (name, values[0]))
             elif opcode == 4:
-                change["scale"] = values[0] / 256.0
+                change["scale"] = values[0]  # parse() already decoded the fixed-point value
                 self.note("config.set_scale %s %s" % (name, change["scale"]))
             elif opcode == 5:
                 change["adaptive"] = values[0]
@@ -488,7 +488,12 @@ def main():
                 compositor.on_connect(Client(conn))
                 continue
             client = next(c for c in compositor.clients if c.sock is sock)
-            if not compositor.read_messages(client):
+            try:
+                alive = compositor.read_messages(client)
+            except OSError:
+                # A client that went away (reset or broken pipe) is dropped; the others are served.
+                alive = False
+            if not alive:
                 compositor.clients.remove(client)
                 client.sock.close()
     listener.close()

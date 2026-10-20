@@ -22,7 +22,7 @@ struct tags the tests use are in `apps/dmsd/tests/golden/go_tags.json`, regenera
 | `brightness` module (6 methods, 2 topics) | done, tested on a fake sysfs tree |
 | `loginctl` module (11 methods, 1 topic; 4 answer `not supported`) | done, tested against a logind mock |
 | `bluetooth` module (15 methods, 2 topics; `mpris.publish` and `subscribe` answer `not supported`) | done, tested against the BlueZ mock of `bleu_bluetooth` and a logind mock |
-| `network` module (13 methods, 2 topics; 32 answer `not supported`) | done, tested against the NetworkManager mock of `bleu_network` on a private bus; Linux only, the Wi-Fi interface is the first one |
+| `network` module (13 methods, 2 topics; 32 answer `not supported`) | done, tested on Linux against the NetworkManager mock of `bleu_network` on a private bus; macOS compiled only; the Wi-Fi interface is the first one |
 | `dgop` (sysinfo): `dgop.meta`, `dgop.modules`; `gpu`, `hardware` refused | done, partial: the fields Bleu does not report are zero or empty; tested against `/proc` |
 | `clipboard` module (12 methods, 1 topic; 10 refused) | done, compiled only: no Wayland compositor here, so only its absence is run |
 | `apps` module: `apppicker.open`, `browser.open`, `mime.*` (2 refused) | done, partial: no mimeinfo.cache, no MIME alias or subclass chains; `browser` not advertised |
@@ -350,9 +350,9 @@ their fields are DMS's (`tests/golden/network_tags.json`, from `network/types.go
 | `network.wifi.scan` {device} | done | queued; answered `scanning` |
 | `network.wifi.connect` {ssid, password, device} | done | queued; answered `connecting`. A network not in the last scan is refused in the reply; one that needs a password and has none asks through `network.credentials` |
 | `network.wifi.disconnect` {device} | done | waits for the disconnect |
-| `network.wifi.forget` {ssid} | done | waits; removes every saved profile of the SSID; `no saved network has this name` otherwise |
-| `network.wifi.toggle`, `enable`, `disable` | done | waits; replies `{enabled}` with the value now set |
-| `network.wifi.setAutoconnect` {ssid, autoconnect} | done | waits, then asks for a re-read so the state shows the flag |
+| `network.wifi.forget` {ssid} | done | waits; removes every saved profile of the SSID, then re-reads as `setAutoconnect` does; `no saved network has this name` otherwise |
+| `network.wifi.toggle`, `enable`, `disable` | done | waits, then up to 500 ms for a state that shows the radio; replies `{enabled}` with the value set |
+| `network.wifi.setAutoconnect` {ssid, autoconnect} | done | waits; then a re-read, and the reply waits up to 500 ms for the state it publishes |
 | `network.info` {ssid} | done, partial | `NetworkInfoResponse`; one entry in `bands` (Bleu merges the bands of one SSID) |
 | `network.credentials.submit` {token, secrets.psk, save} | done | `save: false` is refused: bleu_network keeps the passphrase in the saved profile |
 | `network.credentials.cancel` {token} | done | the connection fails; `lastError` says why |

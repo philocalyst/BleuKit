@@ -62,7 +62,11 @@ fn uint scheme_value(appearance::ColorScheme scheme) @inline
 }
 
 // The `settings` object: `available`, and the colour scheme of the newest reading (0 before the first one).
-fn void? write_settings(wire::Line* line, appearance::Appearance* service, observe::Snapshot{appearance::State}* snapshot) @private
+fn void? write_settings(
+	wire::Line* line,
+	appearance::Appearance* service,
+	observe::Snapshot{appearance::State}* snapshot
+) @private
 {
 	bool available = service.capability(appearance::Cap.COLOR_SCHEME).ok() && snapshot != null;
 	uint scheme    = snapshot != null ? scheme_value(snapshot.value.color_scheme) : SCHEME_NO_PREFERENCE;
@@ -94,7 +98,11 @@ fn void? write_accounts(wire::Line* line) @private
 }
 
 // `freedesktop.getState` (types.go:53-57): accounts, settings and screensaver.
-fn String? render_state(Allocator allocator, appearance::Appearance* service, observe::Snapshot{appearance::State}* snapshot)
+fn String? render_state(
+	Allocator allocator,
+	appearance::Appearance* service,
+	observe::Snapshot{appearance::State}* snapshot
+)
 {
 	wire::Line line;
 	line.begin(allocator);
@@ -205,7 +213,7 @@ fn bool start(contract::Context* context, contract::Module* self)
 	}
 	FreedesktopModule* m = alloc::new(context.allocator, FreedesktopModule);
 	m.service = service;
-	ipc::Topic* state_topic = context.server.register_topic("freedesktop")!!;
+	ipc::Topic* state_topic       = context.server.register_topic("freedesktop")!!;
 	ipc::Topic* screensaver_topic = context.server.register_topic("freedesktop.screensaver")!!;
 	context.server.register_method("freedesktop.getState", &handle_get_state, m)!!;
 	context.server.register_method("freedesktop.settings.getColorScheme", &handle_get_color_scheme, m)!!;

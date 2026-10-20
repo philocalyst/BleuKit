@@ -33,7 +33,7 @@ if [ -z "$libdir" ]; then
   own_libdir="$("$repo/tools/libdir.sh")"
   libdir="$own_libdir"
 fi
-libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json bleu_bluetooth bleu_clipboard bleu_wl bleu_sysinfo bleu_apps bleu_xdg bleu_plist bleu_network)
+libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json bleu_bluetooth bleu_clipboard bleu_wl bleu_sysinfo bleu_apps bleu_xdg bleu_plist bleu_network bleu_display bleu_color bleu_appearance)
 largs=(); for l in "${libs[@]}"; do largs+=(--lib "$l"); done
 # c3c writes out/ and build/ into the working directory: compile from the private one.
 c3t() { (cd "$work" && c3c --libdir "$libdir" "${largs[@]}" "$@"); }
@@ -44,6 +44,16 @@ if c3t compile-test "$app/src/brightness_math.c3" "$app/src/brightness_math_test
   echo "ok   unit tests"
 else
   echo "FAIL unit tests (see $work/unit.log)"; tail -20 "$work/unit.log"; status=1
+fi
+
+echo "== unit tests: theme.auto calculation and gamma settings"
+if c3t compile-test --test-filter dmsd::theme_auto_calc "$app/src/mod_theme_auto_calc.c3" "$app/src/mod_theme_auto_calc_test.c3" -o "$work/theme_unit" >"$work/theme_unit.log" 2>&1 \
+   && grep -q "Test Result: PASSED" "$work/theme_unit.log" \
+   && c3t compile-test --test-filter dmsd::gamma_settings "$app/src/mod_gamma_settings.c3" "$app/src/mod_gamma_settings_test.c3" -o "$work/gamma_unit" >"$work/gamma_unit.log" 2>&1 \
+   && grep -q "Test Result: PASSED" "$work/gamma_unit.log"; then
+  echo "ok   unit tests (theme.auto, gamma settings)"
+else
+  echo "FAIL unit tests (see $work/theme_unit.log and $work/gamma_unit.log)"; status=1
 fi
 
 echo "== build dmsd"
@@ -96,7 +106,7 @@ echo 1 >"$root/sys/class/leds/input5::kbd_backlight/brightness"
 echo 3 >"$root/sys/class/leds/input5::kbd_backlight/max_brightness"
 
 sock="$work/dmsd.sock"
-env -u WAYLAND_DISPLAY "$work/dmsd" --socket "$sock" --fake-root "$root" >"$work/dmsd.out" 2>"$work/dmsd.err" &
+env -u WAYLAND_DISPLAY "$work/dmsd" --socket "$sock" --fake-root "$root" --module-off freedesktop --module-off gamma --module-off wlroutput --module-off theme.auto >"$work/dmsd.out" 2>"$work/dmsd.err" &
 dmsd_pid=$!
 pids+=($dmsd_pid)
 for _ in $(seq 100); do [ -S "$sock" ] && break; sleep 0.05; done
@@ -189,7 +199,7 @@ for p in "${pids[@]}"; do [ "$p" = "$dmsd_pid" ] || keep+=("$p"); done
 pids=("${keep[@]}")
 
 echo "== absent backend is reported once and is not advertised"
-env -u WAYLAND_DISPLAY DBUS_SYSTEM_BUS_ADDRESS="unix:path=$work/no-bus.sock" "$work/dmsd" --socket "$work/absent.sock" --fake-root "$root" >/dev/null 2>"$work/absent.err" &
+env -u WAYLAND_DISPLAY DBUS_SYSTEM_BUS_ADDRESS="unix:path=$work/no-bus.sock" "$work/dmsd" --socket "$work/absent.sock" --fake-root "$root" --module-off freedesktop --module-off gamma --module-off wlroutput --module-off theme.auto >/dev/null 2>"$work/absent.err" &
 absent_pid=$!
 pids+=($absent_pid)
 for _ in $(seq 100); do [ -S "$work/absent.sock" ] && break; sleep 0.05; done
@@ -205,6 +215,9 @@ fi
 
 echo "== modules: dgop, apps, evdev, refusals, clipboard absence (own daemon, own XDG tree)"
 if ! bash "$here/modules.sh" "$work/dmsd" "$python"; then status=1; fi
+
+echo "== desktop modules: wlroutput, gamma, theme.auto and freedesktop on a fake compositor and portal (own bus)"
+if ! bash "$here/desktop.sh" "$work/dmsd" "$python"; then status=1; fi
 
 echo "== network: the methods, the prompt stream and the absent backend (own bus, own daemon)"
 if ! bash "$here/network.sh" "$work/dmsd" "$python"; then status=1; fi
