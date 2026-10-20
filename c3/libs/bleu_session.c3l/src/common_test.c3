@@ -9,6 +9,13 @@ fn void reached_is_inclusive() @test
 	assert(session::reached((Duration)0, time::DURATION_ZERO) == true);
 }
 
+fn void negative_seconds_are_no_idle_time() @test
+{
+	assert(session::duration_of_seconds(-1.5) == time::DURATION_ZERO);
+	assert(session::duration_of_seconds(2.5) == (Duration)2_500_000);
+	assert(session::seconds_of((Duration)1_500_000) == 1.5);
+}
+
 fn void session_type_names_map_to_their_variants() @test
 {
 	assert(session::session_type_of("wayland") == WAYLAND);

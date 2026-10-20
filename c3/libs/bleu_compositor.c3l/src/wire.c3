@@ -32,7 +32,7 @@ struct Buffer
 fn void Buffer.init(&self, Allocator allocator, usz capacity)
 {
 	self.allocator = allocator;
-	self.data = alloc::new_array(allocator, char, capacity);
+	self.data = alloc::new_array(allocator, char, (sz)capacity);
 	self.capacity = capacity;
 	self.start = 0;
 	self.filled = 0;
@@ -62,8 +62,8 @@ fn usz? Buffer.feed(&self, char[] bytes)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message exceeds %d bytes", self.capacity)~;
 	}
-	usz taken = min(room, bytes.len);
-	if (taken > 0) mem::copy(self.data.ptr + self.filled, bytes.ptr, taken);
+	usz taken = min(room, (usz)bytes.len);
+	if (taken > 0) mem::copy(self.data.ptr + self.filled, bytes.ptr, (sz)taken);
 	self.filled += taken;
 	return taken;
 }
@@ -102,7 +102,7 @@ fn String? Buffer.take_exact(&self, usz count)
 }
 
 // Move the unread bytes to the front, so that `feed` has the whole free tail.
-fn void Buffer.compact(&self) @private
+fn void Buffer.compact(&self)
 {
 	if (self.start == 0) return;
 	usz pending = self.pending();

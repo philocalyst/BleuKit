@@ -16,10 +16,12 @@
 module bleu::audio::linux_pulse @feat(LINUX);
 import bleu::error, bleu::rt, bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup, bleu::audio::pulse, bleu::unit, std::time;
 
-const usz SOCKET_TAG = 1;                    // poller tag of the socket
-const Duration REPLY_TIMEOUT = (Duration)5_000_000; // 5 s: a server that does not answer is failing
+const usz SOCKET_TAG             = 1;               // poller tag of the socket
+const Duration REPLY_TIMEOUT     = (Duration)5_000_000; // 5 s: a server that does not answer is failing
 const uint SUBSCRIBED_FACILITIES = pulse::MASK_SINK | pulse::MASK_SOURCE | pulse::MASK_SINK_INPUT
-	| pulse::MASK_SOURCE_OUTPUT | pulse::MASK_CARD | pulse::MASK_SERVER;
+	| pulse::MASK_SOURCE_OUTPUT
+	| pulse::MASK_CARD
+	| pulse::MASK_SERVER;
 
 <*
  A live connection. Heap-allocated: the poller points at its wake-up, which
@@ -29,11 +31,11 @@ struct Session
 {
 	Allocator allocator;
 	UnixSocket socket;
-	Wakeup idle;        // never signalled, so the reply poller watches only the socket
+	Wakeup idle; // never signalled, so the reply poller watches only the socket
 	Poller waiter;
-	uint version;       // protocol version used for decoding replies
+	uint version; // protocol version used for decoding replies
 	uint next_tag;
-	bool events_seen;   // a subscription event arrived and has not been acted on yet
+	bool events_seen; // a subscription event arrived and has not been acted on yet
 }
 
 <*
@@ -46,7 +48,11 @@ struct Session
 fn Session*? open_session(Allocator allocator, String socket_path, char[] cookie)
 {
 	UnixSocket socket = unix::connect(socket_path, unix::SocketKind.STREAM)!;
-	Session* session = alloc::new(allocator, Session, { .allocator = allocator, .socket = socket, .version = pulse::PROTOCOL_VERSION });
+	Session* session  = alloc::new(
+		allocator,
+		Session,
+		{ .allocator = allocator, .socket = socket, .version = pulse::PROTOCOL_VERSION }
+	);
 	if (catch err = session.idle.init())
 	{
 		session.socket.close();
@@ -60,7 +66,9 @@ fn Session*? open_session(Allocator allocator, String socket_path, char[] cookie
 		alloc::free(allocator, session);
 		return err~;
 	}
-	if (catch err = session.waiter.add({ .handle = session.socket.fd.raw(), .interest = { .readable = true }, .tag = SOCKET_TAG }))
+	if (catch err = session.waiter.add(
+		{ .handle = session.socket.fd.raw(), .interest = { .readable = true }, .tag = SOCKET_TAG }
+	))
 	{
 		session.close();
 		return err~;
@@ -78,22 +86,22 @@ fn void? Session.handshake(&self, char[] cookie)
 {
 	@pool()
 	{
-		uint tag = self.next_tag++;
-		DString auth = pulse::request_auth(tmem, tag, cookie);
+		uint tag        = self.next_tag++;
+		DString auth    = pulse::request_auth(tmem, tag, cookie);
 		TagReader reply = self.call(&auth, tag)!;
-		uint server = reply.u32()!;
+		uint server     = reply.u32()!;
 		self.version = min(pulse::PROTOCOL_VERSION, server & pulse::VERSION_MASK);
 	};
 	@pool()
 	{
-		uint tag = self.next_tag++;
+		uint tag          = self.next_tag++;
 		Property[2] props = { { "application.name", "Bleu audio" }, { "application.id", "bleu.audio" } };
-		DString name = pulse::request_set_client_name(tmem, tag, props[..]);
+		DString name      = pulse::request_set_client_name(tmem, tag, props[..]);
 		self.acknowledge(&name, tag)!;
 	};
 	@pool()
 	{
-		uint tag = self.next_tag++;
+		uint tag          = self.next_tag++;
 		DString subscribe = pulse::request_subscribe(tmem, tag, SUBSCRIBED_FACILITIES);
 		self.acknowledge(&subscribe, tag)!;
 	};
@@ -108,10 +116,10 @@ fn TagReader? Session.call(&self, DString* request, uint tag)
 	self.socket.send_all(pulse::finish_packet(request))!;
 	while (true)
 	{
-		char[] payload = self.read_frame()!;
+		char[] payload   = self.read_frame()!;
 		TagReader reader = { .data = payload };
-		uint command = reader.u32()!;
-		uint got = reader.u32()!;
+		uint command     = reader.u32()!;
+		uint got         = reader.u32()!;
 		if (command == (uint)PulseCommand.SUBSCRIBE_EVENT)
 		{
 			self.events_seen = true;
@@ -121,7 +129,14 @@ fn TagReader? Session.call(&self, DString* request, uint tag)
 		if (command == (uint)PulseCommand.ERROR) return server_error(reader.u32()!)~;
 		if (command != (uint)PulseCommand.REPLY)
 		{
-			return error::raise(error::PROTOCOL, error::Domain.PULSE, (int)command, "reply to tag %d has command %d", tag, command)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.PULSE,
+				(int)command,
+				"reply to tag %d has command %d",
+				tag,
+				command
+			)~;
 		}
 		return reader;
 	}
@@ -145,7 +160,13 @@ fn char[]? Session.read_frame(&self)
 	char[pulse::FRAME_HEADER_SIZE] header;
 	self.read_exact(header[..])!;
 	FrameHeader frame = pulse::decode_header(header[..])!;
-	if (frame.length > pulse::MAX_PAYLOAD) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "frame of %d bytes", frame.length)~;
+	if (frame.length > pulse::MAX_PAYLOAD) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"frame of %d bytes",
+		frame.length
+	)~;
 	char[] payload = alloc::new_array(tmem, char, frame.length);
 	self.read_exact(payload)!;
 	return payload;
@@ -157,7 +178,7 @@ fn void? Session.read_exact(&self, char[] bytes)
 	sz done = 0;
 	while (done < bytes.len)
 	{
-		RecvResult got = self.socket.recv(bytes[done : bytes.len - done], { })!;
+		RecvResult got = self.socket.recv(bytes[done:bytes.len - done], { })!;
 		done += (sz)got.bytes;
 	}
 }
@@ -193,9 +214,9 @@ fn fault server_error(uint code) @private
 *>
 fn void? Session.absorb(&self)
 {
-	char[] payload = self.read_frame()!;
+	char[] payload   = self.read_frame()!;
 	TagReader reader = { .data = payload };
-	uint command = reader.u32()!;
+	uint command     = reader.u32()!;
 	if (command == (uint)PulseCommand.SUBSCRIBE_EVENT) self.events_seen = true;
 }
 

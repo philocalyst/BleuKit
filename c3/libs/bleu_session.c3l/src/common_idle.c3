@@ -69,11 +69,9 @@ fn void IdleRegistry.apply(&self, Command* command)
  that changed state. The caller announces them after publishing.
 
  @param pending : "Where the events are appended"
- @return "true when a configured threshold changed state, so the published state is stale"
 *>
-fn bool IdleRegistry.advance(&self, Duration elapsed, List{Event}* pending)
+fn void IdleRegistry.advance(&self, Duration elapsed, List{Event}* pending)
 {
-	bool configured_changed = false;
 	for (sz i = 0; i < self.slots.len(); i++)
 	{
 		IdleSlot* slot = self.slots.get_ref(i);
@@ -81,10 +79,23 @@ fn bool IdleRegistry.advance(&self, Duration elapsed, List{Event}* pending)
 		if (now == slot.idle) continue;
 		slot.idle = now;
 		pending.push({ .kind = now ? EventKind.IDLE : EventKind.RESUMED, .watch = slot.watch, .threshold = slot.threshold });
-		if (slot.configured) configured_changed = true;
 	}
-	return configured_changed;
 }
+
+const double MICROSECONDS_PER_SECOND = 1.0e6;
+
+<*
+ A duration from seconds as a platform reports them. A negative reading (a clock that stepped
+ back) is zero: the idle time cannot be negative.
+*>
+fn Duration duration_of_seconds(double seconds)
+{
+	if (seconds <= 0.0) return time::DURATION_ZERO;
+	return (Duration)(seconds * MICROSECONDS_PER_SECOND);
+}
+
+<* A duration in seconds, as a platform API takes it. *>
+fn double seconds_of(Duration duration) => (double)duration / MICROSECONDS_PER_SECOND;
 
 <*
  The configured thresholds and whether each is reached, in `Options.idle_thresholds` order.

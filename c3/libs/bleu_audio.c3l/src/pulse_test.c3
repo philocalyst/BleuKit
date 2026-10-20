@@ -16,7 +16,7 @@ fn int nibble(char c) @private
 // True when `actual` is exactly the bytes written as hex pairs in `hex`.
 fn bool matches(char[] actual, String hex) @private
 {
-	sz count = 0;
+	sz count =  0;
 	int high = -1;
 	for (sz i = 0; i < hex.len; i++)
 	{
@@ -61,7 +61,7 @@ fn void frame_header_offset_is_split_high_then_low() @test
 	pulse::FrameHeader header = { .length = 1, .channel = 2, .offset = 0x0102030405060708, .flags = 0x40000000 };
 	header.encode(out[..]);
 	assert(matches(out[..], "00000001 00000002 01020304 05060708 40000000"));
-	assert(@catch(pulse::decode_header(out[0 : 19])) == error::PROTOCOL);
+	assert(@catch(pulse::decode_header(out[0:19])) == error::PROTOCOL);
 }
 
 // GET_SERVER_INFO with tag 3: command 20 (the position of the name in the enum), tag 3.
@@ -74,9 +74,12 @@ fn void get_server_info_request_is_two_words() @test
 // AUTH: command 8, tag 1, the version 35 with no flags, then the cookie as an arbitrary blob.
 fn void auth_request_carries_version_and_cookie() @test
 {
-	char[] cookie = { (char)0xAB, (char)0xCD };
+	char[] cookie  = { (char)0xAB, (char)0xCD };
 	DString packet = pulse::request_auth(mem, 1, cookie);
-	assert(packet_is(&packet, "00000016 ffffffff 00000000 00000000 00000000 4c00000008 4c00000001 4c00000023 7800000002 abcd"));
+	assert(packet_is(
+		&packet,
+		"00000016 ffffffff 00000000 00000000 00000000 4c00000008 4c00000001 4c00000023 7800000002 abcd"
+	));
 }
 
 // SET_CLIENT_NAME: the proplist is P, the key as a string, a u32 length, the value as an
@@ -84,8 +87,18 @@ fn void auth_request_carries_version_and_cookie() @test
 fn void set_client_name_encodes_the_proplist() @test
 {
 	Property[1] props = { { .key = "application.name", .value = "x" } };
-	DString packet = pulse::request_set_client_name(mem, 2, props[..]);
-	assert(packet_is(&packet, "00000029 ffffffff 00000000 00000000 00000000 4c00000009 4c00000002 50 74 6170706c69636174696f6e2e6e616d6500 4c00000001 7800000001 78 4e"));
+	DString packet    = pulse::request_set_client_name(mem, 2, props[..]);
+	assert(packet_is(
+		&packet,
+		"00000029 ffffffff 00000000 00000000 00000000 4c00000009 4c00000002 50 74 6170706c69636174696f6e2e6e616d6500 4c00000001 7800000001 78 4e"
+	));
+}
+
+// GET_SINK_INFO by name with no index: command 21, tag 6, index NO_INDEX, the name as t...NUL.
+fn void get_sink_info_by_name_request() @test
+{
+	DString packet = pulse::request_get_device_info(mem, 6, false, pulse::NO_INDEX, "@DEFAULT_SINK@");
+	assert(packet_is(&packet, "0000001f ffffffff 00000000 00000000 00000000 4c00000015 4c00000006 4cffffffff 744044454641554c545f53494e4b4000"));
 }
 
 // SET_SINK_VOLUME by name: index NO_INDEX, the name, then one channel at 100 % (0x10000).
@@ -93,20 +106,26 @@ fn void set_device_volume_by_name() @test
 {
 	uint[1] values = { 0x10000 };
 	DString packet = pulse::request_set_device_volume(mem, 4, false, pulse::NO_INDEX, "s", values[..]);
-	assert(packet_is(&packet, "00000018 ffffffff 00000000 00000000 00000000 4c00000024 4c00000004 4cffffffff 747300 760100010000"));
+	assert(packet_is(
+		&packet,
+		"00000018 ffffffff 00000000 00000000 00000000 4c00000024 4c00000004 4cffffffff 747300 760100010000"
+	));
 }
 
 // MOVE_SINK_INPUT by index: the device name is always on the wire; an empty one is N.
 fn void move_stream_sends_a_null_name_for_index_addressing() @test
 {
 	DString packet = pulse::request_move_stream(mem, 5, false, 7, pulse::NO_INDEX, "");
-	assert(packet_is(&packet, "00000015 ffffffff 00000000 00000000 00000000 4c00000043 4c00000005 4c00000007 4cffffffff 4e"));
+	assert(packet_is(
+		&packet,
+		"00000015 ffffffff 00000000 00000000 00000000 4c00000043 4c00000005 4c00000007 4cffffffff 4e"
+	));
 }
 
 // Decoding: each tagged value reads back, and a NULL string reads as "".
 fn void tagged_values_decode() @test
 {
-	char[] bytes = { 'L', 0x12, 0x34, 0x56, 0x78, 't', 'a', 'b', 0, 'N', '1', '0', 'U', 0, 0, 0, 0, 0, 0, 1, 0 };
+	char[] bytes       = { 'L', 0x12, 0x34, 0x56, 0x78, 't', 'a', 'b', 0, 'N', '1', '0', 'U', 0, 0, 0, 0, 0, 0, 1, 0 };
 	pulse::TagReader r = { .data = bytes };
 	assert(r.u32()!! == 0x12345678);
 	assert(r.string()!! == "ab");
@@ -120,17 +139,17 @@ fn void tagged_values_decode() @test
 // A channel volume: count as u8, then one u32 per channel.
 fn void cvolume_decodes_per_channel() @test
 {
-	char[] bytes = { 'v', 2, 0, 1, 0, 0, 0, 0, 0, 0 };
+	char[] bytes       = { 'v', 2, 0, 1, 0, 0, 0, 0, 0, 0 };
 	pulse::TagReader r = { .data = bytes };
-	pulse::CVolume v = r.cvolume()!!;
+	pulse::CVolume v   = r.cvolume()!!;
 	assert(v.count == 2 && v.values[0] == 0x10000 && v.values[1] == 0);
 }
 
 // A proplist of one entry decodes to its key and value; the length is checked against the blob.
 fn void proplist_decodes_entries() @test
 {
-	char[] bytes = { 'P', 't', 'k', 0, 'L', 0, 0, 0, 2, 'x', 0, 0, 0, 2, 'h', 'i', 'N' };
-	pulse::TagReader r = { .data = bytes };
+	char[] bytes            = { 'P', 't', 'k', 0, 'L', 0, 0, 0, 2, 'x', 0, 0, 0, 2, 'h', 'i', 'N' };
+	pulse::TagReader r      = { .data = bytes };
 	pulse::Property[] props = r.proplist(mem)!!;
 	assert(props.len == 1 && props[0].key == "k" && props[0].value == "hi");
 	assert(pulse::find_property(props, "k") == "hi" && pulse::find_property(props, "z") == "");
@@ -140,7 +159,7 @@ fn void proplist_decodes_entries() @test
 // A declared length that does not match the blob is a protocol error, not silently trusted.
 fn void proplist_length_mismatch_is_refused() @test
 {
-	char[] bytes = { 'P', 't', 'k', 0, 'L', 0, 0, 0, 3, 'x', 0, 0, 0, 2, 'h', 'i', 'N' };
+	char[] bytes       = { 'P', 't', 'k', 0, 'L', 0, 0, 0, 3, 'x', 0, 0, 0, 2, 'h', 'i', 'N' };
 	pulse::TagReader r = { .data = bytes };
 	assert(@catch(r.proplist(mem)) == error::PROTOCOL);
 }
@@ -148,7 +167,7 @@ fn void proplist_length_mismatch_is_refused() @test
 // A tag that does not match is refused with the tag in the message.
 fn void wrong_tag_is_refused() @test
 {
-	char[] bytes = { 'B', 1 };
+	char[] bytes       = { 'B', 1 };
 	pulse::TagReader r = { .data = bytes };
 	assert(@catch(r.u32()) == error::PROTOCOL);
 }

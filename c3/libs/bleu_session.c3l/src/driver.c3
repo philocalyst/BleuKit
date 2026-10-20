@@ -26,11 +26,13 @@ alias SessionRunFn = fn void(void* state, SessionHub* hub, Host{Command}* host);
 <* The backends of this platform in priority order; defined per platform in `probe.c3`. *>
 fn Driver*? select_driver(Options options)
 {
+	bool listed = false; // the forced backend exists on this platform, whether or not it runs
 	foreach (driver : platform_drivers())
 	{
 		if (options.backend != AUTO && options.backend != driver.id) continue;
+		listed = true;
 		if (driver.probe(&options)) return driver;
 	}
-	if (options.backend != AUTO) return error::UNSUPPORTED~;
+	if (options.backend != AUTO && !listed) return error::UNSUPPORTED~;
 	return error::UNAVAILABLE~;
 }

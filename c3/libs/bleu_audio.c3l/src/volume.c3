@@ -63,3 +63,14 @@ fn float stereo_balance(Gain left, Gain right)
 	if (left > right) return -1.0f + (float)right / (float)left;
 	return 1.0f - (float)left / (float)right;
 }
+
+<* The loudest channel of a volume; silence when there are none. *>
+fn Gain loudest(Gain[] gains)
+{
+	Gain max = (Gain)0.0f;
+	foreach (gain : gains)
+	{
+		if (gain > max) max = gain;
+	}
+	return max;
+}

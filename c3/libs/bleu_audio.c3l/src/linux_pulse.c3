@@ -12,7 +12,7 @@ module bleu::audio::linux_pulse @feat(LINUX);
 import std::time, bleu::availability, bleu::audio, bleu::error, bleu::rt::poller, bleu::rt::worker, bleu::operation;
 
 const Duration RECONNECT_DELAY = (Duration)1_000_000; // 1 s between attempts to reach the server
-const usz COMMAND_BATCH = 16;
+const usz COMMAND_BATCH        = 16;
 
 <* What the backend remembers: where the server socket and its cookie are. *>
 struct PulseBackend
@@ -35,8 +35,14 @@ fn bool probe(Options* options) => socket_exists(options);
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[Cap.PEAK_METER.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "no level meters in this version");
-	capabilities.values[Cap.MIC_IN_USE.ordinal] = { availability::Reason.DEGRADED, "heuristic: an unmuted, uncorked recording stream" };
+	capabilities.values[Cap.PEAK_METER.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"no level meters in this version"
+	);
+	capabilities.values[Cap.MIC_IN_USE.ordinal] = {
+		availability::Reason.DEGRADED,
+		"heuristic: an unmuted, uncorked recording stream"
+	};
 	capabilities.values[Cap.DEVICE_BOOST.ordinal] = { availability::Reason.AVAILABLE, "" };
 	String socket = server_path(allocator, options.server)!;
 	String cookie = cookie_path(allocator, options.cookie_file);
@@ -108,8 +114,11 @@ fn void serve(Session* session, AudioHub* hub, Host{Command}* host) @private
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 2)) return;
 	defer poller.free();
-	if (catch poller.add({ .handle = session.socket.fd.raw(), .interest = { .readable = true }, .tag = SOCKET_TAG })) return;
+	if (catch poller.add(
+		{ .handle = session.socket.fd.raw(), .interest = { .readable = true }, .tag = SOCKET_TAG }
+	)) return;
 	if (catch session.refresh(hub)) return;
+	if (refresh_until_quiet(session, hub)) return;
 	Command[COMMAND_BATCH] buffer;
 	while (!host.stopping())
 	{
@@ -143,12 +152,24 @@ fn void serve(Session* session, AudioHub* hub, Host{Command}* host) @private
 				}
 				done.release();
 			}
-			if (!broken && session.events_seen)
-			{
-				session.events_seen = false;
-				if (catch session.refresh(hub)) broken = true;
-			}
 		};
-		if (broken) return;
+		if (broken || refresh_until_quiet(session, hub)) return;
 	}
+}
+
+<*
+ Refresh while subscription events keep arriving. An event that arrived during a
+ reply wait is consumed there and only flags `events_seen`; no socket readiness
+ follows it, so the flag must be acted on here rather than at the next wait.
+
+ @return "true when the session broke and must be closed"
+*>
+fn bool refresh_until_quiet(Session* session, AudioHub* hub) @private
+{
+	while (session.events_seen)
+	{
+		session.events_seen = false;
+		if (catch session.refresh(hub)) return true;
+	}
+	return false;
 }

@@ -32,20 +32,45 @@ fn String? cf_text(macos_hal::ObjectId object, macos_hal::PropertyAddress addres
 <* Every device the HAL knows, with identity and stream directions. Strings go into `allocator`. *>
 fn HalDevice[]? list_devices(Allocator allocator)
 {
-	uint size = macos_hal::property_size(macos_hal::SYSTEM_OBJECT, { macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN })!;
-	sz count = size / uint::size;
+	uint size                 = macos_hal::property_size(
+		macos_hal::SYSTEM_OBJECT,
+		{ macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }
+	)!;
+	sz count                  = size / uint::size;
 	macos_hal::ObjectId[] ids = alloc::new_array(tmem, macos_hal::ObjectId, count);
-	macos_hal::read_property(macos_hal::SYSTEM_OBJECT, { macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }, ids.ptr, size)!;
+	macos_hal::read_property(
+		macos_hal::SYSTEM_OBJECT,
+		{ macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN },
+		ids.ptr,
+		size
+	)!;
 	HalDevice[] devices = alloc::new_array(allocator, HalDevice, count);
 	for (sz i = 0; i < count; i++)
 	{
 		devices[i] = {
 			.id = ids[i],
-			.uid = cf_text(ids[i], { macos_hal::SELECTOR_UID, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }, allocator)!,
-			.name = cf_text(ids[i], { macos_hal::SELECTOR_NAME, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }, allocator) ?? "",
-			.transport = macos_hal::read_u32(ids[i], { macos_hal::SELECTOR_TRANSPORT, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }) ?? 0,
-			.has_output = (macos_hal::property_size(ids[i], { macos_hal::SELECTOR_STREAMS, macos_hal::SCOPE_OUTPUT, macos_hal::ELEMENT_MAIN }) ?? 0) > 0,
-			.has_input = (macos_hal::property_size(ids[i], { macos_hal::SELECTOR_STREAMS, macos_hal::SCOPE_INPUT, macos_hal::ELEMENT_MAIN }) ?? 0) > 0,
+			.uid = cf_text(
+				ids[i],
+				{ macos_hal::SELECTOR_UID, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN },
+				allocator
+			)!,
+			.name = cf_text(
+				ids[i],
+				{ macos_hal::SELECTOR_NAME, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN },
+				allocator
+			) ?? "",
+			.transport = macos_hal::read_u32(
+				ids[i],
+				{ macos_hal::SELECTOR_TRANSPORT, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }
+			) ?? 0,
+			.has_output = (macos_hal::property_size(
+				ids[i],
+				{ macos_hal::SELECTOR_STREAMS, macos_hal::SCOPE_OUTPUT, macos_hal::ELEMENT_MAIN }
+			) ?? 0) > 0,
+			.has_input = (macos_hal::property_size(
+				ids[i],
+				{ macos_hal::SELECTOR_STREAMS, macos_hal::SCOPE_INPUT, macos_hal::ELEMENT_MAIN }
+			) ?? 0) > 0,
 		};
 	}
 	return devices;
@@ -113,7 +138,7 @@ fn Gain[]? channel_volumes(Allocator allocator, macos_hal::ObjectId id, Flow flo
 	if (macos_hal::has_property(id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope, macos_hal::ELEMENT_LEFT })) channels++;
 	if (macos_hal::has_property(id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope, macos_hal::ELEMENT_RIGHT })) channels++;
 	Gain[] gains = alloc::new_array(allocator, Gain, channels);
-	sz at = 0;
+	sz at        = 0;
 	if (macos_hal::has_property(id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope, macos_hal::ELEMENT_LEFT }))
 	{
 		gains[at++] = read_scalar(id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope, macos_hal::ELEMENT_LEFT })!;
@@ -144,33 +169,39 @@ fn Device device_of(Allocator allocator, HalDevice hal, Flow flow, bool is_defau
 	device.bus = bus_of(hal.transport);
 	device.is_default = is_default;
 	device.volume = channel_volumes(allocator, hal.id, flow) ?? { };
-	device.level = loudest(device.volume).nominal();
-	device.volume_is_hardware = macos_hal::has_property(hal.id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope_of(flow), macos_hal::ELEMENT_MAIN })
-		|| macos_hal::has_property(hal.id, { macos_hal::SELECTOR_VOLUME_SCALAR, scope_of(flow), macos_hal::ELEMENT_LEFT });
-	if (device.volume.len == 2) device.balance = maybe::value(volume::stereo_balance(device.volume[0], device.volume[1]));
+	device.level = volume::loudest(device.volume).nominal();
+	device.volume_is_hardware = macos_hal::has_property(
+		hal.id,
+		{ macos_hal::SELECTOR_VOLUME_SCALAR, scope_of(flow), macos_hal::ELEMENT_MAIN }
+	) || macos_hal::has_property(
+		hal.id,
+		{ macos_hal::SELECTOR_VOLUME_SCALAR, scope_of(flow), macos_hal::ELEMENT_LEFT }
+	);
+	if (device.volume.len == 2) device.balance = maybe::value(
+		volume::stereo_balance(device.volume[0], device.volume[1])
+	);
 	if (macos_hal::has_property(hal.id, { macos_hal::SELECTOR_MUTE, scope_of(flow), macos_hal::ELEMENT_MAIN }))
 	{
-		device.muted = (macos_hal::read_u32(hal.id, { macos_hal::SELECTOR_MUTE, scope_of(flow), macos_hal::ELEMENT_MAIN }) ?? 0) != 0;
+		device.muted = (macos_hal::read_u32(
+			hal.id,
+			{ macos_hal::SELECTOR_MUTE, scope_of(flow), macos_hal::ELEMENT_MAIN }
+		) ?? 0) != 0;
 	}
 	return device;
 }
 
-// The loudest channel of a volume; silence when there are none.
-fn Gain loudest(Gain[] gains) @private
-{
-	Gain max = (Gain)0.0f;
-	foreach (gain : gains)
-	{
-		if (gain > max) max = gain;
-	}
-	return max;
-}
 
 <* The output and input devices of the state, and the default of each flow. *>
-fn void devices_into(Allocator allocator, HalDevice[] hal, macos_hal::ObjectId default_output, macos_hal::ObjectId default_input, State* state)
+fn void devices_into(
+	Allocator allocator,
+	HalDevice[] hal,
+	macos_hal::ObjectId default_output,
+	macos_hal::ObjectId default_input,
+	State* state
+)
 {
 	sz outputs = 0;
-	sz inputs = 0;
+	sz inputs  = 0;
 	foreach (&d : hal)
 	{
 		if (d.has_output) outputs++;

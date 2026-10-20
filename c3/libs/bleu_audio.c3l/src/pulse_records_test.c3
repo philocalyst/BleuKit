@@ -14,7 +14,7 @@ fn void? skip_header(pulse::TagReader* r) @private
 
 fn void real_server_info_decodes() @test
 {
-	char[] payload = $embed("../tests/fixtures/server_info.bin");
+	char[] payload     = $embed("../tests/fixtures/server_info.bin");
 	pulse::TagReader r = { .data = payload };
 	skip_header(&r)!!;
 	pulse::ServerInfo info = pulse::read_server_info(&r, 35)!!;
@@ -27,7 +27,7 @@ fn void real_sink_decodes_its_properties() @test
 {
 	@pool()
 	{
-		char[] payload = $embed("../tests/fixtures/sinks.bin");
+		char[] payload     = $embed("../tests/fixtures/sinks.bin");
 		pulse::TagReader r = { .data = payload };
 		skip_header(&r)!!;
 		pulse::DeviceRecord sink = pulse::read_device(&r, 35, false, tmem)!!;
@@ -44,7 +44,7 @@ fn void real_monitor_source_is_a_monitor() @test
 {
 	@pool()
 	{
-		char[] payload = $embed("../tests/fixtures/sources.bin");
+		char[] payload     = $embed("../tests/fixtures/sources.bin");
 		pulse::TagReader r = { .data = payload };
 		skip_header(&r)!!;
 		pulse::DeviceRecord source = pulse::read_device(&r, 35, true, tmem)!!;
@@ -59,7 +59,7 @@ fn void real_playback_stream_names_its_app() @test
 {
 	@pool()
 	{
-		char[] payload = $embed("../tests/fixtures/sink_inputs.bin");
+		char[] payload     = $embed("../tests/fixtures/sink_inputs.bin");
 		pulse::TagReader r = { .data = payload };
 		skip_header(&r)!!;
 		pulse::StreamRecord stream = pulse::read_sink_input(&r, 35, tmem)!!;
@@ -76,7 +76,7 @@ fn void real_record_stream_is_on_the_monitor_source() @test
 {
 	@pool()
 	{
-		char[] payload = $embed("../tests/fixtures/source_outputs.bin");
+		char[] payload     = $embed("../tests/fixtures/source_outputs.bin");
 		pulse::TagReader r = { .data = payload };
 		skip_header(&r)!!;
 		pulse::StreamRecord stream = pulse::read_source_output(&r, 35, tmem)!!;
@@ -90,7 +90,7 @@ fn void real_record_stream_is_on_the_monitor_source() @test
 // The daemon has no card, so the list reply is just its command and tag.
 fn void real_empty_lists_are_empty() @test
 {
-	char[] payload = $embed("../tests/fixtures/cards.bin");
+	char[] payload     = $embed("../tests/fixtures/cards.bin");
 	pulse::TagReader r = { .data = payload };
 	skip_header(&r)!!;
 	assert(r.at_end());
@@ -100,7 +100,7 @@ fn void synthetic_card_decodes_profiles() @test
 {
 	@pool()
 	{
-		char[] payload = $embed("../tests/fixtures/synthetic_card.bin");
+		char[] payload     = $embed("../tests/fixtures/synthetic_card.bin");
 		pulse::TagReader r = { .data = payload };
 		skip_header(&r)!!;
 		pulse::CardRecord card = pulse::read_card(&r, 35, tmem)!!;

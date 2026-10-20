@@ -286,7 +286,7 @@ struct SecretBuffer
 
 enum CommandKind : char
 {
-	REFRESH, // read the hardware now
+	REFRESH,            // read the hardware now
 	SCAN,
 	CONNECT,
 	DISCONNECT,

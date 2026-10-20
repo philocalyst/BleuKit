@@ -46,7 +46,7 @@ struct Session
  Open the first working backend of this platform (or the one in `options`).
 
  @param allocator : "Allocator for the service and its snapshots"
- @return? error::UNAVAILABLE : "No backend works here (no session manager)"
+ @return? error::UNAVAILABLE : "No backend works here, or the one in `options` is not running"
  @return? error::UNSUPPORTED : "The requested backend does not exist on this platform"
 *>
 fn Session*? open(Allocator allocator, Options options = { })

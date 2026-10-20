@@ -35,7 +35,7 @@ fn void publish_snapshot(AudioHub* hub, Snapshot{State}* next)
 // Copy an event into a packet: its strings must outlive the state they came from.
 fn void emit_event(void* context, Event event)
 {
-	AudioHub* hub = (AudioHub*)context;
+	AudioHub* hub           = (AudioHub*)context;
 	Snapshot{Event}* packet = hub.emit_begin();
 	packet.value = { event.kind, event.flow, event.id.copy(packet.allocator()) };
 	hub.emit(packet);

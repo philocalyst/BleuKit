@@ -16,7 +16,7 @@ module bleu::audio::wasapi @feat(WIN32);
 import std::time, bleu::availability, bleu::audio, bleu::error, bleu::observe, bleu::operation, bleu::unit, bleu::rt::poller, bleu::rt::mailbox, bleu::rt::worker, bleu::win::com, bleu::win::com_shell, bleu::win::errors, bleu::win::hresult, bleu::audio::windows_com, bleu::audio::windows_endpoints;
 
 const Duration POLL_INTERVAL = (Duration)1_000_000; // 1 s: how often volume changes are read
-const usz COMMAND_BATCH = 16;
+const usz COMMAND_BATCH      = 16;
 
 <* What the backend remembers: the mailbox the notification client posts to. *>
 struct WasapiBackend
@@ -40,17 +40,50 @@ fn bool probe(Options* options) => true;
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[Cap.DEFAULT_SET.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "the default endpoint is set through an undocumented interface; not in v1");
-	capabilities.values[Cap.DEVICE_BOOST.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "endpoint volume is 0..1; no boost offered");
-	capabilities.values[Cap.PORTS.ordinal] = availability::no(availability::Reason.UNSUPPORTED_OS, "ports are not read on Windows in v1");
-	capabilities.values[Cap.PORT_SET.ordinal] = availability::no(availability::Reason.UNSUPPORTED_OS, "ports are not read on Windows in v1");
-	capabilities.values[Cap.CARD_PROFILES.ordinal] = availability::no(availability::Reason.UNSUPPORTED_OS, "card profiles exist on Linux only");
-	capabilities.values[Cap.CARD_PROFILE_SET.ordinal] = availability::no(availability::Reason.UNSUPPORTED_OS, "card profiles exist on Linux only");
-	capabilities.values[Cap.STREAM_MOVE.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "moving a session needs the undocumented policy interface");
-	capabilities.values[Cap.PEAK_METER.ordinal] = availability::no(availability::Reason.UNSUPPORTED_BACKEND, "peak meters are not in v1");
-	capabilities.values[Cap.HW_VOLUME_FLAG.ordinal] = { availability::Reason.DEGRADED, "every endpoint is reported as software volume: QueryHardwareSupport is not read in this version" };
-	capabilities.values[Cap.MIC_IN_USE.ordinal] = { availability::Reason.DEGRADED, "a capture session that is active and not muted" };
-	capabilities.values[Cap.EVENTS.ordinal] = { availability::Reason.DEGRADED, "device and session changes arrive as events; volume changes are read once a second" };
+	capabilities.values[Cap.DEFAULT_SET.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"the default endpoint is set through an undocumented interface; not in v1"
+	);
+	capabilities.values[Cap.DEVICE_BOOST.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"endpoint volume is 0..1; no boost offered"
+	);
+	capabilities.values[Cap.PORTS.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
+		"ports are not read on Windows in v1"
+	);
+	capabilities.values[Cap.PORT_SET.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
+		"ports are not read on Windows in v1"
+	);
+	capabilities.values[Cap.CARD_PROFILES.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
+		"card profiles exist on Linux only"
+	);
+	capabilities.values[Cap.CARD_PROFILE_SET.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_OS,
+		"card profiles exist on Linux only"
+	);
+	capabilities.values[Cap.STREAM_MOVE.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"moving a session needs the undocumented policy interface"
+	);
+	capabilities.values[Cap.PEAK_METER.ordinal] = availability::no(
+		availability::Reason.UNSUPPORTED_BACKEND,
+		"peak meters are not in v1"
+	);
+	capabilities.values[Cap.HW_VOLUME_FLAG.ordinal] = {
+		availability::Reason.DEGRADED,
+		"every endpoint is reported as software volume: QueryHardwareSupport is not read in this version"
+	};
+	capabilities.values[Cap.MIC_IN_USE.ordinal] = {
+		availability::Reason.DEGRADED,
+		"a capture session that is active and not muted"
+	};
+	capabilities.values[Cap.EVENTS.ordinal] = {
+		availability::Reason.DEGRADED,
+		"device and session changes arrive as events; volume changes are read once a second"
+	};
 	return alloc::new(allocator, WasapiBackend);
 }
 
@@ -88,7 +121,8 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 	refresh(enumerator, hub);
 	while (!host.stopping())
 	{
-		if (catch poller.wait(POLL_INTERVAL)) {
+		if (catch poller.wait(POLL_INTERVAL))
+		{
 			// TIMEOUT is the one-second tick that re-reads volumes.
 		}
 		usz count = host.mailbox().take_all(buffer[..]);
@@ -106,7 +140,7 @@ fn void refresh(windows_com::IMMDeviceEnumerator* enumerator, AudioHub* hub) @pr
 	@pool()
 	{
 		Snapshot{State}* snapshot = hub.begin();
-		State? state = windows_endpoints::build_state(snapshot.allocator(), enumerator);
+		State? state              = windows_endpoints::build_state(snapshot.allocator(), enumerator);
 		if (catch err = state)
 		{
 			snapshot.release();
@@ -162,7 +196,13 @@ fn void? check_range(Gain[] levels) @private
 {
 	foreach (level : levels)
 	{
-		if (level < (Gain)0.0f || level > (Gain)1.0f) return error::raise(error::OUT_OF_RANGE, error::Domain.WIN32, 0, "%f is outside 0..1 on this platform", (float)level)~;
+		if (level < (Gain)0.0f || level > (Gain)1.0f) return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.WIN32,
+			0,
+			"%f is outside 0..1 on this platform",
+			(float)level
+		)~;
 	}
 }
 
@@ -184,8 +224,17 @@ fn void? set_device_mute(windows_com::IMMDeviceEnumerator* enumerator, Command* 
 fn void? set_stream_volume(windows_com::IMMDeviceEnumerator* enumerator, Command* command) @private
 {
 	check_range(command.gains)!;
-	if (command.gains.len != 1) return error::raise(error::INVALID_ARGUMENT, error::Domain.WIN32, 0, "a session has one level")~;
-	windows_com::ISimpleAudioVolume* simple = windows_endpoints::find_session_volume(enumerator, flow_code(command.flow), command.target)!;
+	if (command.gains.len != 1) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.WIN32,
+		0,
+		"a session has one level"
+	)~;
+	windows_com::ISimpleAudioVolume* simple = windows_endpoints::find_session_volume(
+		enumerator,
+		flow_code(command.flow),
+		command.target
+	)!;
 	defer windows_endpoints::release_ref(simple);
 	hresult::Hresult hr = simple.vtbl.set_master_volume(simple, (float)command.gains[0], null);
 	if (hr.failed()) return errors::raise_hresult(hr, "ISimpleAudioVolume::SetMasterVolume")~;
@@ -193,7 +242,11 @@ fn void? set_stream_volume(windows_com::IMMDeviceEnumerator* enumerator, Command
 
 fn void? set_stream_mute(windows_com::IMMDeviceEnumerator* enumerator, Command* command) @private
 {
-	windows_com::ISimpleAudioVolume* simple = windows_endpoints::find_session_volume(enumerator, flow_code(command.flow), command.target)!;
+	windows_com::ISimpleAudioVolume* simple = windows_endpoints::find_session_volume(
+		enumerator,
+		flow_code(command.flow),
+		command.target
+	)!;
 	defer windows_endpoints::release_ref(simple);
 	hresult::Hresult hr = simple.vtbl.set_mute(simple, command.flag ? 1 : 0, null);
 	if (hr.failed()) return errors::raise_hresult(hr, "ISimpleAudioVolume::SetMute")~;
@@ -205,7 +258,13 @@ fn uint flow_code(Flow flow) @inline => flow == Flow.INPUT ? windows_com::E_CAPT
 <* Register the notification client; the returned shell is what unregistering needs. Null on failure. *>
 fn NotifyShell* register_notifications(windows_com::IMMDeviceEnumerator* enumerator, WasapiBackend* backend) @private
 {
-	NotifyShell* shell = com_shell::create{windows_com::IMMNotificationClientVtbl}(mem, &NOTIFY_TABLE, windows_com::IID_IMMNOTIFICATION_CLIENT, true, backend.mailbox);
+	NotifyShell* shell  = com_shell::create{windows_com::IMMNotificationClientVtbl}(
+		mem,
+		&NOTIFY_TABLE,
+		windows_com::IID_IMMNOTIFICATION_CLIENT,
+		true,
+		backend.mailbox
+	);
 	hresult::Hresult hr = enumerator.vtbl.register_callback(enumerator, shell);
 	// The system holds its own reference once registered; ours is given up here.
 	shell.vtbl.release(shell);
@@ -233,9 +292,10 @@ const windows_com::IMMNotificationClientVtbl NOTIFY_TABLE = {
 // Ask the worker for a refresh. Runs on a system thread: only posts.
 fn void request_refresh(void* self) @private
 {
-	NotifyShell* shell = com_shell::from_this{windows_com::IMMNotificationClientVtbl}(self);
+	NotifyShell* shell        = com_shell::from_this{windows_com::IMMNotificationClientVtbl}(self);
 	Mailbox{Command}* mailbox = (Mailbox{Command}*)shell.context;
-	if (catch err = mailbox.post({ .kind = CommandKind.REFRESH })) {
+	if (catch err = mailbox.post({ .kind = CommandKind.REFRESH }))
+	{
 		// BUSY means a refresh is already queued, which is all that is needed.
 	}
 }

@@ -65,8 +65,8 @@ struct Header
 fn char[] encode(Allocator allocator, uint type, String payload)
 {
 	usz total = HEADER_SIZE + payload.len;
-	char[] frame = alloc::new_array(allocator, char, total);
-	mem::copy(frame.ptr, MAGIC.ptr, MAGIC_SIZE);
+	char[] frame = alloc::new_array(allocator, char, (sz)total);
+	mem::copy(frame.ptr, MAGIC.ptr, (sz)MAGIC_SIZE);
 	uint length = (uint)payload.len;
 	mem::copy(frame.ptr + MAGIC_SIZE, &length, 4);
 	mem::copy(frame.ptr + MAGIC_SIZE + 4, &type, 4);
@@ -104,7 +104,7 @@ fn uint Header.event_type(self) @inline => self.type & ~EVENT_BIT;
 *>
 fn String event_name(uint event_type)
 {
-	switch (event_type)
+	switch ((EventType)event_type)
 	{
 		case EventType.WORKSPACE: return "workspace";
 		case EventType.OUTPUT: return "output";

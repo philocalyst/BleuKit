@@ -13,14 +13,14 @@
 module bleu::audio::linux_pulse @feat(LINUX);
 import std::os::env, std::io::path, bleu::error, bleu::rt::fs, bleu::audio::pulse;
 
-const String ENV_SERVER = "PULSE_SERVER";
-const String ENV_COOKIE = "PULSE_COOKIE";
+const String ENV_SERVER      = "PULSE_SERVER";
+const String ENV_COOKIE      = "PULSE_COOKIE";
 const String ENV_RUNTIME_DIR = "XDG_RUNTIME_DIR";
 const String ENV_CONFIG_HOME = "XDG_CONFIG_HOME";
-const String UNIX_PREFIX = "unix:";
-const String SOCKET_SUFFIX = "pulse/native";
-const String COOKIE_SUFFIX = "pulse/cookie";
-const String HOME_COOKIE = ".pulse-cookie";
+const String UNIX_PREFIX     = "unix:";
+const String SOCKET_SUFFIX   = "pulse/native";
+const String COOKIE_SUFFIX   = "pulse/cookie";
+const String HOME_COOKIE     = ".pulse-cookie";
 
 <* The socket path, copied into `allocator`. @return? error::UNAVAILABLE : "no socket path can be found" *>
 fn String? server_path(Allocator allocator, String configured)
@@ -28,7 +28,9 @@ fn String? server_path(Allocator allocator, String configured)
 	if (configured.len > 0) return configured.copy(allocator);
 	if (try server = env::get_var(tmem, ENV_SERVER))
 	{
-		if (server.starts_with(UNIX_PREFIX)) return server[UNIX_PREFIX.len : server.len - UNIX_PREFIX.len].copy(allocator);
+		if (server.starts_with(
+			UNIX_PREFIX
+		)) return server[UNIX_PREFIX.len:server.len - UNIX_PREFIX.len].copy(allocator);
 	}
 	if (try runtime = env::get_var(tmem, ENV_RUNTIME_DIR))
 	{
@@ -68,7 +70,15 @@ fn void? cookie_bytes(Allocator allocator, String path_name, char[pulse::COOKIE_
 	mem::set(out, 0, pulse::COOKIE_LENGTH);
 	if (path_name.len == 0) return;
 	String data = fs::read_file(tmem, path_name)!;
-	if (data.len != pulse::COOKIE_LENGTH) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "cookie file %s holds %d bytes, not %d", path_name, data.len, pulse::COOKIE_LENGTH)~;
+	if (data.len != pulse::COOKIE_LENGTH) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"cookie file %s holds %d bytes, not %d",
+		path_name,
+		data.len,
+		pulse::COOKIE_LENGTH
+	)~;
 	mem::copy(out, data.ptr, pulse::COOKIE_LENGTH);
 }
 

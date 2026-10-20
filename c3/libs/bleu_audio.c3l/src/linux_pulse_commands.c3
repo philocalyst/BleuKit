@@ -6,20 +6,42 @@
 module bleu::audio::linux_pulse @feat(LINUX);
 import bleu::error, bleu::unit, bleu::audio, bleu::audio::pulse;
 
-<* Raw server volumes of the gains in a command, into `raw`. @return? error::INVALID_ARGUMENT : "no channels, or more than pulse::CHANNELS_MAX" *>
+<*
+ Raw server volumes of the gains in a command, into `raw`. @return? error::INVALID_ARGUMENT : "no channels, or more than
+ pulse::CHANNELS_MAX"
+*>
 fn uint[]? raw_volumes(Gain[] gains, uint[pulse::CHANNELS_MAX]* raw) @private
 {
-	if (gains.len == 0 || gains.len > pulse::CHANNELS_MAX) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "%d channels, 1 to %d allowed", gains.len, pulse::CHANNELS_MAX)~;
+	if (gains.len == 0 || gains.len > pulse::CHANNELS_MAX) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"%d channels, 1 to %d allowed",
+		gains.len,
+		pulse::CHANNELS_MAX
+	)~;
 	for (sz i = 0; i < gains.len; i++) (*raw)[i] = pulse::raw_from_gain(gains[i]);
-	return (*raw)[0 : gains.len];
+	return (*raw)[0:gains.len];
 }
 
 <* A stream id is the server's index as text. @return? error::INVALID_ARGUMENT : "not an index" *>
 fn uint? stream_index(String id) @private
 {
 	long? index = id.to_long();
-	if (catch err = index) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "'%s' is not a stream id", id)~;
-	if (index < 0 || index >= (long)pulse::NO_INDEX) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "stream id %d out of range", index)~;
+	if (catch err = index) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"'%s' is not a stream id",
+		id
+	)~;
+	if (index < 0 || index >= (long)pulse::NO_INDEX) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"stream id %d out of range",
+		index
+	)~;
 	return (uint)index;
 }
 
@@ -29,8 +51,8 @@ fn void? Session.execute(&self, Command* command)
 	@pool()
 	{
 		uint[pulse::CHANNELS_MAX] raw;
-		uint tag = self.next_tag++;
-		bool input = command.flow == Flow.INPUT;
+		uint tag    = self.next_tag++;
+		bool input  = command.flow == Flow.INPUT;
 		DString request;
 		uint[] values;
 		uint stream = 0;
@@ -42,7 +64,14 @@ fn void? Session.execute(&self, Command* command)
 				values = raw_volumes(command.gains, &raw)!;
 				request = pulse::request_set_device_volume(tmem, tag, input, pulse::NO_INDEX, command.target, values);
 			case CommandKind.SET_DEVICE_MUTE:
-				request = pulse::request_set_device_mute(tmem, tag, input, pulse::NO_INDEX, command.target, command.flag);
+				request = pulse::request_set_device_mute(
+					tmem,
+					tag,
+					input,
+					pulse::NO_INDEX,
+					command.target,
+					command.flag
+				);
 			case CommandKind.SET_DEFAULT:
 				request = pulse::request_set_default(tmem, tag, input, command.target);
 			case CommandKind.SET_STREAM_VOLUME:

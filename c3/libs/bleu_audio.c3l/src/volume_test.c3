@@ -12,7 +12,9 @@ fn void raw_volumes_map_to_the_slider() @test
 	assert(pulse::raw_from_gain((Gain)1.5f) == 98304, "over-amplification is representable");
 	assert(pulse::raw_from_gain((Gain)1.0e9f) == pulse::VOLUME_MAX, "clamped to VOLUME_MAX");
 	assert(pulse::raw_from_gain((Gain)-1.0f) == pulse::VOLUME_MUTED, "negative is silence");
-	assert(pulse::gain_from_raw(52057) > (Gain)0.7943f && pulse::gain_from_raw(52057) < (Gain)0.7945f, "79.4 % is 52057");
+	assert(pulse::gain_from_raw(
+		52057
+	) > (Gain)0.7943f && pulse::gain_from_raw(52057) < (Gain)0.7945f, "79.4 % is 52057");
 }
 
 fn void decibels_follow_the_cubic_mapping() @test

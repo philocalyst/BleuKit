@@ -115,7 +115,8 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 				.id = display_id(ssid),
 				.uuid = nm_settings::uuid_for_ssid(tmem, ssid),
 				.autoconnect = c.flag,
-				.key_mgmt = security == Security.WPA3_SAE ? nm_settings::KeyManagement.SAE : nm_settings::KeyManagement.WPA_PSK,
+				.key_mgmt = security == Security.WPA3_SAE ? nm_settings::KeyManagement.SAE
+					: nm_settings::KeyManagement.WPA_PSK,
 			};
 			active = add_and_activate(b, ask_spec)!;
 		}
@@ -356,7 +357,7 @@ fn void? try_supply(Backend* b, Command* c)
 	if (try index = find_prompt(b, c.request))
 	{
 		Prompt* prompt = b.prompts.get_ref(index);
-		Value secrets = nm_settings::secrets_settings(tmem, (String)c.secret.bytes[0 : c.secret.len])!;
+		Value secrets  = nm_settings::secrets_settings(tmem, (String)c.secret.bytes[0:c.secret.len])!;
 		Value[] answer = { secrets };
 		b.server.reply(prompt.token, answer)!;
 		mark_supplied(b, prompt.ssid);

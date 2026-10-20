@@ -322,6 +322,21 @@ fn void refresh(Logind* b, SessionHub* hub)
 	session::announce(&changes, hub);
 }
 
+<*
+ Dispatch what the bus has: the socket, and the messages that earlier calls read into the
+ connection's inbox. A lost bus disconnects; the next tick reconnects.
+*>
+fn void pump(Logind* b, Poller* poller)
+{
+	if (!b.connected) return;
+	if (catch b.bus.process())
+	{
+		// The bus went away: the next tick reconnects.
+		disconnect(b, poller);
+		b.dirty = true;
+	}
+}
+
 <* The worker: connect, then wait for signals, requests and the interval, and refresh. *>
 fn void run(void* state, SessionHub* hub, Host{Command}* host)
 {
@@ -334,23 +349,22 @@ fn void run(void* state, SessionHub* hub, Host{Command}* host)
 		// logind is not reachable yet: each tick tries again, and the state stays empty.
 	}
 	refresh(b, hub);
+	pump(b, &poller);
 	Command[COMMAND_BATCH] commands;
 	while (!host.stopping())
 	{
+		// A change already known (a signal dispatched by the last pump) needs no wait. Otherwise
+		// sleep until the interval passes, the bus has data, or a command is queued. The poller only
+		// sees the socket, so a signal read during a call must never be the reason for a sleep.
 		bool timed_out = false;
-		if (catch poller.wait(WAIT_INTERVAL))
+		if (!b.dirty)
 		{
-			timed_out = true;
-		}
-		if (b.connected)
-		{
-			if (catch b.bus.process())
+			if (catch poller.wait(WAIT_INTERVAL))
 			{
-				// The bus went away: the next tick reconnects.
-				disconnect(b, &poller);
-				b.dirty = true;
+				timed_out = true;
 			}
 		}
+		pump(b, &poller);
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(b, &commands[i]);
 		if (!b.connected)
@@ -365,6 +379,9 @@ fn void run(void* state, SessionHub* hub, Host{Command}* host)
 			b.dirty = false;
 			refresh(b, hub);
 		}
+		// The calls above may have read signals into the inbox. Dispatch them now, so that the
+		// next pass knows about them.
+		pump(b, &poller);
 	}
 	disconnect(b, &poller);
 }

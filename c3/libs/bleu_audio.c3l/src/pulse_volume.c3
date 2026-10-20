@@ -8,9 +8,9 @@
 
  Balance follows pa_cvolume_get_balance (volume.c:691-713): the average volume of
  the left channels and of the right channels, then
-   left > right  ->  -1 + right / left
-   right > left  ->   1 - left / right
-   equal         ->   0
+ left > right  ->  -1 + right / left
+ right > left  ->   1 - left / right
+ equal         ->   0
  Sources: pulse/volume.c lines 691-713 and 555-561 (on_left, on_right).
  Deliberate difference: a map without a left or a right channel gives no
  balance (empty `Maybe`), where PulseAudio returns 0.0.
@@ -18,19 +18,19 @@
 module bleu::audio::pulse;
 import std::collections::maybe, bleu::unit;
 
-const uint VOLUME_NORM = 0x10000;   // volume.h:120, 100 %
+const uint VOLUME_NORM  = 0x10000;  // volume.h:120, 100 %
 const uint VOLUME_MUTED = 0;        // volume.h:123, the volume of silence (not the mute flag)
-const uint VOLUME_MAX = 0x7FFFFFFF; // volume.h:126, UINT32_MAX / 2
+const uint VOLUME_MAX   = 0x7FFFFFFF; // volume.h:126, UINT32_MAX / 2
 
 // Channel positions (pulse/channelmap.h enum, in declaration order, MONO = 0).
-const char POSITION_FRONT_LEFT = 1;
-const char POSITION_FRONT_RIGHT = 2;
-const char POSITION_REAR_LEFT = 5;
-const char POSITION_REAR_RIGHT = 6;
-const char POSITION_FRONT_LEFT_OF_CENTER = 8;
+const char POSITION_FRONT_LEFT            = 1;
+const char POSITION_FRONT_RIGHT           = 2;
+const char POSITION_REAR_LEFT             = 5;
+const char POSITION_REAR_RIGHT            = 6;
+const char POSITION_FRONT_LEFT_OF_CENTER  = 8;
 const char POSITION_FRONT_RIGHT_OF_CENTER = 9;
-const char POSITION_SIDE_LEFT = 10;
-const char POSITION_SIDE_RIGHT = 11;
+const char POSITION_SIDE_LEFT             = 10;
+const char POSITION_SIDE_RIGHT            = 11;
 
 <* The slider position of a raw server volume. *>
 fn Gain gain_from_raw(uint raw) @inline => (Gain)((float)raw / (float)VOLUME_NORM);
@@ -51,14 +51,16 @@ fn uint raw_from_gain(Gain gain)
 fn bool is_left(char position) @inline
 {
 	return position == POSITION_FRONT_LEFT || position == POSITION_FRONT_LEFT_OF_CENTER
-		|| position == POSITION_REAR_LEFT || position == POSITION_SIDE_LEFT;
+		|| position == POSITION_REAR_LEFT
+		|| position == POSITION_SIDE_LEFT;
 }
 
 <* True for the channels pa_cvolume_get_balance averages on the right (volume.c:559). *>
 fn bool is_right(char position) @inline
 {
 	return position == POSITION_FRONT_RIGHT || position == POSITION_FRONT_RIGHT_OF_CENTER
-		|| position == POSITION_REAR_RIGHT || position == POSITION_SIDE_RIGHT;
+		|| position == POSITION_REAR_RIGHT
+		|| position == POSITION_SIDE_RIGHT;
 }
 
 <*
@@ -72,9 +74,9 @@ fn bool is_right(char position) @inline
 fn Maybe{float} balance_of(CVolume* volume, ChannelMap* map)
 {
 	if (volume.count != map.count || map.count < 2) return { };
-	uint left_sum = 0;
-	uint right_sum = 0;
-	uint left_count = 0;
+	uint left_sum    = 0;
+	uint right_sum   = 0;
+	uint left_count  = 0;
 	uint right_count = 0;
 	for (sz i = 0; i < (sz)map.count; i++)
 	{
@@ -90,7 +92,7 @@ fn Maybe{float} balance_of(CVolume* volume, ChannelMap* map)
 		}
 	}
 	if (left_count == 0 || right_count == 0) return { };
-	uint left = left_sum / left_count;
+	uint left  = left_sum / left_count;
 	uint right = right_sum / right_count;
 	if (left == right) return maybe::value(0.0f);
 	if (left > right) return maybe::value(-1.0f + (float)right / (float)left);

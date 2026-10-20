@@ -5,5 +5,12 @@ import bleu::error, bleu::session;
 
 fn void refuses_without_the_name() @test
 {
-	assert(catch session::open(mem, { .backend = LOGIND }) == error::UNAVAILABLE, "no login1 owner: UNAVAILABLE");
+	if (catch err = session::open(mem, { .backend = LOGIND }))
+	{
+		assert(err == error::UNAVAILABLE, "no login1 owner: UNAVAILABLE");
+	}
+	else
+	{
+		unreachable("the backend opened without an owner for org.freedesktop.login1");
+	}
 }

@@ -31,7 +31,10 @@ fn hresult::Hresult query_ref(void* object, Guid iid, void** out)
 <* Create the device enumerator (MMDeviceEnumerator) that the endpoint calls go through. *>
 fn windows_com::IMMDeviceEnumerator*? open_enumerator()
 {
-	com_ptr::Com{windows_com::IMMDeviceEnumerator} owned = com_ptr::co_create_instance{windows_com::IMMDeviceEnumerator}(windows_com::CLSID_MMDEVICE_ENUMERATOR, windows_com::IID_IMMDEVICE_ENUMERATOR)!;
+	com_ptr::Com{windows_com::IMMDeviceEnumerator} owned = com_ptr::co_create_instance{windows_com::IMMDeviceEnumerator}(
+		windows_com::CLSID_MMDEVICE_ENUMERATOR,
+		windows_com::IID_IMMDEVICE_ENUMERATOR
+	)!;
 	return owned.ptr;
 }
 
@@ -48,7 +51,7 @@ fn String default_id(Allocator allocator, windows_com::IMMDeviceEnumerator* enum
 <* The endpoint's persistent identifier (IMMDevice::GetId), copied into `allocator`. *>
 fn String? endpoint_id(Allocator allocator, windows_com::IMMDevice* device)
 {
-	Char16* raw = null;
+	Char16* raw         = null;
 	hresult::Hresult hr = device.vtbl.get_id(device, &raw);
 	if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDevice::GetId")~;
 	return windows_com::take_wide(allocator, raw);
@@ -58,7 +61,7 @@ fn String? endpoint_id(Allocator allocator, windows_com::IMMDevice* device)
 fn bool endpoint_property(windows_com::IMMDevice* device, windows_com::PropertyKey key, windows_com::PropVariant* value)
 {
 	windows_com::IPropertyStore* store = null;
-	hresult::Hresult hr = device.vtbl.open_property_store(device, windows_com::STGM_READ, &store);
+	hresult::Hresult hr                = device.vtbl.open_property_store(device, windows_com::STGM_READ, &store);
 	if (hr.failed()) return false;
 	defer release_ref(store);
 	value.vt = windows_com::VT_EMPTY;
@@ -70,7 +73,11 @@ fn bool endpoint_property(windows_com::IMMDevice* device, windows_com::PropertyK
 fn String endpoint_name(Allocator allocator, windows_com::IMMDevice* device, String fallback) @local
 {
 	windows_com::PropVariant value;
-	if (!endpoint_property(device, { windows_com::PKEY_FMTID_DEVICE, windows_com::PKEY_PID_FRIENDLY_NAME }, &value)) return fallback.copy(allocator);
+	if (!endpoint_property(
+		device,
+		{ windows_com::PKEY_FMTID_DEVICE, windows_com::PKEY_PID_FRIENDLY_NAME },
+		&value
+	)) return fallback.copy(allocator);
 	defer windows_com::prop_variant_clear(&value);
 	if (value.vt != windows_com::VT_LPWSTR) return fallback.copy(allocator);
 	return windows_com::take_wide(allocator, (Char16*)value.payload0) ?? fallback;
@@ -80,7 +87,11 @@ fn String endpoint_name(Allocator allocator, windows_com::IMMDevice* device, Str
 fn FormFactor form_factor_of(windows_com::IMMDevice* device) @local
 {
 	windows_com::PropVariant value;
-	if (!endpoint_property(device, { windows_com::PKEY_FMTID_ENDPOINT, windows_com::PKEY_PID_FORM_FACTOR }, &value)) return UNKNOWN;
+	if (!endpoint_property(
+		device,
+		{ windows_com::PKEY_FMTID_ENDPOINT, windows_com::PKEY_PID_FORM_FACTOR },
+		&value
+	)) return UNKNOWN;
 	defer windows_com::prop_variant_clear(&value);
 	if (value.vt != windows_com::VT_UI4) return UNKNOWN;
 	switch ((uint)value.payload0)
@@ -141,10 +152,20 @@ fn bool endpoint_muted(windows_com::IMMDevice* device) @local
 
  @return? error::BACKEND_FAILURE : "the endpoint list could not be read"
 *>
-fn Device[]? endpoints_of(Allocator allocator, windows_com::IMMDeviceEnumerator* enumerator, uint flow, String default_id) @local
+fn Device[]? endpoints_of(
+	Allocator allocator,
+	windows_com::IMMDeviceEnumerator* enumerator,
+	uint flow,
+	String default_id
+) @local
 {
 	windows_com::IMMDeviceCollection* collection = null;
-	hresult::Hresult hr = enumerator.vtbl.enum_audio_endpoints(enumerator, flow, windows_com::DEVICE_STATE_ACTIVE, &collection);
+	hresult::Hresult hr                          = enumerator.vtbl.enum_audio_endpoints(
+		enumerator,
+		flow,
+		windows_com::DEVICE_STATE_ACTIVE,
+		&collection
+	);
 	if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDeviceEnumerator::EnumAudioEndpoints")~;
 	defer release_ref(collection);
 	uint count = 0;
@@ -157,7 +178,7 @@ fn Device[]? endpoints_of(Allocator allocator, windows_com::IMMDeviceEnumerator*
 		hr = collection.vtbl.item(collection, i, &device);
 		if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDeviceCollection::Item")~;
 		defer release_ref(device);
-		String id = endpoint_id(allocator, device)!;
+		String id      = endpoint_id(allocator, device)!;
 		Gain[] volumes = endpoint_volumes(allocator, device) ?? { };
 		devices[i] = {
 			.id = id,
@@ -171,31 +192,27 @@ fn Device[]? endpoints_of(Allocator allocator, windows_com::IMMDeviceEnumerator*
 			.volume_is_hardware = false,
 		};
 		Device* made = &devices[i];
-		made.level = loudest(made.volume).nominal();
+		made.level = volume::loudest(made.volume).nominal();
 		if (made.volume.len == 2) made.balance = maybe::value(volume::stereo_balance(made.volume[0], made.volume[1]));
 	}
 	return devices;
 }
 
-// The loudest channel; silence when there are none.
-fn Gain loudest(Gain[] gains) @local
-{
-	Gain max = (Gain)0.0f;
-	foreach (gain : gains)
-	{
-		if (gain > max) max = gain;
-	}
-	return max;
-}
 
 <*
  Every audio session of every active endpoint of a flow, as streams. A session
  is inactive (corked) when its state is not ACTIVE. Strings go into `allocator`.
 *>
-fn void sessions_into(Allocator allocator, windows_com::IMMDeviceEnumerator* enumerator, uint flow, List{Stream}* out) @local
+fn void sessions_into(
+	Allocator allocator,
+	windows_com::IMMDeviceEnumerator* enumerator,
+	uint flow,
+	List{Stream}* out
+) @local
 {
 	windows_com::IMMDeviceCollection* collection = null;
-	if (enumerator.vtbl.enum_audio_endpoints(enumerator, flow, windows_com::DEVICE_STATE_ACTIVE, &collection).failed()) return;
+	if (enumerator.vtbl.enum_audio_endpoints(enumerator, flow, windows_com::DEVICE_STATE_ACTIVE, &collection)
+		.failed()) return;
 	defer release_ref(collection);
 	uint count = 0;
 	if (collection.vtbl.get_count(collection, &count).failed()) return;
@@ -204,7 +221,7 @@ fn void sessions_into(Allocator allocator, windows_com::IMMDeviceEnumerator* enu
 		windows_com::IMMDevice* device = null;
 		if (collection.vtbl.item(collection, i, &device).failed()) continue;
 		defer release_ref(device);
-		String endpoint = endpoint_id(tmem, device) ?? "";
+		String endpoint                             = endpoint_id(tmem, device) ?? "";
 		windows_com::IAudioSessionManager2* manager = null;
 		if (catch err = activate(device, windows_com::IID_IAUDIO_SESSION_MANAGER2, (void**)&manager)) continue;
 		defer release_ref(manager);
@@ -224,12 +241,22 @@ fn void sessions_into(Allocator allocator, windows_com::IMMDeviceEnumerator* enu
 }
 
 // One session as a stream: identity from the control, levels from its simple volume interface.
-fn Stream? session_stream(Allocator allocator, windows_com::IAudioSessionControl* control, uint flow, String endpoint) @local
+fn Stream? session_stream(
+	Allocator allocator,
+	windows_com::IAudioSessionControl* control,
+	uint flow,
+	String endpoint
+) @local
 {
 	windows_com::IAudioSessionControl2* control2 = null;
-	if (query_ref(control, windows_com::IID_IAUDIO_SESSION_CONTROL2, (void**)&control2).failed()) return error::UNSUPPORTED~;
+	if (query_ref(control, windows_com::IID_IAUDIO_SESSION_CONTROL2, (void**)&control2)
+		.failed()) return error::UNSUPPORTED~;
 	defer release_ref(control2);
-	Stream stream = { .flow = flow == windows_com::E_CAPTURE ? INPUT : OUTPUT, .device_id = endpoint.copy(allocator), .volume_writable = true };
+	Stream stream    = {
+		.flow = flow == windows_com::E_CAPTURE ? INPUT : OUTPUT,
+		.device_id = endpoint.copy(allocator),
+		.volume_writable = true
+	};
 	Char16* instance = null;
 	if (control2.vtbl.get_session_instance_identifier(control2, &instance).succeeded())
 	{
@@ -238,7 +265,8 @@ fn Stream? session_stream(Allocator allocator, windows_com::IAudioSessionControl
 	uint pid = 0;
 	if (control2.vtbl.get_process_id(control2, &pid).succeeded()) stream.pid = pid;
 	uint state = 0;
-	if (control.vtbl.get_state(control, &state).succeeded()) stream.corked = state != windows_com::AUDIO_SESSION_STATE_ACTIVE;
+	if (control.vtbl.get_state(control, &state)
+		.succeeded()) stream.corked = state != windows_com::AUDIO_SESSION_STATE_ACTIVE;
 	Char16* display = null;
 	if (control.vtbl.get_display_name(control, &display).succeeded())
 	{
@@ -259,7 +287,8 @@ fn Stream? session_stream(Allocator allocator, windows_com::IAudioSessionControl
 	{
 		defer release_ref(simple);
 		float level = 0.0f;
-		if (simple.vtbl.get_master_volume(simple, &level).succeeded()) stream.volume = alloc_gains(allocator, unit::gain(level, 1.0f));
+		if (simple.vtbl.get_master_volume(simple, &level)
+			.succeeded()) stream.volume = alloc_gains(allocator, unit::gain(level, 1.0f));
 		int muted = 0;
 		if (simple.vtbl.get_mute(simple, &muted).succeeded()) stream.muted = muted != 0;
 	}
@@ -282,7 +311,7 @@ fn String file_name_of(Allocator allocator, String full) @local
 	{
 		if (full[i] == '\\' || full[i] == '/') cut = i + 1;
 	}
-	return full[cut : full.len - cut].copy(allocator);
+	return full[cut:full.len - cut].copy(allocator);
 }
 
 <* Build the whole state: the endpoints of both flows, their defaults, and every session. *>
@@ -314,10 +343,15 @@ fn State? build_state(Allocator allocator, windows_com::IMMDeviceEnumerator* enu
 fn windows_com::IMMDevice*? find_endpoint(windows_com::IMMDeviceEnumerator* enumerator, String id)
 {
 	text::WideZ? wide = text::to_wide(mem, id);
-	if (catch err = wide) return error::raise(error::INVALID_ARGUMENT, error::Domain.WIN32, 0, "endpoint id is not valid text")~;
+	if (catch err = wide) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.WIN32,
+		0,
+		"endpoint id is not valid text"
+	)~;
 	defer wide.free();
 	windows_com::IMMDevice* device = null;
-	hresult::Hresult hr = enumerator.vtbl.get_device(enumerator, (Char16*)wide.as_wstring(), &device);
+	hresult::Hresult hr            = enumerator.vtbl.get_device(enumerator, (Char16*)wide.as_wstring(), &device);
 	if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDeviceEnumerator::GetDevice")~;
 	return device;
 }
@@ -329,11 +363,19 @@ fn void? set_endpoint_volume(windows_com::IMMDevice* device, Gain[] levels)
 	activate(device, windows_com::IID_IAUDIO_ENDPOINT_VOLUME, (void**)&control)!;
 	defer release_ref(control);
 	uint count = 0;
-	if (control.vtbl.get_channel_count(control, &count).failed()) return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "GetChannelCount failed")~;
-	if (levels.len != 1 && levels.len != count) return error::raise(error::INVALID_ARGUMENT, error::Domain.WIN32, 0, "%d levels for %d channels", levels.len, count)~;
+	if (control.vtbl.get_channel_count(control, &count)
+		.failed()) return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "GetChannelCount failed")~;
+	if (levels.len != 1 && levels.len != count) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.WIN32,
+		0,
+		"%d levels for %d channels",
+		levels.len,
+		count
+	)~;
 	for (uint i = 0; i < count; i++)
 	{
-		Gain level = levels.len == 1 ? levels[0] : levels[(sz)i];
+		Gain level          = levels.len == 1 ? levels[0] : levels[(sz)i];
 		hresult::Hresult hr = control.vtbl.set_channel_volume_level_scalar(control, i, (float)level, null);
 		if (hr.failed()) return errors::raise_hresult(hr, "SetChannelVolumeLevelScalar")~;
 	}
@@ -353,10 +395,19 @@ fn void? set_endpoint_mute(windows_com::IMMDevice* device, bool muted)
  Find the session with instance identifier `instance` among the sessions of all
  endpoints of a flow, and return its simple volume interface (the caller releases it).
 *>
-fn windows_com::ISimpleAudioVolume*? find_session_volume(windows_com::IMMDeviceEnumerator* enumerator, uint flow, String instance)
+fn windows_com::ISimpleAudioVolume*? find_session_volume(
+	windows_com::IMMDeviceEnumerator* enumerator,
+	uint flow,
+	String instance
+)
 {
 	windows_com::IMMDeviceCollection* collection = null;
-	hresult::Hresult hr = enumerator.vtbl.enum_audio_endpoints(enumerator, flow, windows_com::DEVICE_STATE_ACTIVE, &collection);
+	hresult::Hresult hr                          = enumerator.vtbl.enum_audio_endpoints(
+		enumerator,
+		flow,
+		windows_com::DEVICE_STATE_ACTIVE,
+		&collection
+	);
 	if (hr.failed()) return errors::raise_hresult(hr, "EnumAudioEndpoints")~;
 	defer release_ref(collection);
 	uint count = 0;
@@ -386,7 +437,10 @@ fn windows_com::ISimpleAudioVolume*? find_session_volume(windows_com::IMMDeviceE
 }
 
 // The simple volume of a session whose instance identifier is `instance`; NOT_FOUND otherwise.
-fn windows_com::ISimpleAudioVolume*? session_volume_if(windows_com::IAudioSessionControl* control, String instance) @local
+fn windows_com::ISimpleAudioVolume*? session_volume_if(
+	windows_com::IAudioSessionControl* control,
+	String instance
+) @local
 {
 	windows_com::IAudioSessionControl2* control2 = null;
 	if (query_ref(control, windows_com::IID_IAUDIO_SESSION_CONTROL2, (void**)&control2).failed()) return NOT_FOUND~;
@@ -396,6 +450,7 @@ fn windows_com::ISimpleAudioVolume*? session_volume_if(windows_com::IAudioSessio
 	String id = windows_com::take_wide(tmem, raw) ?? "";
 	if (id != instance) return NOT_FOUND~;
 	windows_com::ISimpleAudioVolume* simple = null;
-	if (query_ref(control2, windows_com::IID_ISIMPLE_AUDIO_VOLUME, (void**)&simple).failed()) return error::UNSUPPORTED~;
+	if (query_ref(control2, windows_com::IID_ISIMPLE_AUDIO_VOLUME, (void**)&simple)
+		.failed()) return error::UNSUPPORTED~;
 	return simple;
 }

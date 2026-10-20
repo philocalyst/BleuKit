@@ -74,7 +74,7 @@ fn void reads_the_picture() @test
 	)!!;
 	defer net.close();
 	assert(net.backend_name() == "networkmanager");
-	assert(net.capability(WIFI_SECRET_PROMPT).reason == UNSUPPORTED_BACKEND, "no secret agent yet, and it says why");
+	assert(net.capability(WIFI_SECRET_PROMPT).ok(), "the secret agent answers passphrase requests");
 	assert(net.capability(WIFI_CONNECT_PSK).ok());
 	Snapshot{State}* first = await(net, 0, &has_networks);
 	defer first.release();
@@ -130,6 +130,7 @@ fn void reads_the_picture() @test
 	assert(announced, "a CONNECTION_CHANGED event names the network");
 	Snapshot{State}* on = await(net, 0, &connected_to_office);
 	assert(find(&on.value, (char[])"Office").in_use, "the network in use is marked");
+	assert(on.value.primary_interface == "wlan0", "the primary connection runs on the Wi-Fi interface");
 	on.release();
 
 	// An open network needs no passphrase.
@@ -160,10 +161,27 @@ fn void reads_the_picture() @test
 	assert(@catch(missing.wait(time::sec(10))) == NOT_FOUND, "forgetting twice is NOT_FOUND");
 	missing.release();
 
-	// Connecting without a passphrase to a network with no saved profile.
-	ConnectOp* needs = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
-	assert(@catch(needs.wait(time::sec(10))) == error::AUTH_REQUIRED, "a passphrase is needed and none was given");
-	needs.release();
+	// Without a passphrase, NetworkManager asks the secret agent: the request is announced as an event,
+	// and an answer completes the connection.
+	ConnectOp* asked = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
+	ulong prompt     = await_prompt(events, "Guest-SAE");
+	SettleOp* answer = net.supply_credentials(prompt, "sae-password")!!;
+	assert(answer.wait(time::sec(10))!! == CHANGED, "the answer is delivered");
+	answer.release();
+	asked.wait(time::sec(10))!!;
+	asked.release();
+
+	// A refused prompt fails the connection with AUTH_REQUIRED.
+	ConnectOp* refused = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
+	ulong second       = await_prompt(events, "Guest-SAE");
+	SettleOp* refusal  = net.cancel_credentials(second)!!;
+	assert(refusal.wait(time::sec(10))!! == CHANGED, "the refusal is delivered");
+	refusal.release();
+	assert(@catch(refused.wait(time::sec(10))) == error::AUTH_REQUIRED, "a refused prompt fails with AUTH_REQUIRED");
+	refused.release();
+	SettleOp* stale = net.supply_credentials(second, "sae-password")!!;
+	assert(@catch(stale.wait(time::sec(10))) == NOT_FOUND, "an answered prompt is gone");
+	stale.release();
 
 	// SAE with its password, and the non-UTF-8 network by its bytes.
 	ConnectOp* sae = net.connect({ .ssid = (char[])"Guest-SAE", .passphrase = "sae-password" })!!;
@@ -194,6 +212,18 @@ fn void reads_the_picture() @test
 	net.refresh()!!;
 	Snapshot{State}* counted = await(net, 0, &eth_counted);
 	counted.release();
+}
+
+// The id of the next CREDENTIALS_WANTED event for `label`.
+fn ulong await_prompt(Reader{Event}* events, String label)
+{
+	for (int seen = 0; seen < 64; seen++)
+	{
+		Snapshot{Event}* packet = events.next(time::sec(10))!!;
+		defer packet.release();
+		if (packet.value.kind == CREDENTIALS_WANTED && packet.value.ssid.label == label) return packet.value.request;
+	}
+	unreachable("a CREDENTIALS_WANTED event names the network");
 }
 
 fn bool has_networks(State* state) => state.wifi.networks.len > 0;

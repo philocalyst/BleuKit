@@ -12,7 +12,7 @@
  (proplist.h:215: isa, pci, usb, firewire, bluetooth).
 *>
 module bleu::audio::pulse;
-import std::collections::maybe, bleu::audio, bleu::unit, bleu::error;
+import std::collections::maybe, bleu::audio, bleu::unit, bleu::error, bleu::audio::volume;
 
 <* The records one refresh read: everything `build_state` needs. *>
 struct Records
@@ -48,7 +48,7 @@ fn DeviceRecord[] non_monitor_sources(Allocator allocator, DeviceRecord[] source
 		if (source.monitor_index == NO_INDEX) count++;
 	}
 	DeviceRecord[] inputs = alloc::new_array(allocator, DeviceRecord, count);
-	sz at = 0;
+	sz at                 = 0;
 	foreach (source : sources)
 	{
 		if (source.monitor_index != NO_INDEX) continue;
@@ -57,7 +57,13 @@ fn DeviceRecord[] non_monitor_sources(Allocator allocator, DeviceRecord[] source
 	return inputs;
 }
 
-fn Device[] devices_of(Allocator allocator, Records* records, DeviceRecord[] list, Flow flow, String default_name) @private
+fn Device[] devices_of(
+	Allocator allocator,
+	Records* records,
+	DeviceRecord[] list,
+	Flow flow,
+	String default_name
+) @private
 {
 	Device[] devices = alloc::new_array(allocator, Device, list.len);
 	foreach (i, &record : list)
@@ -83,7 +89,7 @@ fn Device device_of(Allocator allocator, Records* records, DeviceRecord* record,
 	device.bus = bus_of(record.props);
 	device.is_default = is_default;
 	device.volume = gains_of(allocator, &record.volume);
-	device.level = loudest(device.volume).nominal();
+	device.level = volume::loudest(device.volume).nominal();
 	device.balance = balance_of(&record.volume, &record.channel_map);
 	device.volume_is_hardware = (record.flags & FLAG_HW_VOLUME_CTRL) != 0;
 	device.muted = record.muted;
@@ -135,16 +141,6 @@ fn Gain[] gains_of(Allocator allocator, CVolume* volume) @private
 	return gains;
 }
 
-// The largest channel of a volume; silence when there are no channels.
-fn Gain loudest(Gain[] gains) @private
-{
-	Gain max = (Gain)0.0f;
-	foreach (gain : gains)
-	{
-		if (gain > max) max = gain;
-	}
-	return max;
-}
 
 fn Port[] ports_of(Allocator allocator, PortRecord[] records, String active) @private
 {
@@ -223,7 +219,7 @@ fn String device_name_at(DeviceRecord[] devices, uint index) @private
 fn Stream[] streams_of(Allocator allocator, Records* records) @private
 {
 	Stream[] streams = alloc::new_array(allocator, Stream, records.sink_inputs.len + records.source_outputs.len);
-	sz at = 0;
+	sz at            = 0;
 	foreach (&record : records.sink_inputs)
 	{
 		streams[at++] = stream_of(allocator, record, OUTPUT, device_name_at(records.sinks, record.device_index));
@@ -244,16 +240,16 @@ fn Stream stream_of(Allocator allocator, StreamRecord* record, Flow flow, String
 		.id = string::format(allocator, "%d", record.index),
 		.flow = flow,
 		.app_name = app_name.copy(allocator),
-		.app_id = find_property(record.props, "application.id").copy(allocator),
-		.app_icon = find_property(record.props, "application.icon_name").copy(allocator),
-		.binary = find_property(record.props, "application.process.binary").copy(allocator),
-		.pid = (uint)(long)(pid_text.to_long() ?? 0),
-		.device_id = device.copy(allocator),
-		.media_name = record.media_name.copy(allocator),
-		.volume_writable = record.volume_writable,
-		.muted = record.muted,
-		.corked = record.corked,
-	};
+		.app_id = find_property(record.props, "application.id")
+		.copy(allocator), .app_icon = find_property(record.props, "application.icon_name")
+			.copy(allocator), .binary = find_property(record.props, "application.process.binary")
+				.copy(
+					allocator
+				), .pid = (uint)(long)(pid_text.to_long() ?? 0), .device_id = device.copy(
+					allocator
+				), .media_name = record.media_name.copy(
+					allocator
+				), .volume_writable = record.volume_writable, .muted = record.muted, .corked = record.corked, };
 	if (record.has_volume) stream.volume = gains_of(allocator, &record.volume);
 	return stream;
 }

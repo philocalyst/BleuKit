@@ -10,22 +10,22 @@
 
  Sources, each checked against two independent sources:
  - slot order: the windows crate 0.58.0 generated bindings
-   (static.crates.io/crates/windows/windows-0.58.0.crate):
-   Win32/Media/Audio/mod.rs (IMMDevice_Vtbl, IMMDeviceEnumerator_Vtbl,
-   IMMDeviceCollection_Vtbl, IMMNotificationClient_Vtbl, IAudioSessionManager2_Vtbl
-   with its base IAudioSessionManager_Vtbl, IAudioSessionEnumerator_Vtbl,
-   IAudioSessionControl_Vtbl, IAudioSessionControl2_Vtbl, ISimpleAudioVolume_Vtbl),
-   Win32/Media/Audio/Endpoints/mod.rs (IAudioEndpointVolume_Vtbl); and the
-   bleu_win README (IMMDeviceEnumerator slots 3-7, IMMNotificationClient 3-7).
+ (static.crates.io/crates/windows/windows-0.58.0.crate):
+ Win32/Media/Audio/mod.rs (IMMDevice_Vtbl, IMMDeviceEnumerator_Vtbl,
+ IMMDeviceCollection_Vtbl, IMMNotificationClient_Vtbl, IAudioSessionManager2_Vtbl
+ with its base IAudioSessionManager_Vtbl, IAudioSessionEnumerator_Vtbl,
+ IAudioSessionControl_Vtbl, IAudioSessionControl2_Vtbl, ISimpleAudioVolume_Vtbl),
+ Win32/Media/Audio/Endpoints/mod.rs (IAudioEndpointVolume_Vtbl); and the
+ bleu_win README (IMMDeviceEnumerator slots 3-7, IMMNotificationClient 3-7).
  - IIDs and CLSID: the same crate's define_interface! lines (for example
-   IAudioEndpointVolume 5cdf2c82-841e-4546-9722-0cf74078229a, IAudioSessionManager2
-   77aa99a0-1bd6-484f-8bc7-2c654c9a9b6f); the enumerator CLSID and IID are in the
-   bleu_win README example.
+ IAudioEndpointVolume 5cdf2c82-841e-4546-9722-0cf74078229a, IAudioSessionManager2
+ 77aa99a0-1bd6-484f-8bc7-2c654c9a9b6f); the enumerator CLSID and IID are in the
+ bleu_win README example.
  - property keys: the crate's PKEY_Device_FriendlyName (a45c254e-...-67d146a850e0,
-   pid 14), PKEY_Device_DeviceDesc (pid 2), PKEY_AudioEndpoint_FormFactor
-   (1da5d803-d492-4edd-8c23-e0c0ffee7f0e, pid 0).
+ pid 14), PKEY_Device_DeviceDesc (pid 2), PKEY_AudioEndpoint_FormFactor
+ (1da5d803-d492-4edd-8c23-e0c0ffee7f0e, pid 0).
  - EDataFlow, ERole, EndpointFormFactor, AudioSessionState and the VT_ values: the
-   crate's Win32/Media/Audio/mod.rs and Win32/System/Variant/mod.rs.
+ crate's Win32/Media/Audio/mod.rs and Win32/System/Variant/mod.rs.
  - CoTaskMemFree: ole32, the owner of every string COM hands back.
 *>
 module bleu::audio::windows_com @feat(WIN32) @link("ole32");
@@ -33,35 +33,35 @@ import std::os::win32, bleu::error, bleu::win::com, bleu::win::guid, bleu::win::
 
 alias Hresult = hresult::Hresult;
 
-const Guid IID_IMMDEVICE_ENUMERATOR = guid::guid("a95664d2-9614-4f35-a746-de8db63617e6");
-const Guid CLSID_MMDEVICE_ENUMERATOR = guid::guid("bcde0395-e52f-467c-8e3d-c4579291692e");
-const Guid IID_IMMNOTIFICATION_CLIENT = guid::guid("7991eec9-7e89-4d85-8390-6c703cec60c0");
-const Guid IID_IAUDIO_ENDPOINT_VOLUME = guid::guid("5cdf2c82-841e-4546-9722-0cf74078229a");
+const Guid IID_IMMDEVICE_ENUMERATOR    = guid::guid("a95664d2-9614-4f35-a746-de8db63617e6");
+const Guid CLSID_MMDEVICE_ENUMERATOR   = guid::guid("bcde0395-e52f-467c-8e3d-c4579291692e");
+const Guid IID_IMMNOTIFICATION_CLIENT  = guid::guid("7991eec9-7e89-4d85-8390-6c703cec60c0");
+const Guid IID_IAUDIO_ENDPOINT_VOLUME  = guid::guid("5cdf2c82-841e-4546-9722-0cf74078229a");
 const Guid IID_IAUDIO_SESSION_MANAGER2 = guid::guid("77aa99a0-1bd6-484f-8bc7-2c654c9a9b6f");
 const Guid IID_IAUDIO_SESSION_CONTROL2 = guid::guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d");
-const Guid IID_ISIMPLE_AUDIO_VOLUME = guid::guid("87ce5498-68d6-44e5-9215-6da47ef883d8");
+const Guid IID_ISIMPLE_AUDIO_VOLUME    = guid::guid("87ce5498-68d6-44e5-9215-6da47ef883d8");
 
 // EDataFlow (crate: eRender 0, eCapture 1, eAll 2).
-const uint E_RENDER = 0;
-const uint E_CAPTURE = 1;
+const uint E_RENDER                   = 0;
+const uint E_CAPTURE                  = 1;
 // ERole (crate: eConsole 0, eMultimedia 1, eCommunications 2).
-const uint E_CONSOLE = 0;
+const uint E_CONSOLE                  = 0;
 // DEVICE_STATE_ACTIVE (crate: 1); IMMDevice::GetState reports it for a usable endpoint.
-const uint DEVICE_STATE_ACTIVE = 1;
+const uint DEVICE_STATE_ACTIVE        = 1;
 // AudioSessionState (crate: Inactive 0, Active 1, Expired 2).
 const uint AUDIO_SESSION_STATE_ACTIVE = 1;
 // STGM_READ for OpenPropertyStore.
-const uint STGM_READ = 0;
+const uint STGM_READ                  = 0;
 // PROPVARIANT types (crate: VT_EMPTY 0, VT_UI4 19, VT_LPWSTR 31).
-const ushort VT_EMPTY = 0;
-const ushort VT_UI4 = 19;
-const ushort VT_LPWSTR = 31;
+const ushort VT_EMPTY                 = 0;
+const ushort VT_UI4                   = 19;
+const ushort VT_LPWSTR                = 31;
 
 // The endpoint's friendly name and its form factor (PROPERTYKEY values above).
-const Guid PKEY_FMTID_DEVICE = guid::guid("a45c254e-df1c-4efd-8020-67d146a850e0");
-const Guid PKEY_FMTID_ENDPOINT = guid::guid("1da5d803-d492-4edd-8c23-e0c0ffee7f0e");
+const Guid PKEY_FMTID_DEVICE      = guid::guid("a45c254e-df1c-4efd-8020-67d146a850e0");
+const Guid PKEY_FMTID_ENDPOINT    = guid::guid("1da5d803-d492-4edd-8c23-e0c0ffee7f0e");
 const uint PKEY_PID_FRIENDLY_NAME = 14;
-const uint PKEY_PID_FORM_FACTOR = 0;
+const uint PKEY_PID_FORM_FACTOR   = 0;
 
 <* A PROPERTYKEY: a format identifier and a property id within it. *>
 struct PropertyKey
@@ -102,11 +102,11 @@ struct IMMDeviceEnumeratorVtbl
 	com::QueryInterfaceFn query_interface;
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
-	EnumAudioEndpointsFn enum_audio_endpoints;       // slot 3
+	EnumAudioEndpointsFn enum_audio_endpoints; // slot 3
 	GetDefaultEndpointFn get_default_audio_endpoint; // slot 4
-	GetDeviceFn get_device;                          // slot 5
-	RegisterCallbackFn register_callback;            // slot 6
-	RegisterCallbackFn unregister_callback;          // slot 7
+	GetDeviceFn get_device; // slot 5
+	RegisterCallbackFn register_callback; // slot 6
+	RegisterCallbackFn unregister_callback; // slot 7
 }
 
 struct IMMDeviceEnumerator
@@ -123,7 +123,7 @@ struct IMMDeviceCollectionVtbl
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
 	GetCountFn get_count; // slot 3
-	ItemFn item;          // slot 4
+	ItemFn item; // slot 4
 }
 
 struct IMMDeviceCollection
@@ -141,10 +141,10 @@ struct IMMDeviceVtbl
 	com::QueryInterfaceFn query_interface;
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
-	ActivateFn activate;                     // slot 3
+	ActivateFn activate; // slot 3
 	OpenPropertyStoreFn open_property_store; // slot 4
-	GetIdFn get_id;                          // slot 5
-	GetStateFn get_state;                    // slot 6
+	GetIdFn get_id; // slot 5
+	GetStateFn get_state; // slot 6
 }
 
 struct IMMDevice
@@ -162,10 +162,10 @@ struct IPropertyStoreVtbl
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
 	void* get_count; // slot 3, unused
-	void* get_at;    // slot 4, unused
+	void* get_at; // slot 4, unused
 	GetValueFn get_value; // slot 5
 	void* set_value; // slot 6, unused
-	void* commit;    // slot 7, unused
+	void* commit; // slot 7, unused
 }
 
 struct IPropertyStore
@@ -185,19 +185,19 @@ struct IAudioEndpointVolumeVtbl
 	com::QueryInterfaceFn query_interface;
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
-	void* register_control_change_notify;   // slot 3, unused
+	void* register_control_change_notify; // slot 3, unused
 	void* unregister_control_change_notify; // slot 4, unused
-	GetCountFn get_channel_count;           // slot 5
-	void* set_master_volume_level;          // slot 6, unused
-	void* set_master_volume_level_scalar;   // slot 7, unused
-	void* get_master_volume_level;          // slot 8, unused
-	void* get_master_volume_level_scalar;   // slot 9, unused
-	void* set_channel_volume_level;         // slot 10, unused
+	GetCountFn get_channel_count; // slot 5
+	void* set_master_volume_level; // slot 6, unused
+	void* set_master_volume_level_scalar; // slot 7, unused
+	void* get_master_volume_level; // slot 8, unused
+	void* get_master_volume_level_scalar; // slot 9, unused
+	void* set_channel_volume_level; // slot 10, unused
 	SetChannelScalarFn set_channel_volume_level_scalar; // slot 11
-	void* get_channel_volume_level;         // slot 12, unused
+	void* get_channel_volume_level; // slot 12, unused
 	GetChannelScalarFn get_channel_volume_level_scalar; // slot 13
-	SetMuteFn set_mute;                     // slot 14
-	GetMuteFn get_mute;                     // slot 15
+	SetMuteFn set_mute; // slot 14
+	GetMuteFn get_mute; // slot 15
 }
 
 struct IAudioEndpointVolume
@@ -215,7 +215,7 @@ struct IAudioSessionManager2Vtbl
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
 	void* get_audio_session_control; // slot 3 (IAudioSessionManager), unused
-	void* get_simple_audio_volume;   // slot 4 (IAudioSessionManager), unused
+	void* get_simple_audio_volume; // slot 4 (IAudioSessionManager), unused
 	GetSessionEnumeratorFn get_session_enumerator; // slot 5
 }
 
@@ -233,7 +233,7 @@ struct IAudioSessionEnumeratorVtbl
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
 	GetCountSignedFn get_count; // slot 3
-	GetSessionFn get_session;   // slot 4
+	GetSessionFn get_session; // slot 4
 }
 
 struct IAudioSessionEnumerator
@@ -251,15 +251,15 @@ struct IAudioSessionControlVtbl
 	com::QueryInterfaceFn query_interface;
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
-	GetStateSessionFn get_state;     // slot 3
+	GetStateSessionFn get_state; // slot 3
 	GetDisplayNameFn get_display_name; // slot 4
-	void* set_display_name;          // slot 5, unused
-	void* get_icon_path;             // slot 6, unused
-	void* set_icon_path;             // slot 7, unused
-	void* get_grouping_param;        // slot 8, unused
-	void* set_grouping_param;        // slot 9, unused
-	void* register_notification;     // slot 10, unused
-	void* unregister_notification;   // slot 11, unused
+	void* set_display_name; // slot 5, unused
+	void* get_icon_path; // slot 6, unused
+	void* set_icon_path; // slot 7, unused
+	void* get_grouping_param; // slot 8, unused
+	void* set_grouping_param; // slot 9, unused
+	void* register_notification; // slot 10, unused
+	void* unregister_notification; // slot 11, unused
 }
 
 struct IAudioSessionControl
@@ -276,18 +276,18 @@ struct IAudioSessionControl2Vtbl
 	com::QueryInterfaceFn query_interface;
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
-	GetStateSessionFn get_state;         // slot 3
-	GetDisplayNameFn get_display_name;   // slot 4
-	void* set_display_name;              // slot 5, unused
-	void* get_icon_path;                 // slot 6, unused
-	void* set_icon_path;                 // slot 7, unused
-	void* get_grouping_param;            // slot 8, unused
-	void* set_grouping_param;            // slot 9, unused
-	void* register_notification;         // slot 10, unused
-	void* unregister_notification;       // slot 11, unused
-	GetIdentifierFn get_session_identifier;          // slot 12
+	GetStateSessionFn get_state; // slot 3
+	GetDisplayNameFn get_display_name; // slot 4
+	void* set_display_name; // slot 5, unused
+	void* get_icon_path; // slot 6, unused
+	void* set_icon_path; // slot 7, unused
+	void* get_grouping_param; // slot 8, unused
+	void* set_grouping_param; // slot 9, unused
+	void* register_notification; // slot 10, unused
+	void* unregister_notification; // slot 11, unused
+	GetIdentifierFn get_session_identifier; // slot 12
 	GetIdentifierFn get_session_instance_identifier; // slot 13
-	GetProcessIdFn get_process_id;       // slot 14
+	GetProcessIdFn get_process_id; // slot 14
 	IsSystemSoundsFn is_system_sounds_session; // slot 15
 }
 
@@ -308,8 +308,8 @@ struct ISimpleAudioVolumeVtbl
 	com::ReleaseFn release;
 	SetMasterVolumeFn set_master_volume; // slot 3
 	GetMasterVolumeFn get_master_volume; // slot 4
-	SetMuteFn set_mute;                  // slot 5
-	GetMuteFn get_mute;                  // slot 6
+	SetMuteFn set_mute; // slot 5
+	GetMuteFn get_mute; // slot 6
 }
 
 struct ISimpleAudioVolume
@@ -330,8 +330,8 @@ struct IMMNotificationClientVtbl
 	com::AddRefFn add_ref;
 	com::ReleaseFn release;
 	OnStateChangedFn on_device_state_changed; // slot 3
-	OnDeviceFn on_device_added;               // slot 4
-	OnDeviceFn on_device_removed;             // slot 5
+	OnDeviceFn on_device_added; // slot 4
+	OnDeviceFn on_device_removed; // slot 5
 	OnDefaultChangedFn on_default_device_changed; // slot 6
 	OnPropertyChangedFn on_property_value_changed; // slot 7
 }

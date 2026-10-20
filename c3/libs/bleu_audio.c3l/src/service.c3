@@ -53,7 +53,7 @@ struct Audio
 fn Audio*? open(Allocator allocator, Options options = { })
 {
 	Driver* driver = select_driver(options)!;
-	Audio* self = alloc::new(allocator, Audio);
+	Audio* self    = alloc::new(allocator, Audio);
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
@@ -101,7 +101,11 @@ fn Snapshot{State}*? Audio.wait_after(&self, ulong seen, Duration timeout = time
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Audio.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Audio.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Audio.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
@@ -163,7 +167,16 @@ fn Pending*? Audio.set_card_profile(&self, String card_id, String profile_id)
 // Copy the arguments into a new operation and queue it. Refused when the
 // capability is absent: the caller learns why before anything is sent. A
 // refresh names `EVENTS` only to satisfy the signature; it is never refused.
-fn Pending*? Audio.submit(&self, CommandKind kind, Cap cap, Flow flow, String target, String choice, Gain[] gains, bool flag)
+fn Pending*? Audio.submit(
+	&self,
+	CommandKind kind,
+	Cap cap,
+	Flow flow,
+	String target,
+	String choice,
+	Gain[] gains,
+	bool flag
+)
 {
 	if (kind != REFRESH)
 	{

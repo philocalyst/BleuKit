@@ -7,15 +7,15 @@
  Sources, each checked against the upstream PulseAudio master sources unless
  marked otherwise (raw.githubusercontent.com/pulseaudio/pulseaudio/master/src/):
  - frame header: pulsecore/pstream.c:55-63 (descriptor index), :619 (control
-   channel -1), :83 (maximum frame); crate pulseaudio 0.3.2 src/protocol.rs
-   read_descriptor and write_descriptor (same five words, network order).
+ channel -1), :83 (maximum frame); crate pulseaudio 0.3.2 src/protocol.rs
+ read_descriptor and write_descriptor (same five words, network order).
  - tag bytes: pulsecore/tagstruct.h:36-75; encoders in pulsecore/tagstruct.c:
-   puts 200, put_sample_spec 226, put_arbitrary 236, put_boolean 245,
-   put_usec 259, puts64 273, put_channel_map 280, put_cvolume 293,
-   put_volume 306, put_proplist 313, put_format_info 337.
+ puts 200, put_sample_spec 226, put_arbitrary 236, put_boolean 245,
+ put_usec 259, puts64 273, put_channel_map 280, put_cvolume 293,
+ put_volume 306, put_proplist 313, put_format_info 337.
  - proplist entry: key string, then a u32 length, then an arbitrary blob of
-   the same length; the list ends with a NULL string (tagstruct.c:313-336).
-   The crate's props.rs read() reads the same three items (cross-check).
+ the same length; the list ends with a NULL string (tagstruct.c:313-336).
+ The crate's props.rs read() reads the same three items (cross-check).
  - command numbers: pulsecore/native-common.h (enum around line 35-191).
  - subscription event: pulsecore/protocol-native.c:3729-3734.
 *>
@@ -32,53 +32,63 @@ const uint PROTOCOL_VERSION = 35;
 *>
 const uint VERSION_MASK = 0x0000FFFF;
 
-const sz FRAME_HEADER_SIZE = 20;      // five big-endian u32 words
+const sz FRAME_HEADER_SIZE = 20;         // five big-endian u32 words
 const uint CONTROL_CHANNEL = 0xFFFFFFFF; // channel -1 marks command packets (pstream.c:619)
-const sz MAX_PAYLOAD = 16 * 1024 * 1024; // pstream.c:83
+const sz MAX_PAYLOAD       = 16 * 1024 * 1024; // pstream.c:83
 
-const sz COOKIE_LENGTH = 256;         // native-common.h:196 (PA_NATIVE_COOKIE_LENGTH)
-const uint NO_INDEX = 0xFFFFFFFF;      // PA_INVALID_INDEX
-const sz CHANNELS_MAX = 32;           // sample.h:128 (PA_CHANNELS_MAX)
+const sz COOKIE_LENGTH = 256;     // native-common.h:196 (PA_NATIVE_COOKIE_LENGTH)
+const uint NO_INDEX    = 0xFFFFFFFF; // PA_INVALID_INDEX
+
+<*
+ The protocol's names for "the default device". A server may report these in
+ GET_SERVER_INFO instead of a device name (PipeWire's pulse server does); the
+ device of that name is then fetched to learn the real name. Crate
+ pulseaudio 0.3.2 src/protocol.rs defines DEFAULT_SINK and DEFAULT_SOURCE with
+ these values, and the pipewire-pulse answer was observed in the integration test.
+*>
+const String DEFAULT_SINK_ALIAS = "@DEFAULT_SINK@";
+const String DEFAULT_SOURCE_ALIAS = "@DEFAULT_SOURCE@";
+const sz CHANNELS_MAX  = 32;      // sample.h:128 (PA_CHANNELS_MAX)
 
 const uint REPLY_TAG_EVENT = 0xFFFFFFFF; // tag of server-pushed events (-1)
 
 // Tag bytes (pulsecore/tagstruct.h:36-75).
-const char TAG_STRING = 't';
-const char TAG_STRING_NULL = 'N';
-const char TAG_U32 = 'L';
-const char TAG_U8 = 'B';
-const char TAG_U64 = 'R';
-const char TAG_S64 = 'r';
-const char TAG_SAMPLE_SPEC = 'a';
-const char TAG_ARBITRARY = 'x';
-const char TAG_BOOLEAN_TRUE = '1';
+const char TAG_STRING        = 't';
+const char TAG_STRING_NULL   = 'N';
+const char TAG_U32           = 'L';
+const char TAG_U8            = 'B';
+const char TAG_U64           = 'R';
+const char TAG_S64           = 'r';
+const char TAG_SAMPLE_SPEC   = 'a';
+const char TAG_ARBITRARY     = 'x';
+const char TAG_BOOLEAN_TRUE  = '1';
 const char TAG_BOOLEAN_FALSE = '0';
-const char TAG_USEC = 'U';
-const char TAG_CHANNEL_MAP = 'm';
-const char TAG_CVOLUME = 'v';
-const char TAG_PROPLIST = 'P';
-const char TAG_VOLUME = 'V';
-const char TAG_FORMAT_INFO = 'f';
+const char TAG_USEC          = 'U';
+const char TAG_CHANNEL_MAP   = 'm';
+const char TAG_CVOLUME       = 'v';
+const char TAG_PROPLIST      = 'P';
+const char TAG_VOLUME        = 'V';
+const char TAG_FORMAT_INFO   = 'f';
 
 // Subscription masks (def.h:533-568). A mask bit is 1 << facility.
-const uint MASK_SINK = 0x0001;
-const uint MASK_SOURCE = 0x0002;
-const uint MASK_SINK_INPUT = 0x0004;
+const uint MASK_SINK          = 0x0001;
+const uint MASK_SOURCE        = 0x0002;
+const uint MASK_SINK_INPUT    = 0x0004;
 const uint MASK_SOURCE_OUTPUT = 0x0008;
-const uint MASK_SERVER = 0x0080;
-const uint MASK_CARD = 0x0200;
+const uint MASK_SERVER        = 0x0080;
+const uint MASK_CARD          = 0x0200;
 
 // Subscription event: low nibble facility, then the type bits (def.h:574-618).
-const uint EVENT_FACILITY_MASK = 0x000F;
-const uint EVENT_TYPE_MASK = 0x0030;
-const uint EVENT_CHANGE = 0x0010;
-const uint EVENT_REMOVE = 0x0020;
-const uint FACILITY_SINK = 0x0000;
-const uint FACILITY_SOURCE = 0x0001;
-const uint FACILITY_SINK_INPUT = 0x0002;
+const uint EVENT_FACILITY_MASK    = 0x000F;
+const uint EVENT_TYPE_MASK        = 0x0030;
+const uint EVENT_CHANGE           = 0x0010;
+const uint EVENT_REMOVE           = 0x0020;
+const uint FACILITY_SINK          = 0x0000;
+const uint FACILITY_SOURCE        = 0x0001;
+const uint FACILITY_SINK_INPUT    = 0x0002;
 const uint FACILITY_SOURCE_OUTPUT = 0x0003;
-const uint FACILITY_SERVER = 0x0007;
-const uint FACILITY_CARD = 0x0009;
+const uint FACILITY_SERVER        = 0x0007;
+const uint FACILITY_CARD          = 0x0009;
 
 <*
  Command numbers. native-common.h has one unnamed enum: the value of each name
@@ -88,54 +98,56 @@ const uint FACILITY_CARD = 0x0009;
 *>
 constset PulseCommand : uint
 {
-	ERROR = 0,
-	REPLY = 2,
-	AUTH = 8,
-	SET_CLIENT_NAME = 9,
-	GET_SERVER_INFO = 20,
-	GET_SINK_INFO_LIST = 22,
-	GET_SOURCE_INFO_LIST = 24,
-	GET_SINK_INPUT_INFO_LIST = 30,
+	ERROR                       = 0,
+	REPLY                       = 2,
+	AUTH                        = 8,
+	SET_CLIENT_NAME             = 9,
+	GET_SERVER_INFO             = 20,
+	GET_SINK_INFO = 21,
+	GET_SINK_INFO_LIST          = 22,
+	GET_SOURCE_INFO = 23,
+	GET_SOURCE_INFO_LIST        = 24,
+	GET_SINK_INPUT_INFO_LIST    = 30,
 	GET_SOURCE_OUTPUT_INFO_LIST = 32,
-	SUBSCRIBE = 35,
-	SET_SINK_VOLUME = 36,
-	SET_SINK_INPUT_VOLUME = 37,
-	SET_SOURCE_VOLUME = 38,
-	SET_SINK_MUTE = 39,
-	SET_SOURCE_MUTE = 40,
-	SET_DEFAULT_SINK = 44,
-	SET_DEFAULT_SOURCE = 45,
-	SUBSCRIBE_EVENT = 66,
-	MOVE_SINK_INPUT = 67,
-	MOVE_SOURCE_OUTPUT = 68,
-	SET_SINK_INPUT_MUTE = 69,
-	GET_CARD_INFO_LIST = 89,
-	SET_CARD_PROFILE = 90,
-	SET_SINK_PORT = 96,
-	SET_SOURCE_PORT = 97,
-	SET_SOURCE_OUTPUT_VOLUME = 98,
-	SET_SOURCE_OUTPUT_MUTE = 99,
+	SUBSCRIBE                   = 35,
+	SET_SINK_VOLUME             = 36,
+	SET_SINK_INPUT_VOLUME       = 37,
+	SET_SOURCE_VOLUME           = 38,
+	SET_SINK_MUTE               = 39,
+	SET_SOURCE_MUTE             = 40,
+	SET_DEFAULT_SINK            = 44,
+	SET_DEFAULT_SOURCE          = 45,
+	SUBSCRIBE_EVENT             = 66,
+	MOVE_SINK_INPUT             = 67,
+	MOVE_SOURCE_OUTPUT          = 68,
+	SET_SINK_INPUT_MUTE         = 69,
+	GET_CARD_INFO_LIST          = 89,
+	SET_CARD_PROFILE            = 90,
+	SET_SINK_PORT               = 96,
+	SET_SOURCE_PORT             = 97,
+	SET_SOURCE_OUTPUT_VOLUME    = 98,
+	SET_SOURCE_OUTPUT_MUTE      = 99,
 }
 
 <* Error codes of an ERROR reply (def.h:471-498, `pa_error_code`; PA_OK is 0). *>
 constset PulseError : uint
 {
-	ACCESS = 1,
-	COMMAND = 2,
-	INVALID = 3,
-	NOENTITY = 5,
-	PROTOCOL = 7,
-	TIMEOUT = 8,
+	ACCESS       = 1,
+	COMMAND      = 2,
+	INVALID      = 3,
+	NOENTITY     = 5,
+	PROTOCOL     = 7,
+	TIMEOUT      = 8,
 	NOTSUPPORTED = 19,
 }
 
 <* The five words of a packet header. Offset is 64 bits, split high then low. *>
 struct FrameHeader
 {
-	uint length;   // payload bytes after the header
-	uint channel;  // CONTROL_CHANNEL for commands
-	ulong offset;  // zero for commands
-	uint flags;    // zero for commands
+	uint length; // payload bytes after the header
+	uint channel; // CONTROL_CHANNEL for commands
+	ulong offset; // zero for commands
+	uint flags; // zero for commands
 }
 
 <* Encode a header in network order (pstream.c descriptor; crate write_descriptor). *>
@@ -156,7 +168,13 @@ fn void FrameHeader.encode(self, char[] out)
 *>
 fn FrameHeader? decode_header(char[] bytes)
 {
-	if (bytes.len < FRAME_HEADER_SIZE) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "frame header is %d bytes", bytes.len)~;
+	if (bytes.len < FRAME_HEADER_SIZE) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"frame header is %d bytes",
+		bytes.len
+	)~;
 	ulong high = be32_at(bytes, 8);
 	return {
 		.length = be32_at(bytes, 0),
@@ -220,9 +238,9 @@ fn DString begin_command(Allocator allocator, PulseCommand command, uint tag)
 *>
 fn char[] finish_packet(DString* packet)
 {
-	char[] bytes = (char[])packet.str_view();
+	char[] bytes       = (char[])packet.str_view();
 	FrameHeader header = { .length = (uint)(bytes.len - FRAME_HEADER_SIZE), .channel = CONTROL_CHANNEL };
-	header.encode(bytes[0 : FRAME_HEADER_SIZE]);
+	header.encode(bytes[0:FRAME_HEADER_SIZE]);
 	return bytes;
 }
 
@@ -344,8 +362,15 @@ fn bool TagReader.at_end(&self) @inline => self.pos >= self.data.len;
 // Read `count` raw bytes. Fails when the packet is shorter than the layout says.
 fn char[]? TagReader.raw(&self, sz count)
 {
-	if (self.data.len - self.pos < count) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "packet ends at %d, %d bytes needed", self.data.len, count)~;
-	char[] bytes = self.data[self.pos : count];
+	if (self.data.len - self.pos < count) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"packet ends at %d, %d bytes needed",
+		self.data.len,
+		count
+	)~;
+	char[] bytes = self.data[self.pos:count];
 	self.pos += count;
 	return bytes;
 }
@@ -353,9 +378,23 @@ fn char[]? TagReader.raw(&self, sz count)
 // Consume the next tag byte, which must be `tag`.
 fn void? TagReader.expect(&self, char tag)
 {
-	if (self.pos >= self.data.len) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "packet ends where tag '%d' belongs", (int)tag)~;
+	if (self.pos >= self.data.len) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"packet ends where tag '%d' belongs",
+		(int)tag
+	)~;
 	char found = self.data[self.pos];
-	if (found != tag) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "tag '%d' expected, '%d' found at %d", (int)tag, (int)found, self.pos)~;
+	if (found != tag) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"tag '%d' expected, '%d' found at %d",
+		(int)tag,
+		(int)found,
+		self.pos
+	)~;
 	self.pos++;
 }
 
@@ -418,11 +457,17 @@ fn String? TagReader.string(&self)
 	}
 	self.expect(TAG_STRING)!;
 	sz start = self.pos;
-	sz end = start;
+	sz end   = start;
 	while (end < self.data.len && self.data[end] != (char)0) end++;
-	if (end >= self.data.len) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "string at %d has no terminator", start)~;
+	if (end >= self.data.len) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"string at %d has no terminator",
+		start
+	)~;
 	self.pos = end + 1;
-	return (String)self.data[start : end - start];
+	return (String)self.data[start:end - start];
 }
 
 <* A tagged arbitrary blob: 'x', u32 length, bytes. *>
@@ -460,8 +505,14 @@ fn ChannelMap? TagReader.channel_map(&self)
 {
 	self.expect(TAG_CHANNEL_MAP)!;
 	uint count = (uint)self.raw(1)![0];
-	if (count > CHANNELS_MAX) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "%d channels in a map", count)~;
-	ChannelMap map = { .count = count };
+	if (count > CHANNELS_MAX) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"%d channels in a map",
+		count
+	)~;
+	ChannelMap map   = { .count = count };
 	char[] positions = self.raw(count)!;
 	for (sz i = 0; i < count; i++) map.positions[i] = positions[i];
 	return map;
@@ -479,7 +530,13 @@ fn CVolume? TagReader.cvolume(&self)
 {
 	self.expect(TAG_CVOLUME)!;
 	uint count = (uint)self.raw(1)![0];
-	if (count > CHANNELS_MAX) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "%d channels in a volume", count)~;
+	if (count > CHANNELS_MAX) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"%d channels in a volume",
+		count
+	)~;
 	CVolume volume = { .count = count };
 	for (sz i = 0; i < count; i++) volume.values[i] = be32_at(self.raw(4)!, 0);
 	return volume;
@@ -503,11 +560,19 @@ fn Property[]? TagReader.proplist(&self, Allocator allocator)
 		String key = self.string()!;
 		if (key.len == 0) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "empty proplist key")~;
 		uint declared = self.u32()!;
-		char[] value = self.arbitrary()!;
-		if (declared != value.len) return error::raise(error::PROTOCOL, error::Domain.PULSE, 0, "proplist '%s' declares %d bytes, has %d", key, declared, value.len)~;
+		char[] value  = self.arbitrary()!;
+		if (declared != value.len) return error::raise(
+			error::PROTOCOL,
+			error::Domain.PULSE,
+			0,
+			"proplist '%s' declares %d bytes, has %d",
+			key,
+			declared,
+			value.len
+		)~;
 		// PulseAudio stores each value with its terminating NUL inside the blob; the text is what precedes it.
 		String text = (String)value;
-		if (text.len > 0 && text[text.len - 1] == (char)0) text = text[0 : text.len - 1];
+		if (text.len > 0 && text[text.len - 1] == (char)0) text = text[0:text.len - 1];
 		props.push({ .key = key, .value = text });
 	}
 	self.pos++;

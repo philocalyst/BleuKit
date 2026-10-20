@@ -27,7 +27,7 @@ import asyncio
 import os
 import sys
 
-from dbus_next import Variant
+from dbus_next import Message, MessageType, Variant
 from dbus_next.aio import MessageBus
 from dbus_next.service import PropertyAccess, ServiceInterface, dbus_property, method, signal
 
@@ -68,6 +68,7 @@ class State:
 
     def __init__(self, bus):
         self.bus = bus
+        self.agent_name = None  # the unique name of the secret agent that registered, if any
         self.radio = True
         self.last_scan = 1000
         self.wifi_state = DISCONNECTED
@@ -292,6 +293,28 @@ class EthernetIface(ServiceInterface):
         return TYPE_ETHERNET
 
 
+class AgentManagerIface(ServiceInterface):
+    """Register and Unregister. The sender of Register is recorded by the bus message handler."""
+
+    def __init__(self, state):
+        super().__init__('org.freedesktop.NetworkManager.AgentManager')
+        self.state = state
+
+    @method()
+    def Register(self, identifier: 's'):
+        pass
+
+    @method()
+    def Unregister(self):
+        self.state.agent_name = None
+
+
+def on_message(state, msg):
+    if msg.message_type == MessageType.METHOD_CALL and msg.interface == 'org.freedesktop.NetworkManager.AgentManager' and msg.member == 'Register':
+        state.agent_name = msg.sender
+    return None
+
+
 class RootIface(ServiceInterface):
     def __init__(self, state):
         super().__init__(NM_IFACE)
@@ -386,15 +409,38 @@ def _activate(self, profile_path):
     def configure():
         self.set_wifi_state(CONFIG, 0)
         if secured and (key_mgmt is None or psk != ap['psk']):
-            # The secret is missing or refused; with no agent to ask, the device fails.
             self.set_wifi_state(NEED_AUTH, REASON_NO_SECRETS)
-            later(0.05, lambda: self.set_wifi_state(FAILED, REASON_NO_SECRETS))
+            if psk is None and self.agent_name is not None:
+                # No passphrase stored: NetworkManager asks its secret agent, which may answer or refuse.
+                asyncio.ensure_future(ask_agent(self, generation, profile_path, settings, ap))
+            else:
+                # A wrong or missing passphrase with no agent to ask: the device fails.
+                later(0.05, lambda: self.set_wifi_state(FAILED, REASON_NO_SECRETS))
             return
         self.set_wifi_state(IP_CONFIG, 0)
         later(0.05, lambda: self.set_wifi_state(ACTIVATED, 0))
 
     later(0.05, configure)
     return active
+
+
+async def ask_agent(self, generation, profile_path, settings, ap):
+    """GetSecrets on the registered agent (as NetworkManager does), then continue or fail the activation."""
+    request = Message(destination=self.agent_name, path='/org/freedesktop/NetworkManager/SecretAgent',
+                      interface='org.freedesktop.NetworkManager.SecretAgent', member='GetSecrets',
+                      signature='a{sa{sv}}osasu', body=[settings, profile_path, '802-11-wireless-security', [], 1])
+    reply = await self.bus.call(request)
+    if self.generation != generation:
+        return
+    if reply.message_type == MessageType.ERROR:
+        self.set_wifi_state(FAILED, REASON_NO_SECRETS)
+        return
+    secret = reply.body[0]['802-11-wireless-security']['psk'].value
+    if secret == ap['psk']:
+        self.set_wifi_state(IP_CONFIG, 0)
+        asyncio.get_running_loop().call_later(0.05, lambda: self.set_wifi_state(ACTIVATED, 0) if self.generation == generation else None)
+    else:
+        self.set_wifi_state(FAILED, REASON_NO_SECRETS)
 
 
 def _export_connection(self, path):
@@ -423,6 +469,8 @@ async def run():
     bus.export(DEVICES + '/1', state.wireless)
     bus.export(DEVICES + '/2', ethernet)
     bus.export(SETTINGS, settings)
+    bus.export(ROOT + '/AgentManager', AgentManagerIface(state))
+    bus.add_message_handler(lambda msg: on_message(state, msg))
     for index, ap in enumerate(ACCESS_POINTS_TABLE):
         bus.export(ACCESS_POINTS + '/%d' % (index + 1), APIface(index, ap))
     await bus.request_name(NM_NAME)

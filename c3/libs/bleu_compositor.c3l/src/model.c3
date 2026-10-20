@@ -50,7 +50,7 @@ struct Workspace
 	String output; // Name of the output it is on, "" when unknown.
 	bool active;   // Currently shown on its output.
 	bool focused;  // Holds keyboard focus.
-	bool urgent;   // Has a window asking for attention.
+	Maybe{bool} urgent; // A window on it asks for attention; absent when not reported.
 }
 
 <*
