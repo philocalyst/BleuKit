@@ -253,6 +253,5 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 			refresh(backend, hub);
 		}
 	}
-	input::fail_queued(host);
 	disconnect(backend, &poller);
 }

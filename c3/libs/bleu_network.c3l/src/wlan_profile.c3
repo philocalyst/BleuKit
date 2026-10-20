@@ -16,6 +16,42 @@ import bleu::error, bleu::network;
 
 const String PROFILE_NAMESPACE = "http://www.microsoft.com/networking/WLAN/profile/v1";
 const String HEX_DIGITS        = "0123456789abcdef";
+const String PROFILE_PREFIX    = "bleu-";
+
+<*
+ `dwFlags` of `WlanSetProfile` for a per-user profile: WLAN_PROFILE_USER = 0x00000002
+ (wlanapi.h; https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/nf-wlanapi-wlansetprofile;
+ windows-sys 0.59.0 src/Windows/Win32/NetworkManagement/WiFi/mod.rs:1012; rs-wifi 0.1.8
+ src/platform/win/interface.rs:163-172 passes 2). Flag 0 writes an all-user profile, whose
+ DACL decides who may write it (WLAN_WRITE_ACCESS), so a normal process gets
+ ERROR_ACCESS_DENIED. Bleu's profiles belong to the user that connects, so they are per-user.
+*>
+const uint PROFILE_SCOPE_USER = 0x00000002;
+
+<* The `dwFlags` for writing bleu's profiles: per-user, never all-user. *>
+fn uint profile_scope_flags() @inline => PROFILE_SCOPE_USER;
+
+<*
+ How a connection gets its profile. A passphrase is written into a fresh profile
+ (replacing bleu's profile of that name). Without one, a network that needs a key
+ uses the profile already saved for it, and an open network gets a keyless profile.
+*>
+enum ConnectRoute : char
+{
+	WRITE_PROFILE,      // write the profile from the passphrase (or keyless) and connect by its name
+	USE_SAVED_PROFILE,  // connect by the saved profile's name; nothing is written
+}
+
+<*
+ The route for a connection with this security class and passphrase state.
+ Keyed networks without a passphrase reuse the saved profile; everything else
+ writes the profile.
+*>
+fn ConnectRoute connect_route(Security security, bool has_passphrase)
+{
+	bool keyed = security == WPA2_PSK || security == WPA3_SAE;
+	return keyed && !has_passphrase ? USE_SAVED_PROFILE : WRITE_PROFILE;
+}
 
 <* The `authentication` word for a security class, or NOT_FOUND for a class this backend cannot profile. *>
 fn String? authentication_word(Security security)
@@ -31,16 +67,16 @@ fn String? authentication_word(Security security)
 }
 
 <*
- The profile name for an SSID: the SSID as text when it is UTF-8, otherwise
- "bleu-" and the hex of its octets, so every SSID has a name Windows accepts.
+ The profile name for an SSID: "bleu-" and the hex of its octets. The prefix keeps
+ bleu's profiles apart from the profiles the user or an administrator made under the
+ SSID's own name, and hex is one name per SSID (text names could collide: an SSID
+ spelled as hex digits would share the name of another network).
 *>
 fn String profile_name(Allocator allocator, char[] ssid)
 {
-	Ssid named = network::make_ssid(tmem, ssid);
-	if (named.label.len > 0) return named.label.copy(allocator);
 	DString name;
 	name.init(tmem);
-	name.append_string("bleu-");
+	name.append_string(PROFILE_PREFIX);
 	append_hex(&name, ssid);
 	return name.copy_str(allocator);
 }

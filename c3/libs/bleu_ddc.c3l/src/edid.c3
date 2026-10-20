@@ -95,7 +95,11 @@ struct Timing
  its 16-bit form, which is what platform APIs report as the vendor number.
  `serial_number` is 0 when the block does not set one, and `serial_text` is the
  serial descriptor (0xFF), empty when absent. `name` is the display name (0xFC),
- empty when absent. `has_preferred_timing` says whether `preferred` is set.
+ empty when absent. `has_preferred_timing` is the features bit (byte 24, bit 1), which
+ says that the first timing descriptor is the preferred timing. `preferred` is the first
+ timing descriptor whenever the block holds one, whether or not the bit is set, and is
+ zero when it holds none, so read the flag before trusting `preferred`. The bit's rule
+ is EDID 1.3's; the EDID 1.4 text was not checked.
  `extension_tags` lists the tag of each extension block in order.
 *>
 struct Edid

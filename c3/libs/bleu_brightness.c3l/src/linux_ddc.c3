@@ -4,12 +4,16 @@
 
  A display is opened once and kept while its connector stays connected. The
  bus is attached through `OpenBusFn` when a test or another backend supplies one,
- otherwise through `/dev/i2c-N` (see `linux_i2c.c3`). The luminance maximum is
- remembered from the last read, so a write does not have to read first, which
- would double the time a ramp step takes.
+ otherwise through `/dev/i2c-N` (see `linux_i2c.c3`); only a bus opened here is
+ locked and closed here. The luminance maximum is remembered from the last read, so a
+ write does not have to read first, which would double the time a ramp step takes.
+ A transfer that keeps failing detaches the display, and the next pass opens it again.
 *>
 module bleu::brightness::linux_ddc @feat(LINUX);
 import std::collections::list, std::collections::maybe, bleu::availability, bleu::brightness, bleu::brightness::drm, bleu::brightness::i2cdev, bleu::ddc::session, bleu::ddc::transport, bleu::ddc::vcp, bleu::error, bleu::unit;
+
+<* Consecutive failed transfers after which the display is detached and its bus opened again. *>
+const uint DETACH_AFTER = 3;
 
 <* One external monitor, behind one DDC/CI bus. *>
 struct DdcDisplay
@@ -17,17 +21,19 @@ struct DdcDisplay
 	String connector;
 	int bus;
 	bool opened;
-	bool denied;
+	bool owns_bus;
+	Availability unopened;
 	I2cBus device;
 	Transport transport;
 	Session session;
 	ushort maximum;
+	uint failures;
 }
 
 <*
  Make the display of `connector` on I2C bus `bus` ready: open the bus, or ask
- `open_bus` for its transport. Failure leaves the display unopened; the next
- pass tries again.
+ `open_bus` for its transport. Failure leaves the display unopened, with the reason
+ in `unopened`; the next pass tries again.
 *>
 fn void DdcDisplay.attach(&self, String root, OpenBusFn open_bus, void* context)
 {
@@ -39,6 +45,7 @@ fn void DdcDisplay.attach(&self, String root, OpenBusFn open_bus, void* context)
 			Transport? channel = open_bus(context, path);
 			if (catch err = channel)
 			{
+				self.unopened = open_failure(err);
 				return;
 			}
 			else
@@ -51,48 +58,82 @@ fn void DdcDisplay.attach(&self, String root, OpenBusFn open_bus, void* context)
 			I2cBus? device = i2cdev::open_device(path);
 			if (catch err = device)
 			{
-				self.denied = err == error::PERMISSION_DENIED;
+				self.unopened = open_failure(err);
 				return;
 			}
 			else
 			{
 				self.device = device;
+				self.owns_bus = true;
 			}
 			self.transport = &self.device;
 		}
 		self.session = session::open(self.transport, transport::real_sleeper(), session::default_options());
 		self.opened = true;
+		self.failures = 0;
 	};
 }
 
-<* Release the bus. The display is unopened afterwards. *>
+// Why a display's bus did not open, as the availability a read reports.
+fn Availability open_failure(fault failure) @private
+{
+	if (failure == error::PERMISSION_DENIED) return availability::no(
+		PERMISSION_NEEDED,
+		"the DDC/CI bus exists but may not be opened (group i2c)"
+	);
+	return availability::no(HARDWARE_ABSENT, "the DDC/CI bus could not be opened");
+}
+
+<* Release the bus, if it was opened here. The display is unopened afterwards. *>
 fn void DdcDisplay.detach(&self)
 {
 	if (!self.opened) return;
-	self.device.close();
+	if (self.owns_bus) self.device.close();
+	self.owns_bus = false;
 	self.opened = false;
 }
 
+// Take the bus for one transaction. A bus given through `open_bus` has no lock to take.
+fn void? DdcDisplay.lock_bus(&self)
+{
+	if (!self.owns_bus) return;
+	self.device.lock_exclusive()!;
+}
+
+// Release the transaction's lock. The bus is unlocked whenever it is not in use.
+fn void DdcDisplay.unlock_bus(&self)
+{
+	if (self.owns_bus) self.device.unlock_exclusive();
+}
+
+// A transfer failed: count it, so that a display that keeps failing is detached.
+fn void DdcDisplay.transfer_failed(&self)
+{
+	self.failures++;
+}
+
 <*
- Read the display's luminance. An unopened display, or one that does not answer
- VCP 0x10, reports the control unreadable with the reason.
+ Read the display's luminance. An unopened display reports why it is unopened. A
+ transfer that fails keeps the last known range: the value is then unreadable, but a
+ write can still be carried out with that range.
 *>
 fn Control DdcDisplay.read(&self)
 {
-	if (!self.opened)
+	if (!self.opened) return { .mechanism = DDC, .availability = self.unopened };
+	if (catch err = self.lock_bus())
 	{
-		Availability state = self.denied ? availability::no(
-			PERMISSION_NEEDED,
-			"the DDC/CI bus exists but may not be opened (group i2c)"
-		)
-			: availability::no(HARDWARE_ABSENT, "the DDC/CI bus could not be opened");
-		return { .mechanism = DDC, .availability = state };
+		return {
+			.mechanism = DDC,
+			.availability = availability::no(HARDWARE_ABSENT, "the DDC/CI bus is busy: another process holds its lock"),
+		};
 	}
+	defer self.unlock_bus();
 	if (try reading = self.session.get_vcp(vcp::VcpCode.LUMINANCE))
 	{
-		self.maximum = reading.maximum;
+		self.failures = 0;
 		if (reading.maximum > 0)
 		{
+			self.maximum = reading.maximum;
 			long max = (long)reading.maximum;
 			return {
 				.mechanism = DDC,
@@ -105,19 +146,35 @@ fn Control DdcDisplay.read(&self)
 				.raw_max = max,
 			};
 		}
+		self.maximum = 0;
+		return {
+			.mechanism = DDC,
+			.availability = availability::no(HARDWARE_ABSENT, "the display did not report a VCP 0x10 range")
+		};
 	}
-	self.maximum = 0;
+	self.transfer_failed();
+	if (self.maximum == 0)
+	{
+		return {
+			.mechanism = DDC,
+			.availability = availability::no(HARDWARE_ABSENT, "the display did not answer the VCP 0x10 query"),
+		};
+	}
 	return {
 		.mechanism = DDC,
-		.availability = availability::no(HARDWARE_ABSENT, "the display did not report a VCP 0x10 range")
+		.writable = true,
+		.availability = availability::YES,
+		.raw_min = 0,
+		.raw_max = (long)self.maximum,
 	};
 }
 
 <*
- Set the display's luminance to `level`, then read it back.
+ Set the display's luminance to `level`, then read it back. The read-back must agree with
+ the raw value written, to within one device step; otherwise the display did not take it.
 
  @return? error::UNAVAILABLE : "The display's range is not known; it has not been read"
- @return? error::BACKEND_FAILURE, error::PROTOCOL, error::UNSUPPORTED : "The display refused or did not answer the write"
+ @return? error::BACKEND_FAILURE, error::PROTOCOL, error::UNSUPPORTED : "The display refused or did not answer the write, or did not take the value"
 *>
 fn Applied? DdcDisplay.write(&self, Level level)
 {
@@ -133,12 +190,20 @@ fn Applied? DdcDisplay.write(&self, Level level)
 	}
 	long max = (long)self.maximum;
 	long raw = level.to_raw(0, max);
-	self.session.set_vcp(vcp::VcpCode.LUMINANCE, (ushort)raw)!;
+	self.lock_bus()!;
+	defer self.unlock_bus();
+	if (catch err = self.session.set_vcp(vcp::VcpCode.LUMINANCE, (ushort)raw))
+	{
+		self.transfer_failed();
+		return err~;
+	}
+	self.failures = 0;
 	Maybe{Level} read_back = { };
 	if (try reading = self.session.get_vcp(vcp::VcpCode.LUMINANCE))
 	{
 		read_back = maybe::value(unit::from_raw((long)reading.current, 0, max));
 	}
+	brightness::confirm_read_back(self.connector, raw, 0, max, read_back)!;
 	return brightness::applied_at(DDC, level, raw, 0, max, read_back);
 }
 
@@ -160,13 +225,14 @@ fn void sync_displays(List{DdcDisplay*}* displays, Allocator allocator, String r
 			display = alloc::new(
 				allocator,
 				DdcDisplay,
-				{ .connector = connector.name.copy(allocator), .bus = connector.bus }
+				{ .connector = connector.name.copy(allocator), .bus = connector.bus, .device = { .fd = -1 } }
 			);
 		}
 		else
 		{
 			displays.remove_at(index_of(displays, display));
 		}
+		if (display.failures >= DETACH_AFTER) display.detach();
 		if (!display.opened) display.attach(root, open_bus, context);
 		next.push(display);
 	}

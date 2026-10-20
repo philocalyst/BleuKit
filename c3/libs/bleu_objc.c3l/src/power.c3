@@ -3,7 +3,7 @@
  inhibition (IOPMAssertion) and system sleep/wake notifications (IORegisterForSystemPower).
 
  The power-source states, the power events and the IOKit message codes are in
- `power_codes.c3` (pure logic, tested on every platform); this module re-exports
+ `iokit_power.c3` (pure logic, tested on every platform); this module re-exports
  the two enums as `PowerSourceState` and `PowerEvent`.
 
  Sources (signatures and constants):
@@ -19,12 +19,12 @@
  and `io-kit-sys` crates' key and message constants.
 *>
 module bleu::iokit::power @feat(DARWIN) @link("IOKit.framework");
-import bleu::error, bleu::unit, bleu::iokit, bleu::iokit::power_codes, bleu::cf, bleu::mach, bleu::objc;
+import bleu::error, bleu::unit, bleu::iokit, bleu::iokit_power, bleu::cf, bleu::mach, bleu::objc;
 
-<* Power-source state, from `kIOPSPowerSourceStateKey` (defined in `power_codes`). *>
-alias PowerSourceState = power_codes::PowerSourceState;
-<* A system power event, classified from the IOKit message (defined in `power_codes`). *>
-alias PowerEvent = power_codes::PowerEvent;
+<* Power-source state, from `kIOPSPowerSourceStateKey` (defined in `iokit_power`). *>
+alias PowerSourceState = iokit_power::PowerSourceState;
+<* A system power event, classified from the IOKit message (defined in `iokit_power`). *>
+alias PowerEvent = iokit_power::PowerEvent;
 
 <* `kCFRunLoopDefaultMode`: the mode a power source is attached in. *>
 extern const void* KCF_RUNLOOP_DEFAULT_MODE @cname("kCFRunLoopDefaultMode");
@@ -203,7 +203,7 @@ fn PowerSourceState state_of(CFTypeRef description) @local
 {
 	@pool()
 	{
-		return power_codes::classify_state(description_text(description, PS_KEY_STATE, tmem));
+		return iokit_power::classify_state(description_text(description, PS_KEY_STATE, tmem));
 	};
 }
 
@@ -357,7 +357,7 @@ fn void SystemPower.close(&self)
 fn void system_power_callback(void* refcon, iokit::IoObject service, uint message, void* argument) @local
 {
 	SystemPower* power = (SystemPower*)refcon;
-	PowerEvent event   = power_codes::classify_message(message);
+	PowerEvent event   = iokit_power::classify_message(message);
 	objc::@objc_entry()
 	{
 		if (power.handler) power.handler(power.context, event);

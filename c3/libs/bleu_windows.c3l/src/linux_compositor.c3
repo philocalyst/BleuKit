@@ -14,7 +14,7 @@
  * Actions queued while disconnected complete with `DISCONNECTED`, not later.
 *>
 module bleu::windows::linux_compositor @feat(LINUX);
-import std::time, bleu::availability, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::windows, bleu::windows::linux_map;
+import std::time, bleu::availability, bleu::deadline, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::windows, bleu::windows::linux_map;
 
 // The poller tag of the compositor's event socket. The wake-up has its own tag.
 const usz EVENT_TAG       = 1;
@@ -92,7 +92,7 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 	link.attempt(&poller, hub);
 	while (!host.stopping())
 	{
-		Duration timeout       = link.connected ? time::FOREVER : link.retry_wait;
+		Duration timeout       = link.connected ? time::FOREVER : link.retry_at.remaining();
 		poller::Ready[]? ready = poller.wait(timeout);
 		bool timed_out         = false;
 		bool events            = false;
@@ -109,7 +109,7 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 				if (item.tag == EVENT_TAG) events = true;
 			}
 		}
-		bool refresh = timed_out;
+		bool refresh = timed_out || (!link.connected && link.retry_at.expired());
 		usz count    = host.mailbox().take_all(batch[..]);
 		for (usz i = 0; i < count; i++)
 		{
@@ -134,7 +134,6 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 			}
 		}
 	}
-	windows::fail_queued(host, batch[..]);
 }
 
 // One connection to the compositor, and the model it has produced.
@@ -146,14 +145,15 @@ struct Link
 	DynamicArenaAllocator model_arena;
 	compositor::Model model;
 	Backoff backoff;
-	Duration retry_wait;
+	// When the next reconnect attempt is due. Set when a connection is lost or an attempt fails;
+	// wake-ups do not move it, so a steady stream of commands cannot postpone the attempt.
+	deadline::Deadline retry_at;
 }
 
 fn void Link.init(&self, Allocator allocator, Duration retry, Duration retry_max)
 {
 	*self = { .allocator = allocator };
 	self.backoff.init(retry, retry_max);
-	self.retry_wait = retry;
 	self.model_arena.init(allocator, ARENA_PAGE);
 }
 
@@ -298,7 +298,7 @@ fn void Link.lose(&self, Poller* poller, WindowsHub* hub, String reason)
 	{
 		String kept = reason.copy(tmem);
 		self.drop(poller);
-		self.retry_wait = self.backoff.take();
+		self.retry_at = deadline::after(self.backoff.take());
 		windows::publish_status(hub, kept);
 	};
 }

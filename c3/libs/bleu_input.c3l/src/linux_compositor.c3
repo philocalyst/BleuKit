@@ -298,7 +298,7 @@ fn bool handle(
 				);
 				return false;
 			}
-			if (catch err = activate(session, command.id_text()))
+			if (catch err = activate(session, command.id))
 			{
 				input::fail_switch(operation, err);
 			}
@@ -349,5 +349,4 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		}
 		if (changed) publish_session(backend, &session, hub);
 	}
-	input::fail_queued(host);
 }

@@ -107,11 +107,43 @@ fn fault raise(fault f, Domain domain, int code, String fmt, args...) @format(3)
 	d.code = code;
 	@pool()
 	{
-		String text = string::tformat(fmt, ...args);
-		d.len = min(text.len, DETAIL_TEXT_CAPACITY);
-		mem::copy(&d.text, text.ptr, d.len);
+		store_text(d, string::tformat(fmt, ...args));
 	};
 	return f;
+}
+
+<*
+ Like `raise`, but the message is copied as it is, without formatting. It needs no
+ temporary memory, so it is the form for paths that may run in a signal handler or
+ on a foreign thread that has not entered `@foreign_entry`.
+
+ @param f : "Classification of the failure"
+ @param domain : "Subsystem the native code belongs to"
+ @param code : "Native error number, 0 when there is none"
+ @param text : "Message; truncated to fit the detail buffer"
+ @return "The fault passed in"
+*>
+fn fault raise_text(fault f, Domain domain, int code, String text)
+{
+	Detail* d = &last_detail;
+	d.status = status_of(f);
+	d.domain = domain;
+	d.code = code;
+	store_text(d, text);
+	return f;
+}
+
+// Copy `text` into the detail, cut to the buffer. A cut never splits a UTF-8
+// sequence: it backs up to the first byte of the character it would have split.
+fn void store_text(Detail* d, String text) @private
+{
+	sz len = min(text.len, (sz)DETAIL_TEXT_CAPACITY);
+	if (len < text.len)
+	{
+		while (len > 0 && ((uint)text[len] & 0xC0) == 0x80) len--;
+	}
+	d.len = len;
+	if (len > 0) mem::copy(&d.text, text.ptr, len);
 }
 
 <*

@@ -41,6 +41,7 @@ struct Windows
  @param allocator : "Allocator for the service and its snapshots"
  @return? error::UNAVAILABLE : "No backend works here (no compositor, no desktop session)"
  @return? error::UNSUPPORTED : "The requested backend does not exist on this platform"
+ @return? error::UNAVAILABLE : "The requested backend exists here but does not work now"
 *>
 fn Windows*? open(Allocator allocator, Options options = { })
 {
@@ -50,8 +51,22 @@ fn Windows*? open(Allocator allocator, Options options = { })
 	Windows* self  = alloc::new(allocator, Windows);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "windows", driver.info.name, driver.run, self.driver_state))
+	void*? state = driver.create(allocator, options, &self.capabilities);
+	if (catch err = state)
+	{
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"windows",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		service::DEFAULT_QUEUE,
+		&cancel_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -60,7 +75,7 @@ fn Windows*? open(Allocator allocator, Options options = { })
 	return self;
 }
 
-<* Stop the backend and release everything. Actions still queued fail with `DISCONNECTED`. *>
+<* Stop the backend and release everything. Actions still queued fail with `CANCELLED`. *>
 fn void Windows.close(&self)
 {
 	self.hub.stop();

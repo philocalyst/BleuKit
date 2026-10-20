@@ -278,6 +278,77 @@ fn void long_strings_are_truncated() @test
 	};
 }
 
+fn void a_repeated_text_key_keeps_the_last_value() @test
+{
+	@pool()
+	{
+		Writer w;
+		w.init(tmem, "a{sv}")!!;
+		w.begin_array("a{sv}")!!;
+		put_string(&w, "category", "first");
+		put_string(&w, "category", "second");
+		w.end_array()!!;
+		Hints h;
+		decode_into(&w, &h);
+		assert(h.category == "second");
+	};
+}
+
+// Hints past MAX_HINTS are skipped: the urgency that comes 65th must not be applied.
+fn void the_hint_count_is_capped() @test
+{
+	@pool()
+	{
+		Writer w;
+		w.init(tmem, "a{sv}")!!;
+		w.begin_array("a{sv}")!!;
+		for (int k = 0; k < hints::MAX_HINTS; k++) put_string(&w, "x-filler", "f");
+		put_scalar(&w, "urgency", "y", 2);
+		w.end_array()!!;
+		Hints h;
+		decode_into(&w, &h);
+		assert(h.urgency == notify::Urgency.NORMAL, "the entry past the cap is not applied");
+		assert(h.ignored == 1, "and it is counted");
+	};
+}
+
+// 3000 sound names of 1000 bytes (3 MB of message): one copy is kept, the rest are skipped and counted.
+fn void a_flood_of_text_keeps_one_copy() @test
+{
+	@pool()
+	{
+		char[] value = alloc::new_array(tmem, char, 1000);
+		for (sz k = 0; k < value.len; k++) value[k] = 'a';
+		Writer w;
+		w.init(tmem, "a{sv}")!!;
+		w.begin_array("a{sv}")!!;
+		for (int k = 0; k < 3000; k++) put_string(&w, "sound-name", (String)value);
+		w.end_array()!!;
+		Hints h;
+		decode_into(&w, &h);
+		assert(h.sound_name.len == 1000);
+		assert(h.ignored == 3000 - hints::MAX_HINTS, "entries past the cap are counted");
+	};
+}
+
+// Forty valid 512 KiB images (20 MiB): the copies stop at the image budget and the rest are dropped and counted.
+fn void image_copies_are_budgeted() @test
+{
+	@pool()
+	{
+		Writer w;
+		w.init(tmem, "a{sv}")!!;
+		w.begin_array("a{sv}")!!;
+		for (int k = 0; k < 40; k++) put_image(&w, "image-data", 4096, 32, 16384, true, 8, 4, 524288, 'p');
+		w.end_array()!!;
+		Hints h;
+		decode_into(&w, &h);
+		assert(h.has_image);
+		assert(h.copied <= hints::MAX_HINT_BYTES, "copied bytes stay within the budget");
+		assert(h.ignored > 0, "images past the budget are dropped and counted");
+	};
+}
+
 // Every corruption must end as a fault or a valid result, never a crash or a bad read.
 fn void fuzzed_hints_never_crash() @test
 {

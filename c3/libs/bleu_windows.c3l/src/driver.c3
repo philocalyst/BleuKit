@@ -26,10 +26,23 @@ alias WindowsRunFn = fn void(void* state, WindowsHub* hub, Host{Command}* host);
 <* The backends of this platform in priority order; defined per platform in `probe.c3`. *>
 fn Driver*? select_driver(Options options)
 {
+	// A forced backend that this platform lists but whose probe fails is UNAVAILABLE:
+	// it exists here, it just does not work now. Only a backend not listed here is UNSUPPORTED.
+	bool listed = false;
 	foreach (driver : platform_drivers())
 	{
 		if (options.backend != AUTO && options.backend != driver.id) continue;
+		listed = true;
 		if (driver.probe(&options)) return driver;
+	}
+	if (options.backend != AUTO && listed)
+	{
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"the requested windows backend does not work here"
+		)~;
 	}
 	if (options.backend != AUTO)
 	{

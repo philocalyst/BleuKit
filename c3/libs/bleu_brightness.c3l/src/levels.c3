@@ -47,6 +47,36 @@ fn Level ramp_level(Level from, Level to, Duration elapsed, Duration total) @inl
 *>
 fn bool ramp_done(Duration elapsed, Duration total) @inline => elapsed >= total;
 
+<* Largest disagreement, in device steps, between a write and the device's own report that still counts as taken. *>
+const long READ_BACK_TOLERANCE = 1;
+
+<*
+ Check the device's own report after a write: it must agree with the raw value written, to
+ within `READ_BACK_TOLERANCE` steps. An empty report cannot disagree, because the device gave
+ no answer to compare; such a control is written without a check.
+
+ @return? error::BACKEND_FAILURE : "The device reports another value: it did not take the write"
+*>
+fn void? confirm_read_back(String device_id, long raw, long raw_min, long raw_max, Maybe{Level} read_back)
+{
+	if (!read_back.has_value) return;
+	long reported   = read_back.value.to_raw(raw_min, raw_max);
+	long difference = reported - raw;
+	if (difference < 0) difference = -difference;
+	if (difference > READ_BACK_TOLERANCE)
+	{
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"'%s' did not take the value: wrote %d, the device reports %d",
+			device_id,
+			raw,
+			reported
+		)~;
+	}
+}
+
 <*
  Whether two levels are the same reading: both empty, or both present and equal.
 *>

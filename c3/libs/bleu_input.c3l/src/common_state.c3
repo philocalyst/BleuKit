@@ -7,9 +7,6 @@ import bleu::error, bleu::observe, bleu::service, bleu::operation, bleu::equal, 
 
 alias InputHub = Hub{State, Command, Event};
 
-<* The id a command carries, as a view into the command. *>
-fn String Command.id_text(&self) => (String)self.id[0:self.id_len];
-
 <*
  The position of the layout called `id` in `layouts`, or -1 when there is none.
 *>
@@ -47,7 +44,13 @@ fn void publish_state(InputHub* hub, Snapshot{State}* snapshot)
 			snapshot.release();
 			return;
 		}
+		// Publish first, then announce: a subscriber woken by an event must find the new state. Our own
+		// reference is kept for the comparison the announcement makes.
+		snapshot.retain();
+		hub.publish(snapshot);
 		announce(hub, &previous.value, &snapshot.value);
+		snapshot.release();
+		return;
 	}
 	hub.publish(snapshot);
 }
@@ -86,26 +89,16 @@ fn void fail_switch(SwitchOperation* operation, fault failure)
  hold two or more entries for "next" to mean anything.
 *>
 fn bool can_switch_now(bool route_open, sz layout_count) => route_open && layout_count > 1;
-// Commands taken from the queue in one pass when the worker is stopping.
-const usz DRAIN_BATCH = 8;
-
 <*
- Fail every switch still queued when the worker stops, so that no caller waits for an operation no one will run.
- Called on the worker thread after its loop has ended. The mailbox is closed by then, but the commands already
- queued remain there (bleu_rt, Worker.stop).
+ Complete a request the worker did not run, when the backend stops or bails out before taking it: a
+ switch fails with CANCELLED, so no caller waits for an operation nobody will run. Registered with
+ `Hub.start`; runs on the worker thread after the backend's run function has returned.
 *>
-fn void fail_queued(Host{Command}* host)
+fn void abandon_command(void* backend, Command* command)
 {
-	Command[DRAIN_BATCH] batch;
-	for (usz taken = host.mailbox().take_all(batch[..]); taken > 0; taken = host.mailbox().take_all(batch[..]))
-	{
-		for (usz i = 0; i < taken; i++)
-		{
-			if (batch[i].kind != CommandKind.SWITCH_TO) continue;
-			fail_switch(
-				batch[i].operation,
-				error::raise(error::CANCELLED, error::Domain.INTERNAL, 0, "the service closed before the request ran")
-			);
-		}
-	}
+	if (command.kind != CommandKind.SWITCH_TO) return;
+	fail_switch(
+		command.operation,
+		error::raise(error::CANCELLED, error::Domain.INTERNAL, 0, "the service closed before the request ran")
+	);
 }

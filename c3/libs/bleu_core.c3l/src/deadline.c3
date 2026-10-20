@@ -33,7 +33,7 @@ fn Duration Deadline.remaining(self)
  is signalled or the deadline passes. Spurious wake-ups are possible, so always
  call this in a loop that re-tests the predicate.
 
- @return "false when the deadline has passed (the caller should give up)"
+ @return "false when the deadline has passed. The predicate may have become true at the same moment, so re-test it once before giving up"
 *>
 fn bool Deadline.wait(self, ConditionVariable* cond, Mutex* mutex)
 {
@@ -44,9 +44,12 @@ fn bool Deadline.wait(self, ConditionVariable* cond, Mutex* mutex)
 	}
 	Duration left = self.remaining();
 	if (left <= time::DURATION_ZERO) return false;
-	// WAIT_TIMEOUT is not an error here: the loop re-tests both predicate and deadline.
-	if (catch cond.wait_timeout(mutex, left))
+	// WAIT_TIMEOUT is the normal end of a timed wait: the loop re-tests the predicate
+	// and the deadline. Any other fault would mean a condition variable or mutex that
+	// is not initialised or not held, which is a bug in the caller, not a timeout.
+	if (catch err = cond.wait_timeout(mutex, left))
 	{
+		if (err != thread::WAIT_TIMEOUT) unreachable("timed wait on an initialised condition variable failed");
 	}
 	return !self.expired();
 }

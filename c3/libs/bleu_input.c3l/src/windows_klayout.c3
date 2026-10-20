@@ -165,7 +165,9 @@ fn Layout layout_of(Win32_HKL handle, Allocator allocator) @private
 	uint value      = (uint)(usz)handle;
 	Win32_WCHAR[LOCALE_NAME_CAPACITY] buffer;
 	String language = locale_tag(hkl::lcid_of(value), buffer[..], allocator);
-	String name     = locale_display_name(&buffer[0], allocator);
+	// The display name is read from the buffer the tag lookup filled. After a failed lookup that buffer holds
+	// no locale, so the name is not looked up at all.
+	String name = language.len > 0 ? locale_display_name(&buffer[0], allocator) : "";
 	return {
 		.id = hkl::klid_text(value, allocator),
 		.name = name.len > 0 ? name : language.copy(allocator),
@@ -269,7 +271,7 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		{
 			if (commands[i].kind != CommandKind.SWITCH_TO) continue;
 			SwitchOperation* operation = commands[i].operation;
-			if (catch err = switch_to(commands[i].id_text()))
+			if (catch err = switch_to(commands[i].id))
 			{
 				input::fail_switch(operation, err);
 			}
@@ -282,5 +284,4 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		}
 		refresh(hub);
 	}
-	input::fail_queued(host);
 }

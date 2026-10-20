@@ -38,8 +38,7 @@ struct Operation
 	ConditionVariable finished;
 	Phase state;
 	fault failure;
-	Detail failure_detail;  // error::last() of the completing thread at the moment of failure
-	bool has_detail;
+	Detail failure_detail;  // what the completing thread recorded for the failure; empty if none
 	Value value;
 	Atomic{bool} cancel_flag;
 	Completion completion;
@@ -125,16 +124,22 @@ fn bool Operation.fail(&self, fault failure)
 		return false;
 	}
 	self.failure = failure;
-	// The reason a worker failed lives in its thread-local detail; keep it for the waiting caller.
-	Detail* last = error::last();
-	if (last.status == error::status_of(failure))
-	{
-		self.failure_detail = *last;
-		self.has_detail = true;
-	}
+	self.failure_detail = detail_for(failure);
 	self.state = failure == error::CANCELLED ? CANCELLED : FAILED;
 	self.conclude();
 	return true;
+}
+
+// The detail to keep for a failure: the completing thread's own record of it when that
+// record has the same status, otherwise an empty detail that carries only the status.
+// The waiting caller's thread-local record is never used.
+fn Detail detail_for(fault failure) @private
+{
+	Status status = error::status_of(failure);
+	Detail* last  = error::last();
+	if (last.status == status) return *last;
+	Detail empty = { .status = status };
+	return empty;
 }
 
 // Wake waiters and run the completion callback. Entered with the mutex held.
@@ -149,11 +154,19 @@ fn void Operation.conclude(&self)
 
 <*
  Run `callback` when the operation finishes: immediately (on this thread) if it
- already has, otherwise on the completing thread. At most one callback.
+ already has, otherwise on the completing thread. An operation takes one callback;
+ a second `then` is refused and the first one stays.
+
+ @return? error::INVALID_STATE : "A callback is already attached"
 *>
-fn void Operation.then(&self, Completion callback, void* context)
+fn void? Operation.then(&self, Completion callback, void* context)
 {
 	self.mutex.lock()!!;
+	if (self.completion)
+	{
+		self.mutex.unlock();
+		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "a callback is already attached")~;
+	}
 	if (self.state >= SUCCEEDED)
 	{
 		self.mutex.unlock();

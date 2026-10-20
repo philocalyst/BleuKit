@@ -6,10 +6,11 @@ fn store::Entry* make_entry(
 	store::Store* s,
 	String summary,
 	notify::Urgency urgency = notify::Urgency.NORMAL,
-	int expire_ms = -1
+	int expire_ms = -1,
+	String sender = ""
 )
 {
-	store::Entry* e = s.new_entry();
+	store::Entry* e = s.new_entry(sender);
 	Allocator a     = (Allocator)&e.arena;
 	e.incoming.app_name = "test".copy(a);
 	e.incoming.summary = summary.copy(a);
@@ -46,7 +47,8 @@ fn void replacing_keeps_the_id_and_the_place() @test
 	assert(s.active.get(0).note.summary == "b");
 }
 
-fn void an_unknown_replaces_id_is_adopted() @test
+// Regression (N-01): an id that names no open notification is never adopted; the next id is fresh and distinct.
+fn void an_unknown_replaces_id_gets_a_fresh_id() @test
 {
 	store::Store s;
 	s.init(mem, notify::DEFAULT_POLICY);
@@ -54,8 +56,96 @@ fn void an_unknown_replaces_id_is_adopted() @test
 	store::Entry* e = make_entry(&s, "x");
 	e.incoming.replaces_id = 77;
 	store::Posted posted = s.post(e, (Time)1000);
-	assert(posted.id == 77 && !posted.replaced);
-	assert(s.open(77) != null);
+	assert(posted.id != 77 && !posted.replaced);
+	assert(s.open(77) == null);
+	store::Posted next = s.post(make_entry(&s, "y"), (Time)1000);
+	assert(next.id != posted.id, "two open notifications never share an id");
+	assert(s.open(posted.id) != null && s.open(next.id) != null);
+}
+
+// Regression (N-01): the counter skips ids that are still in history.
+fn void a_fresh_id_skips_ids_in_history() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Posted first = s.post(make_entry(&s, "a"), (Time)1000);
+	assert(s.close(first.id));
+	s.last_id = first.id - 1;
+	store::Posted again = s.post(make_entry(&s, "b"), (Time)1000);
+	assert(again.id != first.id, "a historic id is not issued again");
+}
+
+// Regression (N-02): another sender's notification is not replaced, even by its id.
+fn void a_replacement_from_another_sender_is_a_new_notification() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Posted bank = s.post(make_entry(&s, "password reset", notify::Urgency.NORMAL, -1, "bank"), (Time)1000);
+	store::Entry* evil = make_entry(&s, "overwritten", notify::Urgency.NORMAL, -1, "evil");
+	evil.incoming.replaces_id = bank.id;
+	store::Posted posted = s.post(evil, (Time)1000);
+	assert(!posted.replaced && posted.id != bank.id);
+	assert(s.active.len() == 2);
+	assert(s.open(bank.id).note.summary == "password reset", "the bank's text is untouched");
+}
+
+// Regression (N-02): a stack tag matches only the sender that set it.
+fn void a_stack_tag_is_matched_within_one_sender() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Entry* first = make_entry(&s, "mine", notify::Urgency.NORMAL, -1, "a");
+	first.incoming.hints.stack_tag = "chat".copy((Allocator)&first.arena);
+	s.post(first, (Time)1000);
+	store::Entry* other = make_entry(&s, "theirs", notify::Urgency.NORMAL, -1, "b");
+	other.incoming.hints.stack_tag = "chat".copy((Allocator)&other.arena);
+	store::Posted posted = s.post(other, (Time)1000);
+	assert(!posted.replaced && s.active.len() == 2);
+}
+
+// Regression (N-02): a replacement cannot downgrade a critical notification or give it an expiry.
+fn void a_replacement_cannot_downgrade_a_critical_notification() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Entry* alert = make_entry(&s, "alert", notify::Urgency.CRITICAL, -1, "bank");
+	store::Posted first = s.post(alert, (Time)1000);
+	store::Entry* quiet = make_entry(&s, "later", notify::Urgency.LOW, 1000, "bank");
+	quiet.incoming.replaces_id = first.id;
+	store::Posted again = s.post(quiet, (Time)1000);
+	assert(again.id == first.id && again.replaced);
+	assert(s.open(first.id).note.urgency == notify::Urgency.CRITICAL);
+	assert(!again.timeout.has_value, "a critical notification still never expires");
+}
+
+// Regression (N-02): a CloseNotification from another sender finds nothing, and the owner's close works.
+fn void only_the_owner_closes_by_bus_call() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Posted mine = s.post(make_entry(&s, "mine", notify::Urgency.NORMAL, -1, "a"), (Time)1000);
+	assert(!s.close_owned(mine.id, "b"), "another sender cannot close it");
+	assert(s.open(mine.id) != null);
+	assert(s.close_owned(mine.id, "a"), "the sender can");
+}
+
+// Regression (N-06): a foreign replacement naming a history entry leaves that entry alone.
+fn void a_foreign_replacement_leaves_history_alone() @test
+{
+	store::Store s;
+	s.init(mem, notify::DEFAULT_POLICY);
+	defer s.free();
+	store::Posted secret = s.post(make_entry(&s, "secret", notify::Urgency.NORMAL, -1, "a"), (Time)1000);
+	assert(s.close(secret.id));
+	store::Entry* intruder = make_entry(&s, "x", notify::Urgency.NORMAL, -1, "b");
+	intruder.incoming.replaces_id = secret.id;
+	s.post(intruder, (Time)1000);
+	assert(s.history.len() == 1 && s.history.get(0).note.summary == "secret");
 }
 
 fn void a_stack_tag_replaces_the_open_notification() @test

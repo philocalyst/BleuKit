@@ -52,7 +52,12 @@ fn void? open_skylight(SkyLight* spaces)
 {
 	String[1] candidates = { SKYLIGHT_PATH };
 	spaces.library = dl::open(candidates[..])!;
-	dl::bind(&spaces.api, &spaces.library)!;
+	if (catch err = dl::bind(&spaces.api, &spaces.library))
+	{
+		// The caller keeps no handle when this fails, so the library is closed here.
+		spaces.library.close();
+		return err~;
+	}
 }
 
 <* Close SkyLight. Nothing bound from it may be called afterwards. *>

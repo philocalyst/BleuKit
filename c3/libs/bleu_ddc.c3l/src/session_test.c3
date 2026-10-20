@@ -316,3 +316,60 @@ fn void retry_of_a_null_capabilities_fragment_is_refused() @test
 		test::@error(s.read_capabilities(tmem), error::UNSUPPORTED);
 	};
 }
+
+// A monitor that sends the leading 0x6E twice on every reply (the ddcutil quirk). The
+// read buffers must hold the extra byte, or the checksum is lost and every try fails.
+fn void doubled_leading_byte_is_read_for_get_vcp() @test
+{
+	@pool()
+	{
+		MockMonitor m = mock::new_monitor("(vcp(10))");
+		m.add_feature(VcpCode.LUMINANCE, 50, 100);
+		m.doubled_leads = 100;
+		Recorder rec;
+		Transport t        = &m;
+		Session s          = session_for(t, &rec);
+		session::Reading r = s.get_vcp(VcpCode.LUMINANCE)!!;
+		test::eq(r.current, (ushort)50);
+		test::eq(r.maximum, (ushort)100);
+		test::eq(s.stats.protocol_errors, (ulong)0);
+	};
+}
+
+fn void doubled_leading_byte_is_read_for_capabilities() @test
+{
+	@pool()
+	{
+		// CAPS is longer than one 32-byte fragment, so every fragment carries the quirk.
+		MockMonitor m = mock::new_monitor(CAPS);
+		m.doubled_leads = 100;
+		Recorder rec;
+		Transport t       = &m;
+		Session s         = session_for(t, &rec);
+		Capabilities caps = s.read_capabilities(tmem)!!;
+		test::eq(caps.validity, capabilities::Validity.VALID);
+		test::eq(caps.features.len, (sz)6);
+		test::eq(s.stats.protocol_errors, (ulong)0);
+	};
+}
+
+// `max_tries` of zero makes no attempt, so every operation is refused before a byte is written.
+fn void zero_max_tries_is_refused_before_any_write() @test
+{
+	@pool()
+	{
+		MockMonitor m = mock::new_monitor(CAPS);
+		m.add_feature(VcpCode.LUMINANCE, 1, 2);
+		Recorder rec;
+		Transport t     = &m;
+		Options options = session::default_options();
+		options.max_tries = 0;
+		Session s = session::open(t, { .sleep = &record, .context = (void*)&rec }, options);
+		test::@error(s.get_vcp(VcpCode.LUMINANCE), error::INVALID_ARGUMENT);
+		test::@error(s.set_vcp(VcpCode.LUMINANCE, 2), error::INVALID_ARGUMENT);
+		test::@error(s.read_capabilities(tmem), error::INVALID_ARGUMENT);
+		test::eq(s.stats.attempts, (ulong)0);
+		test::eq(rec.count, (usz)0);
+		test::eq(m.value(VcpCode.LUMINANCE), (ushort)1);
+	};
+}

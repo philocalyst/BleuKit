@@ -826,3 +826,37 @@ fn void zero_serial_is_left_out_of_the_fingerprint() @test
 		test::eq(zero.fingerprint() == numbered.fingerprint(), false);
 	};
 }
+
+// The features bit (byte 24, bit 1) is the flag. Clearing it leaves the first timing
+// descriptor in `preferred` and reports `has_preferred_timing` false.
+fn void preferred_flag_is_the_features_bit() @test
+{
+	@pool()
+	{
+		char[128] clear = VGA;
+		clear[24] = (char)(clear[24] & 0xFD);
+		clear[127] = block_checksum(clear[..]);
+		edid::Edid e = edid::parse(clear[..], tmem)!!;
+		test::eq(e.has_preferred_timing, false);
+		test::eq(e.preferred.pixel_clock_khz, (uint)146250);
+	};
+}
+
+// The bit set with no timing descriptor: the flag is true and `preferred` stays zero.
+fn void preferred_flag_without_a_timing_descriptor() @test
+{
+	@pool()
+	{
+		char[128] none = VGA;
+		none[24] = (char)(none[24] | 0x02);
+		for (usz i = 0; i < edid::DESCRIPTOR_OFFSETS.len; i++)
+		{
+			none[edid::DESCRIPTOR_OFFSETS[i]] = 0;
+			none[edid::DESCRIPTOR_OFFSETS[i] + 1] = 0;
+		}
+		none[127] = block_checksum(none[..]);
+		edid::Edid e = edid::parse(none[..], tmem)!!;
+		test::eq(e.has_preferred_timing, true);
+		test::eq(e.preferred.pixel_clock_khz, (uint)0);
+	};
+}

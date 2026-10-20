@@ -65,18 +65,14 @@ enum CommandKind : char
 	SWITCH_TO, // make the layout named by `Command.id` active
 }
 
-<* The longest layout id a command carries. Ids are xkb names, input source ids or KLIDs. *>
-const usz ID_CAPACITY = 128;
-
 <*
- A queued request. Plain data: the id lives in `id`; `operation` is completed and released by the
- worker.
+ A queued request. `id` is the layout a switch names; it lives in the operation's arena, so it has
+ no length limit. `operation` is completed and released by the worker.
 *>
 struct Command
 {
 	CommandKind kind;
-	char[ID_CAPACITY] id;
-	usz id_len;
+	String id;
 	SwitchOperation* operation;
 }
 

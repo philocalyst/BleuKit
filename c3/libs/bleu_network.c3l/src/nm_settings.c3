@@ -9,7 +9,7 @@
  own client library sends (nmrs 3.5.6, src/api/builders/wifi_builder.rs).
 *>
 module bleu::network::nm_settings;
-import std::collections::list, bleu::error, bleu::dbus::value, bleu::network;
+import std::collections::list, std::hash::sha256, bleu::error, bleu::dbus::value, bleu::network;
 
 const String GROUP_CONNECTION = "connection";
 const String GROUP_WIRELESS   = "802-11-wireless";
@@ -17,6 +17,9 @@ const String GROUP_SECURITY   = "802-11-wireless-security";
 const String TYPE_WIRELESS    = "802-11-wireless";
 const String MODE_INFRA       = "infrastructure";
 const String HEX_DIGITS       = "0123456789abcdef";
+const usz UUID_OCTETS         = 16; // a UUID is 128 bits
+const char UUID_VERSION_8     = 0x80; // RFC 9562 version nibble 8 (the high nibble of octet 6)
+const char UUID_VARIANT_RFC   = 0x80; // RFC 4122 variant: bits 10 in the high bits of octet 8
 
 <* How a profile authenticates. `OPEN` writes no security group at all. *>
 enum KeyManagement : char
@@ -102,28 +105,24 @@ fn String key_mgmt_name(KeyManagement key_mgmt)
 }
 
 <*
- A UUID for a Wi-Fi profile, derived from the SSID octets. It is stable for a
- network, so saving the same network again updates one profile. It is not an
- RFC 4122 name-based UUID: NetworkManager needs only uniqueness per profile.
- Two 64-bit FNV-1a hashes with different offset bases fill the 128 bits.
+ A UUID for a Wi-Fi profile, derived from the SSID octets with SHA-256 (std::hash::sha256).
+ It is stable for a network, so the same network always gets the same UUID, and two
+ networks collide only if their SHA-256 digests agree in 128 bits: a second preimage
+ that cannot be found on purpose. The layout is RFC 9562's custom UUID (version 8) with
+ the RFC 4122 variant bits. NetworkManager needs uniqueness per profile, which this gives.
 *>
 fn String uuid_for_ssid(Allocator allocator, char[] ssid)
 {
-	ulong high = 0xcbf29ce484222325;
-	ulong low  = 0x84222325cbf29ce4;
-	foreach (c : ssid)
-	{
-		high = (high ^ (ulong)(char)c) * 0x100000001b3;
-		low = (low ^ (ulong)(char)c) * 0x100000001b3;
-	}
+	char[sha256::HASH_SIZE] digest = sha256::hash(ssid);
+	digest[6] = (digest[6] & 0x0F) | UUID_VERSION_8;
+	digest[8] = (digest[8] & 0x3F) | UUID_VARIANT_RFC;
 	char[36] text;
 	usz at = 0;
-	for (usz digit = 0; digit < 32; digit++)
+	for (usz i = 0; i < UUID_OCTETS; i++)
 	{
-		if (digit == 8 || digit == 12 || digit == 16 || digit == 20) text[at++] = '-';
-		ulong word = digit < 16 ? high : low;
-		usz nibble = (usz)((word >> ((15 - digit % 16) * 4)) & 0xF);
-		text[at++] = HEX_DIGITS[nibble];
+		if (i == 4 || i == 6 || i == 8 || i == 10) text[at++] = '-';
+		text[at++] = HEX_DIGITS[((char)digest[i] >> 4) & 0xF];
+		text[at++] = HEX_DIGITS[(char)digest[i] & 0xF];
 	}
 	return ((String)text[..]).copy(allocator);
 }
@@ -171,6 +170,34 @@ fn Value? with_bool(Allocator allocator, Value settings, String group_name, Stri
 	}
 	Value updated = dict_with(allocator, current, key, value::variant(allocator, value::boolean(flag)))!;
 	return dict_with(allocator, settings, group_name, updated);
+}
+
+<*
+ A copy of `settings` with the Wi-Fi secret replaced: `key-mgmt` and, for WPA-PSK and
+ SAE, `psk` of the `802-11-wireless-security` group. Every other key, group and the
+ connection's id, UUID and autoconnect flag are kept, so a saved profile keeps its
+ addresses, DNS, MTU and metered setting. The group is created when it does not exist.
+
+ @return? error::INVALID_ARGUMENT : "`settings` is not an `a{sa{sv}}`"
+*>
+fn Value? with_secret(Allocator allocator, Value settings, KeyManagement key_mgmt, String psk)
+{
+	Value current;
+	if (try found = settings.dict_get(GROUP_SECURITY))
+	{
+		current = found;
+	}
+	else
+	{
+		Value[] none = { };
+		current = value::array(allocator, "{sv}", none)!!;
+	}
+	Value updated = dict_with(allocator, current, "key-mgmt", value::variant(allocator, value::str(allocator, key_mgmt_name(key_mgmt))!!))!;
+	if ((key_mgmt == WPA_PSK || key_mgmt == SAE) && psk.len > 0)
+	{
+		updated = dict_with(allocator, updated, "psk", value::variant(allocator, value::str(allocator, psk)!!))!;
+	}
+	return dict_with(allocator, settings, GROUP_SECURITY, updated);
 }
 
 <*

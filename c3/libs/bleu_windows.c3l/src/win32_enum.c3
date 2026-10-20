@@ -154,7 +154,6 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 		}
 		if (dirty) refresh(session, hub);
 	}
-	windows::fail_queued(host, batch[..]);
 }
 
 // Open the desktop manager. Without it the workspaces are not listed and cannot be moved to.
@@ -482,8 +481,16 @@ fn void? close_window(void* hwnd) @private
 	if (win32_user::post_message_w(hwnd, win32_user::WM_CLOSE, 0, 0) == 0) return errors::raise_last("PostMessageW")~;
 }
 
-fn void minimize(void* hwnd) @private
+// ShowWindow reports the window's previous visibility, not failure, so a stale handle is
+// checked first: IsWindow is the only way to learn that the window is gone.
+fn void? minimize(void* hwnd) @private
 {
+	if (win32_user::is_window(hwnd) == 0) return error::raise(
+		error::NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"that window no longer exists"
+	)~;
 	win32_user::show_window(hwnd, win32_user::SW_MINIMIZE);
 }
 

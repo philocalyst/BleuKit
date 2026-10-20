@@ -31,6 +31,7 @@ extern fn win32::Win32_BOOL enum_windows(EnumWindowsProc callback, iptr lparam) 
 extern fn void* get_ancestor(void* hwnd, uint flags) @cname("GetAncestor");
 extern fn void* get_last_active_popup(void* hwnd) @cname("GetLastActivePopup");
 extern fn win32::Win32_BOOL is_window_visible(void* hwnd) @cname("IsWindowVisible");
+extern fn win32::Win32_BOOL is_window(void* hwnd) @cname("IsWindow");
 extern fn win32::Win32_BOOL is_iconic(void* hwnd) @cname("IsIconic");
 extern fn win32::Win32_BOOL is_zoomed(void* hwnd) @cname("IsZoomed");
 extern fn void* get_foreground_window() @cname("GetForegroundWindow");

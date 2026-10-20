@@ -1,7 +1,7 @@
 // Live test against mock_logind.py started with BLEU_LOGIND_LATE_SESSION_SECONDS: this process is in no
 // session at first, and the backend must find its session once it appears, without a reconnect.
 module bleu::session::logind_late_test @feat(LINUX);
-import std::time, bleu::session;
+import std::time, bleu::observe, bleu::session;
 
 // The mock publishes nothing while no session is found, so a wait must outlast the late announcement.
 const Duration LATE_STEP = (Duration)10_000_000;

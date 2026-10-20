@@ -86,6 +86,8 @@ fn int? bus_from_link(String target)
 	}
 	String leaf = target[start:target.len - start];
 	if (!leaf.starts_with("i2c-") || leaf.len == 4) return NOT_FOUND~;
+	// Nine digits is the most an `int` bus number can take without overflowing.
+	if (leaf.len - 4 > MAX_BUS_DIGITS) return NOT_FOUND~;
 	int bus = 0;
 	for (usz i = 4; i < leaf.len; i++)
 	{

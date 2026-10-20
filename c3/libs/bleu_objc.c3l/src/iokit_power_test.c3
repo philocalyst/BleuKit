@@ -1,4 +1,4 @@
-module bleu::iokit::power_codes;
+module bleu::iokit_power;
 
 // Power-source state text, from kIOPSPowerSourceStateKey values. Matching is exact.
 fn void state_text() @test

@@ -44,7 +44,8 @@ struct VcpState
  Fault counters are consumed one per affected exchange: `drop_replies` makes the
  next reads return nothing (a timeout), `corrupt_replies` puts a bad checksum on
  the next replies, `null_replies` sends null messages, `duplicate_fragments`
- repeats the previous capabilities fragment, and `fail_writes` refuses writes.
+ repeats the previous capabilities fragment, `doubled_leads` puts a second leading
+ 0x6E on the next replies (the ddcutil quirk), and `fail_writes` refuses writes.
 
  `capabilities`: The capabilities string the monitor reports, in chunks of 32
  `latency`: The time from a write to its reply, as `min_interval_after_write`
@@ -64,8 +65,9 @@ struct MockMonitor (Transport)
 	uint corrupt_replies;
 	uint null_replies;
 	uint duplicate_fragments;
+	uint doubled_leads;
 	uint fail_writes;
-	char[packet::MAX_REPLY_PAYLOAD + 3] reply;
+	char[packet::MAX_REPLY_PAYLOAD + 3 + packet::LEADING_DUPLICATE_BYTES] reply;
 	usz reply_len;
 	bool served_fragment;
 	usz last_fragment_offset;
@@ -152,7 +154,7 @@ fn void MockMonitor.handle(&self, char[] bytes)
 // Get VCP Feature: the present state, or result 0x01 for an unknown code. A pending
 // Set is applied after the reply that was due before it, so a lagging monitor
 // reports the old value first.
-fn void MockMonitor.answer_get(&self, char code) @private
+fn void MockMonitor.answer_get(&self, char code)
 {
 	VcpState* st = &self.store[(usz)code];
 	// A reply is always the full 8-byte layout; an unknown code carries result 0x01 and zeros.
@@ -179,7 +181,7 @@ fn void MockMonitor.answer_get(&self, char code) @private
 }
 
 // Set VCP: unknown codes are ignored, as a monitor ignores what it does not implement.
-fn void MockMonitor.apply_set(&self, char code, ushort value) @private
+fn void MockMonitor.apply_set(&self, char code, ushort value)
 {
 	VcpState* st = &self.store[(usz)code];
 	if (!st.present) return;
@@ -194,7 +196,7 @@ fn void MockMonitor.apply_set(&self, char code, ushort value) @private
 
 // Capabilities Request: the chunk of the string at `offset`, up to a fragment.
 // `duplicate_fragments` makes the monitor repeat the previous chunk instead.
-fn void MockMonitor.answer_fragment(&self, usz offset) @private
+fn void MockMonitor.answer_fragment(&self, usz offset)
 {
 	usz at = offset;
 	if (self.duplicate_fragments > 0 && self.served_fragment)
@@ -219,7 +221,7 @@ fn void MockMonitor.answer_fragment(&self, usz offset) @private
 
 // Frame a reply and apply the faults that are due: a null message replaces it, and a
 // corrupt one has its checksum inverted.
-fn void MockMonitor.send_reply(&self, char[] payload) @private
+fn void MockMonitor.send_reply(&self, char[] payload)
 {
 	char[] body = payload;
 	if (self.null_replies > 0)
@@ -227,11 +229,19 @@ fn void MockMonitor.send_reply(&self, char[] payload) @private
 		self.null_replies--;
 		body = payload[0:0];
 	}
-	usz n = packet::encode_reply(body, self.reply[..])!!;
+	// The quirk: a second 0x6E in front of the frame, which the reader must skip.
+	usz lead = 0;
+	if (self.doubled_leads > 0)
+	{
+		self.doubled_leads--;
+		self.reply[0] = packet::WRITE_ADDRESS;
+		lead = packet::LEADING_DUPLICATE_BYTES;
+	}
+	usz n = packet::encode_reply(body, self.reply[lead..])!!;
 	if (self.corrupt_replies > 0)
 	{
 		self.corrupt_replies--;
-		self.reply[n - 1] ^= 0xFF;
+		self.reply[lead + n - 1] ^= 0xFF;
 	}
-	self.reply_len = n;
+	self.reply_len = lead + n;
 }

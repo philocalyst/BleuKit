@@ -25,8 +25,8 @@
 module bleu::input::macos_tis @feat(DARWIN) @link("Carbon.framework");
 import std::collections::maybe, std::time, bleu::availability, bleu::cf, bleu::error, bleu::input, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
-// Enabled sources only: TISCreateInputSourceList's includeAllInstalled is false (TextInputSources.h).
-const bool ENABLED_ONLY               = false;
+// TISCreateInputSourceList's includeAllInstalled: false lists the enabled sources only (TextInputSources.h).
+const bool INCLUDE_ALL_INSTALLED      = false;
 // OSStatus noErr.
 const int NO_ERROR                    = 0;
 // Commands the worker takes in one pass.
@@ -190,7 +190,7 @@ fn State? read_state(Allocator allocator) @private
 {
 	cf::Ref filter = keyboard_layout_filter();
 	defer filter.close();
-	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, ENABLED_ONLY));
+	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, INCLUDE_ALL_INSTALLED));
 	defer list.close();
 	if (list.is_nil()) return error::raise(
 		error::BACKEND_FAILURE,
@@ -198,13 +198,10 @@ fn State? read_state(Allocator allocator) @private
 		0,
 		"TISCreateInputSourceList returned no list"
 	)~;
-	sz total = cf::array_count(list.ptr);
-	sz kept  = 0;
-	for (sz i = 0; i < total; i++)
-	{
-		if (selectable(cf::array_at(list.ptr, i))) kept++;
-	}
-	Layout[] layouts = alloc::new_array(allocator, Layout, kept);
+	// One pass: a source that becomes selectable while the list is read must not overrun the array, so the
+	// array has room for every source in the list and only `out` of them are kept.
+	sz total         = cf::array_count(list.ptr);
+	Layout[] layouts = alloc::new_array(allocator, Layout, total);
 	sz out           = 0;
 	for (sz i = 0; i < total; i++)
 	{
@@ -250,7 +247,7 @@ fn void? select(String id) @private
 {
 	cf::Ref filter = keyboard_layout_filter();
 	defer filter.close();
-	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, ENABLED_ONLY));
+	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, INCLUDE_ALL_INSTALLED));
 	defer list.close();
 	if (list.is_nil()) return error::raise(
 		error::BACKEND_FAILURE,
@@ -325,7 +322,7 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		{
 			if (commands[i].kind != CommandKind.SWITCH_TO) continue;
 			SwitchOperation* operation = commands[i].operation;
-			if (catch err = select(commands[i].id_text()))
+			if (catch err = select(commands[i].id))
 			{
 				input::fail_switch(operation, err);
 			}
@@ -336,5 +333,4 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		}
 		refresh(backend, hub);
 	}
-	input::fail_queued(host);
 }

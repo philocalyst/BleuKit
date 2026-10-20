@@ -8,12 +8,13 @@
  so; see the README.
 *>
 module bleu::brightness::linux @feat(LINUX);
-import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::brightness, bleu::brightness::linux_ddc, bleu::brightness::logind, bleu::brightness::sysfs, bleu::dbus::connection, bleu::error, bleu::rt::worker, bleu::unit;
+import std::collections::list, std::collections::maybe, std::time, std::time::clock, bleu::availability, bleu::brightness, bleu::brightness::linux_ddc, bleu::brightness::logind, bleu::brightness::sysfs, bleu::dbus::connection, bleu::error, bleu::rt::worker, bleu::unit;
 
-<* The backend's state. Created on the calling thread; `bus` is used on the worker only. *>
+<* The backend's state. Created on the calling thread; `bus` and the routes are used on the worker only. *>
 struct Linux
 {
 	Allocator allocator;
+	Clock started;
 	String root;
 	String bus_address;
 	OpenBusFn open_bus;
@@ -21,6 +22,9 @@ struct Linux
 	Duration poll;
 	Duration step;
 	Connection bus;
+	Route bus_route;
+	Route panel_route;
+	Route led_route;
 	Platform platform;
 	List{DdcDisplay*} displays;
 }
@@ -63,6 +67,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		Linux,
 		{
 			.allocator = allocator,
+			.started = clock::now(),
 			.root = options.root.copy(allocator),
 			.bus_address = options.bus_address.copy(allocator),
 			.open_bus = options.open_bus,
@@ -140,7 +145,13 @@ fn void Linux.read_panel(&self, Allocator allocator, List{Device}* devices)
 	{
 		List{Control} controls;
 		controls.init(tmem);
-		controls.push(sysfs::knob_control(BACKLIGHT, self.root, sysfs::BACKLIGHT_CLASS, name, self.bus.is_open));
+		controls.push(sysfs::knob_control(
+			BACKLIGHT,
+			self.root,
+			sysfs::BACKLIGHT_CLASS,
+			name,
+			self.logind_up(&self.panel_route)
+		));
 		brightness::add_device(allocator, devices, name, "panel backlight", PANEL, controls.array_view());
 	}
 }
@@ -155,7 +166,13 @@ fn void Linux.read_leds(&self, Allocator allocator, List{Device}* devices)
 			if (!sysfs::is_keyboard_backlight(name)) continue;
 			List{Control} controls;
 			controls.init(tmem);
-			controls.push(sysfs::knob_control(KEYBOARD_LED, self.root, sysfs::LED_CLASS, name, self.bus.is_open));
+			controls.push(sysfs::knob_control(
+				KEYBOARD_LED,
+				self.root,
+				sysfs::LED_CLASS,
+				name,
+				self.logind_up(&self.led_route)
+			));
 			brightness::add_device(allocator, devices, name, "keyboard backlight", KEYBOARD, controls.array_view());
 		}
 	}
@@ -176,7 +193,18 @@ fn Applied? write_control(void* context, String device_id, Mechanism mechanism, 
 	}
 }
 
-// Write a sysfs knob: logind first, then the file itself. The panel and the LED must be the one the name says.
+// Whether logind can carry writes for `route` now: the bus is open and the route is not switched off.
+fn bool Linux.logind_up(&self, Route* route) => self.bus.is_open && route.usable(self.uptime());
+
+// Time since the backend started, for the routes' retry intervals.
+fn Duration Linux.uptime(&self) => (Duration)((long)clock::now().nano_diff(self.started) / 1000);
+
+<*
+ Write a sysfs knob. logind carries the write when its route is up; otherwise, or when logind
+ refuses it, the file is written directly and the route backs off. A write that fails on both
+ says why logind refused. The device's own report is then read back and must agree with the
+ raw value written.
+*>
 fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level level)
 {
 	@pool()
@@ -208,26 +236,48 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 			"'%s' has no maximum brightness",
 			device_id
 		)~;
-		long raw     = level.to_raw(0, max);
-		bool carried = false;
-		if (self.bus.is_open)
+		long raw       = level.to_raw(0, max);
+		Route* route   = panel ? &self.panel_route : &self.led_route;
+		Duration now   = self.uptime();
+		bool asked     = false;
+		bool carried   = false;
+		fault refusal  = error::UNAVAILABLE;
+		if (self.bus.is_open && route.usable(now))
 		{
+			asked = true;
 			if (catch err = logind::set_brightness(&self.bus, subsystem, device_id, (uint)raw))
 			{
-				// logind refused or is not reachable: the file is written below instead.
+				refusal = err;
+				route.refuse(now);
 				if (err == error::DISCONNECTED) self.bus.close();
 			}
 			else
 			{
+				route.accept();
 				carried = true;
 			}
 		}
-		if (!carried) sysfs::write_knob(self.root, directory, device_id, raw)!;
+		if (!carried)
+		{
+			if (catch err = sysfs::write_knob(self.root, directory, device_id, raw))
+			{
+				if (!asked) return err~;
+				return error::raise(
+					err,
+					error::Domain.INTERNAL,
+					0,
+					"'%s' was not written: logind %s, and the brightness file failed",
+					device_id,
+					logind::refusal_text(refusal)
+				)~;
+			}
+		}
 		Maybe{Level} read_back = { };
 		if (try actual = sysfs::read_number(dir, "actual_brightness"))
 		{
 			read_back = maybe::value(unit::from_raw(actual, 0, max));
 		}
+		brightness::confirm_read_back(device_id, raw, 0, max, read_back)!;
 		return brightness::applied_at(mechanism, level, raw, 0, max, read_back);
 	};
 }
@@ -242,20 +292,30 @@ fn Applied? Linux.write_ddc(&self, String device_id, Level level)
 	return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no external monitor '%s'", device_id)~;
 }
 
-// Open the logind connection if it is not open. A failure is retried on the next pass.
+// Open the logind connection if it is not open. A failure backs off for `RETRY_INTERVAL`; the sysfs route still works meanwhile.
 fn void Linux.ensure_bus(&self)
 {
 	if (self.bus.is_open) return;
+	Duration now = self.uptime();
+	if (!self.bus_route.usable(now)) return;
 	if (self.bus_address.len > 0)
 	{
 		if (catch self.bus.open_address(self.bus_address))
 		{
-			// logind is not reachable yet; the sysfs route still works.
+			self.bus_route.refuse(now);
+		}
+		else
+		{
+			self.bus_route.accept();
 		}
 		return;
 	}
 	if (catch self.bus.open_system())
 	{
-		// No system bus here; the sysfs route still works.
+		self.bus_route.refuse(now);
+	}
+	else
+	{
+		self.bus_route.accept();
 	}
 }

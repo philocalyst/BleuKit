@@ -146,6 +146,8 @@ fn ConnectionPhase phase_from_device_state(uint state)
 		case DEVICE_STATE_ACTIVATED: return CONNECTED;
 		case DEVICE_STATE_DEACTIVATING: return DISCONNECTING;
 		case DEVICE_STATE_FAILED: return FAILED;
+		case DEVICE_STATE_UNAVAILABLE:
+		case DEVICE_STATE_UNMANAGED: return ConnectionPhase.UNAVAILABLE;
 		default: return IDLE;
 	}
 }

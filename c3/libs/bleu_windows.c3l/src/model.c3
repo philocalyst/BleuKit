@@ -98,8 +98,8 @@ struct Output
 *>
 enum Connection : char
 {
+	DISCONNECTED, // first, so a zeroed State never reads as connected
 	CONNECTED,
-	DISCONNECTED,
 }
 
 <*
