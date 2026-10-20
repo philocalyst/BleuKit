@@ -18,7 +18,10 @@ here="$(cd "$(dirname "$0")" && pwd)"
 lib="$(cd "$here/.." && pwd)"
 repo="$(cd "$lib/../.." && pwd)"
 src="$lib/src"
-work="$(mktemp -d)"
+# The dbus-daemon listens on a Unix socket under $work, and a socket path holds at most 108 bytes:
+# the directory is made under /tmp whatever TMPDIR says, and a path that is still too long is refused.
+work="$(mktemp -d /tmp/bleu-bright.XXXXXX)"
+if [ "${#work}" -gt 80 ]; then echo "work directory $work is too long for a unix socket"; rm -rf "$work"; exit 2; fi
 libdir="$("$repo/tools/libdir.sh")"
 pids=()
 cleanup() {
@@ -74,14 +77,14 @@ make_root() {
   mkdir -p "$root/sys/class/backlight/intel_backlight" "$root/sys/class/leds/input5::kbd_backlight"
   echo firmware >"$root/sys/class/backlight/intel_backlight/type"
   echo 48000 >"$root/sys/class/backlight/intel_backlight/brightness"
-  echo 48000 >"$root/sys/class/backlight/intel_backlight/actual_brightness"
+  ln -s brightness "$root/sys/class/backlight/intel_backlight/actual_brightness"  # the report follows the setpoint
   echo 96000 >"$root/sys/class/backlight/intel_backlight/max_brightness"
   echo 1 >"$root/sys/class/leds/input5::kbd_backlight/brightness"
   echo 3 >"$root/sys/class/leds/input5::kbd_backlight/max_brightness"
 }
 
 address="$(start_bus)"
-if [ -z "$address" ]; then echo "dbus-daemon did not start (see $work/daemon.log)"; exit 2; fi
+if [ -z "$address" ]; then echo "dbus-daemon did not start (see $work/daemon.log; socket path ${#work}+9 bytes)"; exit 2; fi
 
 for mode in ok unknown; do
   echo "== logind route, stand-in mode: $mode"

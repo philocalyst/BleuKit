@@ -152,8 +152,8 @@ extern fn bool cf_boolean_value(CFTypeRef boolean) @cname("CFBooleanGetValue");
 
 <*
  Read the current power sources, one `PowerSource` per source, allocated from `allocator`.
- The call opens no temporary-memory pool of its own, so it works with any allocator,
- including `tmem`.
+ The result is copied into `allocator` and does not depend on any pool, so a caller
+ may pass `tmem`.
 
  @return? error::BACKEND_FAILURE : "when IOPowerSources cannot produce a snapshot or the source list"
 *>

@@ -45,7 +45,10 @@ fn void tree_walk_finds_views_and_the_focus_path() @test
 			!model.windows[0].floating && !model.windows[1].floating,
 			"a tiled window is not floating: sway writes floating auto_off on it"
 		);
-		test::@check(model.windows[1].fullscreen.has_value && !model.windows[1].fullscreen.value, "fullscreen_mode 0 is not fullscreen");
+		test::@check(
+			model.windows[1].fullscreen.has_value && !model.windows[1].fullscreen.value,
+			"fullscreen_mode 0 is not fullscreen"
+		);
 		test::@check(!model.windows[1].maximized.has_value, "sway does not report maximized");
 		test::@check(
 			model.windows[1].geometry.has_value && model.windows[1].geometry.value.x == 1280,
@@ -152,7 +155,10 @@ fn void input_layout_events_update_the_layout() @test
 			.name = "input",
 			.payload = "{\"change\":\"xkb_layout\",\"input\":{\"identifier\":\"1133:16505:Logitech_USB_Mouse\",\"type\":\"keyboard\",\"xkb_active_layout_name\":\"Russian\",\"xkb_layout_names\":[\"Russian\"],\"xkb_active_layout_index\":0}}"
 		};
-		test::@check(sway::apply(&model, &arena, other) == backend::Refresh.NONE, "another keyboard's layout is ignored");
+		test::@check(
+			sway::apply(&model, &arena, other) == backend::Refresh.NONE,
+			"another keyboard's layout is ignored"
+		);
 		test::@check(model.layouts.current_name == "German (Germany)", "the held keyboard keeps its layout");
 	};
 }

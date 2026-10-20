@@ -63,9 +63,11 @@ fn Failure last_failure()
 		while (length > 0 && (buffer[length - 1] == '\n' || buffer[length - 1] == '\r')) length--;
 		return { .domain = error::Domain.WIN32, .code = (int)code, .text = ((String)buffer[:length]).tcopy() };
 	$else
+		// errno is the code only when the loader also names the failure. Without its text, errno
+		// may be left over from an unrelated call, so no code is reported.
 		int code     = (int)libc::errno();
 		ZString text = posix_dlerror();
-		if (!text) return { .domain = error::Domain.ERRNO, .code = code, .text = "the loader gave no reason" };
+		if (!text) return { .domain = error::Domain.ERRNO, .code = 0, .text = "the loader gave no reason" };
 		return { .domain = error::Domain.ERRNO, .code = code, .text = text.tcopy() };
 	$endif
 }

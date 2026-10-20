@@ -215,7 +215,7 @@ fn Source device_source(Allocator allocator, String path, BatteryInformation* in
 		.energy = energy,
 		.energy_full = full,
 		.energy_design = design,
-		.cycles = maybe::value(info.cycle_count),
+		.cycles = device_cycles(info.cycle_count),
 	};
 	if (has_both && full.value > (MilliWattHour)0)
 	{

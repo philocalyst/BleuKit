@@ -37,6 +37,12 @@ fn void device_state_from_power_state_bits() @test
 	assert(win32::device_state(0, false, false) == UNKNOWN, "no bits set: not reported yet");
 }
 
+fn void zero_cycles_are_unknown() @test
+{
+	assert(!win32::device_cycles(0).has_value, "a zero cycle count means the counter is unsupported");
+	assert(win32::device_cycles(212).value == 212);
+}
+
 fn void device_units_and_sentinels() @test
 {
 	assert(win32::device_is_relative(0x40000000));

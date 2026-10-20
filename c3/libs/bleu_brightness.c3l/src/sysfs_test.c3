@@ -46,3 +46,17 @@ fn void bus_comes_from_the_link_leaf() @test
 	assert(@catch(sysfs::bus_from_link("i2c-")) == NOT_FOUND);
 	assert(@catch(sysfs::bus_from_link("i2c-7x")) == NOT_FOUND);
 }
+
+fn void bus_numbers_have_at_most_nine_digits() @test
+{
+	int bus = sysfs::bus_from_link("../../devices/i2c-123456789")!!;
+	assert(bus == 123456789, "nine digits fit an int");
+	if (catch err = sysfs::bus_from_link("../../devices/i2c-1234567890"))
+	{
+		assert(err == NOT_FOUND, "ten digits would overflow an int and are refused");
+	}
+	else
+	{
+		assert(false, "an overlong bus number must not be accepted");
+	}
+}

@@ -27,10 +27,9 @@ extern const ObjId NS_APPLE_SCRIPT_ERROR_NUMBER @cname("NSAppleScriptErrorNumber
  or a record) returns an empty string. A script that fails returns the
  classified error, with the AppleScript message and error number in the detail.
 
- The result is allocated from `allocator`. This function opens no temporary-memory
- pool, so a caller may pass `tmem`; the result then lives until the caller's
- enclosing `@pool()` closes. The Objective-C autorelease pool is drained on return,
- after the result has been copied.
+ The result is allocated from `allocator` and is copied before the Objective-C
+ autorelease pool drains, so a caller may pass `tmem`; the result then lives until
+ the caller's enclosing `@pool()` closes.
 
  Blocking: the call waits for the target application to answer, which can take
  seconds. Run it on a service worker, never on a callback or the main thread.

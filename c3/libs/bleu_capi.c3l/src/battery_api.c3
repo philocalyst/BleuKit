@@ -97,7 +97,7 @@ fn String? battery_snapshot_json(void* native, Allocator allocator)
 	return json::to_json(allocator, snapshot.value);
 }
 
-fn void? battery_reader_next(void* native, Duration timeout)
+fn void*? battery_reader_next(void* native, Duration timeout)
 {
 	stream::Reader{battery::Event}* reader = (stream::Reader{battery::Event}*)native;
 	Snapshot{battery::Event}* packet = reader.next(timeout)!;
@@ -174,14 +174,14 @@ fn void free_watches(BatteryWatch* watch)
 *>
 fn capi::CStatus bleu_battery_open(BatteryOptions* options, BatteryHandle** out) @export("bleu_battery_open")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!out) return capi::argument_error("out must not be NULL");
 		*out = null;
 		BatteryOptions given = { };
 		if (options)
 		{
-			capi::CStatus status = capi::take_options(&given, BatteryOptions.sizeof, options, options.struct_size);
+			capi::CStatus status = capi::take_options(&given, BatteryOptions::size, options, options.struct_size);
 			if (status != capi::CStatus.OK) return status;
 		}
 		if (given.poll_ms > capi::MAX_MILLISECONDS) return capi::argument_error("poll_ms is longer than one year");
@@ -207,7 +207,7 @@ fn capi::CStatus bleu_battery_open(BatteryOptions* options, BatteryHandle** out)
 *>
 fn capi::CStatus bleu_battery_close(BatteryHandle* handle) @export("bleu_battery_close")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle) return capi::argument_error("handle must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -231,7 +231,7 @@ fn capi::CStatus bleu_battery_close(BatteryHandle* handle) @export("bleu_battery
 <* The name of the backend in use ("sysfs", "upower", "iokit", "win32"). Free it with `bleu_free`. *>
 fn capi::CStatus bleu_battery_backend_name(BatteryHandle* handle, char** out, usz* len) @export("bleu_battery_backend_name")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out || !len) return capi::argument_error("handle, out and len must not be NULL");
 		return capi::copy_out(handle.backend_name, out, len);
@@ -241,7 +241,7 @@ fn capi::CStatus bleu_battery_backend_name(BatteryHandle* handle, char** out, us
 <* Whether a capability works with this backend, and if not, why. *>
 fn capi::CStatus bleu_battery_capability(BatteryHandle* handle, battery::Cap cap, capi::Capability* out) @export("bleu_battery_capability")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out) return capi::argument_error("handle and out must not be NULL");
 		if ((usz)cap.ordinal > (usz)battery::Cap.PERIPHERALS.ordinal) return capi::argument_error("unknown capability");
@@ -253,7 +253,7 @@ fn capi::CStatus bleu_battery_capability(BatteryHandle* handle, battery::Cap cap
 <* Ask the backend to re-read the hardware now. *>
 fn capi::CStatus bleu_battery_refresh(BatteryHandle* handle) @export("bleu_battery_refresh")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle) return capi::argument_error("handle must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -265,7 +265,7 @@ fn capi::CStatus bleu_battery_refresh(BatteryHandle* handle) @export("bleu_batte
 <* The newest state, as an owned snapshot to release with `bleu_snapshot_release`. *>
 fn capi::CStatus bleu_battery_snapshot(BatteryHandle* handle, capi::CSnapshot** out) @export("bleu_battery_snapshot")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out) return capi::argument_error("handle and out must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -283,7 +283,7 @@ fn capi::CStatus bleu_battery_snapshot(BatteryHandle* handle, capi::CSnapshot** 
 *>
 fn capi::CStatus bleu_battery_snapshot_json(BatteryHandle* handle, char** out, usz* len) @export("bleu_battery_snapshot_json")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out || !len) return capi::argument_error("handle, out and len must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -302,7 +302,7 @@ fn capi::CStatus bleu_battery_snapshot_json(BatteryHandle* handle, char** out, u
 *>
 fn capi::CStatus bleu_battery_wait(BatteryHandle* handle, ulong seen, long timeout_ms, capi::CSnapshot** out) @export("bleu_battery_wait")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out) return capi::argument_error("handle and out must not be NULL");
 		if (timeout_ms < -1) return capi::argument_error("timeout_ms must be -1 or more");
@@ -337,7 +337,7 @@ fn battery::State* bleu_battery_snapshot_state(capi::CSnapshot* snapshot) @expor
 *>
 fn capi::CStatus bleu_battery_watch(BatteryHandle* handle, BatteryListener callback, void* context, ulong* out_id) @export("bleu_battery_watch")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !callback || !out_id) return capi::argument_error("handle, callback and out_id must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -359,7 +359,7 @@ fn capi::CStatus bleu_battery_watch(BatteryHandle* handle, BatteryListener callb
 <* Remove a listener. When this returns, the listener is not running and will not run again. *>
 fn capi::CStatus bleu_battery_unwatch(BatteryHandle* handle, ulong id) @export("bleu_battery_unwatch")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle) return capi::argument_error("handle must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
@@ -379,7 +379,7 @@ fn capi::CStatus bleu_battery_unwatch(BatteryHandle* handle, ulong id) @export("
 *>
 fn capi::CStatus bleu_battery_subscribe(BatteryHandle* handle, capi::CReader** out) @export("bleu_battery_subscribe")
 {
-	@capi_entry()
+	capi::@capi_entry()
 	{
 		if (!handle || !out) return capi::argument_error("handle and out must not be NULL");
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();

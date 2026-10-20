@@ -84,6 +84,7 @@ struct Hub
 	Worker{Command} worker;
 	HubPhase phase;
 	Atomic{bool} accepting; // set while the worker runs; `post` checks it before touching the mailbox
+	Atomic{bool} initialized; // set by a successful `start`, cleared by `free`: the locks exist
 }
 
 <*
@@ -140,6 +141,7 @@ fn void? Hub.start(
 		return err~;
 	}
 	self.accepting.store(true);
+	self.initialized.store(true);
 	self.phase = RUNNING;
 }
 
@@ -208,6 +210,7 @@ fn void Hub.free(&self)
 	self.worker.free();
 	self.state.destroy();
 	self.events.destroy();
+	self.initialized.store(false);
 	self.phase = NEW;
 }
 
@@ -239,8 +242,15 @@ fn EventPacket* Hub.emit_begin(&self) => self.events.begin();
 <* Deliver an event packet to all readers, consuming the caller's reference. *>
 fn void Hub.emit(&self, EventPacket* packet) => self.events.publish(packet);
 
-<* The latest published state, retained for the caller; `UNAVAILABLE` before the first publication. *>
-fn StateSnapshot*? Hub.latest(&self) => self.state.latest();
+<*
+ The latest published state, retained for the caller; `UNAVAILABLE` before the first
+ publication, and on a hub that was never started or has been freed.
+*>
+fn StateSnapshot*? Hub.latest(&self)
+{
+	if (!self.initialized.load()) return error::raise_text(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "hub has no state")~;
+	return self.state.latest();
+}
 
 <*
  Publish `snapshot` only if its value differs from the latest published one;

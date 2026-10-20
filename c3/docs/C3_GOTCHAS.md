@@ -228,3 +228,4 @@
 * A struct returned by value whose `Slice` members point at an array literal declared in the callee is dangling: the serialiser then crashed with `Out of bounds memory access` deep inside the writer. Return fixed arrays by value and build the slices in the caller.
 * A `defer` that frees a tree on error and not on success needs a guard flag (`bool handed_over = false; defer if (!handed_over) root.free();`), set just before the successful return.
 * DMS/dankgo wire: a zero request id is OMITTED from frames (omitempty), contrary to an earlier note in dms_surface.md; `defer` is a keyword (use `defer_reply`).
+* Child-module visibility: a module only sees siblings it imports; no `offsetof` in 0.8.5 (use `$assert` on struct sizes or `Type.member.offset` via reflection if available); guard Darwin-only code with `$feat(DARWIN)` inside shared files.

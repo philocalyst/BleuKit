@@ -106,3 +106,26 @@ fn void template_arguments_get_the_path() @test
 	}
 	assert(joined[0] == "--file=/a");
 }
+
+fn void gvariant_text_escapes_decode_and_unknown_ones_are_refused() @test
+{
+	String text = convert::unquote(mem, "'a\\nb\\t\\'c\\\\'")!!;
+	defer alloc::free(mem, text.ptr);
+	assert(text == "a\nb\t'c\\", "newline, tab, quote and backslash decode");
+	assert(@catch(convert::unquote(mem, "'\\u0041'")) == error::PROTOCOL, "an escape this reader does not know is refused");
+	assert(@catch(convert::unquote(mem, "'trailing\\'")) == error::PROTOCOL, "a dangling backslash is refused");
+}
+
+fn void file_uri_host_must_be_this_machine() @test
+{
+	String local = convert::path_from_file_uri(mem, "file://localhost/home/a.png")!!;
+	defer alloc::free(mem, local.ptr);
+	assert(local == "/home/a.png", "localhost is this machine");
+	String empty = convert::path_from_file_uri(mem, "file:///home/a.png")!!;
+	defer alloc::free(mem, empty.ptr);
+	assert(empty == "/home/a.png", "an empty host is this machine");
+	assert(@catch(convert::path_from_file_uri(mem, "file://server/share/x")) == error::INVALID_ARGUMENT,
+		"another host is not a local path");
+	assert(@catch(convert::path_from_file_uri(mem, "file://localhostx/a")) == error::INVALID_ARGUMENT,
+		"a host that only starts with localhost is another host");
+}

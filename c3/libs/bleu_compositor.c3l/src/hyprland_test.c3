@@ -255,7 +255,7 @@ fn void payloads_without_their_fields_ask_for_a_snapshot() @test
 	@pool()
 	{
 		compositor::Model model = fixture_model(&arena);
-		bool floating_before = model.windows[0].floating;
+		bool floating_before    = model.windows[0].floating;
 		test::@check(
 			hyprland::apply(
 				&model,
@@ -266,11 +266,19 @@ fn void payloads_without_their_fields_ask_for_a_snapshot() @test
 		);
 		test::@check(model.windows[0].floating == floating_before, "the floating state is not invented");
 		test::@check(
-			hyprland::apply(&model, &arena, hyprland::parse_event("fullscreen>>")!!) == backend::Refresh.REFRESH_NEEDED,
+			hyprland::apply(
+				&model,
+				&arena,
+				hyprland::parse_event("fullscreen>>")!!
+			) == backend::Refresh.REFRESH_NEEDED,
 			"a fullscreen event without its flag asks for a snapshot"
 		);
 		test::@check(
-			hyprland::apply(&model, &arena, hyprland::parse_event("fullscreen>>2")!!) == backend::Refresh.REFRESH_NEEDED,
+			hyprland::apply(
+				&model,
+				&arena,
+				hyprland::parse_event("fullscreen>>2")!!
+			) == backend::Refresh.REFRESH_NEEDED,
 			"a fullscreen flag that is not 0 or 1 asks for a snapshot"
 		);
 	};

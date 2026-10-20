@@ -121,11 +121,11 @@ fn bool? bool_from_gnome(String value)
 }
 
 <*
- The text of a GVariant string as `gsettings get` prints it: 'text', where `\\`
- and `\'` stand for a backslash and a quote.
+ The text of a GVariant string as `gsettings get` prints it: 'text', with the escapes of GVariant text
+ (`\\`, `\'`, `\"`, `\n`, `\t`, `\r`, `\a`, `\b`, `\f`, `\v`) decoded. Any other escape is refused.
 
  @param allocator : "Allocator for the returned text"
- @return? error::PROTOCOL : "The text is not a quoted GVariant string"
+ @return? error::PROTOCOL : "The text is not a quoted GVariant string, or has an escape this reader does not know"
 *>
 fn String? unquote(Allocator allocator, String printed)
 {
@@ -133,18 +133,46 @@ fn String? unquote(Allocator allocator, String printed)
 	if (text.len < 2 || text[0] != '\'' || text[text.len - 1] != '\'') return error::PROTOCOL~;
 	String inner = text[1:text.len - 2];
 	char[] out   = alloc::new_array(allocator, char, inner.len);
-	usz n        = 0;
+	// The buffer is released when an escape is refused, so an error leaves nothing allocated.
+	bool handed_over = false;
+	defer if (!handed_over) alloc::free(allocator, out.ptr);
+	usz n = 0;
 	for (usz i = 0; i < inner.len; i++)
 	{
 		char c = inner[i];
-		if (c == '\\' && i + 1 < inner.len)
+		if (c != '\\')
 		{
-			i++;
-			c = inner[i];
+			out[n++] = c;
+			continue;
 		}
-		out[n++] = c;
+		if (i + 1 >= inner.len) return error::PROTOCOL~;
+		i++;
+		char? decoded = escape_char(inner[i]);
+		if (catch err = decoded) return err~;
+		out[n++] = decoded;
 	}
+	handed_over = true;
 	return (String)out[0:n];
+}
+
+// The character a GVariant text escape stands for (the character after the backslash). PROTOCOL for any
+// escape this reader does not decode.
+fn char? escape_char(char c) @private
+{
+	switch (c)
+	{
+		case 'a': return (char)7;
+		case 'b': return (char)8;
+		case 'f': return (char)12;
+		case 'n': return (char)10;
+		case 'r': return (char)13;
+		case 't': return (char)9;
+		case 'v': return (char)11;
+		case '\\': return '\\';
+		case '\'': return '\'';
+		case '"': return '"';
+		default: return error::PROTOCOL~;
+	}
 }
 
 <*
@@ -203,16 +231,25 @@ fn bool is_unreserved(char c) @private
 	return c == '-' || c == '.' || c == '_' || c == '~' || c == '/';
 }
 
+const String LOCAL_HOST = "localhost";
+
 <*
- The path of a `file://` URI, with %XX escapes decoded.
+ The path of a `file://` URI, with %XX escapes decoded. The host must be empty or "localhost": a file on
+ another host (`file://server/share/x`) is not a path on this machine.
 
  @param allocator : "Allocator for the returned path"
- @return? error::INVALID_ARGUMENT : "The URI does not start with file://"
+ @return? error::INVALID_ARGUMENT : "The URI does not start with file://, or names another host"
 *>
 fn String? path_from_file_uri(Allocator allocator, String uri)
 {
 	if (!uri.starts_with(FILE_SCHEME)) return error::INVALID_ARGUMENT~;
 	String rest = uri[FILE_SCHEME.len:uri.len - FILE_SCHEME.len];
+	if (!rest.starts_with("/"))
+	{
+		if (!rest.starts_with(LOCAL_HOST)) return error::INVALID_ARGUMENT~;
+		rest = rest[LOCAL_HOST.len:rest.len - LOCAL_HOST.len];
+		if (!rest.starts_with("/")) return error::INVALID_ARGUMENT~;
+	}
 	char[] out  = alloc::new_array(allocator, char, rest.len);
 	usz n       = 0;
 	for (usz i = 0; i < rest.len; i++)

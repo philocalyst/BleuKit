@@ -37,11 +37,6 @@ fn State? world_read(void* context, Allocator allocator)
 		.raw_min = 0,
 		.raw_max = 100,
 	};
-	if (world.unreadable)
-	{
-		Maybe{Level} none = { };
-		controls[0].level = none;
-	}
 	controls[1] = {
 		.mechanism = Mechanism.GAMMA,
 		.readable = true,
@@ -49,6 +44,13 @@ fn State? world_read(void* context, Allocator allocator)
 		.availability = availability::YES,
 		.level = maybe::value((Level)world.gamma),
 	};
+	if (world.unreadable)
+	{
+		// No control of the device has a level: there is nothing to ramp from.
+		Maybe{Level} none = { };
+		controls[0].level = none;
+		controls[1].level = none;
+	}
 	Device[] devices = alloc::new_array(allocator, Device, 1);
 	devices[0] = {
 		.id = "panel".copy(allocator),

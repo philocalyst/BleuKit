@@ -137,8 +137,8 @@ fn SubscriptionId? Connection.subscribe(
 	void* owned = null
 )
 {
-	begin_operation(self);
-	defer end_operation(self);
+	connection::begin_operation(self);
+	defer connection::end_operation(self);
 	String rule_text = rule.rule_text();
 	if (catch err = add_match(self, rule_text))
 	{

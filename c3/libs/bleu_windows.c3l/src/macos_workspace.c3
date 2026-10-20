@@ -302,13 +302,8 @@ fn windows::Workspace[] spaces_of(Session* session, Allocator allocator) @privat
 	if (catch err = space) return { };
 	windows::Workspace[] spaces = alloc::new_array(allocator, windows::Workspace, 1);
 	spaces[0] = {
-		.id = string::tformat("%d", (long)space).copy(allocator),
-		.name = "",
-		.output_id = "",
-		.active = true,
-		.visible = true,
-		.window_count = 0,
-	};
+		.id = string::tformat("%d", (long)space)
+		.copy(allocator), .name = "", .output_id = "", .active = true, .visible = true, .window_count = 0, };
 	return spaces;
 }
 
@@ -491,7 +486,9 @@ fn void? focus(Session* session, long number) @private
 	}
 	if (session.trusted)
 	{
-		if (topmost_window_of(pid) != number) return error::raise(
+		if (topmost_window_of(
+			pid
+		) != number) return error::raise(
 			error::UNSUPPORTED,
 			error::Domain.INTERNAL,
 			0,
@@ -531,7 +528,9 @@ fn void? minimize(Session* session, long number) @private
 fn cf::Ref? named_focused_window(long number) @private
 {
 	int pid = pid_of(number)!;
-	if (pid != frontmost_pid() || topmost_window_of(pid) != number) return error::raise(
+	if (pid != frontmost_pid() || topmost_window_of(
+		pid
+	) != number) return error::raise(
 		error::UNSUPPORTED,
 		error::Domain.INTERNAL,
 		0,

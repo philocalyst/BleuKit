@@ -37,7 +37,7 @@ fn Maybe{Level} summary_percent(uint raw)
 	return maybe::value(unit::from_percent((float)raw));
 }
 
-<* A GetSystemPowerStatus duration in microseconds. 0xFFFFFFFF is unknown. *>
+<* A GetSystemPowerStatus duration in seconds, returned in microseconds. 0xFFFFFFFF is unknown. *>
 fn Maybe{Duration} summary_seconds(uint raw)
 {
 	if (raw == SUMMARY_UNKNOWN_SECONDS) return { };
@@ -84,6 +84,16 @@ fn ChargeState device_state(uint power_state, bool full, bool empty)
 
 <* Whether the battery reports relative units. Its rates are per hour and its capacities are not mWh. *>
 fn bool device_is_relative(uint capabilities) @inline => (capabilities & DEVICE_CAPACITY_RELATIVE) != 0;
+
+<*
+ A cycle count from BATTERY_INFORMATION.CycleCount. Learn battery-information-str: "If the
+ battery does not support a cycle counter, this member is zero", so zero is unknown, not a count.
+*>
+fn Maybe{uint} device_cycles(uint raw)
+{
+	if (raw == 0) return { };
+	return maybe::value(raw);
+}
 
 <* A capacity in mWh; unknown when the driver reports the sentinel. *>
 fn Maybe{MilliWattHour} device_capacity(uint raw)

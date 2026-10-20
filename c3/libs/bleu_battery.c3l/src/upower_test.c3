@@ -3,9 +3,9 @@ import std::time, bleu::battery, bleu::battery::upower, bleu::unit;
 
 fn void enums_map_as_the_spec_says() @test
 {
-	assert(upower::device_kind(1) == MAINS && upower::device_kind(2) == BATTERY);
-	assert(upower::device_kind(3) == UPS && upower::device_kind(5) == PERIPHERAL);
-	assert(upower::device_kind(0) == UNKNOWN);
+	assert(upower::device_kind(1, true) == MAINS && upower::device_kind(2, true) == BATTERY);
+	assert(upower::device_kind(3, true) == UPS && upower::device_kind(5, true) == PERIPHERAL);
+	assert(upower::device_kind(0, true) == UNKNOWN);
 	assert(upower::device_state(1) == CHARGING && upower::device_state(2) == DISCHARGING);
 	assert(upower::device_state(4) == FULL && upower::device_state(3) == EMPTY);
 	assert(upower::device_state(5) == NOT_CHARGING && upower::device_state(6) == NOT_CHARGING);
@@ -31,4 +31,11 @@ fn void unknown_markers_are_empty() @test
 	assert(upower::cycles_from(0).value == 0, "zero cycles is a value");
 	assert(!upower::charge_from_percentage(-1.0).has_value);
 	assert((float)upower::charge_from_percentage(25.0).value == 0.25f);
+}
+
+// PowerSupply FALSE marks a wireless mouse or a PDA that UPower reports as Type 2 (a battery).
+fn void a_battery_that_is_not_a_power_supply_is_a_peripheral() @test
+{
+	assert(upower::device_kind(2, false) == PERIPHERAL);
+	assert(upower::device_kind(1, false) == MAINS, "PowerSupply does not change line power");
 }

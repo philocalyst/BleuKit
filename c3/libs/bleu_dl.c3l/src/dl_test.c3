@@ -3,7 +3,7 @@
  library and libm, which every target ships under a known name.
 *>
 module bleu::dl::tests;
-import bleu::dl, bleu::dl::lazy, bleu::error;
+import bleu::dl, bleu::dl::lazy, bleu::dl::native, bleu::error, std::io;
 
 alias StrlenFn = fn usz(ZString s);
 alias CosFn = fn double(double x);
@@ -183,4 +183,22 @@ fn void lazy_caches_a_failed_bind() @test
 	{
 		unreachable("the required symbol is missing, so the cached outcome is a failure");
 	}
+}
+
+// DL-1: with no loader text, errno from an unrelated call is not reported as the failure's code.
+fn void failure_without_loader_text_has_no_code() @test
+{
+	$if env::WIN32:
+		return;
+	$else
+		@pool()
+		{
+			// Clear the loader's text, then fail a call that sets errno (ENOENT) but no dlerror text.
+			native::posix_dlerror();
+			if (catch io::file::open("/nonexistent-bleu-dl/x", "rb")) {}
+			native::Failure failure = native::last_failure();
+			test::eq(failure.code, 0);
+			test::eq(failure.text, "the loader gave no reason");
+		};
+	$endif
 }

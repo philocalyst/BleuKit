@@ -67,7 +67,7 @@ fn Battery*? open(Allocator allocator, Options options = { })
 		driver.info.name,
 		driver.run,
 		self.driver_state,
-		service::DEFAULT_QUEUE,
+		service::DEFAULT_QUEUE{State, Command, Event},
 		&abandon
 	))
 	{
@@ -134,8 +134,12 @@ fn WatchId{State} Battery.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Battery.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Battery.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (sources added/removed, mains changed). *>
 fn Reader{Event}*? Battery.subscribe(&self) => self.hub.events.subscribe();

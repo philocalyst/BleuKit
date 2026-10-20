@@ -62,4 +62,4 @@ fn void emit_changes(BatteryHub* hub, State* before, State* after)
 		}
 	};
 }
-</content>
+

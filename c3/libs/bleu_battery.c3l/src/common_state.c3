@@ -166,4 +166,3 @@ fn State copy_state(State* from, Allocator allocator)
 	}
 	return state;
 }
-</content>

@@ -458,3 +458,181 @@ fn void unconfirmed_change_is_rolled_back() @test
 	assert(!session.guard.armed && session.pending == null);
 	t.join()!!;
 }
+// The compositor that takes a test request and never answers it.
+uint silent_config = 0;
+
+fn int silent_test_scenario(void* arg)
+{
+	foreign::@foreign_entry()
+	{
+		testing::MockServer* s = (testing::MockServer*)arg;
+		uint registry          = serve_registry(s, true);
+		uint manager           = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
+		testing::Message sync  = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
+		send_head(s, manager);
+		answer_sync(s, s.reader(sync).get_new_id()!!);
+		silent_config = expect_configure(s, manager, false);
+		expect_request(s, silent_config, CONFIG_TEST);
+	};
+	return 0;
+}
+
+// Past the request deadline (CONFIG_TIMEOUT is 5 s).
+const ulong PAST_CONFIG_TIMEOUT_NANOS = 6_000_000_000;
+
+// Any new id the client may use for the probe below; the mock never answers it.
+const uint PROBE_CALLBACK = 0xFF00_0100;
+
+// DI-2: a request that times out must destroy its configuration object, so no late answer reaches the freed request.
+fn void a_timed_out_configuration_is_destroyed() @test
+{
+	testing::MockServer server;
+	defer server.close();
+	wl::Client* client = connect(&server);
+	Thread t;
+	t.create(&silent_test_scenario, &server)!!;
+	linux_wayland::Session* session = linux_wayland::attach(mem, client, "")!!;
+	defer session.close();
+	ApplyOp* op = operation::begin(mem);
+	op.retain();
+	display::OutputChange[1] changes = {
+		{
+			.output_id = "DP-1",
+			.enabled = true,
+			.mode = { .width = 1920, .height = 1080, .refresh = 60000 },
+			.transform = display::Transform.R90
+		},
+	};
+	display::Config config = owned(op, { .outputs = changes[..] });
+	linux_wayland::begin_apply(
+		session,
+		{ .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.TEST_ONLY },
+		clock::now()
+	);
+	session.client.flush()!!;
+	t.join()!!;
+	// The compositor stays silent past the request's deadline.
+	linux_wayland::advance(session, clock::now() + (Clock)PAST_CONFIG_TIMEOUT_NANOS);
+	test::@error(op.wait(time::sec(1)), TIMEOUT);
+	op.release();
+	// Everything the client sent up to a sync of its own, which the mock reads in order.
+	wire::Writer probe;
+	probe.begin(WL_DISPLAY, DISPLAY_SYNC);
+	probe.put_uint(PROBE_CALLBACK)!!;
+	session.client.conn.send(&probe)!!;
+	session.client.flush()!!;
+	bool destroyed = false;
+	while (true)
+	{
+		testing::Message message = server.receive()!!;
+		if (message.object == WL_DISPLAY && message.opcode == DISPLAY_SYNC) break;
+		if (message.object == silent_config && message.opcode == CONFIG_DESTROY) destroyed = true;
+	}
+	assert(destroyed, "the timed-out configuration object was destroyed");
+	// A late answer for the retired object is ignored, not delivered to the freed request.
+	send_config_result(&server, silent_config, CONFIG_SUCCEEDED);
+	session.client.dispatch()!!;
+}
+
+// The compositor for DI-3: one change applied with a rollback armed, then a second one that is never answered.
+fn int stop_during_apply_scenario(void* arg)
+{
+	foreign::@foreign_entry()
+	{
+		testing::MockServer* s = (testing::MockServer*)arg;
+		uint registry          = serve_registry(s, true);
+		uint manager           = expect_bind(s, registry, MANAGER_GLOBAL, "zwlr_output_manager_v1", 4);
+		testing::Message sync  = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
+		send_head(s, manager);
+		answer_sync(s, s.reader(sync).get_new_id()!!);
+		uint tested = expect_configure(s, manager, false);
+		expect_request(s, tested, CONFIG_TEST);
+		send_config_result(s, tested, CONFIG_SUCCEEDED);
+		expect_request(s, tested, CONFIG_DESTROY);
+		uint applied = expect_configure(s, manager, false);
+		expect_request(s, applied, CONFIG_APPLY);
+		send_config_result(s, applied, CONFIG_SUCCEEDED);
+		expect_request(s, applied, CONFIG_DESTROY);
+		uint second = expect_configure(s, manager, false);
+		expect_request(s, second, CONFIG_TEST);
+	};
+	return 0;
+}
+
+// DI-3: a stop while a second change is in flight and a rollback is armed must fail the second change, not strand it.
+fn void stop_during_an_apply_does_not_strand_its_waiter() @test
+{
+	testing::MockServer server;
+	defer server.close();
+	wl::Client* client = connect(&server);
+	Thread t;
+	t.create(&stop_during_apply_scenario, &server)!!;
+	linux_wayland::Session* session = linux_wayland::attach(mem, client, "")!!;
+	defer session.close();
+	ApplyOp* first = operation::begin(mem);
+	first.retain();
+	display::OutputChange[1] turned = {
+		{
+			.output_id = "DP-1",
+			.enabled = true,
+			.mode = { .width = 1920, .height = 1080, .refresh = 60000 },
+			.transform = display::Transform.R90
+		},
+	};
+	linux_wayland::begin_apply(
+		session,
+		{
+			.kind = display::CommandKind.APPLY,
+			.op = first,
+			.config = owned(first, { .outputs = turned[..] }),
+			.mode = display::ApplyMode.APPLY_WITH_REVERT,
+			.revert_after = (Duration)60_000_000
+		},
+		clock::now()
+	);
+	pump(session);
+	display::ApplyResult applied = first.wait()!!;
+	assert(applied.live && applied.revert_armed);
+	first.release();
+	display::OutputChange[1] turned_again = {
+		{
+			.output_id = "DP-1",
+			.enabled = true,
+			.mode = { .width = 1920, .height = 1080, .refresh = 60000 },
+			.transform = display::Transform.R180
+		},
+	};
+	ApplyOp* second = operation::begin(mem);
+	second.retain();
+	linux_wayland::begin_apply(
+		session,
+		{
+			.kind = display::CommandKind.APPLY,
+			.op = second,
+			.config = owned(second, { .outputs = turned_again[..] }),
+			.mode = display::ApplyMode.APPLY_WITH_REVERT,
+			.revert_after = (Duration)60_000_000
+		},
+		clock::now()
+	);
+	session.client.flush()!!;
+	t.join()!!;
+	assert(session.guard.armed && session.pending != null);
+	linux_wayland::shutdown(session);
+	test::@error(second.wait(time::ms(200)), error::DISCONNECTED);
+	second.release();
+}
+
+// DI-8: a head with no change in the configuration is refused, not given output 0's settings.
+fn void a_head_missing_from_the_configuration_is_refused() @test
+{
+	display::OutputChange[1] changes = {
+		{ .output_id = "DP-1", .enabled = true, .mode = { .width = 1920, .height = 1080, .refresh = 60000 } },
+	};
+	display::Config config = { .outputs = changes[..] };
+	linux_wayland::OutputRecord rec;
+	rec.name = "DP-2";
+	test::@error(linux_wayland::change_index(config, &rec), error::INVALID_STATE);
+	rec.name = "DP-1";
+	assert(linux_wayland::change_index(config, &rec)!! == 0);
+}

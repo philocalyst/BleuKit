@@ -52,3 +52,11 @@ fn void repeating_timers_rearm() @test
 	test::eq((usz)9, fired[0]);
 	queue.cancel(9)!!;
 }
+fn void a_repeating_timer_needs_a_positive_period() @test
+{
+	timers::TimerQueue queue;
+	queue.init(mem);
+	defer queue.free();
+	test::@error(queue.schedule_repeating(4, time::DURATION_ZERO), error::INVALID_ARGUMENT);
+	test::@check(queue.next_timeout() == time::FOREVER, "a refused timer was not queued");
+}

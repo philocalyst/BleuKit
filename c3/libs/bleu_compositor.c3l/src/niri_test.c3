@@ -203,7 +203,7 @@ fn void a_workspace_activation_moves_the_shown_workspace_of_its_output() @test
 	defer arena.free();
 	@pool()
 	{
-		compositor::Model model = fixture_model(&arena);
+		compositor::Model model     = fixture_model(&arena);
 		compositor::Output* laptop  = output_named(&model, "eDP-1");
 		compositor::Output* monitor = output_named(&model, "HDMI-A-1");
 		test::@check(laptop.active_workspace == "1", "the laptop starts out showing workspace 1");

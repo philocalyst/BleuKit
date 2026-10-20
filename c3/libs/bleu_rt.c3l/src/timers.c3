@@ -59,12 +59,10 @@ fn void? TimerQueue.schedule(&self, usz id, Duration delay)
  owner was busy) is not replayed as a burst: the next firing is `period` after
  the moment it is noticed.
 
- @require period > time::DURATION_ZERO : "A repeating timer needs a positive period"
- @return? error::INVALID_ARGUMENT : "A timer with this id is already pending, or the period is not positive"
+ @return? error::INVALID_ARGUMENT : "A timer with this id is already pending, or the period is not positive (a zero period would fire on every poll, so it is refused rather than made one-shot)"
 *>
 fn void? TimerQueue.schedule_repeating(&self, usz id, Duration period)
 {
-	// A zero period would fire on every poll: with contracts off it must not become a one-shot silently.
 	if (period <= time::DURATION_ZERO)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "repeating period must be positive")~;

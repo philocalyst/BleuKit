@@ -20,14 +20,24 @@ when the secret is missing or wrong] -> IP_CONFIG(70) -> ACTIVATED(100).
 A wrong passphrase ends in FAILED(120) with NO_SECRETS(7). An unknown SSID
 ends in FAILED(120) with SSID_NOT_FOUND(53).
 
-Environment: none. The bus address comes from DBUS_SYSTEM_BUS_ADDRESS (run.sh
-sets it to a private dbus-daemon). Prints READY on stdout once the name is owned.
+Fault injection for the scenario tests: each file named in BLEU_NETWORK_TEST_FAULTS
+(a directory) switches a fault on while its first character is "1":
+
+* wifi-fail: GetAllAccessPoints fails (a sub-read that fails for another reason);
+* vanish-ap: GetAllAccessPoints also lists an access point that does not exist (it left
+  between the list and the property read);
+* no-agent: AgentManager.Register is refused (bus policy).
+
+Environment: BLEU_NETWORK_TEST_FAULTS (the fault directory, "" for none). The bus
+address comes from DBUS_SYSTEM_BUS_ADDRESS (run.sh sets it to a private dbus-daemon).
+Prints READY on stdout once the name is owned.
 """
 import asyncio
 import os
 import sys
 
 from dbus_next import Message, MessageType, Variant
+from dbus_next.errors import DBusError
 from dbus_next.aio import MessageBus
 from dbus_next.service import PropertyAccess, ServiceInterface, dbus_property, method, signal
 
@@ -54,6 +64,11 @@ TYPE_ETHERNET, TYPE_WIFI = 1, 2
 
 # Access points: SSID octets, flags (NM80211ApFlags, NM80211ApSecurityFlags), strength, MHz, passphrase.
 # The third SSID is not UTF-8 on purpose: the backend must keep its bytes.
+FAULTS = os.environ.get('BLEU_NETWORK_TEST_FAULTS', '')
+
+# Saved profiles seeded at start: two for one network, so that forgetting it must delete both.
+SEEDED_PROFILES = [(SETTINGS + '/Connection/901', b'Twin'), (SETTINGS + '/Connection/902', b'Twin')]
+
 ACCESS_POINTS_TABLE = [
     {'ssid': b'Cafe', 'flags': 0, 'wpa': 0, 'rsn': 0, 'strength': 70, 'mhz': 2437, 'psk': None},
     {'ssid': b'Office', 'flags': 1, 'wpa': 0, 'rsn': 0x100, 'strength': 90, 'mhz': 5180, 'psk': 'correct horse'},
@@ -112,6 +127,17 @@ class State:
         self.bus.export(self.active_path, self.active_iface)
         self.root.emit_properties_changed({'PrimaryConnection': self.active_path})
         return self.active_path
+
+
+def fault(name):
+    """Whether the fault `name` is switched on (its file starts with "1")."""
+    if not FAULTS:
+        return False
+    try:
+        with open(os.path.join(FAULTS, name)) as handle:
+            return handle.read(1) == '1'
+    except OSError:
+        return False
 
 
 def ap_for_ssid(ssid):
@@ -218,7 +244,13 @@ class WirelessIface(ServiceInterface):
 
     @method()
     def GetAllAccessPoints(self) -> 'ao':
-        return [ACCESS_POINTS + '/%d' % (i + 1) for i in range(len(ACCESS_POINTS_TABLE))]
+        if fault('wifi-fail'):
+            raise DBusError('org.freedesktop.NetworkManager.Failed', 'injected: the access point list failed')
+        paths = [ACCESS_POINTS + '/%d' % (i + 1) for i in range(len(ACCESS_POINTS_TABLE))]
+        if fault('vanish-ap'):
+            # Listed, but never exported: its property read fails with UnknownObject, as for an access point that left.
+            paths.append(ACCESS_POINTS + '/99')
+        return paths
 
     @method()
     def RequestScan(self, options: 'a{sv}'):
@@ -302,7 +334,8 @@ class AgentManagerIface(ServiceInterface):
 
     @method()
     def Register(self, identifier: 's'):
-        pass
+        if fault('no-agent'):
+            raise DBusError('org.freedesktop.NetworkManager.Failed', 'injected: the agent was refused')
 
     @method()
     def Unregister(self):
@@ -311,7 +344,8 @@ class AgentManagerIface(ServiceInterface):
 
 def on_message(state, msg):
     if msg.message_type == MessageType.METHOD_CALL and msg.interface == 'org.freedesktop.NetworkManager.AgentManager' and msg.member == 'Register':
-        state.agent_name = msg.sender
+        if not fault('no-agent'):
+            state.agent_name = msg.sender
     return None
 
 
@@ -470,6 +504,13 @@ async def run():
     bus.export(DEVICES + '/2', ethernet)
     bus.export(SETTINGS, settings)
     bus.export(ROOT + '/AgentManager', AgentManagerIface(state))
+    for path, ssid in SEEDED_PROFILES:
+        state.profiles[path] = {
+            'connection': {'id': Variant('s', 'Twin'), 'uuid': Variant('s', path), 'type': Variant('s', '802-11-wireless'),
+                           'autoconnect': Variant('b', True)},
+            '802-11-wireless': {'ssid': Variant('ay', ssid), 'mode': Variant('s', 'infrastructure')},
+        }
+        state.connections[path] = _export_connection(state, path)
     bus.add_message_handler(lambda msg: on_message(state, msg))
     for index, ap in enumerate(ACCESS_POINTS_TABLE):
         bus.export(ACCESS_POINTS + '/%d' % (index + 1), APIface(index, ap))

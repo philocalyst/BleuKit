@@ -75,8 +75,8 @@ fn OwnedName*? Connection.own_name(
 {
 	self.check_owner();
 	if (!names::is_bus_name(name) || name[0] == ':' || !on_acquired) return error::INVALID_ARGUMENT~;
-	begin_operation(self);
-	defer end_operation(self);
+	connection::begin_operation(self);
+	defer connection::end_operation(self);
 	OwnedName* o = alloc::new(self.allocator, OwnedName);
 	*o = { .connection = self, .on_acquired = on_acquired, .on_lost = on_lost, .context = context };
 	o.name.init(self.allocator);
@@ -136,8 +136,8 @@ fn OwnedName*? Connection.own_name(
 fn void? OwnedName.release(&self)
 {
 	Connection* c = self.connection;
-	begin_operation(c);
-	defer end_operation(c);
+	connection::begin_operation(c);
+	defer connection::end_operation(c);
 	defer free_owned(self);
 	self.unsubscribe_signals();
 	// Read before the registration is dropped: a registration that is gone means the

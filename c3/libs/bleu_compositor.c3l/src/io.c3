@@ -94,9 +94,9 @@ fn void? await_readable(unix::UnixSocket* socket, Duration timeout)
 *>
 fn usz? fill(unix::UnixSocket* socket, wire::Buffer* buffer)
 {
-	char[] room     = buffer.tail()!;
+	char[] room       = buffer.tail()!;
 	unix::Fd[] no_fds = { };
-	RecvResult? got = socket.recv(room, no_fds);
+	RecvResult? got   = socket.recv(room, no_fds);
 	if (catch err = got)
 	{
 		if (err == error::BUSY) return 0;

@@ -63,7 +63,9 @@ fn State? read_state(Backend* b, Allocator out, State* previous, Reading* r)
 			Value? props_or = device.get_all_properties(tmem);
 			if (catch err = props_or)
 			{
-				// A device that cannot be read might be the Wi-Fi one: both parts stay as they were.
+				// A device that left between the list and this read is gone and not listed. Any other
+				// failure might be the Wi-Fi device, so both parts stay as they were.
+				if (err == NOT_FOUND) continue;
 				stale.interfaces = true;
 				stale.wifi = true;
 				r.wifi_known = false;
@@ -146,7 +148,14 @@ fn WifiScan? read_networks(Backend* b, String device, Allocator out, Reading* r)
 	{
 		String ap_path = aps.at(i)!.as_object_path()!;
 		Proxy ap       = object_proxy(&b.bus, ap_path, NM_AP_IFACE)!;
-		Value props    = ap.get_all_properties(tmem)!;
+		Value? props_or = ap.get_all_properties(tmem);
+		if (catch err = props_or)
+		{
+			// An access point that left after the list was read is not listed; any other failure fails the read.
+			if (err == NOT_FOUND) continue;
+			return err~;
+		}
+		Value props = props_or;
 		char[] bytes   = bytes_of(tmem, props, "Ssid");
 		if (bytes.len == 0) continue;
 		uint strength = byte_of(props, "Strength");

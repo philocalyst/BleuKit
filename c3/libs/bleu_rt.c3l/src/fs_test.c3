@@ -55,3 +55,12 @@ fn void directory_listing_names_its_entries() @test
 	io::file::delete(file)!!;
 	io::path::rmdir((Path)dir)!!; // a String argument trips std::io::path::rmdir (see the research notes)
 }
+fn void a_file_exactly_the_size_of_the_buffer_is_read_whole() @test
+{
+	// The end-of-file probe after a full buffer must read the end of the file, not an error.
+	String path = scratch_path("exact");
+	fs::write_text(path, "abcd")!!;
+	char[4] buffer;
+	test::eq((sz)4, fs::read_trimmed(path, buffer[..])!!.len);
+	io::file::delete(path)!!;
+}

@@ -351,7 +351,7 @@ fn void wipe_command_secret(Command* command)
  its operation fails with DISCONNECTED and its secret is wiped. Runs on the worker
  thread after the backend's run function has returned, as `Hub.start` requires.
 *>
-fn void abandon_command(void* backend, Command* command) @local
+fn void abandon_command(void* backend, Command* command)
 {
 	if (command.kind == CONNECT)
 	{

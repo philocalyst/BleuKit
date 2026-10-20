@@ -9,7 +9,11 @@ extern fn int symlink(char* target, char* linkpath);
 const String NO_BUS = "unix:path=/nonexistent-bleu-brightness-bus";
 
 // Build a fake root with a firmware backlight, a raw backlight, a keyboard LED and one connected DRM connector with a DDC bus.
-fn String fake_root(String stem) @local
+// The firmware backlight's `actual_brightness` follows its setpoint, as a device's report does.
+fn String fake_root(String stem) @local => fake_root_with(stem, true);
+
+// As `fake_root`. When `device_follows` is false the panel's `actual_brightness` is a plain file that never moves.
+fn String fake_root_with(String stem, bool device_follows) @local
 {
 	String root = string::tformat("/tmp/bleu-brightness-%s-%d", stem, clock::now());
 	String bl   = string::tformat("%s/sys/class/backlight", root);
@@ -22,7 +26,18 @@ fn String fake_root(String stem) @local
 	path::mkdir((Path)string::tformat("%s/card1-HDMI-A-1", drm), true)!!;
 	fs::write_text(string::tformat("%s/intel_backlight/type", bl), "firmware")!!;
 	fs::write_text(string::tformat("%s/intel_backlight/brightness", bl), "48000")!!;
-	fs::write_text(string::tformat("%s/intel_backlight/actual_brightness", bl), "48000")!!;
+	String actual = string::tformat("%s/intel_backlight/actual_brightness", bl);
+	if (device_follows)
+	{
+		@pool()
+		{
+			assert(symlink("brightness".zstr_tcopy(), actual.zstr_tcopy()) == 0, "the report follows the setpoint");
+		};
+	}
+	else
+	{
+		fs::write_text(actual, "48000")!!;
+	}
 	fs::write_text(string::tformat("%s/intel_backlight/max_brightness", bl), "96000")!!;
 	fs::write_text(string::tformat("%s/acpi_video0/type", bl), "raw")!!;
 	fs::write_text(string::tformat("%s/acpi_video0/brightness", bl), "7")!!;
@@ -187,4 +202,40 @@ fn void refusals_are_explicit() @test
 		assert(false, "a monitor without a bus must not succeed");
 	}
 	assert(@catch(service.set_level("", (Level)0.5f)) == error::INVALID_ARGUMENT, "an empty id is rejected at once");
+}
+
+fn void a_nan_level_is_refused() @test
+{
+	String root         = fake_root("nan");
+	Brightness* service = brightness::open(mem, options_for(root))!!;
+	defer service.close();
+	Level not_a_number = (Level)bitcast((uint)0x7FC00000, float);
+	if (catch err = service.set_level("intel_backlight", not_a_number))
+	{
+		assert(err == error::INVALID_ARGUMENT, "NaN is not a level and is refused");
+	}
+	else
+	{
+		assert(false, "a NaN level must not be silently written as 0");
+	}
+}
+
+// The panel's report does not follow the write: the device did not take the value, and the write is an error.
+fn void a_device_that_does_not_take_the_value_is_an_error() @test
+{
+	String root         = fake_root_with("stuck", false);
+	Brightness* service = brightness::open(mem, options_for(root))!!;
+	defer service.close();
+	Snapshot{State}* first = service.wait_after(0, time::ms(3000))!!;
+	first.release();
+	SetOperation* op = service.set_level("intel_backlight", (Level)0.25f)!!;
+	defer op.release();
+	if (catch err = op.wait(time::ms(3000)))
+	{
+		assert(err == error::BACKEND_FAILURE, "the read-back disagrees with the write");
+	}
+	else
+	{
+		assert(false, "a write the device ignored must not succeed");
+	}
 }

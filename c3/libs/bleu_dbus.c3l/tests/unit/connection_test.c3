@@ -285,9 +285,10 @@ fn void process_is_refused_inside_a_handler() @test
 	rig.stop();
 }
 
-// When a malformed frame follows the reply to a blocking call, the call fails and the
-// reply it already found is released, not leaked.
-fn void a_malformed_frame_after_the_reply_releases_it() @test
+// A malformed frame after the reply to a blocking call is not skipped: the call returns the
+// reply it was waiting for, and the next operation reports the frame. (The reads of a blocking
+// call stop at the reply's frame, so the bad frame is read by the next call.)
+fn void a_malformed_frame_after_the_reply_is_reported_later() @test
 {
 	Rig rig;
 	rig.start();
@@ -301,6 +302,8 @@ fn void a_malformed_frame_after_the_reply_releases_it() @test
 	// A header whose protocol version is 2.
 	char[16] junk = { 'l', 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	send_bytes(rig.peer, (String)junk[..], { });
-	testing::@expect_fault(rig.c.call(call, time::ms(1000)), error::PROTOCOL);
+	Message* got = rig.c.call(call, time::ms(1000))!!;
+	got.release();
+	testing::@expect_fault(rig.c.process(), error::PROTOCOL);
 	rig.stop();
 }

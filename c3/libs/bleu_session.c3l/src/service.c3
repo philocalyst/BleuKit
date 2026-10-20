@@ -120,8 +120,12 @@ fn WatchId{State} Session.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Session.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Session.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <*
  Subscribe to the transient events: LOCKED, UNLOCKED, WILL_SLEEP and DID_WAKE, and the idle

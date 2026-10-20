@@ -39,21 +39,6 @@ fn Security? joinable_in(AccessPoint[] networks, char[] ssid)
 }
 
 <*
- The security class the last published scan saw for this SSID.
-
- @return? NOT_FOUND : "The network is not in the last scan, or nothing was scanned yet"
-*>
-fn Security? security_on_air(NetworkHub* hub, char[] ssid)
-{
-	if (try snapshot = hub.latest())
-	{
-		defer snapshot.release();
-		return security_in(snapshot.value.wifi.networks, ssid);
-	}
-	return NOT_FOUND~;
-}
-
-<*
  Whether a new connection may be made to the network with this SSID, judged by the last
  published scan (see `joinable_in`).
 
