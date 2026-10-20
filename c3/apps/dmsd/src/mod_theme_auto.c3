@@ -392,7 +392,10 @@ fn int ticker_main(void* arg) @private
 		if (due) m.recompute(now);
 		m.mutex.unlock();
 		if (due) m.state_pump.notify();
-		thread::sleep(TICK_INTERVAL)!!;
+		// An interrupted sleep only makes this tick short: the next one checks the time again.
+		if (catch thread::sleep(TICK_INTERVAL))
+		{
+		}
 	}
 	return 0;
 }

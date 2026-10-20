@@ -55,7 +55,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY \
   XDG_DATA_HOME="$work/xdg/data" XDG_CONFIG_HOME="$work/xdg/config" XDG_DATA_DIRS=/nonexistent \
   DBUS_SYSTEM_BUS_ADDRESS="unix:path=$work/no-bus.sock" \
   "$dmsd_bin" --socket "$sock" --debug \
-  --module-off loginctl --module-off brightness --module-off bluetooth --module-off network \
+  --module-off loginctl --module-off brightness --module-off bluetooth --module-off network --module-off theme.auto --module-off freedesktop --module-off gamma --module-off wlroutput \
   >"$work/dmsd.out" 2>"$work/dmsd.err" &
 dmsd_pid=$!
 for _ in $(seq 100); do [ -S "$sock" ] && break; sleep 0.05; done

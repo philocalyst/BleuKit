@@ -27,6 +27,10 @@ struct tags the tests use are in `apps/dmsd/tests/golden/go_tags.json`, regenera
 | `clipboard` module (12 methods, 1 topic; 10 refused) | done, compiled only: no Wayland compositor here, so only its absence is run |
 | `apps` module: `apppicker.open`, `browser.open`, `mime.*` (2 refused) | done, partial: no mimeinfo.cache, no MIME alias or subclass chains; `browser` not advertised |
 | `evdev` (`evdev.getState` refused) | refused: bleu_input has no lock-key state |
+| `wlroutput` module (3 methods, 1 topic; `subscribe` answers `not supported`) | done, tested on a fake compositor speaking the wlr protocols; no real compositor was run |
+| `gamma` module (7 methods, 1 topic; the ICC methods and `subscribe` answer `not supported`) | done, tested on the same fake compositor: the ramps the compositor receives are read back |
+| `theme.auto` module (7 methods, 1 topic) and `matugen.status` (`matugen.queue` refused) | done, pure DMS logic, checked against an independent port of DMS's schedule and sun model |
+| `freedesktop` module (2 methods, 2 topics; accounts and screensaver not available) | done, partial, tested against a mock portal on a private session bus |
 | Refused modules: cups, tailscale, wellbeing, sysupdate, wallpaper, files, plugins, themes, registries | every DMS method answers `not supported: <why>`; no capability |
 | Every other DMS module (audio-adjacent, ...) | not started: the method is `unknown method` until its module lands |
 
@@ -136,7 +140,8 @@ has no Bleu equivalent in this design), **open** (not started; the method is
 | `subscribe` | done | bleu_ipc; services `all`, `server`, `brightness`, `brightness.update`, `loginctl` |
 | `unsubscribe` | done | unknown method, as in DMS (`server.go:409-416`) |
 | `shell.ready` | done | validates `pid`; the readiness side effect is not ported (see Differences) |
-| `matugen.queue`, `matugen.status` | open | appearance |
+| `matugen.status` | done | nothing is queued: reports `{"pending":false,"running":false,"smartSupported":false}` |
+| `matugen.queue` | n/s | the palette is made by the matugen tool, which dmsd does not run |
 | `clipboard.getConfig`, `clipboard.setConfig` | done | clipboard module (see its section); `setConfig` accepts only the running values |
 
 ### brightness (`brightness/handlers.go`)
@@ -397,6 +402,84 @@ Differences from DMS (network):
 * Error texts are dmsd's wording, except `network not found: <ssid>` (`manager.go:621`). DMS's
   `network/manager.go` error strings were not read beyond that.
 
+### wlroutput (`wlroutput/handlers.go`, `types.go`, `manager.go`) — `mod_wlroutput.c3`, `bleu_display`
+
+Routed by `router.go:190-195`. The shape and the rules are DMS's (`types.go:11-42`, `handlers.go:34-111`).
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `wlroutput.getState` | done | `State{outputs, serial}`; the ids are dmsd's (Differences 28) |
+| `wlroutput.applyConfiguration` {heads} | done | a full layout from the newest state with the named heads changed; applied at once, not reverted (as DMS does) |
+| `wlroutput.testConfiguration` {heads} | done | `TEST_ONLY`. A layout equal to the current one completes without the compositor |
+| `wlroutput.subscribe` | n/s | use top-level `subscribe` with `wlroutput` |
+
+| Topic | Status | Notes |
+| --- | --- | --- |
+| `wlroutput` | done | `State` on every change |
+
+Errors are DMS's: `missing 'heads' parameter`, `invalid 'heads' parameter format`, `head not found: <name>`,
+`mode not found: <id>`. `invalid transform: <n>` for a transform outside 0..7. A head with `adaptiveSync` is
+`not supported`: bleu_display's change has no field for adaptive sync (Differences 28).
+
+### gamma (`wayland/handlers.go`, `types.go`, `manager.go`, `suncalc.go`) — `mod_gamma.c3`, `mod_gamma_settings.c3`, `bleu_color`
+
+The methods are named `wayland.gamma.*` and `wayland.icc.*`, as DMS routes them (`router.go:125`,
+`handlers.go:19-46`). The capability is `gamma`.
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `wayland.gamma.getState` | done | `State`; the fields that are not computed are in Differences 29 |
+| `wayland.gamma.setTemperature` {temp} or {low, high} | done | `LowTemp` is the night temperature and `HighTemp` the day one (`getTempFromPosition`, `manager.go:782`); `temp` sets both |
+| `wayland.gamma.setLocation` {latitude, longitude} | done | the schedule uses bleu_color's sun model (Differences 30) |
+| `wayland.gamma.setManualTimes` {sunrise, sunset, durationMinutes} | done | `HH:MM` as Go's `time.Parse("15:04")` reads it; an empty time clears both and the duration |
+| `wayland.gamma.setUseIPLocation` {use} | done for `false`; `true` is `not supported` | no geolocation service |
+| `wayland.gamma.setGamma` {gamma, contrast} | done for 1.0 and 1.0; any other value is `not supported` | bleu_color writes gamma 1.0 and no contrast |
+| `wayland.gamma.setEnabled` {enabled} | done | disabled releases the ramps (the identity) |
+| `wayland.gamma.subscribe` | n/s | use top-level `subscribe` with `gamma` |
+| `wayland.icc.listOutputs` | done | the connected outputs, sorted (`manager.go` `ListOutputs`) |
+| `wayland.icc.getStatus`, `apply`, `remove`, `setTemp`, `getTemps` | n/s | no ICC profiles in bleu_color; bleu_color's per-output temperature stops the schedule for every output, which DMS does not do |
+
+| Topic | Status | Notes |
+| --- | --- | --- |
+| `gamma` | done | `State` on every change |
+
+What is applied: disabled, or no location and no manual times, is bleu_color's `reset()`; equal low and
+high is `set_temperature(ALL_OUTPUTS, low)`; manual times are a TIMES schedule; a location is a SCHEDULE
+(`plan_of`, `mod_gamma_settings.c3`, the order of DMS's `applyCurrentTemp` and `recalcSchedule`).
+A schedule that bleu_color refuses (a transition over an hour, equal sunrise and sunset, a temperature out
+of range) is an error and changes nothing. A display that refuses its ramp does not fail the command: DMS
+keeps the settings and lists the display in `gammaRefused`, and dmsd does the same and logs the refusal.
+
+### theme.auto and matugen (`thememode/`, `matugen_handler.go`) — `mod_theme_auto.c3`, `mod_theme_auto_calc.c3`
+
+The methods: `theme.auto.getState`, `setEnabled`, `setMode` (`time` or `location`), `setSchedule`
+(answers the state), `setLocation`, `setUseIPLocation` (`false` only), `trigger` (`handlers.go:18-32`).
+`theme.auto.subscribe` is `not supported`. `matugen.status` answers the three flags; `matugen.queue` is
+`not supported`. There is no Bleu backend: DMS's `thememode` computes `isLight` and the next change, and
+the shell applies the scheme (DMS never writes the desktop's colour scheme itself, `manager.go:263-278`).
+The calculation is DMS's own, ported to `mod_theme_auto_calc.c3`, including the sun model of
+`wayland/suncalc.go`, which is not bleu_color's (Differences 33).
+
+| Topic | Status | Notes |
+| --- | --- | --- |
+| `theme.auto` | done | `{config, isLight, nextTransition}` |
+
+### freedesktop (`freedesktop/types.go`, `handlers.go`) — `mod_freedesktop.c3`, `bleu_appearance`
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `freedesktop.getState` | done, partial | `settings` from the desktop; `accounts` and `screensaver` report not available |
+| `freedesktop.settings.getColorScheme` | done | asks the desktop for a reading; the answer is the newest reading, which may be the one before the refresh |
+| `freedesktop.accounts.setIconFile`, `setRealName`, `setEmail`, `setLanguage`, `setLocation`, `getUserIconFile`, `settings.setIconTheme` | n/s | AccountsService is not used by Bleu; bleu_appearance has no icon theme setter |
+
+| Topic | Status | Notes |
+| --- | --- | --- |
+| `freedesktop` | done | `FreedeskState` on every change of the colour scheme |
+| `freedesktop.screensaver` | done, not available | `available: false`, published once: Bleu has no ScreenSaver service, and bleu_session's lock state is not the same thing (Differences 36) |
+
+The colour scheme values are the settings portal's (`0` no preference, `1` dark, `2` light), in the order of
+bleu_appearance's `ColorScheme`.
+
 ### Not started (DMS methods that dmsd does not serve yet)
 
 Each of these modules will follow `apps/dmsd/tests`' pattern once written. Until then
@@ -406,11 +489,7 @@ modules); the rows that remain here belong to the modules not yet written.
 
 | Module | Methods | Bleu service(s) |
 | --- | --- | --- |
-| gamma (wayland) | gamma.getState, setTemperature, setLocation, setManualTimes, setUseIPLocation, setGamma, setEnabled, icc.* | color |
-| theme.auto | getState, setEnabled, setMode, setSchedule, setLocation, setUseIPLocation, trigger | appearance |
-| freedesktop | getState, accounts.* (setIconFile, setRealName, setEmail, setLanguage, setLocation, getUserIconFile), settings.getColorScheme, settings.setIconTheme | appearance, session |
 | location | getState, subscribe | location |
-| wlroutput | getState, applyConfiguration, testConfiguration, subscribe | display |
 | dbus | call, getProperty, setProperty, getAllProperties, introspect, listNames, subscribe, unsubscribe | out of scope for the shell (generic D-Bus proxy) |
 | notify | watchAction, send | notify |
 
@@ -474,6 +553,43 @@ Each is deliberate unless it says otherwise.
 26. **One backend.** dmsd uses BlueZ only. DMS's module is BlueZ's, and Bleu's macOS and Windows backends have partial capabilities that would present as a working module.
 27. **Waiting time.** A request waits at most the library's timeouts: 25 s for a call, 120 s for a pairing (prompts included). DMS waits for the bus reply without a bound of its own.
 
+28. **Ids and adaptive sync (wlroutput).** Bleu has no Wayland object ids. A head's `id` is the FNV-1a
+    32-bit hash of its connector name. A mode's `id` is its 1-based position in the head's `modes` (0 when
+    the current mode is not listed), and `modeId` is read against the head the request names. bleu_display
+    does not write adaptive sync, so a head that sets it is refused. A `scale` the compositor does not
+    report is 0 (DMS has no null for it).
+29. **Gamma fields not computed.** `nextTransition` and `sunPosition` are Go's zero values. `sunriseTime`,
+    `sunsetTime`, `dawnTime` and `nightTime` are computed from the manual times, or from DMS's sun model at
+    the location (`CalculateSunTimesWithTwilight` with the settings' elevations); they are the zero time when
+    the sun does not rise or set. `isDay` is derived from them. `iccProfiles` is `{}`. `currentTemp` and
+    `outputTemps` list only the displays that take the ramp (bleu_color's `gamma_supported`).
+30. **Gamma location.** The ramp follows bleu_color's sun model (NOAA, a fixed 0.833 degree horizon) and a
+    30 minute change centred on each event. DMS's ramp uses its own sun model with the twilight and daylight
+    elevations (-6 and 3 by default) and a ramp from dawn to sunrise. The two differ by minutes at the edges
+    of the day.
+31. **Gamma manual times.** DMS ramps linearly from `sunrise - duration` to `sunrise`, and from `sunset` to
+    `sunset + duration`. bleu_color centres a smoothstep change on each event, so dmsd places each edge half
+    a duration from DMS's event: the ramp covers the same interval along a different curve. The theme's sun
+    model (item 33) is DMS's own.
+32. **theme.auto timekeeping.** DMS wakes at the next change. dmsd checks once a second, so a change is at most a
+    second late. `nextTransition` is an RFC 3339 instant in UTC; DMS writes the local zone. The clock and the
+    zone come from the OS through `std::time`.
+33. **theme.auto sun model.** `mod_theme_auto_calc.c3` is a port of DMS's `wayland/suncalc.go`, not of bleu_color's
+    NOAA code, because bleu_color takes no elevation and does not return sun times. Its truncations
+    (`time.Duration` of a float) are kept. `mod_theme_auto_calc_test.c3` checks it against the calendar and the
+    polar cases; `apps/dmsd/tests/dms_reference.py` checks it against the live daemon in Berlin and Sydney.
+34. **Defaults not read.** The DMS defaults of the gamma and theme settings were not fetched. dmsd starts with the
+    night light disabled, 4500 K and 6500 K (bleu_color's defaults), a schedule of 18:00 to 06:00 (thememode's
+    constants, `manager.go:14-20`), and elevations of -6 and 3.
+35. **Gamma refusals.** A display that refuses its ramp does not fail the command, as in DMS. bleu_color writes
+    the other displays and reports the first refusal (`engine.c3`, `Engine.follow`); dmsd logs that refusal on
+    stderr and keeps the settings, and the display is listed in `gammaRefused` while the compositor refuses it.
+36. **freedesktop accounts and screensaver.** `accounts` is `available: false` with Go's zero values, because
+    AccountsService is not used. `screensaver` is `available: false`, because Bleu has no ScreenSaver service;
+    bleu_session's lock state is not the same thing and is not used for it.
+37. **Method names.** The gamma methods are `wayland.gamma.*` and `wayland.icc.*`, as DMS routes them. The short
+    names in `dms_surface.md` section 2.3 (`gamma.getState`) are the same methods without the prefix.
+
 ## Verified how
 
 Run on Linux x86-64, C3 0.8.5, glibc, python 3.13, dbus-next 0.2.x, dbus-daemon 1.14:
@@ -536,6 +652,22 @@ against the QML code itself).
   bluetooth section. Its golden handshake and the sections of other modules failed there, because the
   copy lacks those modules.
 
+* The desktop modules (`apps/dmsd/tests/desktop.sh`, run by `run.sh`), on Linux x86-64 with dbus-daemon 1.14, dbus-next
+  and python 3.13. A fake compositor (`fake_wayland.py`) speaks the wlr-output-management and wlr-gamma-control
+  protocols, with opcodes and argument lists generated from the vendored XML in `tests/protocols/` (wlr-protocols,
+  gitlab.freedesktop.org/wlroots/wlr-protocols), and the core opcodes from wayland.xml. A mock portal
+  (`mock_portal.py`) on a private session bus serves the colour scheme. `check_desktop.py` makes 119 checks: the
+  handshake order; the DMS key order of every reply; the DMS error texts; the layout and the ramps the compositor
+  received (a ramp is read from the fd, and its first and last entries are compared); the sun times and the
+  schedule transitions against `dms_reference.py`, a port of DMS's formulas written separately from the C3; the
+  portal change seen by the daemon. Then clean shutdown, and an absent compositor (`gamma` and `wlroutput` not
+  advertised, reported once; `freedesktop` and `theme.auto` still are).
+* Unit: `mod_theme_auto_calc_test.c3` (7 `@test`s: the calendar, the time mode, the sun and the polar days) and
+  `mod_gamma_settings_test.c3` (5: the clock values, the centring of manual times, the plans), run by `run.sh` with
+  `--test-filter`.
+* `tools/check-apps.sh dmsd` passed on all four POSIX targets, on the shared tree, with the modules registered.
+* Not run: a real wlroots compositor (the fake compositor is the protocol as the client sees it, not a compositor's
+  behaviour); a real xdg-desktop-portal; the DMS shell; macOS (compiled only, through `check-apps`).
 
 ## Found in the libraries (not fixed here)
 
@@ -574,6 +706,18 @@ against the QML code itself).
   so its reason cannot say which check failed. The module names the service it needs instead.
 * `bleu_bluetooth` does not expose the BlueZ object path, the `Icon` string, `LegacyPairing`, or the
   service UUID of an `AuthorizeService` prompt (`bluez_agent.c3` `on_authorize_service` drops it).
+
+* `bleu_color`: a command that touches several displays reports the first display's refusal and keeps the
+  others written (`engine.c3`, `Engine.follow`, documented there). A caller that wants the whole command to
+  succeed or fail must check the state, not the operation. dmsd keeps the settings and logs the refusal.
+* `bleu_color`: a neutral command (temperature 6500 K, dimming 1.0) clears a display's `refused` flag without
+  writing anything (`engine.c3`, the `neutral` branch), so `gammaRefused` disappears at a neutral temperature
+  and reappears when the temperature moves. `temperature` is the target, including on a display with no gamma
+  control, so `gamma_supported` is what says whether the display takes it.
+* `bleu_color`: the sunrise and sunset times are not in the public API. `schedule::day_events` computes them but is
+  not documented, and it fixes the horizon at 0.833 degrees, so `theme.auto` does not use it (Differences 33).
+* `bleu_display`: a `Display.apply` whose layout equals the current one completes without the compositor, so a
+  test of an unchanged layout proves nothing about the compositor. A change is needed to exercise the route.
 
 ## Adding a module
 

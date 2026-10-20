@@ -290,3 +290,10 @@
 * The byte size of a stdlib type is `Type::size` (`$sizeof` and `Type.sizeof` do not exist in 0.8.5).
 * A function passed as a callback to another module must be public (not `@private`) when the call site is in a different module.
 * A global const array sliced and returned from a function fails ("A slice literal is backed by a stack allocated array") → build the array in the caller.
+* `bleu::json::read::present` (and `Object*?` lookups) return a null pointer for an absent member, not an error: `if (try v = present(...))` is true with `v == null`, so test `v != null` → dmsd `mod_gamma.c3`, `mod_wlroutput.c3`.
+* `datetime::from_time` and `TzDateTime` are in `std::time::datetime` (`@feat(LIBC)`): `import std::time::datetime`; `time::from_time` does not exist → `dmsd` `mod_theme_auto_calc.c3`.
+* `Kelvin` is `bleu::unit::Kelvin` (an `int` typedef), not `bleu::color::Kelvin`; `color::kelvin::MIN` is a `Kelvin` → cast to `long` before comparing with a `long`.
+* `test::eq` needs identical types and qualified enum members (`SunCondition.NORMAL`), and `long` literals (`390L`) against a `long` → `dmsd` `mod_theme_auto_calc_test.c3`.
+* An enum switch that returns in every case still needs no `default`, and compiles without a trailing `return` in 0.8.5 (`mod_gamma.c3`, `command_for`).
+* bleu_color at a neutral temperature (6500 K, dimming 1.0) writes no ramp: it releases the control (`gamma.destroy`), so a compositor test expects a release there, not a ramp.
+* bleu_display's test of an unchanged layout is answered without the compositor (`Display.apply`); a compositor test must move something.
