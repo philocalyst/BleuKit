@@ -23,6 +23,12 @@ typedef struct bleu_slice_t
 extern "C" {
 #endif
 
+/*
+ * Identifier of a registered listener: `bleu_<service>_watch` returns it, and
+ * `bleu_<service>_unwatch` takes it. Never 0. Ids are per handle.
+ */
+typedef uint64_t bleu_watch_t;
+
 typedef uint8_t bleu_availability_reason_t;
 #define BLEU_AVAILABILITY_REASON_AVAILABLE 0
 #define BLEU_AVAILABILITY_REASON_UNSUPPORTED_OS 1

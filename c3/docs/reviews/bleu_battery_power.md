@@ -155,3 +155,44 @@ scratch reproductions above.
   `Devices/DeviceAndDriverInstallation`.
 - polkit `src/polkit/polkiterror.c` (gitlab.freedesktop.org/polkit/polkit, master).
 - systemd: `src/login/logind-core.c`, `logind-dbus.c` fetched; the bus-error name tables were not retrievable.
+
+## Resolution (fix pass)
+
+Status of each finding after the fix pass. "Compiled only" means type-checked for all six targets and not run.
+Mutant and valgrind evidence are in the scratchpad (`mut/`, `bp/`).
+
+| ID | Status | Change and evidence |
+| --- | --- | --- |
+| B-01 | FIXED | One shared diff (`changes`, `common_state.c3`) emitted by `publish.c3` for every backend. Tests: `changes_name_each_transition_once` and friends; fake-tree `plugging_in_is_published_as_an_event`. |
+| B-02 | FIXED | Failed read republishes the last good state with `reading = BACKEND_STOPPED`; before any good reading nothing is published. Test: `a_failed_read_keeps_the_last_good_reading`. |
+| B-03 | FIXED | `device_kind(type, PowerSupply)`: Type 2 with PowerSupply FALSE is PERIPHERAL. Mock mouse is now Type 2 + FALSE; `upower_test` covers it; live suite passes. |
+| B-04 | FIXED | `device_cycles`: zero is unknown. Test: `zero_cycles_are_unknown`. |
+| B-05 | FIXED | Exact discharge and time-to-full assertions. Re-targeted M1 (sign dropped in `power_from_current`): killed by `reads_a_discharging_laptop` and `current_now_keeps_its_sign_whatever_the_status`. M3 (time_to_full constant): killed by `reads_a_charging_laptop`. |
+| B-06 | FIXED | `Startup` latch in `driver.c3`: every backend's `run` reports success or the poller's fault, and `open` returns it. Linux backends run; macOS and Windows compiled only. |
+| B-07 | FIXED (compiled only) | Notifier mutex and `closed` flag; a failed loop join sets `orphaned`, so the backend is not freed while the loop may call it. |
+| B-08 | FIXED | `previous_sources` removed; one `sort_by_id` in `common_state.c3`. |
+| B-09 | FIXED | `current_now` keeps its sign; `power_now` takes its direction from the status (`flow_from_power`). Tests in `sysfs_test`. |
+| B-10 | FIXED | `USB_PD_DRP` is MAINS. Test in `sysfs_test`. |
+| B-11 | FIXED | The three doc errors corrected; the String-switch gotcha corrected in `docs/C3_GOTCHAS.md`. |
+| B-12 | FIXED | `open` frees the service when `create` fails (`err` path). |
+| B-13 | FIXED | Skipped devices and a SetupAPI failure set `reading = DEGRADED`. Compiled and reviewed; no dedicated test. |
+| B-14 | FIXED | `fd()` failure closes and frees the connection. |
+| B-15 | FIXED | `mkdtemp` directory, removed with `path::rmtree`. |
+| B-16 | FIXED locally | `battery::degraded(note)`; the core constructor belongs to `bleu_core` (not owned here, reported to lead). |
+| P-01 | FIXED (compiled only) | `continue` instead of `return` in `deliver_sleep`; every queued message is consumed. The IOKit message values are the ones in `bleu_objc` `power_codes.c3`. |
+| P-02 | FIXED | Reference-counted `Link` (`link.c3`); release after close is refused with DISCONNECTED. Valgrind: original sources 3 invalid reads, current sources 0. Integration checks `run_after_close_checks`. |
+| P-03 | FIXED | Reconnect with backoff (`reconnect_delay`), capabilities kept from open, inhibitor and barrier releases work without the bus. Integration phase `bounce` passes (service answers again, old inhibitor's descriptor closes, new inhibitor taken). |
+| P-04 | FIXED | Poller created before `startup.succeed()`; `add` and `fd` failures are a lost bus; no `!!` on I/O in `serve`. |
+| P-05 | PARTIAL | A refused retake marks the bus lost and the reconnect retakes the lock. `Cap.DELAY_SLEEP_HOOK` stays YES (written once at open) and no `State` field was added; documented in the README. |
+| P-06 | WONTFIX (other library) | The `PolicyKit1.Error.NotAuthorized` / `Cancelled` mapping is in `bleu_dbus/src/errors.c3`, owned by another agent. Suggested as a separate task. |
+| P-07 | FIXED | Caps for Suspend, Hibernate, HybridSleep, PowerOff and Reboot come from the `Can*` answers at open (`na` and `no` refuse; `challenge` and `inhibitor-blocked` stay available). |
+| P-08 | FIXED | Every silent-pass branch now fails the suite. Mutant P2 (synchronous HIBERNATE refusal): suite exit 1, `perform(HIBERNATE) reaches polkit` FAIL. |
+| P-09 | FIXED | `run.sh` refuses an empty bus address; `main.c3` refuses any address that does not name `bus-socket`. |
+| P-10 | FIXED | Doc corrected: the value is the profile the request wrote; the daemon's answer is `ActiveProfile`. |
+| P-11 | FIXED | `Degraded.UNKNOWN` is the zero member; the integration check expects UNKNOWN without a daemon. |
+| P-12 | FIXED | A failed power-status read publishes its fields as unknown instead of keeping the old values. |
+| P-13 | WONTFIX (other library) | `SYSTEM_POWER_STATUS` is declared in `bleu_battery` and `bleu_power`; the single declaration belongs in `bleu_win`, which this pass does not own. |
+| S-* | not in scope | Unproven suspicions were not part of the fix pass. |
+
+Test results at the end of the fix pass: battery unit set 147 passed (including linked libraries); battery live
+suite passed; power unit set 122 passed; power integration 101 PASS, 0 FAIL in modern, legacy, none and bounce.

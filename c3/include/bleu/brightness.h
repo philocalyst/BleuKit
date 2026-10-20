@@ -222,10 +222,10 @@ const bleu_brightness_state_t* bleu_brightness_snapshot_state(bleu_snapshot_t* s
  * listener runs on the worker thread for every later state, and once immediately on
  * this thread for the current one.
  */
-bleu_status_t bleu_brightness_watch(bleu_brightness_t* handle, bleu_brightness_listener_t callback, void* context, uint64_t* out_id);
+bleu_status_t bleu_brightness_watch(bleu_brightness_t* handle, bleu_brightness_listener_t callback, void* context, bleu_watch_t* out_id);
 
 /* Remove a listener. When this returns, the listener is not running and will not run again. */
-bleu_status_t bleu_brightness_unwatch(bleu_brightness_t* handle, uint64_t id);
+bleu_status_t bleu_brightness_unwatch(bleu_brightness_t* handle, bleu_watch_t id);
 
 /*
  * Subscribe to brightness events (level changes, devices added or removed). Read them

@@ -28,7 +28,7 @@ struct BatteryHandle @export("bleu_battery_t")
 	battery::Battery* service;
 	Mutex mutex;
 	BatteryWatch* watches;
-	ulong next_watch_id;
+	WatchToken next_watch_id;
 	uint readers;
 	String backend_name;
 }
@@ -45,7 +45,7 @@ alias BatteryListener = fn void(void* context, capi::CSnapshot* snapshot);
 struct BatteryWatch
 {
 	BatteryHandle* owner;
-	ulong id;
+	WatchToken id;
 	BatteryListener callback;
 	void* context;
 	observe::WatchId{battery::State} native;
@@ -142,7 +142,7 @@ fn void battery_listener(void* context, Snapshot{battery::State}* snapshot)
 }
 
 // Unlink and return the watch with `id`, or null.
-fn BatteryWatch* remove_watch(BatteryWatch** head, ulong id)
+fn BatteryWatch* remove_watch(BatteryWatch** head, capi::WatchToken id)
 {
 	BatteryWatch** link = head;
 	while (*link)
@@ -357,7 +357,7 @@ fn capi::CStatus bleu_battery_watch(
 	BatteryHandle* handle,
 	BatteryListener callback,
 	void* context,
-	ulong* out_id
+	capi::WatchToken* out_id
 ) @export("bleu_battery_watch")
 {
 	capi::@capi_entry()
@@ -382,7 +382,7 @@ fn capi::CStatus bleu_battery_watch(
 }
 
 <* Remove a listener. When this returns, the listener is not running and will not run again. *>
-fn capi::CStatus bleu_battery_unwatch(BatteryHandle* handle, ulong id) @export("bleu_battery_unwatch")
+fn capi::CStatus bleu_battery_unwatch(BatteryHandle* handle, capi::WatchToken id) @export("bleu_battery_unwatch")
 {
 	capi::@capi_entry()
 	{

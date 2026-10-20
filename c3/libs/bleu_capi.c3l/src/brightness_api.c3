@@ -44,7 +44,7 @@ struct BrightnessHandle @export("bleu_brightness_t")
 	brightness::Brightness* service;
 	Mutex mutex;
 	BrightnessWatch* watches;
-	ulong next_watch_id;
+	WatchToken next_watch_id;
 	uint readers;
 	String backend_name;
 }
@@ -61,7 +61,7 @@ alias BrightnessListener = fn void(void* context, capi::CSnapshot* snapshot);
 struct BrightnessWatch
 {
 	BrightnessHandle* owner;
-	ulong id;
+	WatchToken id;
 	BrightnessListener callback;
 	void* context;
 	observe::WatchId{brightness::State} native;
@@ -204,7 +204,7 @@ fn void brightness_listener(void* context, Snapshot{brightness::State}* snapshot
 }
 
 // Unlink and return the watch with `id`, or null.
-fn BrightnessWatch* remove_brightness_watch(BrightnessWatch** head, ulong id)
+fn BrightnessWatch* remove_brightness_watch(BrightnessWatch** head, capi::WatchToken id)
 {
 	BrightnessWatch** link = head;
 	while (*link)
@@ -433,7 +433,7 @@ fn capi::CStatus bleu_brightness_watch(
 	BrightnessHandle* handle,
 	BrightnessListener callback,
 	void* context,
-	ulong* out_id
+	capi::WatchToken* out_id
 ) @export("bleu_brightness_watch")
 {
 	capi::@capi_entry()
@@ -458,7 +458,10 @@ fn capi::CStatus bleu_brightness_watch(
 }
 
 <* Remove a listener. When this returns, the listener is not running and will not run again. *>
-fn capi::CStatus bleu_brightness_unwatch(BrightnessHandle* handle, ulong id) @export("bleu_brightness_unwatch")
+fn capi::CStatus bleu_brightness_unwatch(
+	BrightnessHandle* handle,
+	capi::WatchToken id
+) @export("bleu_brightness_unwatch")
 {
 	capi::@capi_entry()
 	{

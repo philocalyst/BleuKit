@@ -3,8 +3,8 @@
  header is generated from this library by `tools/capi/genheader.py`; the
  conventions are in `docs/CAPI.md`.
 
- Every exported function runs its body through `@capi_entry` (any thread may call
- it), returns a `bleu_status_t` unless it is one of the documented accessors, and
+ Every exported function runs its body through `@capi_entry` or `@capi_scope` (any
+ thread may call it), returns a `bleu_status_t` unless it is one of the documented accessors, and
  gives results through out-parameters that are set to NULL on failure. C3 faults,
  optionals and slices never cross the boundary.
 *>
@@ -17,6 +17,12 @@ import bleu::error, bleu::availability;
  enumerator is appended, and never reused.
 *>
 const uint ABI_VERSION = 1;
+
+<*
+ Identifier of a registered listener: `bleu_<service>_watch` returns it, and
+ `bleu_<service>_unwatch` takes it. Never 0. Ids are per handle.
+*>
+typedef WatchToken @export("bleu_watch_t") = ulong;
 
 <* Bytes of `bleu_error_detail_t.message`, including the terminating NUL. *>
 const usz ERROR_MESSAGE_CAPACITY = 256;

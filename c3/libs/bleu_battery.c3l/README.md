@@ -18,7 +18,12 @@ every UNVERIFIED item: `docs/research/battery_impl.md`.
     battery.backend_name();                                           // "upower", "sysfs", "iokit", "win32"
     battery.capability(Cap.HEALTH);                                   // Availability: available, or why not
 
-`State` holds `on_mains`, `adapter_watts` (macOS) and `sources`. Each `Source` has a stable `id`,
+`State` holds `on_mains`, `adapter_watts` (macOS), `sources`, and `reading`: AVAILABLE for a full
+reading, DEGRADED when some devices could not be read and are left out, BACKEND_STOPPED when the newest
+read failed and `sources` is the last good reading. A failed read never publishes an empty state; before
+the first good reading nothing is published and `latest()` is UNAVAILABLE. Every backend publishes through
+`publish.c3`, which emits SOURCE_ADDED, SOURCE_REMOVED, MAINS_CHANGED and STATE_CHANGED from one shared pure
+diff (`changes`, `common_state.c3`). Each `Source` has a stable `id`,
 a `Kind`, a `ChargeState`, and `Maybe{...}` measurements: charge, power (positive into the
 battery), time to empty and full, energy and design capacity, health, cycles, temperature.
 Options: `backend` forces one (UNSUPPORTED if it cannot run here); `root` is a fake sysfs tree
@@ -40,12 +45,15 @@ Status per capability and backend. "Run" = executed on Linux against a fake or m
 | IDENTITY (vendor, model, serial) | Run (mock) | Run (fake tree) | Compiled-only (key names conflict; see impl) | Not done (IOCTL string levels) |
 | PERIPHERALS | Run (mock: DeviceAdded / DeviceRemoved, Type 5) | Not done (sysfs lists supplies, not peripherals) | Not done | Not done |
 | Change notification | Run (PropertiesChanged, DeviceAdded/Removed) | Poll only (`REFRESH` forces a read) | Compiled-only (IOPS run loop + poll) | Compiled-only (window messages + poll) |
+| Transient events (`subscribe()`) | Run (DeviceAdded refresh; diff unit-tested) | Run (`plugging_in_is_published_as_an_event`) | Compiled-only (same diff) | Compiled-only (same diff) |
+| Stale reading after a failed read | Compiled-only (same path as sysfs) | Run (`a_failed_read_keeps_the_last_good_reading`) | Compiled-only | Compiled-only |
 | Adapter watts | Not done | Not done | Compiled-only | Not done |
 | Unit conversions and rules | Run (`upower_test`, `common_test`) | Run (`sysfs_test`) | Run (`iokit_test`: pure functions only) | Run (`win32_test`: pure functions only) |
 
 Run on Linux: `c3c compile-test` over the six `*_test.c3` files, and `tests/run.sh` (live UPower).
-Last run: the unit set passed (69 tests, which include the linked rt, service and win tests), and
-both live scripts passed (the UPower reads and changes, then the refusal without the name).
+Last run: the unit set passed (147 tests, including the linked rt, service, win and core tests), and
+both live scripts passed (the UPower reads and changes, the refusal without the name). The UPower mock
+reports a wireless mouse as Type 2 with PowerSupply FALSE, and the live suite checks it is a peripheral.
 
 ## Not done
 
@@ -56,7 +64,8 @@ both live scripts passed (the UPower reads and changes, then the refusal without
   takes the IORegistry record; the IOPS minutes keys are not used.
 * Windows: `BatteryTemperature` unit unresolved (empty); device name, manufacturer and serial
   IOCTL levels not read; `BatteryEstimatedTime` not read (time computed); relative-capacity batteries
-  skipped; WinRT battery API not used.
+  skipped; WinRT battery API not used. The `DEGRADED` capability note is a local helper (`battery::degraded`);
+  the matching constructor belongs in `bleu_core` `availability`, which this library does not own.
 * UPower: charge thresholds (read-only in the research, not in the model); history; the
   DisplayDevice aggregate; a bus restart is handled by reconnecting on the next poll tick and is
   not exercised by the tests.

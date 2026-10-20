@@ -73,7 +73,11 @@ fn int? serve(registry::Slot[] slots, String socket_path)
 	io::eprintfn("bleud: serving %d services on %s", count_open(daemon), path);
 	while (!stop_requested.load())
 	{
-		thread::sleep(time::ms(100))!!;
+		// A signal interrupts the sleep; that is the wake-up that lets the loop see the flag.
+		if (catch err = thread::sleep(time::ms(100)))
+		{
+			if (err != thread::INTERRUPTED) return err~;
+		}
 	}
 	daemon.server.stop();
 	foreach (&slot : daemon.slots) slot.close();

@@ -22,7 +22,8 @@ fn int main(String[] args)
 	int? code = opts.embedded ? embedded::run(opts) : client::run(opts);
 	if (catch err = code)
 	{
-		io::eprintfn("bleuctl: %s", error::last().message());
+		// The same `<STATUS>: <message>` text the daemon sends in its error replies.
+		io::eprintfn("bleuctl: %s: %s", error::status_of(err), error::last().message());
 		return 1;
 	}
 	return code;

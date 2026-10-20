@@ -190,10 +190,10 @@ const bleu_battery_state_t* bleu_battery_snapshot_state(bleu_snapshot_t* snapsho
  * listener runs on the worker thread for every later state, and once immediately
  * on this thread for the current one.
  */
-bleu_status_t bleu_battery_watch(bleu_battery_t* handle, bleu_battery_listener_t callback, void* context, uint64_t* out_id);
+bleu_status_t bleu_battery_watch(bleu_battery_t* handle, bleu_battery_listener_t callback, void* context, bleu_watch_t* out_id);
 
 /* Remove a listener. When this returns, the listener is not running and will not run again. */
-bleu_status_t bleu_battery_unwatch(bleu_battery_t* handle, uint64_t id);
+bleu_status_t bleu_battery_unwatch(bleu_battery_t* handle, bleu_watch_t id);
 
 /*
  * Subscribe to battery events (sources added or removed, mains changed). Read them

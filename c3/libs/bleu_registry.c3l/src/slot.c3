@@ -31,7 +31,7 @@ fn String describe_failure(fault failure, Allocator allocator)
 {
 	String message = error::last().message();
 	// A backend that failed without a message still gets a reason: its status name.
-	if (!message.len) message = string::tformat("%s: no backend works here", error::status_of(failure));
+	if (!message.len) message = "no backend works here";
 	return message.copy(allocator);
 }
 
