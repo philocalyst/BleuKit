@@ -10,14 +10,14 @@ fn void backlight_types_rank_firmware_then_platform_then_raw() @test
 
 fn void best_backlight_is_the_highest_rank_then_the_first_name() @test
 {
-	int[] ranks = { 1, 3, 2 };
+	int[] ranks    = { 1, 3, 2 };
 	String[] names = { "acpi_video0", "intel_backlight", "nv_backlight" };
 	assert(sysfs::select_best(ranks, names) == 1, "firmware wins over raw and platform");
-	int[] tied = { 3, 3 };
+	int[] tied          = { 3, 3 };
 	String[] tied_names = { "zz_panel", "aa_panel" };
 	assert(sysfs::select_best(tied, tied_names) == 1, "ties go to the name that sorts first");
-	int[] none = {};
-	String[] no_names = {};
+	int[] none        = { };
+	String[] no_names = { };
 	assert(sysfs::select_best(none, no_names) == -1, "no candidates is -1");
 }
 

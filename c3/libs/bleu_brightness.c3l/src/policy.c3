@@ -67,13 +67,31 @@ fn fault refusal(Device* device, Policy policy)
 		Control* control = device.control(policy.mechanism);
 		if (!control)
 		{
-			return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "device '%s' has no control for that mechanism", device.id);
+			return error::raise(
+				NOT_FOUND,
+				error::Domain.INTERNAL,
+				0,
+				"device '%s' has no control for that mechanism",
+				device.id
+			);
 		}
 		if (control.availability.ok())
 		{
-			return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "control of '%s' is read-only", device.id);
+			return error::raise(
+				error::UNAVAILABLE,
+				error::Domain.INTERNAL,
+				0,
+				"control of '%s' is read-only",
+				device.id
+			);
 		}
 		return error::raise(control.availability.refusal(), error::Domain.INTERNAL, 0, "%s", control.availability.note);
 	}
-	return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "device '%s' has no writable control", device.id);
+	return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"device '%s' has no writable control",
+		device.id
+	);
 }

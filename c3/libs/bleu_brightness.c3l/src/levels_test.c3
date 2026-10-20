@@ -7,8 +7,18 @@ fn void ramp_interpolates_in_time() @test
 	assert((float)half > 0.49f && (float)half < 0.51f, "halfway through a ramp is halfway between the levels");
 	assert((float)brightness::ramp_level((Level)0.2f, (Level)0.8f, time::DURATION_ZERO, (Duration)100_000) == 0.2f);
 	assert((float)brightness::ramp_level((Level)0.2f, (Level)0.8f, (Duration)100_000, (Duration)100_000) == 0.8f);
-	assert((float)brightness::ramp_level((Level)0.2f, (Level)0.8f, (Duration)300_000, (Duration)100_000) == 0.8f, "past the end is the target");
-	assert((float)brightness::ramp_level((Level)0.2f, (Level)0.8f, (Duration)5, time::DURATION_ZERO) == 0.8f, "a zero ramp is the target at once");
+	assert((float)brightness::ramp_level(
+		(Level)0.2f,
+		(Level)0.8f,
+		(Duration)300_000,
+		(Duration)100_000
+	) == 0.8f, "past the end is the target");
+	assert((float)brightness::ramp_level(
+		(Level)0.2f,
+		(Level)0.8f,
+		(Duration)5,
+		time::DURATION_ZERO
+	) == 0.8f, "a zero ramp is the target at once");
 }
 
 fn void ramp_is_done_at_its_end() @test

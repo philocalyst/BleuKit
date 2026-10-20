@@ -36,6 +36,14 @@ fn bool probe(Options* options)
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
+	// sysfs maps a supply to MAINS, BATTERY, UPS or UNKNOWN; peripheral batteries come only from UPower.
+	capabilities.set(
+		PERIPHERALS,
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"sysfs has no peripheral devices; see the upower backend"
+		)
+	);
 	// What the kernel interface cannot tell us at all, on any hardware.
 	return alloc::new(allocator, Backend, { .root = options.root.copy(allocator), .poll = options.poll });
 }

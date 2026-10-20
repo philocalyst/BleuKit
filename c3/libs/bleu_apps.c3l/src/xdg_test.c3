@@ -87,7 +87,7 @@ fn void launches_an_exec_line_with_uris() @test
 	Apps* apps = apps::open(mem, { .backend = XDG_DESKTOP, .root = root, .settle = time::ms(50) })!!;
 	defer apps.close();
 	apps.wait_after(0, time::ms(3000))!!.release();
-	String[] uris       = { "file:///tmp/example.txt" };
+	String[] uris = { "file:///tmp/example.txt" };
 	LaunchOperation* op = apps.launch(
 		"writer.desktop",
 		{ .uris = uris, .startup_id = "bleu_test_1", .activation_token = "tok" }
@@ -146,7 +146,7 @@ fn void new_desktop_files_are_noticed() @test
 
 fn void icons_absolute_paths_and_missing_names() @test
 {
-	String root    = make_tree("icons");
+	String root = make_tree("icons");
 	path::mkdir((Path)string::tformat("%s/usr/share/pixmaps", root), true)!!;
 	String picture = string::tformat("%s/usr/share/pixmaps/picture.png", root);
 	fs::write_text(picture, "not really a png")!!;

@@ -18,8 +18,8 @@ module bleu::apps::xdg_desktop @feat(LINUX);
 import bleu::apps, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::dbus::marshal, bleu::error, std::collections::list;
 
 const String APPLICATION_INTERFACE = "org.freedesktop.Application";
-const String KEY_STARTUP_ID = "desktop-startup-id";
-const String KEY_ACTIVATION_TOKEN = "activation-token";
+const String KEY_STARTUP_ID        = "desktop-startup-id";
+const String KEY_ACTIVATION_TOKEN  = "activation-token";
 
 <*
  Open the session bus on the calling (worker) thread.
@@ -46,10 +46,10 @@ fn bool open_bus(XdgBackend* backend)
 *>
 fn Launched? dbus_launch(XdgBackend* backend, App* app, AppAction* action, LaunchRequest* request)
 {
-	String stem = apps::desktop_id_stem(app.id);
-	String object_path = object_path_for(stem);
-	proxy::Proxy remote = proxy::for_object(&backend.bus, stem, object_path, APPLICATION_INTERFACE)!;
-	Value platform = platform_data(request)!;
+	String stem            = apps::desktop_id_stem(app.id);
+	String object_path     = object_path_for(stem);
+	proxy::Proxy remote    = proxy::for_object(&backend.bus, stem, object_path, APPLICATION_INTERFACE)!;
+	Value platform         = platform_data(request)!;
 	message::Message* call = build_call(&remote, action, request, platform)!;
 	defer call.release();
 	message::Message* reply = backend.bus.call(call)!;
@@ -62,10 +62,10 @@ fn message::Message*? build_call(proxy::Proxy* remote, AppAction* action, Launch
 {
 	if (action != null)
 	{
-		Value name = value::str(tmem, action.id)!;
-		Value[] parameters = {};
-		Value empty = value::array(tmem, "v", parameters)!;
-		message::Message* call = remote.new_call(tmem, "ActivateAction")!;
+		Value name              = value::str(tmem, action.id)!;
+		Value[] parameters      = { };
+		Value empty             = value::array(tmem, "v", parameters)!;
+		message::Message* call  = remote.new_call(tmem, "ActivateAction")!;
 		marshal::Writer* writer = call.body_writer("sava{sv}")!;
 		writer.append_value(name)!;
 		writer.append_value(empty)!;
@@ -74,14 +74,14 @@ fn message::Message*? build_call(proxy::Proxy* remote, AppAction* action, Launch
 	}
 	if (request.uris.len > 0 || request.files.len > 0)
 	{
-		Value uris = uri_array(request)!;
-		message::Message* call = remote.new_call(tmem, "Open")!;
+		Value uris              = uri_array(request)!;
+		message::Message* call  = remote.new_call(tmem, "Open")!;
 		marshal::Writer* writer = call.body_writer("asa{sv}")!;
 		writer.append_value(uris)!;
 		writer.append_value(platform)!;
 		return call;
 	}
-	message::Message* call = remote.new_call(tmem, "Activate")!;
+	message::Message* call  = remote.new_call(tmem, "Activate")!;
 	marshal::Writer* writer = call.body_writer("a{sv}")!;
 	writer.append_value(platform)!;
 	return call;
@@ -116,7 +116,7 @@ fn Value? platform_data(LaunchRequest* request) @local
 // One `{sv}` dictionary entry: a string key and a string variant.
 fn Value? entry(String key, String text) @local
 {
-	Value name = value::str(tmem, key)!;
+	Value name  = value::str(tmem, key)!;
 	Value inner = value::str(tmem, text)!;
 	return value::dict_entry(tmem, name, value::variant(tmem, inner));
 }

@@ -14,11 +14,11 @@
 module bleu::brightness::logind @feat(LINUX);
 import bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::marshal, bleu::error, std::time;
 
-const String SERVICE = "org.freedesktop.login1";
-const String SESSION_PATH = "/org/freedesktop/login1/session/auto";
-const String SESSION_INTERFACE = "org.freedesktop.login1.Session";
+const String SERVICE             = "org.freedesktop.login1";
+const String SESSION_PATH        = "/org/freedesktop/login1/session/auto";
+const String SESSION_INTERFACE   = "org.freedesktop.login1.Session";
 const String SUBSYSTEM_BACKLIGHT = "backlight";
-const String SUBSYSTEM_LEDS = "leds";
+const String SUBSYSTEM_LEDS      = "leds";
 
 <* How long a SetBrightness may take: logind waits for the write, which can be slow on I2C. *>
 const Duration CALL_TIMEOUT = (Duration)5_000_000;
@@ -39,7 +39,7 @@ fn void? set_brightness(Connection* bus, String subsystem, String name, uint raw
 	{
 		Proxy session = proxy::for_object(bus, SERVICE, SESSION_PATH, SESSION_INTERFACE)!;
 		Message* call = session.new_call(tmem, "SetBrightness")!;
-		Writer* body = call.body_writer("ssu")!;
+		Writer* body  = call.body_writer("ssu")!;
 		body.append_string(subsystem)!;
 		body.append_string(name)!;
 		body.append_u32(raw)!;

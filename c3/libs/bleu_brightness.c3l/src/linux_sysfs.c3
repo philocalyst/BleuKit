@@ -13,8 +13,8 @@ module bleu::brightness::sysfs @feat(LINUX);
 import std::collections::maybe, std::io::path, bleu::availability, bleu::brightness, bleu::error, bleu::rt::fs, bleu::unit;
 
 const String BACKLIGHT_CLASS = "/sys/class/backlight";
-const String LED_CLASS = "/sys/class/leds";
-const String DRM_CLASS = "/sys/class/drm";
+const String LED_CLASS       = "/sys/class/leds";
+const String DRM_CLASS       = "/sys/class/drm";
 
 <* Largest attribute read: a sysfs value is one short line. *>
 const sz ATTRIBUTE_CAPACITY = 128;
@@ -64,7 +64,7 @@ fn bool writable_file(String file)
 *>
 fn String[]? entries(Allocator allocator, String root, String directory)
 {
-	PathList names = fs::list_dir(tmem, string::tformat("%s%s", root, directory))!;
+	PathList names  = fs::list_dir(tmem, string::tformat("%s%s", root, directory))!;
 	String[] result = alloc::new_array(allocator, String, names.len());
 	foreach (i, name : names) result[i] = ((String)name).copy(allocator);
 	return result;
@@ -81,7 +81,7 @@ fn String? select_backlight(Allocator allocator, String root)
 	@pool()
 	{
 		String[] names = entries(tmem, root, BACKLIGHT_CLASS)!;
-		int[] ranks = alloc::new_array(tmem, int, names.len);
+		int[] ranks    = alloc::new_array(tmem, int, names.len);
 		foreach (i, name : names)
 		{
 			String type = read_text(tmem, string::tformat("%s%s/%s", root, BACKLIGHT_CLASS, name), "type") ?? "";
@@ -104,9 +104,9 @@ fn Control knob_control(Mechanism mechanism, String root, String directory, Stri
 {
 	@pool()
 	{
-		String dir = string::tformat("%s%s/%s", root, directory, name);
-		long max = read_number(dir, "max_brightness") ?? 0;
-		long raw = 0;
+		String dir    = string::tformat("%s%s/%s", root, directory, name);
+		long max      = read_number(dir, "max_brightness") ?? 0;
+		long raw      = 0;
 		bool readable = false;
 		if (try actual = read_number(dir, "actual_brightness"))
 		{
@@ -125,9 +125,8 @@ fn Control knob_control(Mechanism mechanism, String root, String directory, Stri
 				.availability = availability::no(HARDWARE_ABSENT, "the knob has no readable brightness or maximum"),
 			};
 		}
-		bool writable = logind_up || writable_file(string::tformat("%s/brightness", dir));
-		Availability state = writable
-			? availability::YES
+		bool writable      = logind_up || writable_file(string::tformat("%s/brightness", dir));
+		Availability state = writable ? availability::YES
 			: availability::no(PERMISSION_NEEDED, "logind is not reachable and the brightness file is not writable");
 		return {
 			.mechanism = mechanism,

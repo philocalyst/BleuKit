@@ -216,10 +216,10 @@ fn void ObjectServer.handle(&self, Message* call)
 
 // Routes one call to the standard interface, object or method it names. Routing
 // failures are answered here; a handler's failure is returned for `fail_call`.
-fn void? ObjectServer.dispatch(&self, Call* c) @private
+fn void? ObjectServer.dispatch(&self, Call* c)
 {
 	if (c.interface_name == INTERFACE_PEER) return peer_call(c);
-	if (c.interface_name == INTERFACE_INTROSPECTABLE && c.member == "Introspect") return self.introspect_call(c);
+	if (c.interface_name == INTERFACE_INTROSPECTABLE && c.member == "Introspect") return introspect_call(c);
 	Target target = self.find_target(c.path);
 	if (!target.found) return c.reply_error(ERROR_UNKNOWN_OBJECT, string::tformat("no object at %s", c.path));
 	if (c.interface_name == INTERFACE_PROPERTIES) return properties_call(c, &target);
@@ -232,7 +232,7 @@ fn void? ObjectServer.dispatch(&self, Call* c) @private
 }
 
 // Routes a call to a method of the object's own interfaces, and runs its handler.
-fn void? ObjectServer.user_call(&self, Call* c, Target* target) @private
+fn void? ObjectServer.user_call(&self, Call* c, Target* target)
 {
 	Method* method = null;
 	if (c.interface_name.len == 0)
@@ -272,7 +272,7 @@ fn void fail_call(Call* c, fault failure) @private
 fn String incoming_signature(Message* m) @private => m.has_writer ? m.writer.signature : m.signature;
 
 // The export at exactly `path`, or null.
-fn Export* ObjectServer.export_at(&self, String path) @private
+fn Export* ObjectServer.export_at(&self, String path)
 {
 	foreach (e : self.exports)
 	{
@@ -282,7 +282,7 @@ fn Export* ObjectServer.export_at(&self, String path) @private
 }
 
 // What `path` resolves to: the exact export, else the longest matching fallback, else nothing.
-fn Target ObjectServer.find_target(&self, String path) @private
+fn Target ObjectServer.find_target(&self, String path)
 {
 	Export* e = self.export_at(path);
 	if (e != null) return { .found = true, .interfaces = e.interfaces, .manager = e.manager };

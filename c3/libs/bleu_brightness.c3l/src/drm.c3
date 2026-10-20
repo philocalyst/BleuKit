@@ -39,7 +39,7 @@ fn Connector[]? connectors(Allocator allocator, String root)
 	foreach (name : names)
 	{
 		if (!sysfs::is_connector_name(name)) continue;
-		String dir = string::tformat("%s%s/%s", root, sysfs::DRM_CLASS, name);
+		String dir    = string::tformat("%s%s/%s", root, sysfs::DRM_CLASS, name);
 		String status = sysfs::read_text(tmem, dir, "status") ?? "";
 		if (status != "connected") continue;
 		if (try bus = bus_of(dir)) found.push({ .name = name.copy(allocator), .bus = bus });

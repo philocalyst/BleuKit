@@ -1,5 +1,5 @@
 module bleu::media;
-import std::collections::list, std::collections::maybe, std::time, bleu::dbus::value, bleu::media::mpris_convert, bleu::unit;
+import std::collections::list, std::collections::maybe, std::time, bleu::dbus::value, bleu::media::mpris_convert, bleu::media::smtc_convert, bleu::unit;
 
 <* Seconds as a Duration, for test arithmetic. *>
 fn Duration secs(long n) => (Duration)(n * 1_000_000);
@@ -187,4 +187,30 @@ fn void track_from_metadata() @test
 		assert(t.length.value == secs(3), "length");
 		assert(t.album == "" && t.art_url == "", "absent text is empty");
 	};
+}
+
+fn void smtc_status_and_repeat_values() @test
+{
+	assert(smtc_convert::playback_of_status(4) == Playback.PLAYING, "Playing is 4");
+	assert(smtc_convert::playback_of_status(5) == Playback.PAUSED, "Paused is 5");
+	assert(smtc_convert::playback_of_status(0) == Playback.STOPPED, "Closed is stopped");
+	assert(smtc_convert::loop_of_repeat(2) == Loop.PLAYLIST, "List is a playlist loop");
+	assert(smtc_convert::repeat_of_loop(Loop.TRACK) == 1, "track loop is 1");
+}
+
+fn void smtc_ticks_and_age() @test
+{
+	assert(smtc_convert::micros_of_ticks(25_000_000) == secs(2) + 500_000, "100 ns ticks to microseconds");
+	assert(smtc_convert::ticks_of_micros(secs(3)) == 30_000_000, "and back");
+	long stamped = (smtc_convert::UNIX_EPOCH_IN_MICRO_FROM_1601 + 5_000_000) * 10;
+	assert(smtc_convert::age_of(stamped, (Time)12_000_000) == secs(7), "age is now minus the stamp");
+	assert(smtc_convert::age_of(stamped, (Time)4_000_000) == time::DURATION_ZERO, "a future stamp is no age");
+}
+
+fn void smtc_controls_follow_what_is_reported() @test
+{
+	ReportedControls r = { .toggle = true, .position = true };
+	Controls c = smtc_convert::controls_of(r);
+	assert(c.play_pause && c.seek && c.set_position && !c.next && !c.raise && !c.quit, "toggle gives play-pause");
+	assert(!c.set_volume, "SMTC has no volume");
 }

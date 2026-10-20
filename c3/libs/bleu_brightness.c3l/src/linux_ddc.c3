@@ -81,8 +81,10 @@ fn Control DdcDisplay.read(&self)
 {
 	if (!self.opened)
 	{
-		Availability state = self.denied
-			? availability::no(PERMISSION_NEEDED, "the DDC/CI bus exists but may not be opened (group i2c)")
+		Availability state = self.denied ? availability::no(
+			PERMISSION_NEEDED,
+			"the DDC/CI bus exists but may not be opened (group i2c)"
+		)
 			: availability::no(HARDWARE_ABSENT, "the DDC/CI bus could not be opened");
 		return { .mechanism = DDC, .availability = state };
 	}
@@ -105,7 +107,10 @@ fn Control DdcDisplay.read(&self)
 		}
 	}
 	self.maximum = 0;
-	return { .mechanism = DDC, .availability = availability::no(HARDWARE_ABSENT, "the display did not report a VCP 0x10 range") };
+	return {
+		.mechanism = DDC,
+		.availability = availability::no(HARDWARE_ABSENT, "the display did not report a VCP 0x10 range")
+	};
 }
 
 <*
@@ -118,7 +123,13 @@ fn Applied? DdcDisplay.write(&self, Level level)
 {
 	if (!self.opened || self.maximum == 0)
 	{
-		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the DDC/CI range of '%s' is not known", self.connector)~;
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"the DDC/CI range of '%s' is not known",
+			self.connector
+		)~;
 	}
 	long max = (long)self.maximum;
 	long raw = level.to_raw(0, max);
@@ -146,7 +157,11 @@ fn void sync_displays(List{DdcDisplay*}* displays, Allocator allocator, String r
 		DdcDisplay* display = find_display(displays, connector.name, connector.bus);
 		if (!display)
 		{
-			display = alloc::new(allocator, DdcDisplay, { .connector = connector.name.copy(allocator), .bus = connector.bus });
+			display = alloc::new(
+				allocator,
+				DdcDisplay,
+				{ .connector = connector.name.copy(allocator), .bus = connector.bus }
+			);
 		}
 		else
 		{

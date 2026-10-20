@@ -21,5 +21,5 @@ fn void cancelling_a_waiting_prompt_ends_the_operation() @test
 	defer stored.release();
 	thread::sleep((Duration)200_000);
 	stored.cancel();
-	assert(@catch(stored.wait(time::sec(5))) == CANCELLED, "cancel ends the wait promptly");
+	assert(@catch(stored.wait(time::sec(5))) == error::CANCELLED, "cancel ends the wait promptly");
 }

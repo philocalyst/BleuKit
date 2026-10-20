@@ -15,7 +15,10 @@ fn void logind_carries_the_write_when_it_implements_it() @test
 	if (catch err = bus) return;
 	String root = variable("BLEU_BRIGHTNESS_ROOT")!!;
 	String mode = variable("BLEU_BRIGHTNESS_MODE")!!;
-	Brightness* service = brightness::open(mem, { .backend = LINUX, .root = root, .bus_address = bus, .poll = time::ms(100), .transition_step = time::ms(10) })!!;
+	Brightness* service = brightness::open(
+		mem,
+		{ .backend = LINUX, .root = root, .bus_address = bus, .poll = time::ms(100), .transition_step = time::ms(10) }
+	)!!;
 	defer service.close();
 	Snapshot{State}* first = service.wait_after(0, time::ms(5000))!!;
 	first.release();
@@ -28,7 +31,9 @@ fn void logind_carries_the_write_when_it_implements_it() @test
 	String log = fs::read_file(tmem, string::tformat("%s/mock-calls.log", root)) ?? "";
 	if (mode == "ok")
 	{
-		assert(log.contains("backlight intel_backlight 24000"), "logind received SetBrightness(backlight, intel_backlight, 24000)");
+		assert(log.contains(
+			"backlight intel_backlight 24000"
+		), "logind received SetBrightness(backlight, intel_backlight, 24000)");
 	}
 	else
 	{
@@ -40,6 +45,9 @@ fn void logind_carries_the_write_when_it_implements_it() @test
 	assert(led_applied.raw == 2);
 	if (mode == "ok")
 	{
-		assert(fs::read_file(tmem, string::tformat("%s/mock-calls.log", root))!!.contains("leds input5::kbd_backlight 2"), "keyboard LEDs go through logind too");
+		assert(fs::read_file(
+			tmem,
+			string::tformat("%s/mock-calls.log", root)
+		)!!.contains("leds input5::kbd_backlight 2"), "keyboard LEDs go through logind too");
 	}
 }

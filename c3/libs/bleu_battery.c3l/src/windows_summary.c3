@@ -45,7 +45,7 @@ fn Source summary_source(Allocator allocator, SystemPowerStatus* status, bool on
 {
 	Maybe{Level} percent = summary_percent((uint)status.battery_life_percent);
 	ChargeState state    = summary_state((uint)status.battery_flag, on_mains, percent);
-	Source source        = {
+	Source source = {
 		.id = "system".copy(allocator),
 		.kind = BATTERY,
 		.present = true,

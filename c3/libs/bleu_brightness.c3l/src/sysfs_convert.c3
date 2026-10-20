@@ -61,7 +61,7 @@ fn bool is_keyboard_backlight(String name) => name.ends_with("kbd_backlight");
 fn bool is_connector_name(String name)
 {
 	if (!name.starts_with("card")) return false;
-	usz i = 4;
+	usz i      = 4;
 	usz digits = 0;
 	while (i < name.len && name[i] >= '0' && name[i] <= '9')
 	{

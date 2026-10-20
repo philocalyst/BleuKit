@@ -48,21 +48,43 @@ fn bool probe(Options* options) => true;
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[Cap.SET_BACKLIGHT.ordinal] = availability::no(UNSUPPORTED_OS, "the backlight is Linux and Windows only");
-	capabilities.values[Cap.SET_DDC.ordinal] = availability::no(UNSUPPORTED_BACKEND, "DDC/CI on macOS is deferred to a later version");
-	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(UNSUPPORTED_BACKEND, "gamma dimming is not built for macOS yet");
-	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(UNSUPPORTED_BACKEND, "overlay dimming is not built");
-	capabilities.values[Cap.SET_KEYBOARD_LED.ordinal] = availability::no(UNSUPPORTED_BACKEND, "the keyboard backlight is not built for macOS");
-	MacOS* self = alloc::new(allocator, MacOS, {
-		.allocator = allocator,
-		.poll = options.poll,
-		.step = options.transition_step,
-		.platform = { .read = &read_state, .write = &write_control },
-	});
+	capabilities.values[Cap.SET_BACKLIGHT.ordinal] = availability::no(
+		UNSUPPORTED_OS,
+		"the backlight is Linux and Windows only"
+	);
+	capabilities.values[Cap.SET_DDC.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"DDC/CI on macOS is deferred to a later version"
+	);
+	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"gamma dimming is not built for macOS yet"
+	);
+	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"overlay dimming is not built"
+	);
+	capabilities.values[Cap.SET_KEYBOARD_LED.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"the keyboard backlight is not built for macOS"
+	);
+	MacOS* self = alloc::new(
+		allocator,
+		MacOS,
+		{
+			.allocator = allocator,
+			.poll = options.poll,
+			.step = options.transition_step,
+			.platform = { .read = &read_state, .write = &write_control },
+		}
+	);
 	self.platform.context = self;
 	if (catch displayservices::open_native(&self.native))
 	{
-		capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(BACKEND_MISSING, "DisplayServices is not present (private framework)");
+		capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(
+			BACKEND_MISSING,
+			"DisplayServices is not present (private framework)"
+		);
 	}
 	else
 	{
@@ -109,7 +131,14 @@ fn State? read_state(void* context, Allocator allocator)
 			List{Control} controls;
 			controls.init(tmem);
 			controls.push(self.native_control(display));
-			brightness::add_device(allocator, &devices, string::tformat("cg-%d", display), "built-in panel", DeviceKind.PANEL, controls.array_view());
+			brightness::add_device(
+				allocator,
+				&devices,
+				string::tformat("cg-%d", display),
+				"built-in panel",
+				DeviceKind.PANEL,
+				controls.array_view()
+			);
 		}
 		return { .devices = alloc::clone_slice(allocator, devices.array_view()) };
 	};
@@ -120,11 +149,17 @@ fn Control MacOS.native_control(&self, uint display)
 {
 	if (!self.native_ready)
 	{
-		return { .mechanism = Mechanism.NATIVE, .availability = availability::no(BACKEND_MISSING, "DisplayServices is not present") };
+		return {
+			.mechanism = Mechanism.NATIVE,
+			.availability = availability::no(BACKEND_MISSING, "DisplayServices is not present")
+		};
 	}
 	if (!self.native.api.can_change(display))
 	{
-		return { .mechanism = Mechanism.NATIVE, .availability = availability::no(HARDWARE_ABSENT, "the display does not accept a brightness change") };
+		return {
+			.mechanism = Mechanism.NATIVE,
+			.availability = availability::no(HARDWARE_ABSENT, "the display does not accept a brightness change")
+		};
 	}
 	float value = 0;
 	if (self.native.api.get_brightness(display, &value) != 0)
@@ -161,15 +196,28 @@ fn Applied? write_control(void* context, String device_id, Mechanism mechanism, 
 
 fn Applied? MacOS.write_native(&self, String device_id, Level level)
 {
-	if (!self.native_ready) return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "DisplayServices is not present")~;
-	if (!device_id.starts_with("cg-")) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
+	if (!self.native_ready) return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"DisplayServices is not present"
+	)~;
+	if (!device_id.starts_with(
+		"cg-"
+	)) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a display", device_id)~;
 	uint display = 0;
 	for (usz i = 3; i < device_id.len; i++) display = display * 10 + (uint)(device_id[i] - '0');
 	if (self.native.api.set_brightness(display, (float)level) != 0)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "DisplayServicesSetBrightness refused '%s'", device_id)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.MACH,
+			0,
+			"DisplayServicesSetBrightness refused '%s'",
+			device_id
+		)~;
 	}
-	float value = 0;
+	float value            = 0;
 	Maybe{Level} read_back = { };
 	if (self.native.api.get_brightness(display, &value) == 0)
 	{

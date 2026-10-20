@@ -31,6 +31,8 @@ const uint IFF_LOOPBACK = 0x8;
 const uint MFSTYPENAMELEN = 16;
 const uint MAXPATHLEN = 1024;
 const uint MAXCOMLEN = 16;
+const CInt MNT_NOWAIT = 2;
+const ulong NANOSECONDS_PER_SECOND = 1_000_000_000;
 
 <* `processor_cpu_load_info`: ticks per CPU_STATE_* index, for one processor. *>
 struct ProcessorLoad

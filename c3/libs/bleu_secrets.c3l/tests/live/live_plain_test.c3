@@ -1,16 +1,16 @@
 // Live test against secret_service_mock.py in MODE refuse-dh (run by ../run.sh).
 module bleu::secrets::live_plain_test;
-import std::time, bleu::error, bleu::observe, bleu::operation, bleu::stream, bleu::secrets;
+import std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::stream, bleu::secrets;
 
 fn void refused_dh_is_reported_and_refused_without_permission() @test
 {
 	Keyring* keyring = secrets::open(mem)!!;
 	defer keyring.close();
 	assert(!keyring.capability(ENCRYPTED_TRANSPORT).ok(), "the mock refuses the DH session");
-	assert(keyring.capability(ENCRYPTED_TRANSPORT).reason == UNSUPPORTED_BACKEND);
+	assert(keyring.capability(ENCRYPTED_TRANSPORT).reason == availability::Reason.UNSUPPORTED_BACKEND);
 	Operation{Entry}* stored = keyring.store({ .service = "bleu.a", .account = "b" }, (char[])"v")!!;
 	defer stored.release();
-	assert(@catch(stored.wait(time::sec(10))) == UNSUPPORTED, "no silent plaintext fallback");
+	assert(@catch(stored.wait(time::sec(10))) == error::UNSUPPORTED, "no silent plaintext fallback");
 }
 
 fn void plain_transport_round_trips_when_allowed() @test

@@ -38,6 +38,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		.bus_address = options.bus_address,
 		.prompt_timeout = options.prompt_timeout,
 		.allow_plain = options.allow_plain_transport,
+		.bus_ready = true,
 	};
 	trial.bus.init(allocator);
 	defer trial.bus.free();

@@ -6,9 +6,9 @@
 
  Symbols and signatures, from the Lunar bridging header (Lunar/Lunar-Bridging-Header.h,
  lines 49-75, as recorded in docs/research/display.md section 2.2, (a)):
-   int  DisplayServicesGetBrightness(CGDirectDisplayID, float *out);   // 0..1
-   int  DisplayServicesSetBrightness(CGDirectDisplayID, float);        // 0..1
-   bool DisplayServicesCanChangeBrightness(CGDirectDisplayID);
+ int  DisplayServicesGetBrightness(CGDirectDisplayID, float *out);   // 0..1
+ int  DisplayServicesSetBrightness(CGDirectDisplayID, float);        // 0..1
+ bool DisplayServicesCanChangeBrightness(CGDirectDisplayID);
  A status of 0 is KERN_SUCCESS (Lunar AppleNativeControl.swift, testReadAndWrite,
  lines 95-109). The framework path is the one Lunar and nriley/brightness open.
 

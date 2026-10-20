@@ -1,5 +1,5 @@
 module bleu::brightness::engine_test;
-import std::collections::maybe, std::time, bleu::availability, bleu::brightness, bleu::error, bleu::operation, bleu::rt::worker, bleu::service, bleu::unit;
+import std::collections::maybe, std::time, bleu::availability, bleu::brightness, bleu::error, bleu::observe, bleu::operation, bleu::rt::worker, bleu::service, bleu::stream, bleu::unit;
 
 // A platform in memory: one panel with a backlight and a gamma ramp.
 struct World
@@ -15,15 +15,14 @@ struct World
 // The poll is far away: the tests drive the engine with requests and never wait for a re-read.
 const Duration TEST_POLL = (Duration)3_600_000_000;
 const Duration TEST_STEP = (Duration)10_000;
-const Duration WAIT = (Duration)5_000_000;
-const float TOLERANCE = 0.01f;
+const Duration WAIT      = (Duration)5_000_000;
+const float TOLERANCE    = 0.01f;
 
 fn State? world_read(void* context, Allocator allocator)
 {
-	World* world = (World*)context;
+	World* world       = (World*)context;
 	Control[] controls = alloc::new_array(allocator, Control, 2);
-	Availability state = world.hardware_writable
-		? availability::YES
+	Availability state = world.hardware_writable ? availability::YES
 		: availability::no(availability::Reason.PERMISSION_NEEDED, "test: read-only");
 	controls[0] = {
 		.mechanism = Mechanism.BACKLIGHT,
@@ -43,7 +42,12 @@ fn State? world_read(void* context, Allocator allocator)
 		.level = maybe::value((Level)world.gamma),
 	};
 	Device[] devices = alloc::new_array(allocator, Device, 1);
-	devices[0] = { .id = "panel".copy(allocator), .name = "test panel".copy(allocator), .kind = DeviceKind.PANEL, .controls = controls };
+	devices[0] = {
+		.id = "panel".copy(allocator),
+		.name = "test panel".copy(allocator),
+		.kind = DeviceKind.PANEL,
+		.controls = controls
+	};
 	return { .devices = devices };
 }
 
@@ -53,10 +57,22 @@ fn Applied? world_write(void* context, String device_id, Mechanism mechanism, Le
 	switch (mechanism)
 	{
 		case BACKLIGHT:
-			if (world.hardware_fails) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "test: hardware refuses")~;
+			if (world.hardware_fails) return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.INTERNAL,
+				0,
+				"test: hardware refuses"
+			)~;
 			world.hardware_writes++;
 			world.level = (float)level;
-			return brightness::applied_at(Mechanism.BACKLIGHT, level, (long)(world.level * 100), 0, 100, maybe::value(level));
+			return brightness::applied_at(
+				Mechanism.BACKLIGHT,
+				level,
+				(long)(world.level * 100),
+				0,
+				100,
+				maybe::value(level)
+			);
 		case GAMMA:
 			world.gamma = (float)level;
 			return brightness::applied_at(Mechanism.GAMMA, level, 0, 0, 1, maybe::value(level));
@@ -79,7 +95,14 @@ fn Applied? request(BrightnessHub* hub, Policy policy, Level level, Duration tra
 {
 	SetOperation* op = operation::begin{Applied}(mem);
 	defer op.release();
-	Command command = { .kind = SET_LEVEL, .device_len = 5, .level = level, .policy = policy, .transition = transition, .operation = op };
+	Command command = {
+		.kind = SET_LEVEL,
+		.device_len = 5,
+		.level = level,
+		.policy = policy,
+		.transition = transition,
+		.operation = op
+	};
 	mem::copy(&command.device, "panel".ptr, 5);
 	op.retain();
 	hub.post(command)!!;
@@ -88,7 +111,13 @@ fn Applied? request(BrightnessHub* hub, Policy policy, Level level, Duration tra
 
 fn World make_world(bool writable, bool fails) @local
 {
-	return { .level = 0.2f, .gamma = 1.0f, .hardware_writable = writable, .hardware_fails = fails, .platform = { .read = &world_read, .write = &world_write } };
+	return {
+		.level = 0.2f,
+		.gamma = 1.0f,
+		.hardware_writable = writable,
+		.hardware_fails = fails,
+		.platform = { .read = &world_read, .write = &world_write }
+	};
 }
 
 fn void prefer_hardware_writes_the_backlight() @test
@@ -187,11 +216,19 @@ fn void a_new_request_cancels_the_transition_in_progress() @test
 	defer hub.stop();
 	SetOperation* slow = operation::begin{Applied}(mem);
 	defer slow.release();
-	Command ramp = { .kind = SET_LEVEL, .device_len = 5, .level = (Level)1.0f, .policy = brightness::prefer_hardware(), .transition = (Duration)2_000_000, .operation = slow };
+	Command ramp = {
+		.kind = SET_LEVEL,
+		.device_len = 5,
+		.level = (Level)1.0f,
+		.policy = brightness::prefer_hardware(),
+		.transition = (Duration)2_000_000,
+		.operation = slow
+	};
 	mem::copy(&ramp.device, "panel".ptr, 5);
 	slow.retain();
 	hub.post(ramp)!!;
-	if (catch err = request(&hub, brightness::prefer_hardware(), (Level)0.3f, time::DURATION_ZERO)) {
+	if (catch err = request(&hub, brightness::prefer_hardware(), (Level)0.3f, time::DURATION_ZERO))
+	{
 		assert(false, "the second request should succeed");
 	}
 	if (catch err = slow.wait(WAIT))
@@ -202,4 +239,21 @@ fn void a_new_request_cancels_the_transition_in_progress() @test
 	{
 		assert(false, "the replaced transition must not succeed");
 	}
+}
+fn void a_level_change_is_announced_as_an_event() @test
+{
+	World world = make_world(true, false);
+	world.platform.context = &world;
+	BrightnessHub hub;
+	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.stop();
+	stream::Reader{Event}* reader = hub.events.subscribe()!!;
+	defer reader.release();
+	Applied applied = request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
+	assert(applied.raw == 40);
+	Snapshot{Event}* packet = reader.next(WAIT)!!;
+	defer packet.release();
+	assert(packet.value.kind == EventKind.LEVEL_CHANGED, "the level moved");
+	assert(packet.value.device_id == "panel"
+		&& packet.value.mechanism == Mechanism.BACKLIGHT, "it names the device and the control");
 }

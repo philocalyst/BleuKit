@@ -37,26 +37,40 @@ const Driver DRIVER = {
 <* Usable when the kernel exposes any of the classes this backend drives. *>
 fn bool probe(Options* options)
 {
-	return sysfs::has_class(options.root, sysfs::BACKLIGHT_CLASS)
-		|| sysfs::has_class(options.root, sysfs::LED_CLASS)
-		|| sysfs::has_class(options.root, sysfs::DRM_CLASS);
+	return sysfs::has_class(
+		options.root,
+		sysfs::BACKLIGHT_CLASS
+	) || sysfs::has_class(options.root, sysfs::LED_CLASS) || sysfs::has_class(options.root, sysfs::DRM_CLASS);
 }
 
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(UNSUPPORTED_OS, "the OS's own panel call is macOS only");
-	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(UNSUPPORTED_BACKEND, "gamma dimming is not built for Linux (needs wlr-gamma-control or RandR)");
-	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(UNSUPPORTED_BACKEND, "overlay dimming is not built");
-	Linux* self = alloc::new(allocator, Linux, {
-		.allocator = allocator,
-		.root = options.root.copy(allocator),
-		.bus_address = options.bus_address.copy(allocator),
-		.open_bus = options.open_bus,
-		.open_bus_context = options.open_bus_context,
-		.poll = options.poll,
-		.step = options.transition_step,
-	});
+	capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(
+		UNSUPPORTED_OS,
+		"the OS's own panel call is macOS only"
+	);
+	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"gamma dimming is not built for Linux (needs wlr-gamma-control or RandR)"
+	);
+	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"overlay dimming is not built"
+	);
+	Linux* self = alloc::new(
+		allocator,
+		Linux,
+		{
+			.allocator = allocator,
+			.root = options.root.copy(allocator),
+			.bus_address = options.bus_address.copy(allocator),
+			.open_bus = options.open_bus,
+			.open_bus_context = options.open_bus_context,
+			.poll = options.poll,
+			.step = options.transition_step,
+		}
+	);
 	self.platform = { .context = self, .read = &read_state, .write = &write_control };
 	return self;
 }
@@ -106,7 +120,14 @@ fn State? read_state(void* context, Allocator allocator)
 			List{Control} controls;
 			controls.init(tmem);
 			controls.push(display.read());
-			brightness::add_device(allocator, &devices, display.connector, display.connector, EXTERNAL, controls.array_view());
+			brightness::add_device(
+				allocator,
+				&devices,
+				display.connector,
+				display.connector,
+				EXTERNAL,
+				controls.array_view()
+			);
 		}
 		return { .devices = alloc::clone_slice(allocator, devices.array_view()) };
 	};
@@ -160,22 +181,34 @@ fn Applied? Linux.write_knob(&self, Mechanism mechanism, String device_id, Level
 {
 	@pool()
 	{
-		bool panel = mechanism == BACKLIGHT;
+		bool panel       = mechanism == BACKLIGHT;
 		String directory = panel ? sysfs::BACKLIGHT_CLASS : sysfs::LED_CLASS;
 		String subsystem = panel ? logind::SUBSYSTEM_BACKLIGHT : logind::SUBSYSTEM_LEDS;
 		if (panel)
 		{
 			String selected = sysfs::select_backlight(tmem, self.root) ?? "";
-			if (device_id != selected) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not the panel backlight", device_id)~;
+			if (device_id != selected) return error::raise(
+				NOT_FOUND,
+				error::Domain.INTERNAL,
+				0,
+				"'%s' is not the panel backlight",
+				device_id
+			)~;
 		}
 		else if (!sysfs::is_keyboard_backlight(device_id) || device_id.contains("/"))
 		{
 			return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not a keyboard backlight", device_id)~;
 		}
 		String dir = string::tformat("%s%s/%s", self.root, directory, device_id);
-		long max = sysfs::read_number(dir, "max_brightness") ?? 0;
-		if (max <= 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "'%s' has no maximum brightness", device_id)~;
-		long raw = level.to_raw(0, max);
+		long max   = sysfs::read_number(dir, "max_brightness") ?? 0;
+		if (max <= 0) return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"'%s' has no maximum brightness",
+			device_id
+		)~;
+		long raw     = level.to_raw(0, max);
 		bool carried = false;
 		if (self.bus.is_open)
 		{

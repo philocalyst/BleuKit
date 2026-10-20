@@ -131,7 +131,8 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 			foreach (iface : object.items[1].items) io::printfn("DBG   iface='%s'", iface.items[0].text);
 			if (try props = interface_props(object, ADAPTER_IFACE))
 			{
-				if (try rawv = props.dict_get("Address")) io::printfn("DBG raw kind=%d text='%s' unwrapped=%d", rawv.kind.ordinal, rawv.text, rawv.unwrap().kind.ordinal);
+				io::printfn("DBG props kind=%d sig='%s' items=%d", props.kind.ordinal, props.sig, props.items.len);
+				if (props.items.len > 0) io::printfn("DBG first key kind=%d text='%s' sig='%s'", props.items[0].kind.ordinal, props.items[0].items[0].text, props.items[0].sig);
 				Adapter adapter = read_adapter(props, kill_switch, allocator);
 				links.push({ .path = object.items[0].text, .address = adapter.address });
 				adapters.push(adapter);

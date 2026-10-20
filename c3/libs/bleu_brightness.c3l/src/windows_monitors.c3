@@ -29,11 +29,28 @@ struct PhysicalMonitor
 // `BOOL CALLBACK MonitorEnumProc(HMONITOR, HDC, LPRECT, LPARAM)`.
 alias MonitorEnumFn = fn int(void* display, void* context, void* rect, long data);
 
-extern fn int enumDisplayMonitors(void* context, void* clip, MonitorEnumFn callback, long data) @cname("EnumDisplayMonitors");
-extern fn int getNumberOfPhysicalMonitorsFromHMONITOR(void* display, uint* count) @cname("GetNumberOfPhysicalMonitorsFromHMONITOR");
-extern fn int getPhysicalMonitorsFromHMONITOR(void* display, uint count, PhysicalMonitor* out) @cname("GetPhysicalMonitorsFromHMONITOR");
+extern fn int enumDisplayMonitors(
+	void* context,
+	void* clip,
+	MonitorEnumFn callback,
+	long data
+) @cname("EnumDisplayMonitors");
+extern fn int getNumberOfPhysicalMonitorsFromHMONITOR(
+	void* display,
+	uint* count
+) @cname("GetNumberOfPhysicalMonitorsFromHMONITOR");
+extern fn int getPhysicalMonitorsFromHMONITOR(
+	void* display,
+	uint count,
+	PhysicalMonitor* out
+) @cname("GetPhysicalMonitorsFromHMONITOR");
 extern fn int destroyPhysicalMonitors(uint count, PhysicalMonitor* monitors) @cname("DestroyPhysicalMonitors");
-extern fn int getMonitorBrightness(void* handle, uint* minimum, uint* current, uint* maximum) @cname("GetMonitorBrightness");
+extern fn int getMonitorBrightness(
+	void* handle,
+	uint* minimum,
+	uint* current,
+	uint* maximum
+) @cname("GetMonitorBrightness");
 extern fn int setMonitorBrightness(void* handle, uint value) @cname("SetMonitorBrightness");
 
 // The monitors of one display, as fetched, so that they can be destroyed with the same count.
@@ -91,7 +108,13 @@ fn Control monitor_control(PhysicalMonitor* monitor)
 	uint maximum = 0;
 	if (!getMonitorBrightness(monitor.handle, &minimum, &current, &maximum) || maximum <= minimum)
 	{
-		return { .mechanism = DDC, .availability = availability::no(HARDWARE_ABSENT, "the monitor did not answer the high-level brightness call") };
+		return {
+			.mechanism = DDC,
+			.availability = availability::no(
+				HARDWARE_ABSENT,
+				"the monitor did not answer the high-level brightness call"
+			)
+		};
 	}
 	return {
 		.mechanism = DDC,

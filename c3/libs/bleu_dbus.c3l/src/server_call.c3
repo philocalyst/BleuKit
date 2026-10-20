@@ -134,7 +134,7 @@ fn ReplyToken park(ObjectServer* server, String destination, uint serial, String
 }
 
 // The deferred reply with `token`, removed from the list. The caller frees it.
-fn Deferred*? ObjectServer.take(&self, ReplyToken token) @private
+fn Deferred*? ObjectServer.take(&self, ReplyToken token)
 {
 	for (sz k = 0; k < (sz)self.deferred.len(); k++)
 	{

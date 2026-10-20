@@ -17,20 +17,20 @@
 module bleu::brightness::windows_panel @feat(WIN32);
 import bleu::error, bleu::unit;
 
-const uint GENERIC_READ = 0x80000000;
-const uint GENERIC_WRITE = 0x40000000;
-const uint FILE_SHARE_READ = 0x1;
-const uint FILE_SHARE_WRITE = 0x2;
-const uint OPEN_EXISTING = 3;
-const uint FILE_DEVICE_VIDEO = 0x23;
-const uint FUNCTION_QUERY_DISPLAY_BRIGHTNESS = 0x126;
-const uint FUNCTION_SET_DISPLAY_BRIGHTNESS = 0x127;
-const uint METHOD_BUFFERED = 0;
-const uint FILE_ANY_ACCESS = 0;
-const uint IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS = (FILE_DEVICE_VIDEO << 16) | (FUNCTION_QUERY_DISPLAY_BRIGHTNESS << 2);
-const uint IOCTL_VIDEO_SET_DISPLAY_BRIGHTNESS = (FILE_DEVICE_VIDEO << 16) | (FUNCTION_SET_DISPLAY_BRIGHTNESS << 2);
-const String PANEL_PATH = "\\\\.\\LCD";
-const long INVALID_HANDLE = -1;
+const uint GENERIC_READ                         =  0x80000000;
+const uint GENERIC_WRITE                        =  0x40000000;
+const uint FILE_SHARE_READ                      =  0x1;
+const uint FILE_SHARE_WRITE                     =  0x2;
+const uint OPEN_EXISTING                        =  3;
+const uint FILE_DEVICE_VIDEO                    =  0x23;
+const uint FUNCTION_QUERY_DISPLAY_BRIGHTNESS    =  0x126;
+const uint FUNCTION_SET_DISPLAY_BRIGHTNESS      =  0x127;
+const uint METHOD_BUFFERED                      =  0;
+const uint FILE_ANY_ACCESS                      =  0;
+const uint IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS =  (FILE_DEVICE_VIDEO << 16) | (FUNCTION_QUERY_DISPLAY_BRIGHTNESS << 2);
+const uint IOCTL_VIDEO_SET_DISPLAY_BRIGHTNESS   =  (FILE_DEVICE_VIDEO << 16) | (FUNCTION_SET_DISPLAY_BRIGHTNESS << 2);
+const String PANEL_PATH                         =  "\\\\.\\LCD";
+const long INVALID_HANDLE                       = -1;
 
 // The percentage scale of the AC byte (UNVERIFIED, see the module comment).
 const long PANEL_STEPS = 100;
@@ -46,8 +46,25 @@ struct DisplayBrightness
 	char dc;
 }
 
-extern fn void* createFileA(ZString name, uint access, uint share, void* security, uint disposition, uint flags, void* template) @cname("CreateFileA");
-extern fn int deviceIoControl(void* device, uint code, void* input, uint input_size, void* output, uint output_size, uint* returned, void* overlapped) @cname("DeviceIoControl");
+extern fn void* createFileA(
+	ZString name,
+	uint access,
+	uint share,
+	void* security,
+	uint disposition,
+	uint flags,
+	void* template
+) @cname("CreateFileA");
+extern fn int deviceIoControl(
+	void* device,
+	uint code,
+	void* input,
+	uint input_size,
+	void* output,
+	uint output_size,
+	uint* returned,
+	void* overlapped
+) @cname("DeviceIoControl");
 extern fn int closeHandle(void* handle) @cname("CloseHandle");
 
 <* An open `\\.\LCD`. Owned by one caller; close it when done. *>
@@ -63,7 +80,15 @@ struct Panel
 *>
 fn Panel? open_panel()
 {
-	void* handle = createFileA(PANEL_PATH.zstr_tcopy(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
+	void* handle = createFileA(
+		PANEL_PATH.zstr_tcopy(),
+		GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		null,
+		OPEN_EXISTING,
+		0,
+		null
+	);
 	if ((long)handle == INVALID_HANDLE || handle == null)
 	{
 		return error::raise(error::UNAVAILABLE, error::Domain.WIN32, 0, "cannot open %s", PANEL_PATH)~;
@@ -82,9 +107,23 @@ fn DisplayBrightness? Panel.query(&self)
 {
 	DisplayBrightness value;
 	uint returned = 0;
-	if (!deviceIoControl(self.handle, IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS, null, 0, &value, DISPLAY_BRIGHTNESS_BYTES, &returned, null))
+	if (!deviceIoControl(
+		self.handle,
+		IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS,
+		null,
+		0,
+		&value,
+		DISPLAY_BRIGHTNESS_BYTES,
+		&returned,
+		null
+	))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "the panel did not answer the brightness query")~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			0,
+			"the panel did not answer the brightness query"
+		)~;
 	}
 	return value;
 }
@@ -103,11 +142,20 @@ fn Level? Panel.level(&self)
 fn long? Panel.write(&self, Level level)
 {
 	DisplayBrightness value = self.query()!;
-	long raw = level.to_raw(0, PANEL_STEPS);
+	long raw                = level.to_raw(0, PANEL_STEPS);
 	value.ac = (char)raw;
 	value.dc = (char)raw;
 	uint returned = 0;
-	if (!deviceIoControl(self.handle, IOCTL_VIDEO_SET_DISPLAY_BRIGHTNESS, &value, DISPLAY_BRIGHTNESS_BYTES, null, 0, &returned, null))
+	if (!deviceIoControl(
+		self.handle,
+		IOCTL_VIDEO_SET_DISPLAY_BRIGHTNESS,
+		&value,
+		DISPLAY_BRIGHTNESS_BYTES,
+		null,
+		0,
+		&returned,
+		null
+	))
 	{
 		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "the panel refused the brightness set")~;
 	}

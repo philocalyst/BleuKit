@@ -137,7 +137,7 @@ alias SetOperation = Operation{Applied};
 *>
 enum EventKind : char
 {
-	LEVEL_CHANGED,  // a control's level differs from the previous state (keys, another client, our own writes)
+	LEVEL_CHANGED, // a control's level differs from the previous state (keys, another client, our own writes)
 	DEVICE_ADDED,
 	DEVICE_REMOVED,
 }
@@ -178,9 +178,9 @@ struct Command
 enum Backend : char
 {
 	AUTO,
-	LINUX,   // logind or sysfs for backlights and keyboard LEDs; DDC/CI through /dev/i2c-N
-	WIN32,   // the panel IOCTL and dxva2 for external monitors
-	MACOS,   // DisplayServices for built-in panels
+	LINUX, // logind or sysfs for backlights and keyboard LEDs; DDC/CI through /dev/i2c-N
+	WIN32, // the panel IOCTL and dxva2 for external monitors
+	MACOS, // DisplayServices for built-in panels
 }
 
 <*

@@ -162,7 +162,7 @@ fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* req
 	WideZ target     = text::to_wide(tmem, app.target)!;
 	WideZ verb       = text::to_wide(tmem, VERB_OPEN)!;
 	WideZ parameters = text::to_wide(tmem, join(request.args))!;
-	long result      = (long)shell_execute_w(
+	long result = (long)shell_execute_w(
 		null,
 		verb.as_wstring(),
 		target.as_wstring(),

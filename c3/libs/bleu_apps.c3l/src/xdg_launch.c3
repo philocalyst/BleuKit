@@ -24,7 +24,13 @@ fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* req
 		if (try activated = dbus_launch(backend, app, action, request)) return activated;
 	}
 	String exec = action != null ? action.exec : app.target;
-	if (exec.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "%s could not be activated on the bus and has no Exec line", app.id)~;
+	if (exec.len == 0) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"%s could not be activated on the bus and has no Exec line",
+		app.id
+	)~;
 	Context context = {
 		.files = request.files,
 		.urls = request.uris,

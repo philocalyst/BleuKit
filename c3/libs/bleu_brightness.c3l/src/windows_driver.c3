@@ -35,16 +35,32 @@ fn bool probe(Options* options) => true;
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	capabilities.init(availability::YES);
-	capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(UNSUPPORTED_OS, "the OS's own panel call is macOS only");
-	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(UNSUPPORTED_BACKEND, "gamma ramps are not built for Windows yet");
-	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(UNSUPPORTED_BACKEND, "overlay dimming is not built");
-	capabilities.values[Cap.SET_KEYBOARD_LED.ordinal] = availability::no(UNSUPPORTED_BACKEND, "keyboard backlights are not built for Windows");
-	Windows* self = alloc::new(allocator, Windows, {
-		.allocator = allocator,
-		.poll = options.poll,
-		.step = options.transition_step,
-		.platform = { .read = &read_state, .write = &write_control },
-	});
+	capabilities.values[Cap.SET_NATIVE.ordinal] = availability::no(
+		UNSUPPORTED_OS,
+		"the OS's own panel call is macOS only"
+	);
+	capabilities.values[Cap.SET_GAMMA.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"gamma ramps are not built for Windows yet"
+	);
+	capabilities.values[Cap.SET_OVERLAY.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"overlay dimming is not built"
+	);
+	capabilities.values[Cap.SET_KEYBOARD_LED.ordinal] = availability::no(
+		UNSUPPORTED_BACKEND,
+		"keyboard backlights are not built for Windows"
+	);
+	Windows* self = alloc::new(
+		allocator,
+		Windows,
+		{
+			.allocator = allocator,
+			.poll = options.poll,
+			.step = options.transition_step,
+			.platform = { .read = &read_state, .write = &write_control },
+		}
+	);
 	self.platform.context = self;
 	return self;
 }
@@ -75,16 +91,25 @@ fn State? read_state(void* context, Allocator allocator)
 			{
 				List{Control} controls;
 				controls.init(tmem);
-				controls.push({
-					.mechanism = Mechanism.BACKLIGHT,
-					.readable = true,
-					.writable = true,
-					.availability = availability::YES,
-					.level = maybe::value(level),
-					.raw_min = 0,
-					.raw_max = windows_panel::PANEL_STEPS,
-				});
-				brightness::add_device(allocator, &devices, PANEL_ID, "internal panel", DeviceKind.PANEL, controls.array_view());
+				controls.push(
+					{
+						.mechanism = Mechanism.BACKLIGHT,
+						.readable = true,
+						.writable = true,
+						.availability = availability::YES,
+						.level = maybe::value(level),
+						.raw_min = 0,
+						.raw_max = windows_panel::PANEL_STEPS,
+					}
+				);
+				brightness::add_device(
+					allocator,
+					&devices,
+					PANEL_ID,
+					"internal panel",
+					DeviceKind.PANEL,
+					controls.array_view()
+				);
 			}
 		}
 		List{windows_monitors::Chunk} chunks;
@@ -102,7 +127,14 @@ fn State? read_state(void* context, Allocator allocator)
 				List{Control} controls;
 				controls.init(tmem);
 				controls.push(windows_monitors::monitor_control(monitor));
-				brightness::add_device(allocator, &devices, string::tformat("monitor-%d", index++), "external monitor", DeviceKind.EXTERNAL, controls.array_view());
+				brightness::add_device(
+					allocator,
+					&devices,
+					string::tformat("monitor-%d", index++),
+					"external monitor",
+					DeviceKind.EXTERNAL,
+					controls.array_view()
+				);
 			}
 		}
 		return { .devices = alloc::clone_slice(allocator, devices.array_view()) };
@@ -125,10 +157,16 @@ fn Applied? write_control(void* context, String device_id, Mechanism mechanism, 
 
 fn Applied? write_panel(String device_id, Level level) @local
 {
-	if (device_id != PANEL_ID) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "'%s' is not the internal panel", device_id)~;
+	if (device_id != PANEL_ID) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"'%s' is not the internal panel",
+		device_id
+	)~;
 	windows_panel::Panel panel = windows_panel::open_panel()!;
 	defer panel.close();
-	long raw = panel.write(level)!;
+	long raw               = panel.write(level)!;
 	Maybe{Level} read_back = { };
 	if (try confirmed = panel.level()) read_back = maybe::value(confirmed);
 	return brightness::applied_at(Mechanism.BACKLIGHT, level, raw, 0, windows_panel::PANEL_STEPS, read_back);
@@ -147,7 +185,10 @@ fn Applied? write_external(String device_id, Level level) @local
 		{
 			foreach (&monitor : chunk)
 			{
-				if (string::tformat("monitor-%d", index++) == device_id) return windows_monitors::write_monitor(monitor, level);
+				if (string::tformat(
+					"monitor-%d",
+					index++
+				) == device_id) return windows_monitors::write_monitor(monitor, level);
 			}
 		}
 		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no external monitor '%s'", device_id)~;

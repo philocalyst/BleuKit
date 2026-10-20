@@ -50,7 +50,7 @@ fn Brightness*? open(Allocator allocator, Options options = { })
 {
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
 	if (options.transition_step == time::DURATION_ZERO) options.transition_step = DEFAULT_TRANSITION_STEP;
-	Driver* driver = select_driver(options)!;
+	Driver* driver   = select_driver(options)!;
 	Brightness* self = alloc::new(allocator, Brightness);
 	self.allocator = allocator;
 	self.driver = driver;
@@ -136,7 +136,13 @@ fn SetOperation*? Brightness.set_level(
 {
 	if (device.len == 0 || device.len > DEVICE_ID_CAPACITY)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "device id must be 1 to %d bytes", DEVICE_ID_CAPACITY)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"device id must be 1 to %d bytes",
+			DEVICE_ID_CAPACITY
+		)~;
 	}
 	if (transition < time::DURATION_ZERO)
 	{

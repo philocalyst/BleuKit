@@ -17,12 +17,13 @@ fn Transport? open_mock(void* context, String device_path)
 fn void monitor_luminance_is_read_and_written() @test
 {
 	String root = string::tformat("/tmp/bleu-brightness-ddc-%d", clock::now());
-	String drm = string::tformat("%s/sys/class/drm", root);
+	String drm  = string::tformat("%s/sys/class/drm", root);
 	path::mkdir((Path)string::tformat("%s/card1-DP-1", drm), true)!!;
 	fs::write_text(string::tformat("%s/card1-DP-1/status", drm), "connected")!!;
 	@pool()
 	{
-		assert(symlink("../../devices/i2c-7".zstr_tcopy(), string::tformat("%s/card1-DP-1/ddc", drm).zstr_tcopy()) == 0);
+		assert(symlink("../../devices/i2c-7".zstr_tcopy(), string::tformat("%s/card1-DP-1/ddc", drm)
+			.zstr_tcopy()) == 0);
 	};
 	MockMonitor monitor = mock::new_monitor("(vcp(10))");
 	monitor.add_feature(vcp::VcpCode.LUMINANCE, 30, 100);

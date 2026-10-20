@@ -65,3 +65,19 @@
 * `process::run` / `run_capture_stdout` without `SpawnOptions.INHERIT_ENV` gives the child an empty environment (no PATH, no HOME) → pass `process::SpawnOptions.INHERIT_ENV` for `gsettings` and similar tools.
 * `c3c compile-run` / `compile-test` write their binaries into the current directory → run them from a scratch directory, never inside the repository.
 * `c3c` refuses a `--libdir` that holds any half-created lib → use `tools/libdir.sh`, and remember every `--lib` dependency named in the manifest must be passed too (`Required library 'x' could not be found`).
+* `Parameters may not be optional` for `f(Applied? result)` → pass the unwrapped value: branch with `if (catch err = r) {...} else { use(r) }` at the call site.
+* `Functions from other modules must be prefixed` for `serve(...)`, `applied_at(...)`, `error::UNAVAILABLE` → qualify with the module (`brightness::serve`); module faults and enum members also need `error::X` / `Cap.X` when there is no expected type to infer them from.
+* `A function name must start with lower case` for an `extern fn` named `EnumDisplayMonitors` → lower-case the C3 name and add `@cname("EnumDisplayMonitors")`.
+* `An optional 'bool?' cannot be implicitly converted` for `assert(f() == 7)` with `f` returning `int?` → write `assert((f() ?? -1) == 7)`.
+* `PathList` is `List{Path}`: use `names.len()`, not `names.len`.
+* `'Invalid escape in string'` for `"\\.\LCD"` inside a `@return?` contract → keep backslash text out of contract strings (plain prose).
+* `No method or inner struct ... 'T.sizeof'` → use a named `const` for the byte size of a native struct.
+* A helper that takes an `Allocator` and opens its own `@pool()` returns dangling memory into a `tmem` caller (`LEAKS` or a crash later) → open the pool in the caller only, and let helpers allocate into the caller's allocator.
+* `dbus::Connection.init` records the calling thread as owner → call `init` on the worker thread (in the backend's `run`), not in `create`.
+* `std::os::env::get_var(mem, ...)` in a test leaks (`LEAKS DETECTED`) → use `env::tget_var(name)`.
+* Two concurrent `c3c` runs in one checkout overwrite each other's `out/testrun` (random segfaults, `Failed to link executable`) → run `compile-test` from a private working directory (`cd "$work" && c3c ...`) with an absolute `--libdir`.
+* `Source` is ambiguous when a module imports `bleu::rt::poller` as well as `bleu::battery` → qualify it as `battery::Source`.
+* Poller in window-message mode does not dispatch messages: call `message_loop::dispatch_pending()` after each wait.
+* `c3c compile-test` runs `@test`s of every linked library, not only the named file.
+* `c3c` writes `out/` and `build/` into the current directory: run it from a scratch directory when the lib tree must stay clean.
+* `Type.sizeof` is not the idiom here: use `Type::size` (as `Guid::size` in bleu_win).

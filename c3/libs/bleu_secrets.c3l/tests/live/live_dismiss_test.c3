@@ -9,5 +9,5 @@ fn void a_dismissed_prompt_fails_the_operation() @test
 	defer keyring.close();
 	Operation{Entry}* stored = keyring.store({ .service = "bleu.dismiss", .account = "e" }, (char[])"x")!!;
 	defer stored.release();
-	assert(@catch(stored.wait(time::sec(10))) == AUTH_REQUIRED);
+	assert(@catch(stored.wait(time::sec(10))) == error::AUTH_REQUIRED);
 }

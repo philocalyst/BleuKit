@@ -10,7 +10,7 @@
 *>
 module bleu::dbus::server;
 import bleu::error, bleu::dbus::marshal, bleu::dbus::value;
-import std::io;
+import std::io, std::collections::list;
 
 <*
  Answers a call to org.freedesktop.DBus.Peer. Ping is answered with an empty

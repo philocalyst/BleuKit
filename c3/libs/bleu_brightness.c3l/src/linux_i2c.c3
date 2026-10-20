@@ -15,20 +15,20 @@
 module bleu::brightness::i2cdev @feat(LINUX);
 import std::thread, std::time, bleu::ddc::packet, bleu::ddc::transport, bleu::error, libc;
 
-const int O_RDWR = 2;
-const int O_CLOEXEC = 0x80000;
-const int I2C_SLAVE = 0x0703;
-const int LOCK_EX = 2;
-const int LOCK_NB = 4;
-const short POLLIN = 0x001;
-const int EPERM = 1;
-const int ENOENT = 2;
-const int EINTR = 4;
-const int EACCES = 13;
+const int O_RDWR      = 2;
+const int O_CLOEXEC   = 0x80000;
+const int I2C_SLAVE   = 0x0703;
+const int LOCK_EX     = 2;
+const int LOCK_NB     = 4;
+const short POLLIN    = 0x001;
+const int EPERM       = 1;
+const int ENOENT      = 2;
+const int EINTR       = 4;
+const int EACCES      = 13;
 const int EWOULDBLOCK = 11;
 
 <* How many times `flock` is tried before the bus counts as busy, and the pause between tries. *>
-const int LOCK_TRIES = 3;
+const int LOCK_TRIES      = 3;
 const Duration LOCK_RETRY = (Duration)10_000;
 
 extern fn int open(char* path, int flags, ...);
@@ -123,7 +123,7 @@ fn void? I2cBus.write(&self, char[] bytes) @dynamic
 fn usz? I2cBus.read(&self, char[] buffer, Duration timeout) @dynamic
 {
 	Pollfd waiting = { .fd = self.fd, .events = POLLIN, .revents = 0 };
-	int ready = poll(&waiting, 1, (int)((long)timeout / 1000));
+	int ready      = poll(&waiting, 1, (int)((long)timeout / 1000));
 	if (ready < 0)
 	{
 		if (libc::errno() == EINTR) return 0;
@@ -145,9 +145,8 @@ fn Duration I2cBus.min_interval_after_write(&self) @dynamic => time::DURATION_ZE
 <* The fault for a failed system call on `what`, with errno recorded. *>
 fn fault errno_fault(String what, String call) @private
 {
-	int code = (int)libc::errno();
-	fault failure = code == EPERM || code == EACCES
-		? error::PERMISSION_DENIED
+	int code      = (int)libc::errno();
+	fault failure = code == EPERM || code == EACCES ? error::PERMISSION_DENIED
 		: (code == ENOENT ? NOT_FOUND : error::BACKEND_FAILURE);
 	return error::raise(failure, error::Domain.ERRNO, code, "%s: %s failed", what, call);
 }

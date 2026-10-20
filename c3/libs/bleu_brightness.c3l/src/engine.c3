@@ -79,7 +79,7 @@ fn Duration since(Clock then) @inline => (Duration)((long)clock::now().nano_diff
 fn void Engine.publish(&self)
 {
 	Snapshot{State}* snapshot = self.hub.begin();
-	State? state = self.platform.read(self.platform.context, snapshot.allocator());
+	State? state              = self.platform.read(self.platform.context, snapshot.allocator());
 	if (catch err = state)
 	{
 		// An unreadable platform is an empty one: nothing can be controlled.
@@ -170,7 +170,10 @@ fn void Engine.handle(&self, Command* command)
 	Ramp* ramp = self.free_ramp();
 	if (!ramp)
 	{
-		finish_op(command.operation, error::raise(error::BUSY, error::Domain.INTERNAL, 0, "%d transitions are already running", MAX_RAMPS));
+		finish_op(
+			command.operation,
+			error::raise(error::BUSY, error::Domain.INTERNAL, 0, "%d transitions are already running", MAX_RAMPS)
+		);
 		return;
 	}
 	Level from = self.current_level(device_id) ?? command.level;
@@ -211,7 +214,7 @@ fn void Engine.step_ramp(&self, Ramp* ramp)
 {
 	Command* command = &ramp.command;
 	Duration elapsed = since(ramp.started);
-	Level level = ramp_level(ramp.from, command.level, elapsed, command.transition);
+	Level level      = ramp_level(ramp.from, command.level, elapsed, command.transition);
 	Applied? applied = self.apply_now(command.device_id(), command.policy, level);
 	if (catch err = applied)
 	{

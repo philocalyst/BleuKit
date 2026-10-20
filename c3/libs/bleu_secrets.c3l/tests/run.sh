@@ -66,7 +66,7 @@ run_mode() {
   echo "== mode $mode: $(basename "$test_file")"
   (cd "$work" && c3c --libdir "$libdir" "${deps[@]}" compile-test "$test_file" --sources "${sources[@]}") >"$work/test-$mode.log" 2>&1
   local status=$?
-  grep -E "\[(PASS|FAIL)\]|tests run|Test Result|ERROR|Test failed" "$work/test-$mode.log" | sed 's/^/  /'
+  grep -E "live_|Test Result|ERROR|Test failed|LEAK" "$work/test-$mode.log" | sed 's/^/  /'
   [ $status -eq 0 ] || failures=$((failures + 1))
   kill "$mock" 2>/dev/null
   wait "$mock" 2>/dev/null
