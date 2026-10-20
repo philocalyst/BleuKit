@@ -11,7 +11,7 @@
 // the same in nmrs 3.5.6, src/agent/iface.rs and src/agent/request.rs).
 // NM_SECRET_AGENT_GET_SECRETS_FLAG_ALLOW_INTERACTION is 0x1 (nm-dbus-types).
 module bleu::network::networkmanager @feat(LINUX);
-import std::collections::list, bleu::error, bleu::network, bleu::network::nm_settings, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::server, bleu::dbus::value;
+import std::collections::list, bleu::error, bleu::network, bleu::network::nm_settings, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::server, bleu::dbus::value;
 
 const String AGENT_PATH          = "/org/freedesktop/NetworkManager/SecretAgent";
 const String AGENT_IFACE         = "org.freedesktop.NetworkManager.SecretAgent";

@@ -107,8 +107,11 @@ fn bool probe(Options* options)
 	{
 		return false;
 	}
-	if (catch proxy::for_object(&connection, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE)!.get_u32("version")) return false;
-	return true;
+	if (try shortcuts = proxy::for_object(&connection, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE))
+	{
+		if (try version = shortcuts.get_u32("version")) return version > 0;
+	}
+	return false;
 }
 
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
@@ -213,8 +216,8 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 }
 
 <*
- Open the system... no: the session bus, subscribe to the portal's signals and register the
- connection with the poller. Reads the interface version: when it cannot, the registration says why.
+ Open the session bus, subscribe to the portal's signals, register the connection with the poller and
+ read the interface version. A missing interface is not a failure here: the registration says why.
  On failure nothing stays open.
 
  @return? error::UNAVAILABLE : "when the session bus cannot be reached"
@@ -251,12 +254,14 @@ fn void? connect(Backend* b, Poller* poller)
 fn void read_version(Backend* b)
 {
 	b.version = 0;
-	proxy::Proxy shortcuts = proxy::for_object(&b.connection, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE)!!;
-	if (try version = shortcuts.get_u32("version"))
+	if (try shortcuts = proxy::for_object(&b.connection, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE))
 	{
-		b.version = version;
-		b.registration = availability::YES;
-		return;
+		if (try version = shortcuts.get_u32("version"))
+		{
+			b.version = version;
+			b.registration = availability::YES;
+			return;
+		}
 	}
 	b.registration = availability::no(
 		availability::Reason.BACKEND_MISSING,

@@ -8,7 +8,7 @@
 // The agent's method handlers answer or park calls inside `process()`; they
 // publish an event but make no bus call of their own.
 module bleu::network::networkmanager @feat(LINUX);
-import std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::server, bleu::dbus::value;
+import std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::server, bleu::dbus::value;
 
 <* The backend's state. Allocated by `create`, released by `destroy`. *>
 struct Backend
