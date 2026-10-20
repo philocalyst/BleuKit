@@ -73,10 +73,15 @@ fn void GammaModule.store(&self, GammaSettings settings)
 fn observe::Snapshot{color::State}*? GammaModule.latest(&self) => self.service.latest();
 
 <*
- Hand `settings` to bleu_color as one command, and wait for it to be carried out.
+ Hand `settings` to bleu_color as one command, and wait for it.
+
+ A schedule that bleu_color's checks refuse is an error, and nothing is written. A display that
+ refuses its ramp (another client holds its gamma control, or it has no gamma table) does not fail
+ the command: bleu_color writes the other displays and reports the first refusal, and DMS does the
+ same, keeping the settings and listing the display in `gammaRefused` (the state shows it). The
+ refusal is logged here, and the settings are kept.
 
  @return? error::INVALID_ARGUMENT : "The schedule is not valid, as bleu_color checks it"
- @return? error::BACKEND_FAILURE : "bleu_color refused or did not finish the change"
 *>
 fn void? GammaModule.push(&self, GammaSettings settings)
 {
@@ -84,7 +89,7 @@ fn void? GammaModule.push(&self, GammaSettings settings)
 	defer op.release();
 	if (catch err = op.wait(WRITE_TIMEOUT))
 	{
-		return error::raise(err, error::Domain.INTERNAL, 0, "failed to apply the gamma ramp: %s", op.detail().message())~;
+		contract::warn("gamma: %s", op.detail().message());
 	}
 }
 

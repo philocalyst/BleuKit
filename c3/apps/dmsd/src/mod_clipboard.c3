@@ -5,7 +5,7 @@
  `deleteEntries`, `clearHistory`, `copy`, `copyEntry`, `paste`, `pasteSupported`,
  `getConfig`, `setConfig`. Topic: `clipboard` (`State` on every change of either selection).
  Refused: the methods Bleu has no source for (pins, search, paste keystrokes, file lists,
- editing); see `replies` and the table below.
+ editing); they are answered from the `REFUSALS` table, with the reason as the reply.
 
  Source of every shape and rule: `core/internal/server/clipboard/` at DMS master
  (fetched from raw.githubusercontent.com on 2026-10-20; types.go, handlers.go). What Bleu cannot give, and what differs:

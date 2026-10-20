@@ -246,7 +246,8 @@ a type reached through an alias or a parent, is missing from these replies.
 Capability `dgop` (DMS always advertises it, `server.go:430`). Structs are written in dgop's
 Go field order (`MetaInfo`, `CPUInfo`, `MemoryInfo`, `ProcessInfo`, `SystemInfo`). `dgop.meta`
 computes the modules `cpu`, `memory`, `processes` and `system` and leaves out the others (as DMS
-leaves out a module whose read fails). Unknown module names: `unknown module: <name>`.
+leaves out a module whose read fails). Unknown module names: `unknown module: <name>`; names are matched
+exactly, where DMS lowercases them first (`gops/meta.go`, `GetMeta`).
 
 | Method | Status | Notes |
 | --- | --- | --- |

@@ -289,3 +289,4 @@
 * Generic functions are not written `fn void f{T}(...)` in 0.8.5 → write one typed function per type (or use a macro with `$Type`).
 * The byte size of a stdlib type is `Type::size` (`$sizeof` and `Type.sizeof` do not exist in 0.8.5).
 * A function passed as a callback to another module must be public (not `@private`) when the call site is in a different module.
+* A global const array sliced and returned from a function fails ("A slice literal is backed by a stack allocated array") → build the array in the caller.

@@ -33,7 +33,7 @@ if [ -z "$libdir" ]; then
   own_libdir="$("$repo/tools/libdir.sh")"
   libdir="$own_libdir"
 fi
-libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json bleu_bluetooth bleu_clipboard bleu_wl bleu_sysinfo bleu_apps bleu_xdg bleu_plist)
+libs=(bleu_core bleu_rt bleu_service bleu_dbus bleu_ddc bleu_dl bleu_objc bleu_win bleu_session bleu_power bleu_brightness bleu_ipc bleu_json bleu_bluetooth bleu_clipboard bleu_wl bleu_sysinfo bleu_apps bleu_xdg bleu_plist bleu_network)
 largs=(); for l in "${libs[@]}"; do largs+=(--lib "$l"); done
 # c3c writes out/ and build/ into the working directory: compile from the private one.
 c3t() { (cd "$work" && c3c --libdir "$libdir" "${largs[@]}" "$@"); }
@@ -205,6 +205,9 @@ fi
 
 echo "== modules: dgop, apps, evdev, refusals, clipboard absence (own daemon, own XDG tree)"
 if ! bash "$here/modules.sh" "$work/dmsd" "$python"; then status=1; fi
+
+echo "== network: the methods, the prompt stream and the absent backend (own bus, own daemon)"
+if ! bash "$here/network.sh" "$work/dmsd" "$python"; then status=1; fi
 
 if [ "$status" -eq 0 ]; then echo "ALL PASSED"; else echo "FAILED"; fi
 exit "$status"
