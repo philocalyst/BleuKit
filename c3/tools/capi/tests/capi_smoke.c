@@ -76,18 +76,18 @@ static void battery_state_through_the_struct(bleu_battery_t *battery)
     CHECK(state->on_mains);                       /* AC is online in the fake tree */
     CHECK(state->sources.len == 2);
     CHECK(bleu_battery_source_at(state, 2) == NULL);          /* out of range is NULL, not a crash */
-    const bleu_battery_source_t *battery = bleu_battery_source_at((bleu_battery_state_t *)state, 1);
-    CHECK(battery != NULL);
-    if (battery) {
-        CHECK(slice_equals(battery->id, "BAT0"));
-        CHECK(battery->kind == BLEU_BATTERY_KIND_BATTERY);
-        CHECK(battery->state == BLEU_BATTERY_CHARGE_STATE_CHARGING);
-        CHECK(battery->charge.has_value);
-        CHECK(battery->charge.value > 0.49f && battery->charge.value < 0.51f);
-        CHECK(battery->cycles.has_value && battery->cycles.value == 212);
-        CHECK(slice_equals(battery->vendor, "ACME"));
-        CHECK(battery->chemistry == BLEU_BATTERY_CHEMISTRY_LITHIUM_ION);
-        CHECK(battery->health.has_value && battery->health.value > 0.79f && battery->health.value < 0.81f);
+    const bleu_battery_source_t *bat = bleu_battery_source_at((bleu_battery_state_t *)state, 1);
+    CHECK(bat != NULL);
+    if (bat) {
+        CHECK(slice_equals(bat->id, "BAT0"));
+        CHECK(bat->kind == BLEU_BATTERY_KIND_BATTERY);
+        CHECK(bat->state == BLEU_BATTERY_CHARGE_STATE_CHARGING);
+        CHECK(bat->charge.has_value);
+        CHECK(bat->charge.value > 0.49f && bat->charge.value < 0.51f);
+        CHECK(bat->cycles.has_value && bat->cycles.value == 212);
+        CHECK(slice_equals(bat->vendor, "ACME"));
+        CHECK(bat->chemistry == BLEU_BATTERY_CHEMISTRY_LITHIUM_ION);
+        CHECK(bat->health.has_value && bat->health.value > 0.79f && bat->health.value < 0.81f);
     }
 
     uint64_t generation = 0;

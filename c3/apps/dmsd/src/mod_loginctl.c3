@@ -17,7 +17,7 @@
  8be08999 (types.go, handlers.go, actions.go, manager.go). Deviations: docs/DMSD.md.
 *>
 module dmsd::loginctl_mod;
-import std::atomic, std::thread, std::time, bleu::session, bleu::power, bleu::stream, bleu::observe, bleu::deadline, bleu::error, bleu::ipc, bleu::json, dmsd::contract, dmsd::wire;
+import std::atomic, std::thread, std::time, bleu::session, bleu::power, bleu::stream, bleu::observe, bleu::deadline, bleu::error, bleu::ipc, bleu::json, dmsd::contract, dmsd::wire, dmsd::params;
 
 const String[1] TOPICS = { "loginctl" };
 const String[1] CAPABILITIES = { "loginctl" };
@@ -199,7 +199,7 @@ fn void? LoginctlModule.set_sleep_inhibitor(&self, bool enabled)
 }
 
 // Release the inhibitor if held. Caller holds `inhibit_mutex`.
-fn void LoginctlModule.release_inhibitor(&self) @private
+fn void LoginctlModule.release_inhibitor(&self)
 {
 	if (!self.inhibiting) return;
 	// A queued release cannot fail here: closing the service releases the inhibitor anyway.
@@ -225,7 +225,7 @@ fn void LoginctlModule.mark_locker_ready(&self)
 }
 
 // Answer one `PREPARE_SLEEP` barrier: lock first when asked to, then release the barrier.
-fn void LoginctlModule.answer_sleep(&self, uint ticket) @private
+fn void LoginctlModule.answer_sleep(&self, uint ticket)
 {
 	self.state_mutex.lock()!!;
 	bool lock_first = self.lock_before_suspend;
@@ -247,7 +247,7 @@ fn void LoginctlModule.answer_sleep(&self, uint ticket) @private
 }
 
 // Wait until `lockerReady` arrives, or the timeout passes, or the module stops.
-fn void LoginctlModule.wait_for_locker(&self) @private
+fn void LoginctlModule.wait_for_locker(&self)
 {
 	Deadline wait_until = deadline::after(LOCKER_READY_TIMEOUT);
 	self.state_mutex.lock()!!;
@@ -269,7 +269,7 @@ fn int barrier_main(void* arg) @private
 	return 0;
 }
 
-fn void LoginctlModule.run_barrier(&self) @private
+fn void LoginctlModule.run_barrier(&self)
 {
 	while (!self.stop_barrier.load())
 	{
@@ -451,7 +451,7 @@ fn void handle_set_lock_before_suspend(void* context, ipc::Call* call)
 // `setLockBeforeSuspend` {enabled}: the flag, then the DMS success result.
 fn void? set_flag(LoginctlModule* m, ipc::Call* call) @private
 {
-	bool enabled = wire::param_bool(call.params, "enabled")!;
+	bool enabled = params::param_bool(call.params, "enabled")!;
 	m.set_lock_before_suspend(enabled);
 	wire::respond_success(call, "lock before suspend set")!;
 }
@@ -471,7 +471,7 @@ fn void handle_set_sleep_inhibitor(void* context, ipc::Call* call)
 // `setSleepInhibitorEnabled` {enabled}: take or drop the delay inhibitor, then the DMS success result.
 fn void? set_inhibitor(LoginctlModule* m, ipc::Call* call) @private
 {
-	bool enabled = wire::param_bool(call.params, "enabled")!;
+	bool enabled = params::param_bool(call.params, "enabled")!;
 	m.set_sleep_inhibitor(enabled)!;
 	wire::respond_success(call, "sleep inhibitor setting updated")!;
 }

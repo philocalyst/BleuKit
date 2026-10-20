@@ -9,7 +9,7 @@ alias Device = bluetooth::Device;
 alias Task = bluetooth::Task;
 alias Bluetooth = bluetooth::Bluetooth;
 alias Event = bluetooth::Event;
-alias Phase = operation::Phase;
+alias Phase = operation::Phase{bluetooth::Done};
 
 const String HEADSET   = "AA:BB:CC:DD:EE:01";
 const String MOUSE     = "AA:BB:CC:DD:EE:02";

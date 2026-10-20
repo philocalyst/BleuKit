@@ -17,7 +17,7 @@ import bleu::json, bleu::error, bleu::ipc;
 struct Line
 {
 	DString text;
-	json::JsonWriter writer;
+	bleu::json::JsonWriter writer;
 }
 
 <* Start an empty value in `allocator`. *>
@@ -35,35 +35,35 @@ fn String? Line.finish(&self)
 }
 
 <* `"key": "value"`. *>
-fn void? key_string(json::JsonWriter* writer, String key, String value)
+fn void? key_string(bleu::json::JsonWriter* writer, String key, String value)
 {
 	writer.key(key)!;
 	writer.put_string(value)!;
 }
 
 <* `"key": true|false`. *>
-fn void? key_bool(json::JsonWriter* writer, String key, bool value)
+fn void? key_bool(bleu::json::JsonWriter* writer, String key, bool value)
 {
 	writer.key(key)!;
 	writer.put_bool(value)!;
 }
 
 <* `"key": <integer>`. *>
-fn void? key_int(json::JsonWriter* writer, String key, long value)
+fn void? key_int(bleu::json::JsonWriter* writer, String key, long value)
 {
 	writer.key(key)!;
 	writer.put_int(value)!;
 }
 
 <* `"key": <unsigned integer>`. *>
-fn void? key_uint(json::JsonWriter* writer, String key, ulong value)
+fn void? key_uint(bleu::json::JsonWriter* writer, String key, ulong value)
 {
 	writer.key(key)!;
 	writer.put_uint(value)!;
 }
 
 <* `"key": ["a","b"]`; an empty list is `[]`, never `null`, as Go writes an empty non-nil slice. *>
-fn void? key_strings(json::JsonWriter* writer, String key, String[] values)
+fn void? key_strings(bleu::json::JsonWriter* writer, String key, String[] values)
 {
 	writer.key(key)!;
 	writer.begin_array()!;
@@ -85,71 +85,4 @@ fn String? success_result(Allocator allocator, String message)
 	if (message.len > 0) key_string(&line.writer, "message", message)!;
 	line.writer.end_object()!;
 	return line.finish();
-}
-
-<*
- Request parameters. The error texts are dankgo's (`params/params.go:12`):
- "missing or invalid '<key>' parameter". Numbers are read as Go reads them,
- as float64 and truncated to an integer.
-*>
-fn String? param_string(std::encoding::json::Object* params, String key)
-{
-	if (try value = json::read::get_string(params, key)) return value;
-	return invalid_param(key)~;
-}
-
-<* A required number, truncated toward zero the way `params.Int` does. *>
-fn long? param_int(std::encoding::json::Object* params, String key)
-{
-	if (try value = json::read::get_double(params, key)) return (long)value;
-	return invalid_param(key)~;
-}
-
-<* A required number as a float64. *>
-fn double? param_float(std::encoding::json::Object* params, String key)
-{
-	if (try value = json::read::get_double(params, key)) return value;
-	return invalid_param(key)~;
-}
-
-<* A required boolean. *>
-fn bool? param_bool(std::encoding::json::Object* params, String key)
-{
-	if (try value = json::read::get_bool(params, key)) return value;
-	return invalid_param(key)~;
-}
-
-<* An optional boolean: `fallback` when absent or not a boolean (`params.BoolOpt`). *>
-fn bool opt_bool(std::encoding::json::Object* params, String key, bool fallback)
-{
-	if (try value = json::read::get_bool(params, key)) return value;
-	return fallback;
-}
-
-<* An optional integer: `fallback` when absent or not a number (`params.IntOpt`). *>
-fn long opt_int(std::encoding::json::Object* params, String key, long fallback)
-{
-	if (try value = json::read::get_double(params, key)) return (long)value;
-	return fallback;
-}
-
-<* An optional float64: `fallback` when absent or not a number (`params.FloatOpt`). *>
-fn double opt_float(std::encoding::json::Object* params, String key, double fallback)
-{
-	if (try value = json::read::get_double(params, key)) return value;
-	return fallback;
-}
-
-fn fault invalid_param(String key) @private
-{
-	return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "missing or invalid '%s' parameter", key);
-}
-
-<*
- Answer `call` with the DMS success result for `message`.
- @return? error::INVALID_STATE : "The request was already answered"
-*>
-fn void? respond_success(ipc::Call* call, String message)
-{
-	call.respond_raw(success_result(tmem, message)!);
 }

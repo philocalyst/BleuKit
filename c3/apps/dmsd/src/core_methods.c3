@@ -8,7 +8,7 @@
  `core/internal/server/models/types.go` (SuccessResult).
 *>
 module dmsd::core_methods;
-import bleu::ipc, bleu::error, dmsd::contract, dmsd::wire;
+import bleu::ipc, bleu::error, dmsd::contract, dmsd::wire, dmsd::params;
 
 // DMS's protocol version (server.go:42). The QML client's own check is against 1 and never fires.
 const long API_VERSION = 38;
@@ -57,7 +57,7 @@ fn void handle_shell_ready(void* context, ipc::Call* call)
 
 fn void? shell_ready(ipc::Call* call) @private
 {
-	long pid = wire::param_int(call.params, "pid") ?? 0;
+	long pid = params::param_int(call.params, "pid") ?? 0;
 	if (pid <= 0 || pid > MAX_SHELL_PID)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "invalid shell pid")~;

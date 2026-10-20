@@ -206,7 +206,7 @@ fn int pump_main(void* arg) @private
 }
 
 // Wait for a notification, then publish the newest state, until stopped.
-fn void StatePump.run(&self) @private
+fn void StatePump.run(&self)
 {
 	while (true)
 	{
@@ -224,7 +224,7 @@ fn void StatePump.run(&self) @private
 }
 
 // Encode the newest state and publish it. Temporary memory is released with the pool.
-fn void StatePump.publish_latest(&self) @private
+fn void StatePump.publish_latest(&self)
 {
 	@pool()
 	{

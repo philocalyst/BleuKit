@@ -470,3 +470,170 @@ fn void run_failure_checks()
 		check(false, "open fails when no bus listens");
 	}
 }
+
+// Whether the service answers a profile request, which it can only do with a live bus.
+fn bool service_answers(Power* svc)
+{
+	for (int i = 0; i < 500; i++)
+	{
+		if (try op = svc.set_profile(Profile.BALANCED))
+		{
+			defer op.release();
+			if (try written = op.wait()) return written == Profile.BALANCED;
+		}
+		pause();
+	}
+	return false;
+}
+
+// Whether `name` exists, polling for about 20 seconds.
+fn bool file_appears(String name)
+{
+	for (int i = 0; i < 1000; i++)
+	{
+		if (path::is_file((Path)name)) return true;
+		pause();
+	}
+	return false;
+}
+
+// The number of descriptors this process holds, from /proc/self/fd.
+fn usz open_descriptors()
+{
+	@pool()
+	{
+		PathList entries = fs::list_dir(tmem, "/proc/self/fd")!!;
+		return (usz)entries.len();
+	};
+}
+
+// A release after the service is closed is refused with DISCONNECTED and never touches the freed service.
+// Run under valgrind, this is the use-after-free regression: the old code read the closed service.
+fn void run_after_close_checks(String mode)
+{
+	Power*? opened = power::open(mem, { .backend = power::Backend.LOGIND });
+	if (catch err = opened)
+	{
+		check(false, "open the logind mechanism for the release-after-close checks");
+		return;
+	}
+	Power* svc = opened;
+	Inhibitor held;
+	bool got_inhibitor = false;
+	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "after close"))
+	{
+		defer op.release();
+		if (try inhibitor = op.wait())
+		{
+			held = inhibitor;
+			got_inhibitor = true;
+		}
+	}
+	ProfileHold hold_held;
+	bool got_hold = false;
+	if (mode == "modern")
+	{
+		if (try op = svc.hold_profile(Profile.PERFORMANCE, "after close"))
+		{
+			defer op.release();
+			if (try hold = op.wait())
+			{
+				hold_held = hold;
+				got_hold = true;
+			}
+		}
+	}
+	svc.close();
+	if (!got_inhibitor)
+	{
+		check(false, "inhibit before the close");
+		return;
+	}
+	if (catch err = held.release())
+	{
+		check(err == error::DISCONNECTED, "an inhibitor released after close is refused with DISCONNECTED");
+	}
+	else
+	{
+		check(false, "an inhibitor released after close is refused");
+	}
+	if (catch err = held.release())
+	{
+		check(false, "a second release of the same inhibitor is a no-op");
+	}
+	else
+	{
+		check(true, "a second release of the same inhibitor is a no-op");
+	}
+	if (got_hold)
+	{
+		if (catch err = hold_held.release())
+		{
+			check(err == error::DISCONNECTED, "a profile hold released after close is refused with DISCONNECTED");
+		}
+		else
+		{
+			check(false, "a profile hold released after close is refused");
+		}
+	}
+}
+
+// The bus restarts under a live service (run.sh does it while this waits). Before the
+// restart the service holds an inhibitor. After it: the service answers again, releasing the
+// old inhibitor closes its descriptor, and a new inhibitor can be taken.
+fn void run_bounce_checks()
+{
+	String dir        = env::tget_var("BLEU_POWER_BOUNCE_DIR")!!;
+	Power*? opened    = power::open(mem, { .backend = power::Backend.LOGIND });
+	if (catch err = opened)
+	{
+		check(false, "open the logind mechanism for the bus restart");
+		return;
+	}
+	Power* svc = opened;
+	defer svc.close();
+	Inhibitor held;
+	bool got_inhibitor = false;
+	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "before the restart"))
+	{
+		defer op.release();
+		if (try inhibitor = op.wait())
+		{
+			held = inhibitor;
+			got_inhibitor = true;
+		}
+	}
+	if (!got_inhibitor)
+	{
+		check(false, "inhibit before the bus restart");
+		return;
+	}
+	fs::write_text(string::tformat("%s/ready", dir), "1")!!;
+	check(file_appears(string::tformat("%s/bounced", dir)), "the harness restarted the bus");
+	check(service_answers(svc), "the service answers again after the bus restarts");
+	usz before = open_descriptors();
+	if (catch err = held.release())
+	{
+		check(false, "releasing an inhibitor taken before the restart is accepted");
+	}
+	else
+	{
+		check(open_descriptors() + 1 == before, "releasing it closes its descriptor");
+	}
+	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "after the restart"))
+	{
+		defer op.release();
+		if (try inhibitor = op.wait())
+		{
+			check(true, "a new inhibitor is taken after the restart");
+		}
+		else
+		{
+			check(false, "a new inhibitor is taken after the restart");
+		}
+	}
+	else
+	{
+		check(false, "a new inhibitor is requested after the restart");
+	}
+}

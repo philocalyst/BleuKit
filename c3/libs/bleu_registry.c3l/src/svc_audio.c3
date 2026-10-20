@@ -16,7 +16,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
  Fill `gains` with `level` for every channel of the device `id`. The channel count
  comes from the latest state, so a stereo device gets two gains.
 
- @return? error::NOT_FOUND : "No device of that flow has that id"
+ @return? NOT_FOUND : "No device of that flow has that id"
  @return? error::INVALID_ARGUMENT : "The device has no channels or more than CHANNEL_LIMIT"
 *>
 fn usz? fill_device_gains(audio::Audio* service, audio::Flow flow, String id, Level level, Gain[] gains) @private

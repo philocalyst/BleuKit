@@ -249,7 +249,7 @@ fn String? BrightnessModule.apply_percent(&self, Allocator allocator, String id,
 }
 
 // Publish `brightness.update` for `shown`. Nobody listening is not an error.
-fn void BrightnessModule.publish_update(&self, Allocator allocator, Shown* shown) @private
+fn void BrightnessModule.publish_update(&self, Allocator allocator, Shown* shown)
 {
 	if (try update = render_update(allocator, shown))
 	{
@@ -368,10 +368,10 @@ fn void handle_set_brightness(void* context, ipc::Call* call)
 // Parse, apply, reply. Any error is returned and answered by the caller.
 fn void? set_brightness(BrightnessModule* m, ipc::Call* call) @private
 {
-	String device = wire::param_string(call.params, "device")!;
-	long percent = wire::param_int(call.params, "percent")!;
-	bool exponential = wire::opt_bool(call.params, "exponential", false);
-	double exponent = wire::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
+	String device = params::param_string(call.params, "device")!;
+	long percent = params::param_int(call.params, "percent")!;
+	bool exponential = params::opt_bool(call.params, "exponential", false);
+	double exponent = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
 	String line = m.apply_percent(tmem, device, percent, exponential, exponent)!;
 	call.respond_raw(line);
 }
@@ -403,10 +403,10 @@ fn void handle_decrement(void* context, ipc::Call* call)
 // `increment` (direction 1) and `decrement` (direction -1): step defaults to 10 (handlers.go).
 fn void? step_by(BrightnessModule* m, ipc::Call* call, long direction) @private
 {
-	String device = wire::param_string(call.params, "device")!;
-	long step = wire::opt_int(call.params, "step", 10);
-	bool exponential = wire::opt_bool(call.params, "exponential", false);
-	double exponent = wire::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
+	String device = params::param_string(call.params, "device")!;
+	long step = params::opt_int(call.params, "step", 10);
+	bool exponential = params::opt_bool(call.params, "exponential", false);
+	double exponent = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
 	String line = m.step_percent(tmem, device, direction * step, exponential, exponent)!;
 	call.respond_raw(line);
 }
