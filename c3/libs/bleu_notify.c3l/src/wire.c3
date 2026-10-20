@@ -57,8 +57,8 @@ fn int clamp_expire(int expire_ms)
 fn notify::Action[]? read_actions(Reader* r, Allocator allocator)
 {
 	notify::Action[notify::MAX_ACTIONS] pairs;
-	usz kept = 0;
-	String key = "";
+	usz kept      = 0;
+	String key    = "";
 	bool have_key = false;
 	r.begin_array()!;
 	while (r.has_more())
@@ -76,11 +76,11 @@ fn notify::Action[]? read_actions(Reader* r, Allocator allocator)
 		if (contains_key(pairs[:kept], clipped)) continue;
 		pairs[kept++] = {
 			.key = clipped.copy(allocator),
-			.label = text::truncate(word, notify::MAX_ACTION_LABEL).copy(allocator),
-		};
+			.label = text::truncate(word, notify::MAX_ACTION_LABEL)
+			.copy(allocator), };
 	}
 	r.end_array()!;
-	if (kept == 0) return {};
+	if (kept == 0) return { };
 	notify::Action[] actions = alloc::new_array(allocator, notify::Action, (sz)kept);
 	foreach (i, pair : pairs[:kept]) actions[i] = pair;
 	return actions;

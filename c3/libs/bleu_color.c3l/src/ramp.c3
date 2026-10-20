@@ -5,7 +5,7 @@
  `size` values in 0.0..1.0. Entry i of a table answers the input level i / (size - 1). The
  value for a channel is
 
-   out(x) = clamp((x * brightness * white[channel]) ^ (1 / gamma), 0, 1)
+ out(x) = clamp((x * brightness * white[channel]) ^ (1 / gamma), 0, 1)
 
  where `white` is the multiplier of `kelvin::rgb(temperature)`. That is Redshift's
  `colorramp_fill_float` (src/colorramp.c, `F(Y, C)`), with brightness and gamma as its
@@ -50,9 +50,9 @@ fn void? fill(float[] out, usz size, Kelvin temperature, Level brightness, doubl
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "gamma must be positive")~;
 	}
-	kelvin::Rgb white = kelvin::rgb(temperature);
+	kelvin::Rgb white   = kelvin::rgb(temperature);
 	float[3] multiplier = { white.r, white.g, white.b };
-	double exponent = 1.0 / gamma;
+	double exponent     = 1.0 / gamma;
 	for (usz i = 0; i < size; i++)
 	{
 		double input = (double)i / (double)(size - 1);
@@ -77,7 +77,14 @@ fn void? encode_u16(float[] values, ushort[] out)
 {
 	if (values.len != out.len)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "%d floats for %d words", values.len, out.len)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"%d floats for %d words",
+			values.len,
+			out.len
+		)~;
 	}
 	for (sz i = 0; i < values.len; i++)
 	{

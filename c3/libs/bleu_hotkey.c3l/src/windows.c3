@@ -3,12 +3,12 @@
 
  Sources (read 2026-10-20, see docs/research/hotkey_impl.md):
  * RegisterHotKey, UnregisterHotKey, MOD_* and MOD_NOREPEAT:
-   learn.microsoft.com/windows/win32/api/winuser/nf-winuser-registerhotkey (read), winuser.h
-   (MinGW-w64 mirror: MOD_NOREPEAT 0x4000, WM_HOTKEY).
+ learn.microsoft.com/windows/win32/api/winuser/nf-winuser-registerhotkey (read), winuser.h
+ (MinGW-w64 mirror: MOD_NOREPEAT 0x4000, WM_HOTKEY).
  * WM_HOTKEY: learn.microsoft.com/windows/win32/inputdev/wm-hotkey, sent to the window passed to
-   RegisterHotKey, or to the thread queue when the window is NULL.
+ RegisterHotKey, or to the thread queue when the window is NULL.
  * ERROR_HOTKEY_ALREADY_REGISTERED 1409 and ERROR_HOTKEY_NOT_REGISTERED 1419: winerror.h (MinGW-w64
-   mirror, read).
+ mirror, read).
 
  A hot key is registered for the worker's window. WM_HOTKEY is not one of the messages
  `message_loop` reports, so the worker drains the queue itself: WM_HOTKEY becomes a PRESSED event,
@@ -18,10 +18,10 @@
 module bleu::hotkey::windows @feat(WIN32) @link("user32");
 import std::os::win32, std::time::clock, std::collections::maybe, std::collections::list, bleu::availability, bleu::error, bleu::hotkey, bleu::hotkey::keys, bleu::hotkey::keymap_windows, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::win::message_loop;
 
-const uint WM_HOTKEY = 0x0312;
-const uint MOD_NOREPEAT = 0x4000;
+const uint WM_HOTKEY                       = 0x0312;
+const uint MOD_NOREPEAT                    = 0x4000;
 const uint ERROR_HOTKEY_ALREADY_REGISTERED = 1409;
-const uint ERROR_HOTKEY_NOT_REGISTERED = 1419;
+const uint ERROR_HOTKEY_NOT_REGISTERED     = 1419;
 
 extern fn Win32_BOOL registerHotKey(Win32_HWND window, int id, uint modifiers, uint key) @cname("RegisterHotKey");
 extern fn Win32_BOOL unregisterHotKey(Win32_HWND window, int id) @cname("UnregisterHotKey");
@@ -125,7 +125,11 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 	{
 		usz rest = host.mailbox().take_all(commands[..]);
 		if (rest == 0) break;
-		for (usz i = 0; i < rest; i++) refuse(commands[i].operation, error::DISCONNECTED, "The shortcut service is closing");
+		for (usz i = 0; i < rest; i++) refuse(
+			commands[i].operation,
+			error::DISCONNECTED,
+			"The shortcut service is closing"
+		);
 	}
 }
 
@@ -154,7 +158,7 @@ fn void press(Backend* b, int native, uint time) @local
 	{
 		if (entry.native != native) continue;
 		Snapshot{hotkey::Event}* packet = b.hub.emit_begin();
-		Allocator arena = packet.allocator();
+		Allocator arena                 = packet.allocator();
 		packet.value = {
 			.kind = PRESSED,
 			.id = hotkey::text_copy(entry.id, arena),
@@ -249,7 +253,7 @@ fn void publish(Backend* b) @local
 {
 	Snapshot{State}* snapshot = b.hub.begin();
 	Allocator arena           = snapshot.allocator();
-	Binding[] copies          = {};
+	Binding[] copies          = { };
 	if (b.entries.len() > 0)
 	{
 		copies = alloc::new_array(arena, Binding, b.entries.len());
@@ -274,7 +278,13 @@ fn void fail_native(Task* op, fault failure, uint code) @local
 
 fn Binding copy_binding(Entry entry, Allocator allocator) @local
 {
-	return { .id = hotkey::text_copy(entry.id, allocator), .description = hotkey::text_copy(entry.description, allocator), .chord = entry.chord, .state = entry.state, .trigger = "" };
+	return {
+		.id = hotkey::text_copy(entry.id, allocator),
+		.description = hotkey::text_copy(entry.description, allocator),
+		.chord = entry.chord,
+		.state = entry.state,
+		.trigger = ""
+	};
 }
 
 fn void free_entry(Allocator allocator, Entry* entry) @local

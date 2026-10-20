@@ -3,7 +3,7 @@
  round; removals leave it at once and wait for the round that binds the rest.
 *>
 module bleu::hotkey::portal @feat(LINUX);
-import bleu::availability, bleu::error, bleu::hotkey, bleu::operation;
+import bleu::availability, bleu::error, bleu::hotkey;
 
 // Take one request from the mailbox.
 fn void accept(Backend* b, Command command)
@@ -34,7 +34,9 @@ fn void accept_register(Backend* b, Command command)
 		.state = PENDING,
 	};
 	b.bindings.push(binding);
-	b.waiting.push({ .operation = command.operation, .id = hotkey::text_copy(command.id, b.allocator), .removal = false });
+	b.waiting.push(
+		{ .operation = command.operation, .id = hotkey::text_copy(command.id, b.allocator), .removal = false }
+	);
 	b.dirty = true;
 }
 

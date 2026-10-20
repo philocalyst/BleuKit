@@ -76,7 +76,10 @@ fn void entities_are_decoded() @test
 {
 	@pool()
 	{
-		assert(render(tmem, "a &amp; b &lt;t&gt; &quot;q&quot; &apos;s&apos; &copy;") == "a & b <t> \"q\" 's' &copy;||;");
+		assert(render(
+			tmem,
+			"a &amp; b &lt;t&gt; &quot;q&quot; &apos;s&apos; &copy;"
+		) == "a & b <t> \"q\" 's' &copy;||;");
 	};
 }
 
@@ -152,7 +155,7 @@ fn void body_length_is_bounded() @test
 		body.init(tmem);
 		for (int k = 0; k < 10000; k++) body.append_char('a');
 		notify::Span[] runs = markup::parse(tmem, body.str_view());
-		usz total = 0;
+		usz total           = 0;
 		foreach (run : runs) total += run.text.len;
 		assert(total == notify::MAX_BODY);
 	};

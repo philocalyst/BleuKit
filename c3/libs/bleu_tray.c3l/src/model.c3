@@ -149,12 +149,12 @@ struct State
 *>
 enum Cap : char
 {
-	HOST, // list the tray items of other applications
-	ACTIVATE, // Activate, SecondaryActivate, ContextMenu and Scroll on another item
-	MENU, // read the menu of another item
-	MENU_CLICK, // send a click on a menu entry of another item
+	HOST,             // list the tray items of other applications
+	ACTIVATE,         // Activate, SecondaryActivate, ContextMenu and Scroll on another item
+	MENU,             // read the menu of another item
+	MENU_CLICK,       // send a click on a menu entry of another item
 	PUBLISH_OWN_ICON, // show our own tray icon
-	OWN_MENU, // show the menu of our own icon
+	OWN_MENU,         // show the menu of our own icon
 }
 
 <*
@@ -172,7 +172,10 @@ enum EventKind : char
 	OWN_MENU_CLICKED,
 }
 
-<* A transient event; see `EventKind`. `item_id` is "" for events that concern no item. *>
+<*
+ A transient event; see `EventKind`. `item_id` names the tray item the event concerns, and is ""
+ for the events of our own icon and its menu (the process has one icon of its own).
+*>
 struct Event
 {
 	EventKind kind;
@@ -196,7 +199,7 @@ struct OwnMenuEntry
  - Linux: `icon` is an icon-theme name, shown through the item's IconName.
  - Windows: `icon` is the path of an .ico file; `title` is the tooltip.
  - macOS: `icon` is the path of an image file, shown in the menu bar; `title` is the tooltip,
-   and the title shown when the image cannot be loaded.
+ and the title shown when the image cannot be loaded.
 *>
 struct OwnItem
 {
@@ -209,8 +212,8 @@ struct OwnItem
 enum Backend : char
 {
 	AUTO,
-	SNI, // Linux: StatusNotifierWatcher and StatusNotifierItem over the session bus
-	WIN32, // Windows: Shell_NotifyIconW
+	SNI,    // Linux: StatusNotifierWatcher and StatusNotifierItem over the session bus
+	WIN32,  // Windows: Shell_NotifyIconW
 	APPKIT, // macOS: NSStatusItem
 }
 
@@ -228,13 +231,14 @@ struct Options
 <* What a command does. The item it names is in `Command.item_id`. *>
 enum CommandKind : char
 {
-	ACTIVATE, // primary click at (x, y)
+	ACTIVATE,           // primary click at (x, y)
 	SECONDARY_ACTIVATE, // middle click at (x, y)
-	CONTEXT_MENU, // right click at (x, y)
-	SCROLL, // wheel: `delta` steps, horizontal when `horizontal`
-	OPEN_SUBMENU, // read the children of submenu `menu_id` (AboutToShow)
-	CLICK_MENU, // click entry `menu_id`
-	REFRESH, // re-read every item now
+	CONTEXT_MENU,       // right click at (x, y)
+	SCROLL,             // wheel: `delta` steps, horizontal when `horizontal`
+	OPEN_SUBMENU,       // read the children of submenu `menu_id` (AboutToShow)
+	CLICK_MENU,         // click entry `menu_id`
+	REFRESH,            // re-read every item now
+	OWN_MENU_CLICK,     // entry `menu_id` of our own menu was chosen; posted by the macOS menu callback only
 }
 
 alias CommandOp = Operation{bool};

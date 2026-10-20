@@ -8,7 +8,7 @@
 
  Source of the approach: Redshift `src/colorramp.c` (`colorramp_fill`, which interpolates the
  same table by `alpha = (temp % 100) / 100`). Cross-checked against wlsunset's independent
- Planckian-locus and daylight-locus computation in tests/kelvin_test.c3.
+ Planckian-locus and daylight-locus computation in src/kelvin_test.c3.
 *>
 module bleu::color::kelvin;
 import bleu::unit, std::math;
@@ -40,12 +40,12 @@ struct Rgb
 *>
 fn Rgb rgb(Kelvin temperature)
 {
-	Kelvin t = math::clamp(temperature, MIN, MAX);
+	Kelvin t    = math::clamp(temperature, MIN, MAX);
 	// The row below t, and the fraction of the way from that row to the next one.
-	usz row = (usz)((t - MIN) / STEP);
+	usz row     = (usz)((t - MIN) / STEP);
 	float alpha = (float)((t - MIN) % STEP) / (float)STEP;
-	usz low = row * 3;
-	usz high = low + 3;
+	usz low     = row * 3;
+	usz high    = low + 3;
 	return {
 		.r = (1.0f - alpha) * BLACKBODY[low] + alpha * BLACKBODY[high],
 		.g = (1.0f - alpha) * BLACKBODY[low + 1] + alpha * BLACKBODY[high + 1],

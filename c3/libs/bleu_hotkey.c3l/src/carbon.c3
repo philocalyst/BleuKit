@@ -3,14 +3,14 @@
 
  Sources (read 2026-10-20):
  * RegisterEventHotKey, UnregisterEventHotKey, kEventHotKeyExclusive (1), kEventHotKeyPressed (5),
-   kEventHotKeyReleased (6), kEventClassKeyboard ('keyb'), typeEventHotKeyID ('hkid'), the
-   event-handler installation: Carbon HIToolbox CarbonEvents.h (MacOSX10.13 SDK, phracker mirror).
+ kEventHotKeyReleased (6), kEventClassKeyboard ('keyb'), typeEventHotKeyID ('hkid'), the
+ event-handler installation: Carbon HIToolbox CarbonEvents.h (MacOSX10.13 SDK, phracker mirror).
  * cmdKey, shiftKey, optionKey, controlKey bits 8, 9, 11, 12: HIToolbox Events.h (same SDK).
  * The call sequence (GetApplicationEventTarget, InstallEventHandler, RegisterEventHotKey with the
-   8-byte EventHotKeyID, GetEventParameter with kEventParamDirectObject = '----' = 757935405):
-   global-hotkey 0.7.0 src/platform_impl/macos/mod.rs and ffi.rs (crate read; the constant is its
-   bindgen output). Hammerspoon extensions/hotkey/libhotkey.m (raw file read) uses the same
-   parameter and the dispatcher target instead.
+ 8-byte EventHotKeyID, GetEventParameter with kEventParamDirectObject = '----' = 757935405):
+ global-hotkey 0.7.0 src/platform_impl/macos/mod.rs and ffi.rs (crate read; the constant is its
+ bindgen output). Hammerspoon extensions/hotkey/libhotkey.m (raw file read) uses the same
+ parameter and the dispatcher target instead.
 
  Not verified on a Mac: that a worker thread may call the Carbon registration functions (Hammerspoon
  calls them on the main thread), and that presses are delivered while the host's main thread runs its
@@ -23,17 +23,16 @@ import std::thread, std::time::clock, std::collections::maybe, std::collections:
 
 const String[1] CARBON_LIBRARIES = { "/System/Library/Frameworks/Carbon.framework/Carbon" };
 
-const uint CLASS_KEYBOARD = 0x6B657962;     // 'keyb' (kEventClassKeyboard)
-const uint EVENT_HOT_KEY_PRESSED = 5;       // kEventHotKeyPressed
-const uint EVENT_HOT_KEY_RELEASED = 6;      // kEventHotKeyReleased
-const uint PARAM_DIRECT_OBJECT = 0x2D2D2D2D; // '----' (kEventParamDirectObject)
-const uint TYPE_HOT_KEY_ID = 0x686B6964;    // 'hkid' (typeEventHotKeyID)
-const uint HOT_KEY_EXCLUSIVE = 1;           // kEventHotKeyExclusive
-const uint SIGNATURE = 0x626C6575;          // 'bleu': the owner of our hot keys
-const int NO_ERROR = 0;                     // noErr
-const int EXCLUSIVE_NONE = 0;
-const usz QUEUE_CAPACITY = 64;
-const Duration TICK = (Duration)500_000;    // 0.5 s in microseconds
+const uint CLASS_KEYBOARD         = 0x6B657962; // 'keyb' (kEventClassKeyboard)
+const uint EVENT_HOT_KEY_PRESSED  = 5;       // kEventHotKeyPressed
+const uint EVENT_HOT_KEY_RELEASED = 6;       // kEventHotKeyReleased
+const uint PARAM_DIRECT_OBJECT    = 0x2D2D2D2D; // '----' (kEventParamDirectObject)
+const uint TYPE_HOT_KEY_ID        = 0x686B6964; // 'hkid' (typeEventHotKeyID)
+const uint HOT_KEY_EXCLUSIVE      = 1;       // kEventHotKeyExclusive
+const uint SIGNATURE              = 0x626C6575; // 'bleu': the owner of our hot keys
+const int NO_ERROR                = 0;       // noErr
+const usz QUEUE_CAPACITY          = 64;
+const Duration TICK               = (Duration)500_000; // 0.5 s in microseconds
 
 // Carbon's EventHotKeyID, passed by value to RegisterEventHotKey and filled by GetEventParameter.
 struct EventHotKeyID
@@ -55,7 +54,15 @@ alias TargetFn = fn void*();
 alias InstallFn = fn int(void* target, void* handler, uint count, EventTypeSpec* types, void* user, void** reference);
 alias RemoveFn = fn int(void* reference);
 alias KindFn = fn uint(void* event);
-alias ParameterFn = fn int(void* event, uint name, uint type, void* actual_type, uint size, void* actual_size, void* data);
+alias ParameterFn = fn int(
+	void* event,
+	uint name,
+	uint type,
+	void* actual_type,
+	uint size,
+	void* actual_size,
+	void* data
+);
 
 <* The Carbon functions this backend uses, bound once per process. A missing one leaves the table unbound. *>
 struct CarbonApi
@@ -159,7 +166,10 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	Backend* backend = alloc::new(allocator, Backend);
 	backend.allocator = allocator;
 	backend.next_native = 1;
-	backend.registration = availability::no(availability::Reason.BACKEND_STOPPED, "The Carbon handler is not installed");
+	backend.registration = availability::no(
+		availability::Reason.BACKEND_STOPPED,
+		"The Carbon handler is not installed"
+	);
 	backend.entries.init(allocator);
 	return backend;
 }
@@ -182,7 +192,7 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 	b.queue.mutex.init()!!;
 	defer b.queue.mutex.destroy();
 	EventTypeSpec[2] types = { { CLASS_KEYBOARD, EVENT_HOT_KEY_PRESSED }, { CLASS_KEYBOARD, EVENT_HOT_KEY_RELEASED } };
-	void* handler = null;
+	void* handler          = null;
 	if (b.api.install_handler(b.api.application_target(), (void*)&on_hot_key, 2, &types, b, &handler) == NO_ERROR)
 	{
 		b.installed = true;
@@ -215,7 +225,11 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 	{
 		usz rest = host.mailbox().take_all(commands[..]);
 		if (rest == 0) break;
-		for (usz i = 0; i < rest; i++) refuse(commands[i].operation, error::DISCONNECTED, "The shortcut service is closing");
+		for (usz i = 0; i < rest; i++) refuse(
+			commands[i].operation,
+			error::DISCONNECTED,
+			"The shortcut service is closing"
+		);
 	}
 }
 
@@ -264,7 +278,7 @@ fn void emit_press(Backend* b, Press press) @local
 	{
 		if (entry.native != press.native) continue;
 		Snapshot{Event}* packet = b.hub.emit_begin();
-		Allocator arena = packet.allocator();
+		Allocator arena         = packet.allocator();
 		packet.value = {
 			.kind = press.pressed ? PRESSED : RELEASED,
 			.id = hotkey::text_copy(entry.id, arena),
@@ -308,11 +322,18 @@ fn void accept_register(Backend* b, Command command)
 
 fn void register_code(Backend* b, Command command, uint code) @local
 {
-	int native = b.next_native++;
+	int native      = b.next_native++;
 	ulong hotkey_id = (ulong)SIGNATURE | ((ulong)native << 32); // EventHotKeyID, by value, little-endian
 	void* reference = null;
-	uint modifiers = keymap_macos::macos_modifiers(command.chord.mods);
-	int status = b.api.register_hotkey(code, modifiers, hotkey_id, b.api.application_target(), HOT_KEY_EXCLUSIVE, &reference);
+	uint modifiers  = keymap_macos::macos_modifiers(command.chord.mods);
+	int status      = b.api.register_hotkey(
+		code,
+		modifiers,
+		hotkey_id,
+		b.api.application_target(),
+		HOT_KEY_EXCLUSIVE,
+		&reference
+	);
 	if (status != NO_ERROR)
 	{
 		fail_status(command.operation, status);
@@ -369,7 +390,7 @@ fn void publish(Backend* b) @local
 {
 	Snapshot{State}* snapshot = b.hub.begin();
 	Allocator arena           = snapshot.allocator();
-	Binding[] copies          = {};
+	Binding[] copies          = { };
 	if (b.entries.len() > 0)
 	{
 		copies = alloc::new_array(arena, Binding, b.entries.len());
@@ -382,7 +403,13 @@ fn void publish(Backend* b) @local
 // A registration as the caller sees it: BOUND, since RegisterEventHotKey has no other answer.
 fn Binding binding_of(Entry entry, Allocator allocator) @local
 {
-	return { .id = hotkey::text_copy(entry.id, allocator), .description = hotkey::text_copy(entry.description, allocator), .chord = entry.chord, .state = BOUND, .trigger = "" };
+	return {
+		.id = hotkey::text_copy(entry.id, allocator),
+		.description = hotkey::text_copy(entry.description, allocator),
+		.chord = entry.chord,
+		.state = BOUND,
+		.trigger = ""
+	};
 }
 
 fn void free_entry(Allocator allocator, Entry* entry) @local
@@ -400,6 +427,14 @@ fn void refuse(Task* op, fault failure, String text) @local
 // Fail `op` with the OSStatus as the native detail.
 fn void fail_status(Task* op, int status) @local
 {
-	(void)op.fail(error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, status, "RegisterEventHotKey or UnregisterEventHotKey returned OSStatus %d", status));
+	(void)op.fail(
+		error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			status,
+			"RegisterEventHotKey or UnregisterEventHotKey returned OSStatus %d",
+			status
+		)
+	);
 	op.release();
 }

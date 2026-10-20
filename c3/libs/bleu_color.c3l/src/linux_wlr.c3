@@ -1,8 +1,9 @@
 <*
  The Linux backend: gamma ramps through `zwlr_gamma_control_manager_v1` on a wlroots-style
- Wayland compositor (sway, Hyprland, river, labwc ...).
+ Wayland compositor: the wlroots family, and any compositor that implements wlr-gamma-control.
 
- The protocol (wlr-gamma-control-unstable-v1.xml, `bleu_wl`'s generated copy): `get_gamma_control`
+ The protocol (wlr-gamma-control-unstable-v1.xml from wlr-protocols, read for the requests and events
+ used; `bleu_wl`'s generated copy matches): `get_gamma_control`
  returns an object that sends `gamma_size(size)` at once and then accepts `set_gamma(fd)`. The fd
  holds three successive ramps of `size` 16-bit words; the compositor applies them. `failed` means
  the control is no longer valid: another client holds the output's exclusive control, the output has
@@ -41,7 +42,7 @@ const usz POLLER_CAPACITY = 2;
 <* Longest output name accepted from the compositor; a longer one is ignored. *>
 const usz MAX_NAME = 256;
 
-// Source: glibc memfd_create(3) (glibc 2.27), the libc entry of memfd_create(2).
+// Source: memfd_create(2), https://man7.org/linux/man-pages/man2/memfd_create.2.html: int memfd_create(const char *name, unsigned int flags).
 extern fn int memfd_create(char* name, uint flags) @cname("memfd_create");
 
 // Source: POSIX.1-2008 pwrite(2): ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset).
@@ -112,12 +113,16 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			.note = "gamma control is per output and exclusive: see each output's control",
 		}
 	);
-	return alloc::new(allocator, Wlr, {
-		.allocator = allocator,
-		.tick = options.tick,
-		.connect = options.connect,
-		.connect_context = options.connect_context,
-	});
+	return alloc::new(
+		allocator,
+		Wlr,
+		{
+			.allocator = allocator,
+			.tick = options.tick,
+			.connect = options.connect,
+			.connect_context = options.connect_context,
+		}
+	);
 }
 
 fn void destroy(Allocator allocator, void* state)
@@ -161,7 +166,13 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), POLLER_CAPACITY)) return;
 	defer poller.free();
-	if (catch poller.add({ .handle = client.native(), .interest = { .readable = true, .hangup = true, .failed = true }, .tag = CONNECTION_TAG })) return;
+	if (catch poller.add(
+		{
+			.handle = client.native(),
+			.interest = { .readable = true, .hangup = true, .failed = true },
+			.tag = CONNECTION_TAG
+		}
+	)) return;
 	engine.publish();
 	bool connected = true;
 	while (!host.stopping() && connected)
@@ -195,7 +206,9 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	engine.publish();
 	engine.cancel_queued(host);
 	wlr.release_all();
-	if (catch client.flush()) {}
+	if (catch client.flush())
+	{
+	}
 }
 
 <*
@@ -206,7 +219,7 @@ fn void? setup(Wlr* wlr)
 {
 	wl::Client* client = wlr.client;
 	client.roundtrip()!;
-	usz outputs = 0;
+	usz outputs      = 0;
 	Global[] globals = client.globals_view();
 	foreach (global : globals)
 	{
@@ -234,7 +247,12 @@ fn void? setup(Wlr* wlr)
 	}
 	if (wlr.manager == null)
 	{
-		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the compositor has no gamma control manager")~;
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"the compositor has no gamma control manager"
+		)~;
 	}
 	// The names arrive with the wl_output events, which come before this sync's done.
 	client.roundtrip()!;
@@ -256,7 +274,9 @@ fn void? Wlr.measure(&self)
 	foreach (&slot : self.displays)
 	{
 		if (slot.control == null) continue;
-		if (catch slot.control.destroy()) {}
+		if (catch slot.control.destroy())
+		{
+		}
 		slot.control = null;
 		if (slot.size >= 2) slot.words = alloc::new_array(self.allocator, ushort, 3 * (sz)slot.size);
 	}
@@ -331,14 +351,28 @@ fn void? Wlr.write(&self, usz index, float[] ramp)
 		self.client.roundtrip()!;
 		if (slot.failed)
 		{
-			if (catch slot.control.destroy()) {}
+			if (catch slot.control.destroy())
+			{
+			}
 			slot.control = null;
-			return error::raise(error::BUSY, error::Domain.COMPOSITOR, 0, "%s: the compositor refused gamma control", slot.name)~;
+			return error::raise(
+				error::BUSY,
+				error::Domain.COMPOSITOR,
+				0,
+				"%s: the compositor refused gamma control",
+				slot.name
+			)~;
 		}
 	}
 	if (slot.size < 2 || 3 * (usz)slot.size != (usz)ramp.len)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "%s: the ramp does not match the output", slot.name)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"%s: the ramp does not match the output",
+			slot.name
+		)~;
 	}
 	ramp::encode_u16(ramp, slot.words)!;
 	rt::Native fd = ramp_descriptor(slot.words)!;
@@ -369,7 +403,9 @@ fn void Wlr.release(&self, usz index)
 {
 	WlrDisplay* slot = &self.displays[index];
 	if (slot.control == null) return;
-	if (catch slot.control.destroy()) {}
+	if (catch slot.control.destroy())
+	{
+	}
 	slot.control = null;
 }
 
@@ -418,7 +454,10 @@ fn void Wlr.disconnected(&self, Engine* engine)
 		self.displays[i].control = null;
 		Control* control = &engine.displays[i].output.control;
 		control.gamma_supported = false;
-		control.availability = availability::no(availability::Reason.BACKEND_STOPPED, "the compositor closed the connection");
+		control.availability = availability::no(
+			availability::Reason.BACKEND_STOPPED,
+			"the compositor closed the connection"
+		);
 		control.active = false;
 	}
 }
@@ -443,11 +482,18 @@ fn rt::Native? ramp_descriptor(ushort[] words)
 // Write the words at offset 0 of `fd`, all of them or an error.
 fn void? write_words(rt::Native fd, ushort[] words)
 {
-	usz bytes = words.len * WORD_BYTES;
+	usz bytes  = words.len * WORD_BYTES;
 	sz written = pwrite(fd, words.ptr, bytes, 0);
 	if (written < 0) return unix::errno_fault("pwrite", libc::errno())~;
 	if ((usz)written != bytes)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "pwrite wrote %d of %d bytes", written, bytes)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"pwrite wrote %d of %d bytes",
+			written,
+			bytes
+		)~;
 	}
 }

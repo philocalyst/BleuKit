@@ -1,11 +1,14 @@
 <*
  The schedule: when the temperature is day and when it is night, and what happens in between.
 
- Sunrise and sunset come from the NOAA general solar equations (NOAA Earth System Research
- Laboratory, "Solar Calculation Details", https://gml.noaa.gov/grad/solcalc/solareqns.PDF,
- read in full). The sun is taken to rise and set when its centre is 0.833 degrees below the
- horizon (refraction plus the solar radius, the zenith 90.833 of the same document). Accuracy is
- about a minute at mid latitudes, checked against published times in tests/schedule_test.c3.
+ Sunrise and sunset come from the NOAA Global Monitoring Laboratory's solar calculator
+ (https://gml.noaa.gov/grad/solcalc/main.js, read for these functions): the mean longitude, anomaly, eccentricity,
+ equation of centre, obliquity, declination and equation of time (`calcGeomMeanLongSun` to
+ `calcEquationOfTime`), and the sunrise hour angle with zenith 90.833 (`calcHourAngleSunrise`), so the
+ sun is taken to rise and set when its centre is 0.833 degrees below the horizon (refraction plus the
+ solar radius). The NOAA worksheet solareqns.PDF gives a simpler sun position (Spencer's series) and
+ is not used. Accuracy is about a minute against astral 3.2 and within about two minutes of the
+ published times checked in src/schedule_test.c3.
 
  The temperature is a daylight fraction `w` in 0..1 times `day - night`, plus `night`. `w` is 1
  in daylight and 0 at night. Around each sunrise and sunset it changes over `transition`,
@@ -42,7 +45,7 @@ const double DEG = math::PI / 180.0;
 <* The position of the sun at one instant. *>
 struct Sun
 {
-	double declination;      // radians
+	double declination; // radians
 	double equation_minutes; // equation of time, minutes; apparent minus mean solar time
 }
 
@@ -68,27 +71,33 @@ struct Edge
 *>
 fn Sun sun_at(double jd)
 {
-	double t = (jd - J2000_JD) / 36525.0;
+	double t              = (jd - J2000_JD) / 36525.0;
 	double mean_longitude = 280.46646 + t * (36000.76983 + t * 0.0003032);
 	mean_longitude -= 360.0 * math::floor(mean_longitude / 360.0);
-	double mean_anomaly = (357.52911 + t * (35999.05029 - 0.0001537 * t)) * DEG;
-	double eccentricity = 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
-	double centre = math::sin(mean_anomaly) * (1.914602 - t * (0.004817 + 0.000014 * t))
-		+ math::sin(2 * mean_anomaly) * (0.019993 - 0.000101 * t)
-		+ math::sin(3 * mean_anomaly) * 0.000289;
-	double true_longitude = mean_longitude + centre;
-	double omega = (125.04 - 1934.136 * t) * DEG;
+	double mean_anomaly       = (357.52911 + t * (35999.05029 - 0.0001537 * t)) * DEG;
+	double eccentricity       = 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
+	double centre             = math::sin(
+		mean_anomaly
+	) * (1.914602 - t * (0.004817 + 0.000014 * t)) + math::sin(
+		2 * mean_anomaly
+	) * (0.019993 - 0.000101 * t) + math::sin(3 * mean_anomaly) * 0.000289;
+	double true_longitude     = mean_longitude + centre;
+	double omega              = (125.04 - 1934.136 * t) * DEG;
 	double apparent_longitude = (true_longitude - 0.00569 - 0.00478 * math::sin(omega)) * DEG;
-	double seconds = 21.448 - t * (46.815 + t * (0.00059 - t * 0.001813));
-	double obliquity = (23.0 + (26.0 + seconds / 60.0) / 60.0) + 0.00256 * math::cos(omega);
-	double declination = math::asin(math::sin(obliquity * DEG) * math::sin(apparent_longitude));
-	double y = math::pow(math::tan(obliquity * DEG / 2.0), 2.0);
-	double l0 = mean_longitude * DEG;
-	double equation = y * math::sin(2 * l0)
-		- 2 * eccentricity * math::sin(mean_anomaly)
-		+ 4 * eccentricity * y * math::sin(mean_anomaly) * math::cos(2 * l0)
-		- 0.5 * y * y * math::sin(4 * l0)
-		- 1.25 * eccentricity * eccentricity * math::sin(2 * mean_anomaly);
+	double seconds            = 21.448 - t * (46.815 + t * (0.00059 - t * 0.001813));
+	double obliquity          = (23.0 + (26.0 + seconds / 60.0) / 60.0) + 0.00256 * math::cos(omega);
+	double declination        = math::asin(math::sin(obliquity * DEG) * math::sin(apparent_longitude));
+	double y                  = math::pow(math::tan(obliquity * DEG / 2.0), 2.0);
+	double l0                 = mean_longitude * DEG;
+	double equation           = y * math::sin(
+		2 * l0
+	) - 2 * eccentricity * math::sin(
+		mean_anomaly
+	) + 4 * eccentricity * y * math::sin(
+		mean_anomaly
+	) * math::cos(
+		2 * l0
+	) - 0.5 * y * y * math::sin(4 * l0) - 1.25 * eccentricity * eccentricity * math::sin(2 * mean_anomaly);
 	return { .declination = declination, .equation_minutes = 4.0 * equation / DEG };
 }
 
@@ -110,8 +119,8 @@ fn long day_start(long unix_us) => unix_us - (((unix_us % DAY_US) + DAY_US) % DA
 *>
 fn DayEvents day_events(Degrees latitude, Degrees longitude, long day_start_us)
 {
-	double jd0 = julian_day(day_start_us);
-	double jd = jd0 + 0.5;
+	double jd0          = julian_day(day_start_us);
+	double jd           = jd0 + 0.5;
 	double noon_minutes = 0.0;
 	for (int pass = 0; pass < 2; pass++)
 	{
@@ -119,10 +128,11 @@ fn DayEvents day_events(Degrees latitude, Degrees longitude, long day_start_us)
 		noon_minutes = 720.0 - 4.0 * longitude - sun.equation_minutes;
 		jd = jd0 + noon_minutes / 1440.0;
 	}
-	Sun sun = sun_at(jd);
-	double lat = latitude * DEG;
-	double cos_hour = math::cos(SUNRISE_ZENITH * DEG) / (math::cos(lat) * math::cos(sun.declination))
-		- math::tan(lat) * math::tan(sun.declination);
+	Sun sun         = sun_at(jd);
+	double lat      = latitude * DEG;
+	double cos_hour = math::cos(
+		SUNRISE_ZENITH * DEG
+	) / (math::cos(lat) * math::cos(sun.declination)) - math::tan(lat) * math::tan(sun.declination);
 	// Outside [-1, 1] the sun stays above (or below) the horizon all day: no crossing.
 	if (!(cos_hour >= -1.0 && cos_hour <= 1.0)) return { .crosses = false };
 	double half_day_minutes = 4.0 * math::acos(cos_hour) / DEG;
@@ -138,15 +148,16 @@ fn DayEvents day_events(Degrees latitude, Degrees longitude, long day_start_us)
 *>
 fn bool sun_is_up(Degrees latitude, Degrees longitude, long unix_us)
 {
-	Sun sun = sun_at(julian_day(unix_us));
-	double minutes_utc = (double)(unix_us - day_start(unix_us)) / 60.0e6;
+	Sun sun              = sun_at(julian_day(unix_us));
+	double minutes_utc   = (double)(unix_us - day_start(unix_us)) / 60.0e6;
 	// True solar time, then the hour angle: noon is 0, measured as 180 degrees from the meridian.
 	double solar_minutes = minutes_utc + sun.equation_minutes + 4.0 * longitude;
-	double hour_angle = solar_minutes / 4.0 - 180.0;
-	double lat = latitude * DEG;
-	double sine_altitude = math::sin(lat) * math::sin(sun.declination)
-		+ math::cos(lat) * math::cos(sun.declination) * math::cos(hour_angle * DEG);
-	double altitude = math::asin(math::clamp(sine_altitude, -1.0, 1.0)) / DEG;
+	double hour_angle    = solar_minutes / 4.0 - 180.0;
+	double lat           = latitude * DEG;
+	double sine_altitude = math::sin(
+		lat
+	) * math::sin(sun.declination) + math::cos(lat) * math::cos(sun.declination) * math::cos(hour_angle * DEG);
+	double altitude      = math::asin(math::clamp(sine_altitude, -1.0, 1.0)) / DEG;
 	return altitude > HORIZON_ALTITUDE;
 }
 
@@ -156,7 +167,7 @@ fn void sort_edges(Edge[] edges)
 	for (usz i = 1; i < edges.len; i++)
 	{
 		Edge item = edges[i];
-		usz j = i;
+		usz j     = i;
 		while (j > 0 && edges[j - 1].at > item.at)
 		{
 			edges[j] = edges[j - 1];
@@ -196,14 +207,14 @@ fn float daylight_at(Schedule schedule, long unix_us, long utc_offset_us)
 	}
 	if (count == 0) return sun_is_up(schedule.latitude, schedule.longitude, unix_us) ? 1.0f : 0.0f;
 	sort_edges(edges[0:count]);
-	long half = (long)schedule.transition / 2;
+	long half   = (long)schedule.transition / 2;
 	// Before the first edge the daylight state is the opposite of what that edge sets.
 	float level = edges[0].rising ? 0.0f : 1.0f;
 	for (usz i = 0; i < count; i++)
 	{
 		float after = edges[i].rising ? 1.0f : 0.0f;
-		long start = edges[i].at - half;
-		long end = edges[i].at + half;
+		long start  = edges[i].at - half;
+		long end    = edges[i].at + half;
 		if (unix_us < start) return level;
 		if (unix_us < end)
 		{
@@ -226,9 +237,9 @@ fn float daylight_at(Schedule schedule, long unix_us, long utc_offset_us)
 *>
 fn Kelvin temperature_at(Schedule schedule, Time now, Duration utc_offset)
 {
-	float w = daylight_at(schedule, (long)now, (long)utc_offset);
+	float w      = daylight_at(schedule, (long)now, (long)utc_offset);
 	double night = (double)schedule.night;
-	double day = (double)schedule.day;
+	double day   = (double)schedule.day;
 	return (Kelvin)math::round(night + (day - night) * (double)w);
 }
 
@@ -248,16 +259,32 @@ fn void? validate(Schedule schedule)
 	{
 		if (!(schedule.latitude >= -90.0 && schedule.latitude <= 90.0))
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "latitude must be -90 to 90 degrees")~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"latitude must be -90 to 90 degrees"
+			)~;
 		}
 		if (!(schedule.longitude >= -180.0 && schedule.longitude <= 180.0))
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "longitude must be -180 to 180 degrees")~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"longitude must be -180 to 180 degrees"
+			)~;
 		}
 		return;
 	}
-	if (!((long)schedule.sunrise >= 0 && (long)schedule.sunrise < DAY_US && (long)schedule.sunset >= 0 && (long)schedule.sunset < DAY_US))
+	if (!((long)schedule.sunrise >= 0 && (long)schedule.sunrise < DAY_US && (long)schedule.sunset >= 0
+		&& (long)schedule.sunset < DAY_US))
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "sunrise and sunset must be times of day")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"sunrise and sunset must be times of day"
+		)~;
 	}
 }

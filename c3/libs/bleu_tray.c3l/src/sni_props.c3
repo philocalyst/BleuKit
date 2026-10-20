@@ -48,14 +48,14 @@ fn void clear_prop(ItemRecord* r, Prop prop)
 		case TITLE: r.item.title = "";
 		case STATUS: r.item.status = PASSIVE;
 		case ICON_NAME: r.item.icon_name = "";
-		case ICON_PIXMAP: r.item.icon_pixmaps = {};
+		case ICON_PIXMAP: r.item.icon_pixmaps = { };
 		case ATTENTION_NAME: r.item.attention_icon_name = "";
-		case ATTENTION_PIXMAP: r.item.attention_icon_pixmaps = {};
+		case ATTENTION_PIXMAP: r.item.attention_icon_pixmaps = { };
 		case OVERLAY_NAME: r.item.overlay_icon_name = "";
-		case OVERLAY_PIXMAP: r.item.overlay_icon_pixmaps = {};
+		case OVERLAY_PIXMAP: r.item.overlay_icon_pixmaps = { };
 		case TOOLTIP:
 			r.item.has_tooltip = false;
-			r.item.tooltip = {};
+			r.item.tooltip = { };
 		case THEME_PATH: r.item.icon_theme_path = "";
 		case MENU_PATH: r.item.menu_path = "";
 		case ITEM_IS_MENU: r.item.item_is_menu = false;
@@ -104,7 +104,7 @@ fn tray::Pixmap[]? read_pixmaps(Reader* rd, Allocator a)
 	while (rd.has_more())
 	{
 		rd.begin_struct()!;
-		int width = rd.read_i32()!;
+		int width  = rd.read_i32()!;
 		int height = rd.read_i32()!;
 		if (!convert::dims_fit(width, height))
 		{
@@ -123,7 +123,7 @@ fn tray::Pixmap[]? read_pixmaps(Reader* rd, Allocator a)
 // The `ay` of one pixmap, copied into an RGBA buffer of exactly width * height * 4 bytes.
 fn tray::Pixmap? read_pixmap_bytes(Reader* rd, int width, int height, Allocator a)
 {
-	usz capacity = (usz)width * (usz)height * convert::PIXEL_BYTES;
+	usz capacity  = (usz)width * (usz)height * convert::PIXEL_BYTES;
 	char[] pixels = alloc::new_array(a, char, (sz)capacity);
 	rd.begin_array()!;
 	usz count = 0;
@@ -143,10 +143,10 @@ fn tray::Pixmap? read_pixmap_bytes(Reader* rd, int width, int height, Allocator 
 fn tray::Tooltip? read_tooltip(Reader* rd, Allocator a)
 {
 	rd.begin_struct()!;
-	String icon_name = convert::copy_text(rd.read_string()!, a);
+	String icon_name     = convert::copy_text(rd.read_string()!, a);
 	tray::Pixmap[] icons = read_pixmaps(rd, a)!;
-	String title = convert::copy_text(rd.read_string()!, a);
-	String description = convert::copy_text(rd.read_string()!, a);
+	String title         = convert::copy_text(rd.read_string()!, a);
+	String description   = convert::copy_text(rd.read_string()!, a);
 	rd.end_struct()!;
 	return { .icon_name = icon_name, .icon_pixmaps = icons, .title = title, .description = description };
 }

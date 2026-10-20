@@ -6,8 +6,8 @@ const long MAR_20_2026 = 1773964800000000;
 const long MAR_19_2026 = 1773878400000000;
 const long JUN_21_2026 = 1782000000000000;
 const long DEC_21_2026 = 1797811200000000;
-const long SECOND = 1000000;
-const long MINUTE = 60 * SECOND;
+const long SECOND      = 1000000;
+const long MINUTE      = 60 * SECOND;
 
 // A time of day in microseconds from midnight.
 fn long hms(long h, long m, long s) => (h * 3600 + m * 60 + s) * SECOND;
@@ -43,8 +43,16 @@ fn void sydney_matches_the_published_equinox() @test
 {
 	DayEvents e = schedule::day_events(-33.8688, 151.2093, MAR_20_2026);
 	assert(e.crosses, "Sydney has a sunrise on the equinox");
-	assert(within(e.sunrise, MAR_19_2026 + hms(19, 56, 52), 3 * MINUTE), "sunrise within 3 min of 19:56:52 UTC on 19 March");
-	assert(within(e.sunset, MAR_20_2026 + hms(8, 8, 36), 3 * MINUTE), "sunset within 3 min of 08:08:36 UTC on 20 March");
+	assert(within(
+		e.sunrise,
+		MAR_19_2026 + hms(19, 56, 52),
+		3 * MINUTE
+	), "sunrise within 3 min of 19:56:52 UTC on 19 March");
+	assert(within(
+		e.sunset,
+		MAR_20_2026 + hms(8, 8, 36),
+		3 * MINUTE
+	), "sunset within 3 min of 08:08:36 UTC on 20 March");
 }
 
 fn void transition_is_centred_on_each_edge() @test
@@ -57,12 +65,36 @@ fn void transition_is_centred_on_each_edge() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), (Duration)0) == 4500, "night before the transition");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 50, 0)), (Duration)0) == 4648, "smoothstep 1/6 into the transition");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 0, 0)), (Duration)0) == 5500, "midway at sunrise");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(6, 20, 0)), (Duration)0) == 6500, "day after the transition");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(18, 0, 0)), (Duration)0) == 5500, "midway at sunset");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(19, 0, 0)), (Duration)0) == 4500, "night after sunset");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(5, 0, 0)),
+		(Duration)0
+	) == 4500, "night before the transition");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(5, 50, 0)),
+		(Duration)0
+	) == 4648, "smoothstep 1/6 into the transition");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(6, 0, 0)),
+		(Duration)0
+	) == 5500, "midway at sunrise");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(6, 20, 0)),
+		(Duration)0
+	) == 6500, "day after the transition");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(18, 0, 0)),
+		(Duration)0
+	) == 5500, "midway at sunset");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(19, 0, 0)),
+		(Duration)0
+	) == 4500, "night after sunset");
 }
 
 fn void local_times_use_the_offset() @test
@@ -77,8 +109,16 @@ fn void local_times_use_the_offset() @test
 		.transition = (Duration)(30 * MINUTE),
 	};
 	Duration plus_one = (Duration)(3600 * SECOND);
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(4, 0, 0)), plus_one) == 4500, "05:00 local is still night");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(5, 0, 0)), plus_one) == 5500, "06:00 local is midway");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(4, 0, 0)),
+		plus_one
+	) == 4500, "05:00 local is still night");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(5, 0, 0)),
+		plus_one
+	) == 5500, "06:00 local is midway");
 }
 
 fn void sun_schedule_is_day_by_day_and_night_by_night() @test
@@ -91,8 +131,16 @@ fn void sun_schedule_is_day_by_day_and_night_by_night() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "noon in London is day");
-	assert((int)schedule::temperature_at(s, (Time)(MAR_20_2026 + hms(23, 0, 0)), (Duration)0) == 4500, "23:00 UTC in London is night");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(12, 0, 0)),
+		(Duration)0
+	) == 6500, "noon in London is day");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(MAR_20_2026 + hms(23, 0, 0)),
+		(Duration)0
+	) == 4500, "23:00 UTC in London is night");
 }
 
 fn void polar_day_and_night_follow_the_sun() @test
@@ -108,19 +156,49 @@ fn void polar_day_and_night_follow_the_sun() @test
 		.night = (Kelvin)4500,
 		.transition = (Duration)(30 * MINUTE),
 	};
-	assert((int)schedule::temperature_at(s, (Time)(JUN_21_2026 + hms(12, 0, 0)), (Duration)0) == 6500, "midsummer at 80 N is day");
-	assert((int)schedule::temperature_at(s, (Time)(DEC_21_2026 + hms(12, 0, 0)), (Duration)0) == 4500, "midwinter at 80 N is night");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(JUN_21_2026 + hms(12, 0, 0)),
+		(Duration)0
+	) == 6500, "midsummer at 80 N is day");
+	assert((int)schedule::temperature_at(
+		s,
+		(Time)(DEC_21_2026 + hms(12, 0, 0)),
+		(Duration)0
+	) == 4500, "midwinter at 80 N is night");
 }
 
 fn void validation_refuses_out_of_range_values() @test
 {
 	schedule::validate({ .mode = Mode.MANUAL, .latitude = 91.0 })!!;
-	Schedule bad_latitude = { .mode = Mode.SCHEDULE, .latitude = 91.0, .longitude = 0.0, .transition = (Duration)(30 * MINUTE) };
+	Schedule bad_latitude = {
+		.mode = Mode.SCHEDULE,
+		.latitude = 91.0,
+		.longitude = 0.0,
+		.transition = (Duration)(30 * MINUTE)
+	};
 	assert(@catch(schedule::validate(bad_latitude)) == error::INVALID_ARGUMENT, "latitude above 90 is refused");
-	Schedule long_transition = { .mode = Mode.TIMES, .sunrise = (Duration)hms(6, 0, 0), .sunset = (Duration)hms(18, 0, 0), .transition = (Duration)(2 * 3600 * SECOND) };
-	assert(@catch(schedule::validate(long_transition)) == error::INVALID_ARGUMENT, "a transition over one hour is refused");
-	Schedule past_midnight = { .mode = Mode.TIMES, .sunrise = (Duration)(24 * 3600 * SECOND), .sunset = (Duration)hms(18, 0, 0), .transition = (Duration)(30 * MINUTE) };
+	Schedule long_transition = {
+		.mode = Mode.TIMES,
+		.sunrise = (Duration)hms(6, 0, 0),
+		.sunset = (Duration)hms(18, 0, 0),
+		.transition = (Duration)(2 * 3600 * SECOND)
+	};
+	assert(@catch(
+		schedule::validate(long_transition)
+	) == error::INVALID_ARGUMENT, "a transition over one hour is refused");
+	Schedule past_midnight = {
+		.mode = Mode.TIMES,
+		.sunrise = (Duration)(24 * 3600 * SECOND),
+		.sunset = (Duration)hms(18, 0, 0),
+		.transition = (Duration)(30 * MINUTE)
+	};
 	assert(@catch(schedule::validate(past_midnight)) == error::INVALID_ARGUMENT, "a time of day of 24 h is refused");
-	Schedule good = { .mode = Mode.SCHEDULE, .latitude = 51.5, .longitude = -0.1, .transition = (Duration)(30 * MINUTE) };
+	Schedule good = {
+		.mode = Mode.SCHEDULE,
+		.latitude = 51.5,
+		.longitude = -0.1,
+		.transition = (Duration)(30 * MINUTE)
+	};
 	schedule::validate(good)!!;
 }

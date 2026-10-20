@@ -6,8 +6,8 @@ module bleu::notify::fdo @feat(LINUX);
 import std::io, bleu::error, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::proxy, bleu::rt::fs, bleu::notify;
 
 const String BUS_SERVICE = "org.freedesktop.DBus";
-const String BUS_PATH = "/org/freedesktop/DBus";
-const usz COMM_CAPACITY = 64; // the kernel keeps 15 characters; the buffer leaves room for a trailing newline
+const String BUS_PATH    = "/org/freedesktop/DBus";
+const usz COMM_CAPACITY  = 64; // the kernel keeps 15 characters; the buffer leaves room for a trailing newline
 
 <*
  Ask the bus for the notification name. With `Options.replace` the request takes
@@ -44,7 +44,9 @@ fn OwnedName*? claim_name(Backend* backend, Connection* conn, Session* session)
 }
 
 // The name is ours: nothing to do. (Acquisition is the request's own answer.)
-fn void on_acquired(void* context, String name) {}
+fn void on_acquired(void* context, String name)
+{
+}
 
 // Another daemon took the name from us: stop serving at the next round.
 fn void on_lost(void* context, String name)
@@ -56,7 +58,8 @@ fn void on_lost(void* context, String name)
 // Give the name back. A connection that is already gone has given it back already.
 fn void release_name(OwnedName* owned)
 {
-	if (catch owned.release()) {
+	if (catch owned.release())
+	{
 		// The bus did not answer ReleaseName: the name goes with the connection.
 	}
 }
@@ -83,7 +86,7 @@ fn String owner_identity(Connection* conn)
 fn uint? owner_pid(Connection* conn, String owner)
 {
 	Proxy bus_proxy = proxy::for_object(conn, BUS_SERVICE, BUS_PATH, BUS_SERVICE)!;
-	Message* call = bus_proxy.new_call(tmem, "GetConnectionUnixProcessID")!;
+	Message* call   = bus_proxy.new_call(tmem, "GetConnectionUnixProcessID")!;
 	defer call.release();
 	call.body_writer("s")!.append_string(owner)!;
 	Message* reply = conn.call(call)!;

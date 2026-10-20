@@ -28,10 +28,10 @@ enum Urgency : char
 *>
 constset CloseReason : uint
 {
-	EXPIRED = 1,        // its timeout passed
-	DISMISSED = 2,      // the user dismissed it (a shell calls close_notification with this)
+	EXPIRED        = 1, // its timeout passed
+	DISMISSED      = 2, // the user dismissed it (a shell calls close_notification with this)
 	CLOSED_BY_CALL = 3, // CloseNotification, or an action on a non-resident notification
-	UNDEFINED = 4,      // this server evicted it to make room (the spec's reserved reason)
+	UNDEFINED      = 4, // this server evicted it to make room (the spec's reserved reason)
 }
 
 <*
@@ -92,12 +92,12 @@ struct Notification
 	bool has_image;
 	Image image;
 	Maybe{Level} progress; // the `value` hint, 0 to 100 percent
-	String stack_tag;      // notifications with the same tag replace each other
-	bool resident;         // stays open after an action
-	bool transient;        // never enters history
-	bool suppress_sound;   // the sender plays its own sound
-	String sound_name;     // themed sound name, to be played by the shell if it wants
-	String sound_file;     // path of a sound file, likewise
+	String stack_tag; // notifications with the same tag replace each other
+	bool resident; // stays open after an action
+	bool transient; // never enters history
+	bool suppress_sound; // the sender plays its own sound
+	String sound_name; // themed sound name, to be played by the shell if it wants
+	String sound_file; // path of a sound file, likewise
 }
 
 <*
@@ -107,8 +107,8 @@ struct Notification
 *>
 struct State
 {
-	bool serving;         // this process owns org.freedesktop.Notifications
-	bool do_not_disturb;  // non-critical notifications are recorded, not shown
+	bool serving; // this process owns org.freedesktop.Notifications
+	bool do_not_disturb; // non-critical notifications are recorded, not shown
 	uint count;
 	Notification[] active;
 	Notification[] history;
@@ -185,26 +185,26 @@ enum Backend : char
 }
 
 <* Lengths the server accepts from applications. Longer text is truncated on a character boundary. *>
-const usz MAX_APP_NAME = 256;
-const usz MAX_ICON = 1024;
-const usz MAX_SUMMARY = 1024;
-const usz MAX_BODY = 8192;
-const usz MAX_ACTIONS = 16; // pairs; further pairs are dropped
-const usz MAX_ACTION_LABEL = 256;
-const usz MAX_CATEGORY = 64;
-const usz MAX_DESKTOP_ENTRY = 256;
-const usz MAX_IMAGE_PATH = 1024;
-const usz MAX_STACK_TAG = 128;
-const usz MAX_SOUND = 1024;
-const usz MAX_SPANS = 256;
-const usz MAX_LINK = 2048;
-const usz MAX_IMAGE_BYTES = 512 * 1024;
+const usz MAX_APP_NAME        = 256;
+const usz MAX_ICON            = 1024;
+const usz MAX_SUMMARY         = 1024;
+const usz MAX_BODY            = 8192;
+const usz MAX_ACTIONS         = 16;   // pairs; further pairs are dropped
+const usz MAX_ACTION_LABEL    = 256;
+const usz MAX_CATEGORY        = 64;
+const usz MAX_DESKTOP_ENTRY   = 256;
+const usz MAX_IMAGE_PATH      = 1024;
+const usz MAX_STACK_TAG       = 128;
+const usz MAX_SOUND           = 1024;
+const usz MAX_SPANS           = 256;
+const usz MAX_LINK            = 2048;
+const usz MAX_IMAGE_BYTES     = 512 * 1024;
 const int MAX_IMAGE_DIMENSION = 4096;
-const int MAX_EXPIRE_MS = 86_400_000; // one day
+const int MAX_EXPIRE_MS       = 86_400_000; // one day
 
-const usz DEFAULT_MAX_OPEN = 20;
-const usz DEFAULT_HISTORY_LIMIT = 50;
-const Duration DEFAULT_LOW_TIMEOUT = (Duration)5_000_000;     // 5 s, microseconds
+const usz DEFAULT_MAX_OPEN            = 20;
+const usz DEFAULT_HISTORY_LIMIT       = 50;
+const Duration DEFAULT_LOW_TIMEOUT    = (Duration)5_000_000;  // 5 s, microseconds
 const Duration DEFAULT_NORMAL_TIMEOUT = (Duration)10_000_000; // 10 s
 
 <*

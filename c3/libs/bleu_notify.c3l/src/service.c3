@@ -44,7 +44,7 @@ fn Notify*? open(Allocator allocator, Options options = { })
 {
 	if (options.policy.max_open == 0) options.policy = DEFAULT_POLICY;
 	Driver* driver = select_driver(options)!;
-	Notify* self = alloc::new(allocator, Notify);
+	Notify* self   = alloc::new(allocator, Notify);
 	*self = { .allocator = allocator, .driver = driver };
 	StartOp* startup = operation::begin{bool}(allocator);
 	// One reference for `open`, one for the worker, which releases its own when it returns.
@@ -115,7 +115,11 @@ fn Snapshot{State}*? Notify.wait_after(&self, ulong seen, Duration timeout = tim
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Notify.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Notify.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Notify.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);

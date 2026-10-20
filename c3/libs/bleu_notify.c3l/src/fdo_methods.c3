@@ -63,9 +63,9 @@ fn void describe(Description* d, Session* session)
 // Notify: read the arguments into a new entry, post it to the store, announce what that changed, reply with the id.
 fn void? notify_call(void* context, server::Call* call)
 {
-	Session* session = (Session*)context;
-	store::Entry* e = session.store.new_entry();
+	Session* session  = (Session*)context;
 	marshal::Reader r = call.reader()!;
+	store::Entry* e   = session.store.new_entry();
 	if (catch err = wire::read_notify(&r, (Allocator)&e.arena, &e.incoming))
 	{
 		store::release_entry(e);
@@ -88,7 +88,7 @@ fn void? notify_call(void* context, server::Call* call)
 // CloseNotification(id): close it, announce NotificationClosed(id, CLOSED_BY_CALL); an unknown id is an error.
 fn void? close_call(void* context, server::Call* call)
 {
-	Session* session = (Session*)context;
+	Session* session  = (Session*)context;
 	marshal::Reader r = call.reader()!;
 	notify::NoteId id = r.read_u32()!;
 	if (!session.store.close(id)) return call.reply_error(ERROR_NOT_FOUND, "");
@@ -103,7 +103,7 @@ fn void? capabilities_call(void* context, server::Call* call)
 	@pool()
 	{
 		Value[] names = { value::str(tmem, "actions")!, value::str(tmem, "body")!, value::str(tmem, "body-markup")! };
-		Value[] out = { value::array(tmem, "s", names)! };
+		Value[] out   = { value::array(tmem, "s", names)! };
 		return call.reply(out);
 	};
 }

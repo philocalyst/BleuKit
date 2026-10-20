@@ -8,13 +8,13 @@ import bleu::tray;
 
 enum PendingKind : char
 {
-	ADD_ITEM, // `text` is the registration to add ("bus/path")
-	REMOVE_ITEM, // `text` is the registration to remove
-	OWNER_GONE, // the bus name `text` has no owner: remove every item of it
-	PROPERTY, // re-read property `prop` of the item with `key`
-	MENU, // re-read the menu of the item with `key`
+	ADD_ITEM,        // `text` is the registration to add ("bus/path")
+	REMOVE_ITEM,     // `text` is the registration to remove
+	OWNER_GONE,      // the bus name `text` has no owner: remove every item of it
+	PROPERTY,        // re-read property `prop` of the item with `key`
+	MENU,            // re-read the menu of the item with `key`
 	WATCHER_CHANGED, // the watcher name changed owner; `text` is the new owner ("" when none)
-	WATCHER_LOST, // we held the watcher name and lost it
+	WATCHER_LOST,    // we held the watcher name and lost it
 }
 
 <* One unit of queued work. `text` is owned by the backend (see `push_pending`). *>
@@ -85,7 +85,9 @@ fn void handle_pending(SniBackend* b, Pending p)
 		case WATCHER_LOST:
 			if (b.watcher_name)
 			{
-				if (catch b.watcher_name.release()) {}
+				if (catch b.watcher_name.release())
+				{
+				}
 				b.watcher_name = null;
 			}
 			b.watcher_served = false;
@@ -113,7 +115,9 @@ fn void property_changed(SniBackend* b, ItemRecord* r, Prop prop)
 	read_prop(b, r, prop);
 	if (prop == MENU_PATH)
 	{
-		if (catch reload_menu(b, r, -1)) {}
+		if (catch reload_menu(b, r, -1))
+		{
+		}
 	}
 	queue_event(b, ITEM_CHANGED, r.item.id, 0, 0, 0);
 	b.dirty = true;
@@ -122,7 +126,9 @@ fn void property_changed(SniBackend* b, ItemRecord* r, Prop prop)
 // The item's menu changed: read the menu again.
 fn void menu_changed(SniBackend* b, ItemRecord* r)
 {
-	if (catch reload_menu(b, r, -1)) {}
+	if (catch reload_menu(b, r, -1))
+	{
+	}
 	queue_event(b, MENU_CHANGED, r.item.id, 0, 0, 0);
 	b.dirty = true;
 }
@@ -137,7 +143,9 @@ fn void resync_records(SniBackend* b)
 	}
 	else
 	{
-		if (catch read_registered(b)) {}
+		if (catch read_registered(b))
+		{
+		}
 	}
 	b.dirty = true;
 }

@@ -66,7 +66,7 @@ fn void close_by_request(Session* s, notify::Command* command)
 fn void invoke(Session* s, notify::Command* command)
 {
 	Operation{bool}* operation = command.operation;
-	store::Entry* e = s.store.open(command.id);
+	store::Entry* e            = s.store.open(command.id);
 	if (e == null)
 	{
 		finish(operation, error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no open notification %d", command.id));
@@ -75,7 +75,17 @@ fn void invoke(Session* s, notify::Command* command)
 	String key = (String)command.key[0:(sz)command.key_len];
 	if (!offers(e, key))
 	{
-		finish(operation, error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "notification %d has no action '%s'", command.id, key));
+		finish(
+			operation,
+			error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"notification %d has no action '%s'",
+				command.id,
+				key
+			)
+		);
 		return;
 	}
 	bool resident = e.note.resident;
@@ -128,25 +138,45 @@ fn void refuse(notify::Command* command)
 fn void refuse_until_stopped(Allocator allocator, Host{Command}* host)
 {
 	Poller wake;
-	if (catch wake.init(allocator, host.wakeup(), 1)) return;
+	if (catch wake.init(allocator, host.wakeup(), 1))
+	{
+		// No wake-up means nothing can be waited for: refuse what is queued now, and stop.
+		refuse_queued(host);
+		return;
+	}
 	defer wake.free();
+	while (true)
+	{
+		usz taken = refuse_queued(host);
+		if (taken == 0 && host.stopping()) return;
+		if (catch wake.wait())
+		{
+			// The wait itself failed: refuse what is queued and stop rather than spin.
+			refuse_queued(host);
+			return;
+		}
+	}
+}
+
+// Refuse every command in the mailbox; returns how many there were.
+fn usz refuse_queued(Host{Command}* host)
+{
 	notify::Command[COMMAND_BATCH] commands;
+	usz total = 0;
 	while (true)
 	{
 		usz taken = host.mailbox().take_all(commands[..]);
+		if (taken == 0) return total;
 		for (usz k = 0; k < taken; k++) refuse(&commands[k]);
-		if (taken == 0 && host.stopping()) return;
-		if (catch wake.wait()) {
-			// The wake-up itself failed: stop listening rather than spin.
-			return;
-		}
+		total += taken;
 	}
 }
 
 // Cancel the expiry timer of `id`, when it has one.
 fn void cancel(Session* s, notify::NoteId id)
 {
-	if (catch s.timers.cancel((usz)id)) {
+	if (catch s.timers.cancel((usz)id))
+	{
 		// No timer was pending: the notification never expired on its own.
 	}
 }

@@ -30,4 +30,9 @@ struct DisplayDeviceW
 	ushort[128] device_key;
 }
 
-extern fn int enumDisplayDevicesW(void* device, uint index, DisplayDeviceW* out, uint flags) @cname("EnumDisplayDevicesW");
+extern fn int enumDisplayDevicesW(
+	void* device,
+	uint index,
+	DisplayDeviceW* out,
+	uint flags
+) @cname("EnumDisplayDevicesW");

@@ -99,7 +99,11 @@ fn Snapshot{State}*? Color.wait_after(&self, ulong seen, Duration timeout = time
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Color.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Color.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Color.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);

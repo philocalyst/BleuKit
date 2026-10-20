@@ -94,13 +94,13 @@ fn void Parser.flush(&self)
 			case LINK: link = self.hrefs[k];
 		}
 	}
-	self.spans.push({
-		.text = self.pending.str_view().copy(self.allocator),
-		.bold = bold,
-		.italic = italic,
-		.underline = underline,
-		.link = link.len == 0 ? link : link.copy(self.allocator),
-	});
+	self.spans.push(
+		{
+			.text = self.pending.str_view()
+		.copy(
+			self.allocator
+		), .bold = bold, .italic = italic, .underline = underline, .link = link.len == 0 ? link
+			: link.copy(self.allocator), });
 	self.pending.clear();
 	if ((usz)self.spans.len() >= notify::MAX_SPANS) self.full = true;
 }
@@ -109,13 +109,13 @@ fn void Parser.flush(&self)
 fn bool try_tag(Parser* p)
 {
 	String input = p.input;
-	usz start = p.pos + 1;
-	usz close = start;
+	usz start    = p.pos + 1;
+	usz close    = start;
 	while (close < input.len && input[close] != '>') close++;
 	if (close >= input.len) return false;
 	String inner = input[start:close - start];
 	bool closing = inner.len > 0 && inner[0] == '/';
-	usz name_at = closing ? 1 : 0;
+	usz name_at  = closing ? 1 : 0;
 	usz name_end = name_at;
 	while (name_end < inner.len && is_letter(inner[name_end])) name_end++;
 	if (name_end == name_at) return false;
@@ -133,7 +133,8 @@ fn bool try_tag(Parser* p)
 	}
 	if (name_is(name, "img") && !closing)
 	{
-		if (try alt = attribute(inner, "alt")) {
+		if (try alt = attribute(inner, "alt"))
+		{
 			usz at = 0;
 			while (at < alt.len)
 			{

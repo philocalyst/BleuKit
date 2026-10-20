@@ -13,7 +13,7 @@ module bleu::tray::sni @feat(LINUX);
 import std::collections::list, bleu::dbus::marshal, bleu::dbus::message, bleu::error, bleu::tray, bleu::tray::convert, bleu::operation;
 
 // Separator between the keys of a shortcut chord when it is shown as text.
-const String SHORTCUT_SEPARATOR = "+";
+const String SHORTCUT_SEPARATOR  = "+";
 // The variant contents of a menu node: (id, properties, children).
 const String MENU_NODE_SIGNATURE = "(ia{sv}av)";
 
@@ -47,7 +47,7 @@ fn void? reload_menu(SniBackend* b, ItemRecord* r, int extra)
 	if (r.item.menu_path.len == 0 || r.item.menu_path == NO_MENU_PATH)
 	{
 		r.menu_arena.reset();
-		r.menu = {};
+		r.menu = { };
 		r.item.menu_revision = 0;
 		return;
 	}
@@ -98,9 +98,9 @@ fn Layout? fetch_layout(SniBackend* b, ItemRecord* r, int parent, int depth)
 {
 	Message* reply = call_layout(b, r, parent, depth)!;
 	defer reply.release();
-	Reader rd = reply.reader()!;
+	Reader rd     = reply.reader()!;
 	uint revision = rd.read_u32()!;
-	Allocator a = &r.menu_arena;
+	Allocator a   = &r.menu_arena;
 	MenuNode root = parse_node(&rd, a, 0)!;
 	return { .revision = revision, .root = root };
 }
@@ -110,13 +110,13 @@ fn MenuNode? parse_node(Reader* rd, Allocator a, usz depth)
 {
 	if (depth > MAX_MENU_DEPTH) return error::PROTOCOL~;
 	rd.begin_struct()!;
-	int id = rd.read_i32()!;
+	int id        = rd.read_i32()!;
 	MenuNode node = { .id = id, .enabled = true, .visible = true };
 	rd.begin_array()!;
 	while (rd.has_more())
 	{
 		rd.begin_dict_entry()!;
-		String key = rd.read_string()!;
+		String key      = rd.read_string()!;
 		String contents = rd.begin_variant()!;
 		apply_menu_property(&node, key, contents, rd, a)!;
 		rd.end_variant()!;
@@ -237,7 +237,7 @@ fn String join(String[] parts, Allocator a)
 	usz total = (usz)parts.len - 1;
 	for (sz i = 0; i < parts.len; i++) total += (usz)parts[i].len;
 	char[] out = alloc::new_array(a, char, (sz)total);
-	usz at = 0;
+	usz at     = 0;
 	for (sz i = 0; i < parts.len; i++)
 	{
 		if (i > 0)
@@ -264,7 +264,7 @@ fn usz count_nodes(MenuNode* node)
 *>
 fn MenuItem[] copy_menu(MenuNode* root, Allocator a)
 {
-	usz total = count_nodes(root);
+	usz total              = count_nodes(root);
 	tray::MenuItem[] items = alloc::new_array(a, tray::MenuItem, (sz)total);
 	@pool()
 	{
@@ -316,7 +316,7 @@ fn bool? open_submenu(SniBackend* b, ItemRecord* r, int menu_id)
 	MenuNode* node = find_node(&r.menu, menu_id);
 	if (node == null) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no menu entry %d", menu_id)~;
 	if (!node.has_submenu) return false;
-	bool loaded = node.children.len > 0;
+	bool loaded  = node.children.len > 0;
 	bool changed = (call_about_to_show(b, r, menu_id)) ?? false;
 	if (loaded && !changed) return false;
 	reload_menu(b, r, menu_id)!;

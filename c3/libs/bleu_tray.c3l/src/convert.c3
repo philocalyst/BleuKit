@@ -127,7 +127,7 @@ fn Registration? parse_registration(String argument, String sender)
 *>
 fn String item_id(Registration r, Allocator allocator)
 {
-	sz bus_bytes = r.bus_name.len;
+	sz bus_bytes  = r.bus_name.len;
 	char[] joined = alloc::new_array(allocator, char, bus_bytes + r.object_path.len);
 	mem::copy(&joined[0], r.bus_name.ptr, (usz)bus_bytes);
 	mem::copy(&joined[bus_bytes], r.object_path.ptr, (usz)r.object_path.len);
@@ -187,13 +187,18 @@ fn String copy_text(String text, Allocator allocator)
 <* Copy our own item, its menu entries included, into `allocator`. *>
 fn tray::OwnItem copy_own(tray::OwnItem own, Allocator allocator)
 {
-	tray::OwnMenuEntry[] menu = {};
+	tray::OwnMenuEntry[] menu = { };
 	if (own.menu.len > 0)
 	{
 		menu = alloc::new_array(allocator, tray::OwnMenuEntry, own.menu.len);
 		foreach (i, &entry : own.menu)
 		{
-			menu[i] = { .id = entry.id, .label = copy_text(entry.label, allocator), .is_separator = entry.is_separator, .enabled = entry.enabled };
+			menu[i] = {
+				.id = entry.id,
+				.label = copy_text(entry.label, allocator),
+				.is_separator = entry.is_separator,
+				.enabled = entry.enabled
+			};
 		}
 	}
 	return { .title = copy_text(own.title, allocator), .icon = copy_text(own.icon, allocator), .menu = menu };
@@ -207,9 +212,9 @@ fn String win32_label(String raw, Allocator allocator)
 {
 	if (raw.len == 0) return "";
 	usz capacity = (usz)raw.len * 2;
-	char[] out = alloc::new_array(allocator, char, (sz)capacity);
-	usz n = 0;
-	usz i = 0;
+	char[] out   = alloc::new_array(allocator, char, (sz)capacity);
+	usz n        = 0;
+	usz i        = 0;
 	while (i < raw.len)
 	{
 		char c = raw[i];

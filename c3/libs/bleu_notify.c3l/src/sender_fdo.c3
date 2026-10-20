@@ -8,9 +8,9 @@
 module bleu::notify::sender_fdo @feat(LINUX);
 import std::time, bleu::error, bleu::availability, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::proxy, bleu::notify, bleu::notify::sender;
 
-const String DEST = "org.freedesktop.Notifications";
-const String PATH = "/org/freedesktop/Notifications";
-const String IFACE = "org.freedesktop.Notifications";
+const String DEST             = "org.freedesktop.Notifications";
+const String PATH             = "/org/freedesktop/Notifications";
+const String IFACE            = "org.freedesktop.Notifications";
 const String NOTIFY_SIGNATURE = "susssasa{sv}i";
 
 // How long a Notify call waits for the server to answer.
@@ -53,8 +53,8 @@ fn void close_fdo(Allocator allocator, void* state)
 fn notify::NoteId? send_fdo(void* state, sender::Request* request)
 {
 	FdoSender* self = (FdoSender*)state;
-	Proxy server = proxy::for_object(&self.conn, DEST, PATH, IFACE)!;
-	Message* call = server.new_call(mem, "Notify")!;
+	Proxy server    = proxy::for_object(&self.conn, DEST, PATH, IFACE)!;
+	Message* call   = server.new_call(mem, "Notify")!;
 	defer call.release();
 	Writer* w = call.body_writer(NOTIFY_SIGNATURE)!;
 	w.append_string(request.app_name)!;

@@ -31,6 +31,10 @@ class Item(ServiceInterface):
         super().__init__('org.kde.StatusNotifierItem')
         self.title = 'Probe Item'
         self.icon = 'face-smile'
+        self.status = 'Active'
+        self.attention = ''
+        self.overlay = ''
+        self.tip = 'Tip title'
 
     @dbus_property(access=PropertyAccess.READ)
     def Category(self) -> 's':
@@ -46,7 +50,15 @@ class Item(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def Status(self) -> 's':
-        return 'Active'
+        return self.status
+
+    @dbus_property(access=PropertyAccess.READ)
+    def AttentionIconName(self) -> 's':
+        return self.attention
+
+    @dbus_property(access=PropertyAccess.READ)
+    def OverlayIconName(self) -> 's':
+        return self.overlay
 
     @dbus_property(access=PropertyAccess.READ)
     def IconName(self) -> 's':
@@ -70,7 +82,7 @@ class Item(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def ToolTip(self) -> '(sa(iiay)ss)':
-        return ['', [], 'Tip title', 'Tip body']
+        return ['', [], self.tip, 'Tip body']
 
     @method()
     def Activate(self, x: 'i', y: 'i'):
@@ -96,6 +108,22 @@ class Item(ServiceInterface):
     def NewIcon(self):
         return
 
+    @signal()
+    def NewStatus(self, status: 's') -> 's':
+        return status
+
+    @signal()
+    def NewAttentionIcon(self):
+        return
+
+    @signal()
+    def NewOverlayIcon(self):
+        return
+
+    @signal()
+    def NewToolTip(self):
+        return
+
 
 def entry(node_id, props, children=()):
     return [node_id, props, [Variant('(ia{sv}av)', c) for c in children]]
@@ -104,6 +132,11 @@ def entry(node_id, props, children=()):
 class Menu(ServiceInterface):
     def __init__(self):
         super().__init__('com.canonical.dbusmenu')
+        self.recent = 'Recent'
+
+    @signal()
+    def LayoutUpdated(self, revision: 'u', parent: 'i') -> 'ui':
+        return [revision, parent]
 
     def node(self, node_id):
         # The root has a mnemonic label, a submenu whose children come only on AboutToShow, a
@@ -111,12 +144,12 @@ class Menu(ServiceInterface):
         if node_id == 0:
             return entry(0, {}, [
                 entry(1, {'label': Variant('s', '_Open'), 'enabled': Variant('b', True)}),
-                entry(2, {'label': Variant('s', 'Recent'), 'children-display': Variant('s', 'submenu')}),
+                entry(2, {'label': Variant('s', self.recent), 'children-display': Variant('s', 'submenu')}),
                 entry(4, {'type': Variant('s', 'separator')}),
                 entry(6, {'label': Variant('s', 'Quit'), 'enabled': Variant('b', False)}),
             ])
         if node_id == 2:
-            return entry(2, {'label': Variant('s', 'Recent'), 'children-display': Variant('s', 'submenu')}, [
+            return entry(2, {'label': Variant('s', self.recent), 'children-display': Variant('s', 'submenu')}, [
                 entry(5, {
                     'label': Variant('s', 'Item __one'),
                     'toggle-type': Variant('s', 'checkmark'),
@@ -190,6 +223,20 @@ async def main():
     item.icon = 'face-wink'
     item.NewIcon()
     print('FAKE newicon', flush=True)
+    await asyncio.sleep(1)
+    item.status = 'NeedsAttention'
+    item.NewStatus('NeedsAttention')
+    item.attention = 'dialog-warning'
+    item.NewAttentionIcon()
+    item.overlay = 'emblem-new'
+    item.NewOverlayIcon()
+    item.tip = 'New tip'
+    item.NewToolTip()
+    print('FAKE status and overlays', flush=True)
+    await asyncio.sleep(1)
+    menu.recent = 'Recents'
+    menu.LayoutUpdated(2, 0)
+    print('FAKE layout updated', flush=True)
     try:
         await asyncio.wait_for(menu.clicked.wait(), 20)
     except asyncio.TimeoutError:

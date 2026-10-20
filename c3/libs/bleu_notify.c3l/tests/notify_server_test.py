@@ -348,6 +348,13 @@ async def main():
     check("the state reports do-not-disturb", st["header"].get("dnd") == "1", str(st["header"]))
     await centre.cmd("dnd 0")
 
+    before_clear = len((await centre.state())["history"])
+    out = await centre.cmd("clear")
+    after_clear = len((await centre.state())["history"])
+    check("clear drops the history and keeps open notifications",
+          out == ["CLEAR ok"] and before_clear > 0 and after_clear == 0 and in_active(await centre.state(), loud),
+          f"before={before_clear} after={after_clear}")
+
     # 10. Malformed hint types and invalid images are ignored, not fatal.
     m = await notify(bus, "malformed", hints={
         "urgency": Variant("s", "urgent"),

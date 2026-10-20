@@ -40,19 +40,19 @@ struct Request
 {
 	String app_name;
 	notify::NoteId replaces_id; // 0: a new notification
-	String app_icon;      // theme name or file URI, empty for none
+	String app_icon; // theme name or file URI, empty for none
 	String summary;
-	String body;          // plain text; the centre sanitises markup on its side
+	String body; // plain text; the centre sanitises markup on its side
 	notify::Action[] actions;
 	notify::Urgency urgency;
-	String category;      // "class.specific", e.g. "im.received"
+	String category; // "class.specific", e.g. "im.received"
 	String desktop_entry; // the application's desktop file id, e.g. "chat"
-	String image_path;    // file URI or theme name
-	String sound_name;    // themed sound name
-	bool suppress_sound;  // the sender plays its own sound
-	bool resident;        // stays open after an action
-	bool transient;       // never kept in history
-	int expire_ms;        // -1 the server's default, 0 never, more than 0 milliseconds
+	String image_path; // file URI or theme name
+	String sound_name; // themed sound name
+	bool suppress_sound; // the sender plays its own sound
+	bool resident; // stays open after an action
+	bool transient; // never kept in history
+	int expire_ms; // -1 the server's default, 0 never, more than 0 milliseconds
 }
 
 <* A request with the defaults: a normal notification that uses the server's timeout. *>
@@ -93,7 +93,7 @@ struct SenderDriver
 fn Sender*? open(Allocator allocator)
 {
 	SenderDriver* driver = platform_sender_driver();
-	Sender* self = alloc::new(allocator, Sender);
+	Sender* self         = alloc::new(allocator, Sender);
 	*self = { .allocator = allocator, .driver = driver };
 	void*? state = driver.open_fn(allocator, &self.features);
 	if (catch err = state)

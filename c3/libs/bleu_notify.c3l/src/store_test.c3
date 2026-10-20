@@ -2,10 +2,15 @@ module bleu::notify::store_test;
 import std::time, std::collections::maybe, bleu::notify, bleu::notify::store;
 
 // A new entry carrying `summary`, ready to post. Its strings live in the entry's arena.
-fn store::Entry* make_entry(store::Store* s, String summary, notify::Urgency urgency = notify::Urgency.NORMAL, int expire_ms = -1)
+fn store::Entry* make_entry(
+	store::Store* s,
+	String summary,
+	notify::Urgency urgency = notify::Urgency.NORMAL,
+	int expire_ms = -1
+)
 {
 	store::Entry* e = s.new_entry();
-	Allocator a = (Allocator)&e.arena;
+	Allocator a     = (Allocator)&e.arena;
 	e.incoming.app_name = "test".copy(a);
 	e.incoming.summary = summary.copy(a);
 	e.incoming.body = "".copy(a);
@@ -19,7 +24,7 @@ fn void ids_follow_the_order_of_arrival() @test
 	store::Store s;
 	s.init(mem, notify::DEFAULT_POLICY);
 	defer s.free();
-	store::Posted first = s.post(make_entry(&s, "one"), (Time)1000);
+	store::Posted first  = s.post(make_entry(&s, "one"), (Time)1000);
 	store::Posted second = s.post(make_entry(&s, "two"), (Time)1000);
 	assert(first.id == 1 && second.id == 2);
 	assert(s.received == 2);
@@ -60,7 +65,7 @@ fn void a_stack_tag_replaces_the_open_notification() @test
 	defer s.free();
 	store::Entry* first = make_entry(&s, "1");
 	first.incoming.hints.stack_tag = "chat".copy((Allocator)&first.arena);
-	store::Posted a = s.post(first, (Time)1000);
+	store::Posted a      = s.post(first, (Time)1000);
 	store::Entry* second = make_entry(&s, "2");
 	second.incoming.hints.stack_tag = "chat".copy((Allocator)&second.arena);
 	store::Posted b = s.post(second, (Time)1000);
@@ -106,7 +111,7 @@ fn void do_not_disturb_holds_back_normal_notifications() @test
 	defer s.free();
 	s.set_do_not_disturb(true);
 	store::Posted quiet = s.post(make_entry(&s, "quiet"), (Time)1000);
-	store::Posted loud = s.post(make_entry(&s, "loud", notify::Urgency.CRITICAL), (Time)1000);
+	store::Posted loud  = s.post(make_entry(&s, "loud", notify::Urgency.CRITICAL), (Time)1000);
 	assert(!quiet.shown && loud.shown);
 	assert(s.active.len() == 1 && s.active.get(0).note.summary == "loud");
 	assert(s.history.len() == 1 && s.history.get(0).note.summary == "quiet");
@@ -146,7 +151,7 @@ fn void timeouts_and_expiry_times() @test
 	store::Store s;
 	s.init(mem, notify::DEFAULT_POLICY);
 	defer s.free();
-	Time now = (Time)1_000_000;
+	Time now             = (Time)1_000_000;
 	store::Posted normal = s.post(make_entry(&s, "n"), now);
 	assert(normal.timeout.value == notify::DEFAULT_NORMAL_TIMEOUT);
 	assert(s.open(normal.id).note.expires.value == (Time)(1_000_000 + 10_000_000));
@@ -162,10 +167,16 @@ fn void a_snapshot_is_a_deep_copy_without_history_pixels() @test
 	s.init(mem, notify::DEFAULT_POLICY);
 	defer s.free();
 	store::Entry* e = make_entry(&s, "img");
-	Allocator a = (Allocator)&e.arena;
+	Allocator a     = (Allocator)&e.arena;
 	e.incoming.body = "<b>hi</b> there".copy(a);
 	e.incoming.hints.has_image = true;
-	e.incoming.hints.image = { .width = 1, .height = 1, .rowstride = 3, .channels = 3, .pixels = alloc::new_array(a, char, 3) };
+	e.incoming.hints.image = {
+		.width = 1,
+		.height = 1,
+		.rowstride = 3,
+		.channels = 3,
+		.pixels = alloc::new_array(a, char, 3)
+	};
 	store::Posted posted = s.post(e, (Time)1000);
 	@pool()
 	{

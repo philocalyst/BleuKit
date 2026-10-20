@@ -11,21 +11,21 @@ module bleu::notify::fdo @feat(LINUX);
 import std::time, bleu::error, bleu::availability, bleu::observe, bleu::operation, bleu::dbus::address, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::rt::poller, bleu::rt::timers, bleu::rt::worker, bleu::notify, bleu::notify::store;
 
 const String SERVICE_NAME = "org.freedesktop.Notifications";
-const String OBJECT_PATH = "/org/freedesktop/Notifications";
-const String INTERFACE = "org.freedesktop.Notifications";
+const String OBJECT_PATH  = "/org/freedesktop/Notifications";
+const String INTERFACE    = "org.freedesktop.Notifications";
 
 // The notification server's own identity, reported by GetServerInformation. spec_version is the spec we implement.
-const String SERVER_NAME = "bleu";
-const String SERVER_VENDOR = "Bleu";
+const String SERVER_NAME    = "bleu";
+const String SERVER_VENDOR  = "Bleu";
 const String SERVER_VERSION = "0.1";
-const String SPEC_VERSION = "1.3";
+const String SPEC_VERSION   = "1.3";
 
 // Tag of the poller source that is the bus connection.
 const usz BUS_TAG = 1;
 
 // Commands taken from the mailbox per round, and timers popped per round.
 const usz COMMAND_BATCH = 8;
-const usz TIMER_BATCH = 8;
+const usz TIMER_BATCH   = 8;
 
 <* The state behind the backend handle: what `create` made and `run` uses. *>
 struct Backend
@@ -69,7 +69,12 @@ fn bool probe(notify::Options* options)
 	};
 }
 
-fn void*? create(Allocator allocator, notify::Options options, notify::Capabilities* capabilities, notify::StartOp* startup)
+fn void*? create(
+	Allocator allocator,
+	notify::Options options,
+	notify::Capabilities* capabilities,
+	notify::StartOp* startup
+)
 {
 	capabilities.init(availability::YES);
 	capabilities.set(
@@ -85,7 +90,10 @@ fn void*? create(Allocator allocator, notify::Options options, notify::Capabilit
 	);
 	capabilities.set(
 		notify::Cap.SOUND,
-		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "sound hints are recorded for the shell; nothing plays them")
+		availability::no(
+			availability::Reason.UNSUPPORTED_BACKEND,
+			"sound hints are recorded for the shell; nothing plays them"
+		)
 	);
 	Backend* backend = alloc::new(allocator, Backend);
 	*backend = { .allocator = allocator, .replace = options.replace, .policy = options.policy, .startup = startup };
@@ -100,7 +108,7 @@ fn void destroy(Allocator allocator, void* state)
 // The worker entry. Reports the start-up outcome, serves until stopped or the bus is lost, then refuses what is still queued.
 fn void run(void* state, notify::NotifyHub* hub, Host{Command}* host)
 {
-	Backend* backend = (Backend*)state;
+	Backend* backend         = (Backend*)state;
 	notify::StartOp* startup = backend.startup;
 	defer startup.release();
 	if (catch err = serve(backend, hub, host)) (void)startup.fail(err);
@@ -161,8 +169,16 @@ fn void? serve(Backend* backend, notify::NotifyHub* hub, Host{Command}* host)
 		{
 			writable = !writable;
 			io.remove(BUS_TAG)!;
-			io.add({ .handle = (Native)conn.fd()!, .interest = { .readable = true, .writable = writable }, .tag = BUS_TAG })!;
+			io.add(
+				{ .handle = (Native)conn.fd()!, .interest = { .readable = true, .writable = writable }, .tag = BUS_TAG }
+			)!;
 		}
 	}
-	if (session.name_lost) return error::raise(error::UNAVAILABLE, error::Domain.DBUS, 0, "%s was taken by another daemon", SERVICE_NAME)~;
+	if (session.name_lost) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.DBUS,
+		0,
+		"%s was taken by another daemon",
+		SERVICE_NAME
+	)~;
 }

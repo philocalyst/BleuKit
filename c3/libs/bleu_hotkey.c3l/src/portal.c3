@@ -17,11 +17,11 @@
 module bleu::hotkey::portal @feat(LINUX);
 import std::time, std::collections::maybe, std::collections::list, bleu::availability, bleu::observe, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::hotkey, bleu::hotkey::portal_path, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
-const String PORTAL_NAME = "org.freedesktop.portal.Desktop";
-const String PORTAL_PATH = "/org/freedesktop/portal/desktop";
+const String PORTAL_NAME            = "org.freedesktop.portal.Desktop";
+const String PORTAL_PATH            = "/org/freedesktop/portal/desktop";
 const String GLOBAL_SHORTCUTS_IFACE = "org.freedesktop.portal.GlobalShortcuts";
-const String REQUEST_IFACE = "org.freedesktop.portal.Request";
-const String SESSION_IFACE = "org.freedesktop.portal.Session";
+const String REQUEST_IFACE          = "org.freedesktop.portal.Request";
+const String SESSION_IFACE          = "org.freedesktop.portal.Session";
 
 // The poller tag of the bus connection. The worker's wake-up is not tagged (see bleu_rt).
 const usz CONNECTION_TAG = 1;
@@ -29,10 +29,10 @@ const usz CONNECTION_TAG = 1;
 // How long the worker sleeps when nothing happens: it retries a lost connection on each tick.
 const Duration TICK = (Duration)500_000; // 0.5 s in microseconds
 
-// Response codes of org.freedesktop.portal.Request.Response.
-const uint RESPONSE_SUCCESS = 0;
+// Response codes of org.freedesktop.portal.Request.Response: 0 success, 1 cancelled by the user, 2 other
+// (the portal ended the request itself; a desktop without the interface answers so).
+const uint RESPONSE_SUCCESS   = 0;
 const uint RESPONSE_CANCELLED = 1;
-const uint RESPONSE_OTHER = 2;
 
 // What the current round waits for.
 enum Step : char
@@ -47,7 +47,7 @@ enum Step : char
 struct Waiting
 {
 	Task* operation; // the reference this entry owns
-	String id;       // owned copy
+	String id; // owned copy
 	Binding removed; // UNREGISTER only: the binding that was removed, its strings owned
 	bool removal;
 }
@@ -59,24 +59,25 @@ struct Backend
 	HotkeyHub* hub;
 	Connection connection;
 	bool connected;
-	uint version;              // GlobalShortcuts interface version; 0 when the interface is absent
+	uint version; // GlobalShortcuts interface version; 0 when the interface is absent
 	Availability registration; // whether shortcuts can be bound right now, and why not
-	String sender;             // our unique bus name, owned
-	String session;            // the session of the last round, owned; "" when none
-	uint tokens;               // counter for handle tokens
+	String sender; // our unique bus name, owned
+	String session; // the session of the last round, owned; "" when none
+	uint tokens; // counter for handle tokens
 	Step step;
-	String request;            // owned: the Request path the current step answers on
+	String request; // owned: the Request path the current step answers on
 	SubscriptionId response_subscription;
 	bool response_subscribed;
-	bool answered;             // the Response for `request` has arrived
-	uint answer_code;          // its response code
-	bool reply_failed;         // the call of the current step failed
+	bool replied; // the reply to the step's call arrived (no error)
+	bool answered; // the Response for `request` has arrived
+	uint answer_code; // its response code
+	bool reply_failed; // the call of the current step failed
 	fault reply_fault;
-	String reply_handle;       // owned: the Request path the reply named, when it differs from `request`
-	List{Binding} bindings;    // the registrations, in the order they were made
-	List{Waiting} waiting;     // accepted, not yet in a round
-	List{Waiting} in_round;    // completed by the current round
-	bool dirty;                // a round must run
+	String reply_handle; // owned: the Request path the reply named, when it differs from `request`
+	List{Binding} bindings; // the registrations, in the order they were made
+	List{Waiting} waiting; // accepted, not yet in a round
+	List{Waiting} in_round; // completed by the current round
+	bool dirty; // a round must run
 }
 
 const Driver DRIVER = {
@@ -140,10 +141,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.ACTIVATION_TOKEN,
-		availability::no(
-			availability::Reason.DEGRADED,
-			"The token comes only when the compositor supplies one"
-		)
+		availability::no(availability::Reason.DEGRADED, "The token comes only when the compositor supplies one")
 	);
 	Backend* backend = alloc::new(allocator, Backend);
 	backend.allocator = allocator;
@@ -206,12 +204,17 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 		publish(b);
 	}
 	disconnect(b, &poller);
-	// Requests that arrived after the last take are refused, so no caller waits for ever.
+	// Requests in flight or queued are refused, so no caller waits for ever.
+	abort_round(b, error::DISCONNECTED, "The shortcut service is closing", PENDING);
 	while (true)
 	{
 		usz rest = host.mailbox().take_all(commands[..]);
 		if (rest == 0) break;
-		for (usz i = 0; i < rest; i++) refuse_command(commands[i], error::DISCONNECTED, "The shortcut service is closing");
+		for (usz i = 0; i < rest; i++) refuse_command(
+			commands[i],
+			error::DISCONNECTED,
+			"The shortcut service is closing"
+		);
 	}
 }
 
@@ -317,7 +320,7 @@ fn void publish(Backend* b)
 {
 	Snapshot{State}* snapshot = b.hub.begin();
 	Allocator arena           = snapshot.allocator();
-	Binding[] copies          = {};
+	Binding[] copies          = { };
 	if (b.bindings.len() > 0)
 	{
 		copies = alloc::new_array(arena, Binding, b.bindings.len());

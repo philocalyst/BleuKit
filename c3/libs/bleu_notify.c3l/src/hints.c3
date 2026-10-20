@@ -12,9 +12,9 @@
 module bleu::notify::hints;
 import std::collections::maybe, bleu::error, bleu::unit, bleu::dbus::marshal, bleu::notify, bleu::notify::text;
 
-const String IMAGE_TYPE = "(iiibiiay)";
+const String IMAGE_TYPE         = "(iiibiiay)";
 const int IMAGE_BITS_PER_SAMPLE = 8;
-const int MAX_ROW_BYTES = 4 * notify::MAX_IMAGE_DIMENSION; // RGBA at the largest width
+const int MAX_ROW_BYTES         = 4 * notify::MAX_IMAGE_DIMENSION; // RGBA at the largest width
 
 <* What the Notify call's hints say, copied out of the message. *>
 struct Hints
@@ -68,7 +68,14 @@ fn void? apply(Hints* out, Allocator allocator, Reader* r, String key, String ty
 {
 	if (key == "urgency") return take_urgency(out, r, type);
 	if (key == "category") return take_text(out, &out.category, r, type, notify::MAX_CATEGORY, allocator);
-	if (key == "desktop-entry") return take_text(out, &out.desktop_entry, r, type, notify::MAX_DESKTOP_ENTRY, allocator);
+	if (key == "desktop-entry") return take_text(
+		out,
+		&out.desktop_entry,
+		r,
+		type,
+		notify::MAX_DESKTOP_ENTRY,
+		allocator
+	);
 	if (key == "sound-file") return take_text(out, &out.sound_file, r, type, notify::MAX_SOUND, allocator);
 	if (key == "sound-name") return take_text(out, &out.sound_name, r, type, notify::MAX_SOUND, allocator);
 	if (key == "resident") return take_flag(out, r, type, &out.resident);
@@ -181,7 +188,7 @@ fn void? take_image(Hints* out, Reader* r, String type, Allocator allocator, int
 		return;
 	}
 	char[] pixels = alloc::new_array(allocator, char, (sz)needed);
-	usz count = 0;
+	usz count     = 0;
 	r.begin_array()!;
 	while (r.has_more())
 	{
@@ -196,7 +203,14 @@ fn void? take_image(Hints* out, Reader* r, String type, Allocator allocator, int
 		out.ignored++;
 		return;
 	}
-	out.image = { .width = width, .height = height, .rowstride = rowstride, .has_alpha = has_alpha, .channels = channels, .pixels = pixels };
+	out.image = {
+		.width = width,
+		.height = height,
+		.rowstride = rowstride,
+		.has_alpha = has_alpha,
+		.channels = channels,
+		.pixels = pixels
+	};
 	out.has_image = true;
 	out.image_rank = rank;
 }

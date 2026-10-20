@@ -64,14 +64,18 @@ fn void drop_registry(SniBackend* b)
 	{
 		for (usz i = 0; i < 2; i++)
 		{
-			if (catch b.connection.unsubscribe(b.registry_subs[i])) {}
+			if (catch b.connection.unsubscribe(b.registry_subs[i]))
+			{
+			}
 		}
 		b.registry_subs_set = false;
 	}
 	b.registry.clear();
 	if (b.watcher_name)
 	{
-		if (catch b.watcher_name.release()) {}
+		if (catch b.watcher_name.release())
+		{
+		}
 		b.watcher_name = null;
 	}
 }
@@ -95,7 +99,9 @@ fn void remote_attach(SniBackend* b)
 	if (!(b.connection.name_has_owner(WATCHER_NAME) ?? false)) return;
 	b.watcher_present = true;
 	if (catch subscribe_registry(b)) return;
-	if (catch read_registered(b)) {}
+	if (catch read_registered(b))
+	{
+	}
 }
 
 // Subscribe to the watcher's registration signals. Both are routed through the work queue.
@@ -122,7 +128,7 @@ fn void on_registration(void* context, Message* signal)
 	SniBackend* b = (SniBackend*)context;
 	if (try rd = signal.reader())
 	{
-		String text = rd.read_string() ?? "";
+		String text      = rd.read_string() ?? "";
 		PendingKind kind = signal.member == REGISTERED_SIGNAL ? ADD_ITEM : REMOVE_ITEM;
 		push_pending(b, kind, 0, ID, text);
 	}
@@ -214,7 +220,9 @@ fn void emit_watcher_signal(SniBackend* b, String member, String item)
 	{
 		if (try text = value::str(tmem, item))
 		{
-			if (catch b.server.emit_signal(WATCHER_PATH, WATCHER_INTERFACE, member, { text })) {}
+			if (catch b.server.emit_signal(WATCHER_PATH, WATCHER_INTERFACE, member, { text }))
+			{
+			}
 		}
 	};
 }

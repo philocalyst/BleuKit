@@ -9,14 +9,18 @@ fn void identity_ramp_is_linear_at_any_size() @test
 	foreach (size : sizes)
 	{
 		float[768] storage;
-		float[] buffer = storage[0 : 3 * size];
+		float[] buffer = storage[0:3 * size];
 		ramp::fill(buffer, size, kelvin::NEUTRAL, (Level)1.0f, 1.0)!!;
 		for (usz channel = 0; channel < 3; channel++)
 		{
 			for (usz i = 0; i < size; i++)
 			{
 				float expected = (float)i / (float)(size - 1);
-				assert(near(buffer[channel * size + i], expected, 1e-6f), "6500 K, brightness 1 and gamma 1 is the identity");
+				assert(near(
+					buffer[channel * size + i],
+					expected,
+					1e-6f
+				), "6500 K, brightness 1 and gamma 1 is the identity");
 			}
 		}
 	}
@@ -55,9 +59,15 @@ fn void rejects_bad_shapes() @test
 {
 	float[768] storage;
 	float[] buffer = storage[..];
-	assert(@catch(ramp::fill(buffer, 1, kelvin::NEUTRAL, (Level)1.0f, 1.0)) == error::INVALID_ARGUMENT, "one entry is not a ramp");
-	assert(@catch(ramp::fill(buffer, 255, kelvin::NEUTRAL, (Level)1.0f, 1.0)) == error::INVALID_ARGUMENT, "buffer must hold three tables");
-	assert(@catch(ramp::fill(buffer, 256, kelvin::NEUTRAL, (Level)1.0f, 0.0)) == error::INVALID_ARGUMENT, "gamma must be positive");
+	assert(@catch(
+		ramp::fill(buffer, 1, kelvin::NEUTRAL, (Level)1.0f, 1.0)
+	) == error::INVALID_ARGUMENT, "one entry is not a ramp");
+	assert(@catch(
+		ramp::fill(buffer, 255, kelvin::NEUTRAL, (Level)1.0f, 1.0)
+	) == error::INVALID_ARGUMENT, "buffer must hold three tables");
+	assert(@catch(
+		ramp::fill(buffer, 256, kelvin::NEUTRAL, (Level)1.0f, 0.0)
+	) == error::INVALID_ARGUMENT, "gamma must be positive");
 }
 
 fn void encodes_to_sixteen_bits() @test

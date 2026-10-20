@@ -26,7 +26,18 @@ fn void put_scalar(Writer* w, String key, String type, ulong bits)
 }
 
 // An `(iiibiiay)` image with the given header and `count` pixel bytes, each set to `fill`.
-fn void put_image(Writer* w, String key, int width, int height, int rowstride, bool alpha, int bits, int channels, usz count, char fill)
+fn void put_image(
+	Writer* w,
+	String key,
+	int width,
+	int height,
+	int rowstride,
+	bool alpha,
+	int bits,
+	int channels,
+	usz count,
+	char fill
+)
 {
 	w.begin_dict_entry()!!;
 	w.append_string(key)!!;
@@ -155,9 +166,9 @@ fn void invalid_images_are_dropped_and_counted() @test
 		Writer w;
 		w.init(tmem, "a{sv}")!!;
 		w.begin_array("a{sv}")!!;
-		put_image(&w, "image-data", 2, 2, 6, false, 16, 3, 12, 0);   // bits per sample must be 8
-		put_image(&w, "icon_data", 2, 2, 6, true, 8, 3, 12, 0);      // alpha needs 4 channels
-		put_image(&w, "image_data", 2, 2, 5, false, 8, 3, 12, 0);    // a row is 6 bytes at least
+		put_image(&w, "image-data", 2, 2, 6, false, 16, 3, 12, 0); // bits per sample must be 8
+		put_image(&w, "icon_data", 2, 2, 6, true, 8, 3, 12, 0); // alpha needs 4 channels
+		put_image(&w, "image_data", 2, 2, 5, false, 8, 3, 12, 0); // a row is 6 bytes at least
 		put_image(&w, "image-data", 1000, 1000, 4000, true, 8, 4, 4000000, 0);
 		w.end_array()!!;
 		Hints h;
@@ -283,7 +294,7 @@ fn void fuzzed_hints_never_crash() @test
 		w.end_array()!!;
 		w.finish()!!;
 		String encoded = w.bytes();
-		char[] seed = alloc::new_array(tmem, char, (sz)encoded.len);
+		char[] seed    = alloc::new_array(tmem, char, (sz)encoded.len);
 		foreach (i, c : encoded) seed[i] = c;
 		ulong state = 0x9E3779B97F4A7C15;
 		for (int round = 0; round < 20000; round++)
@@ -317,7 +328,7 @@ fn void random_bytes_never_crash() @test
 		{
 			@pool()
 			{
-				usz length = 1 + (usz)(xorshift(state) % 96);
+				usz length    = 1 + (usz)(xorshift(state) % 96);
 				char[] buffer = alloc::new_array(tmem, char, (sz)length);
 				for (usz k = 0; k < length; k++) buffer[k] = (char)(xorshift(state) >> 24);
 				decode_corrupt((String)buffer);

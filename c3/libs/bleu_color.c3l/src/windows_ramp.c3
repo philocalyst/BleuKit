@@ -2,7 +2,7 @@
  The Windows backend: gamma ramps through `SetDeviceGammaRamp`, one device context per attached
  display (`CreateDCW("DISPLAY", "\\.\DISPLAYn")`).
 
- The contract, as the Microsoft Learn page for SetDeviceGammaRamp states it (read in full): the
+ The contract, as the Microsoft Learn page for SetDeviceGammaRamp states it (read): the
  ramp is three arrays of 256 WORDs (red, green, blue), each entry a 16-bit value; the function
  "implements heuristics", so a ramp that would make the screen unreadable makes it return TRUE
  without setting the ramp; any application can overwrite the ramp at any time; and the ramp is
@@ -93,7 +93,7 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	Engine engine;
 	ws.start_engine(hub, &platform, &engine);
 	defer engine.free();
-	serve_timed(&engine, host, ws.tick);
+	engine::serve_timed(&engine, host, ws.tick);
 	ws.release_all(&engine);
 }
 
@@ -115,12 +115,12 @@ fn void? WinRamp.open_displays(&self)
 	}
 	identity_words(self.identity[..])!;
 	self.displays = alloc::new_array(self.allocator, WinDisplay, attached.len());
-	usz count = 0;
+	usz count        = 0;
 	ushort[8] driver = WIDE_DISPLAY;
 	foreach (found : attached)
 	{
 		WinDisplay* slot = &self.displays[count];
-		void* dc = createDCW(driver[..].ptr, found.device_name[..].ptr, null, null);
+		void* dc         = createDCW(driver[..].ptr, found.device_name[..].ptr, null, null);
 		if (dc == null) continue;
 		slot.dc = dc;
 		slot.name = ascii(found.device_name[..], self.allocator);
@@ -171,27 +171,41 @@ fn void WinRamp.start_engine(&self, ColorHub* hub, Platform* platform, Engine* e
 // Write `ramp` to display `index`, then read it back: SetDeviceGammaRamp may have refused it.
 fn void? write_ramp(void* context, usz index, float[] ramp)
 {
-	WinRamp* ws = (WinRamp*)context;
+	WinRamp* ws      = (WinRamp*)context;
 	WinDisplay* slot = &ws.displays[index];
 	ramp::encode_u16(ramp, slot.words[..])!;
 	if (setDeviceGammaRamp(slot.dc, &slot.words) == 0)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "SetDeviceGammaRamp failed on %s", slot.name)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			0,
+			"SetDeviceGammaRamp failed on %s",
+			slot.name
+		)~;
 	}
 	ushort[RAMP_WORDS] readback;
 	if (getDeviceGammaRamp(slot.dc, &readback) == 0 || !same_ramp(readback[..], slot.words[..]))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "%s: Windows did not apply the ramp", slot.name)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			0,
+			"%s: Windows did not apply the ramp",
+			slot.name
+		)~;
 	}
 }
 
 // Engine callback: put display `index` back as it was: its own ramp, or the identity if it had none.
 fn void release_ramp(void* context, usz index)
 {
-	WinRamp* ws = (WinRamp*)context;
+	WinRamp* ws      = (WinRamp*)context;
 	WinDisplay* slot = &ws.displays[index];
-	ushort* restore = slot.has_original ? slot.original[..].ptr : ws.identity[..].ptr;
-	if (setDeviceGammaRamp(slot.dc, restore) == 0) {}
+	ushort* restore  = slot.has_original ? slot.original[..].ptr : ws.identity[..].ptr;
+	if (setDeviceGammaRamp(slot.dc, restore) == 0)
+	{
+	}
 }
 
 // Restore every display the engine still has a ramp on.
@@ -230,7 +244,7 @@ fn String ascii(ushort[] units, Allocator allocator)
 {
 	usz len = 0;
 	while (len < units.len && units[len] != 0) len++;
-	char[] text = alloc::new_array(allocator, char, len);
+	char[] text = alloc::new_array(allocator, char, (sz)len);
 	for (usz i = 0; i < len; i++) text[i] = units[i] < 0x80 ? (char)units[i] : '?';
 	return (String)text;
 }

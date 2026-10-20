@@ -15,18 +15,18 @@ module bleu::tray::windows_tray @feat(WIN32);
 import std::os::win32, std::time, bleu::availability, bleu::error, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert, bleu::tray::windows_api, bleu::tray::windows_user, bleu::win::errors, bleu::win::message_loop, bleu::win::text, bleu::observe;
 
 // The message the notification icon sends its window. WM_APP + 2, clear of the message loop's WM_APP + 1.
-const uint TRAY_MESSAGE = 0x8002;
+const uint TRAY_MESSAGE           = 0x8002;
 // The identifier of our one notification icon.
-const uint TRAY_ICON_ID = 1;
+const uint TRAY_ICON_ID           = 1;
 // Bytes of one UTF-16 code unit.
-const usz UTF16_UNIT_BYTES = 2;
+const usz UTF16_UNIT_BYTES        = 2;
 // The window's class and window styles: a hidden top-level window (see bleu::win::message_loop).
 const uint HIDDEN_WINDOW_STYLE    = 0x80000000;
 const uint HIDDEN_WINDOW_EX_STYLE = 0x00000080;
 // The messages a window procedure sees first and must not treat as its own.
-const uint WM_NCCREATE = 0x0081;
+const uint WM_NCCREATE            = 0x0081;
 // How long the worker sleeps between checks for a stop request, in microseconds.
-const Duration WAIT_INTERVAL = (Duration)1_000_000;
+const Duration WAIT_INTERVAL      = (Duration)1_000_000;
 
 struct WinBackend
 {
@@ -62,7 +62,12 @@ fn bool probe(Options* options) => true;
 
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
-	capabilities.init(availability::no(availability::Reason.UNSUPPORTED_OS, "Windows has no public API to list other applications' notification icons"));
+	capabilities.init(
+		availability::no(
+			availability::Reason.UNSUPPORTED_OS,
+			"Windows has no public API to list other applications' notification icons"
+		)
+	);
 	if (options.publish_own)
 	{
 		capabilities.set(tray::Cap.PUBLISH_OWN_ICON, availability::YES);
@@ -70,10 +75,20 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	}
 	else
 	{
-		capabilities.set(tray::Cap.PUBLISH_OWN_ICON, availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false"));
-		capabilities.set(tray::Cap.OWN_MENU, availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false"));
+		capabilities.set(
+			tray::Cap.PUBLISH_OWN_ICON,
+			availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false")
+		);
+		capabilities.set(
+			tray::Cap.OWN_MENU,
+			availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false")
+		);
 	}
-	WinBackend* backend = alloc::new(allocator, WinBackend, { .allocator = allocator, .publish_own = options.publish_own });
+	WinBackend* backend = alloc::new(
+		allocator,
+		WinBackend,
+		{ .allocator = allocator, .publish_own = options.publish_own }
+	);
 	backend.own = convert::copy_own(options.own, allocator);
 	return backend;
 }
@@ -181,7 +196,14 @@ fn void* load_icon(String path, Allocator allocator)
 	if (try wide = text::to_wide(allocator, path))
 	{
 		defer wide.free();
-		return windows_user::loadImageW(null, wide.as_wstring(), windows_user::IMAGE_ICON, 0, 0, windows_user::LR_LOADFROMFILE | windows_user::LR_DEFAULTSIZE);
+		return windows_user::loadImageW(
+			null,
+			wide.as_wstring(),
+			windows_user::IMAGE_ICON,
+			0,
+			0,
+			windows_user::LR_LOADFROMFILE | windows_user::LR_DEFAULTSIZE
+		);
 	}
 	return null;
 }
@@ -190,7 +212,7 @@ fn void* load_icon(String path, Allocator allocator)
 fn void? add_icon(WinBackend* backend)
 {
 	windows_api::NotifyIconDataW data = icon_data(backend);
-	uint flags = windows_api::NIF_MESSAGE | windows_api::NIF_TIP;
+	uint flags                        = windows_api::NIF_MESSAGE | windows_api::NIF_TIP;
 	if (backend.icon != null) flags |= windows_api::NIF_ICON;
 	data.flags = flags;
 	shell_icon(windows_api::NIM_ADD, &data)!;
@@ -211,7 +233,7 @@ fn windows_api::NotifyIconDataW icon_data(WinBackend* backend)
 	};
 	if (try tip = text::to_wide(mem, backend.own.title))
 	{
-		sz room = (sz)windows_api::TIP_UNITS - 1;
+		sz room  = (sz)windows_api::TIP_UNITS - 1;
 		sz units = tip.len() < room ? tip.len() : room;
 		mem::copy(&data.tip[0], tip.units.ptr, (usz)units * UTF16_UNIT_BYTES);
 		tip.free();
@@ -225,7 +247,9 @@ fn void close_icon(WinBackend* backend)
 	if (backend.own_added)
 	{
 		windows_api::NotifyIconDataW data = icon_data(backend);
-		if (catch shell_icon(windows_api::NIM_DELETE, &data)) {}
+		if (catch shell_icon(windows_api::NIM_DELETE, &data))
+		{
+		}
 		backend.own_added = false;
 	}
 	if (backend.window != null)
@@ -283,8 +307,8 @@ fn void handle(WinBackend* backend, void* window, uint message, uptr wparam, ipt
 fn void callback(WinBackend* backend, void* window, uptr wparam, iptr lparam)
 {
 	uint event = (uint)((ulong)lparam & 0xFFFF);
-	int x = (int)(short)((ulong)wparam & 0xFFFF);
-	int y = (int)(short)(((ulong)wparam >> 16) & 0xFFFF);
+	int x      = (int)(short)((ulong)wparam & 0xFFFF);
+	int y      = (int)(short)(((ulong)wparam >> 16) & 0xFFFF);
 	switch (event)
 	{
 		case windows_api::NIN_SELECT:
@@ -331,11 +355,15 @@ fn void append_entry(void* menu, tray::OwnMenuEntry entry)
 			uint flags = entry.enabled ? windows_user::MF_STRING : windows_user::MF_STRING | windows_user::MF_GRAYED;
 			if (entry.is_separator)
 			{
-				if (catch windows_user::append_menu(menu, windows_user::MF_SEPARATOR, 0, null)) {}
+				if (catch windows_user::append_menu(menu, windows_user::MF_SEPARATOR, 0, null))
+				{
+				}
 			}
 			else
 			{
-				if (catch windows_user::append_menu(menu, flags, entry.id, wide.as_wstring())) {}
+				if (catch windows_user::append_menu(menu, flags, entry.id, wide.as_wstring()))
+				{
+				}
 			}
 		}
 	};

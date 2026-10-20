@@ -17,11 +17,11 @@
 module bleu::notify::sender_un @feat(DARWIN) @link("UserNotifications.framework");
 import std::os::darwin::objc, std::thread, std::time, bleu::availability, bleu::deadline, bleu::error, bleu::objc, bleu::objc::foundation, bleu::notify, bleu::notify::rules, bleu::notify::sender;
 
-const ulong OPTION_BADGE = 1; // UNAuthorizationOptionBadge
-const ulong OPTION_SOUND = 2; // UNAuthorizationOptionSound
-const ulong OPTION_ALERT = 4; // UNAuthorizationOptionAlert
+const ulong OPTION_BADGE             = 1;                    // UNAuthorizationOptionBadge
+const ulong OPTION_SOUND             = 2;                    // UNAuthorizationOptionSound
+const ulong OPTION_ALERT             = 4;                    // UNAuthorizationOptionAlert
 const Duration AUTHORIZATION_TIMEOUT = (Duration)60_000_000; // the user may take a while over the prompt
-const Duration POST_TIMEOUT = (Duration)10_000_000;
+const Duration POST_TIMEOUT          = (Duration)10_000_000;
 
 // Shared with the completion handlers, which run on another thread. One request at a time.
 struct UnSender
@@ -117,7 +117,8 @@ fn bool has_bundle_identifier()
 	return present;
 }
 
-fn objc::Obj notification_center() => objc::borrow(objc::class_named("UNUserNotificationCenter").send(ObjId, "currentNotificationCenter"));
+fn objc::Obj notification_center() => objc::borrow(objc::class_named("UNUserNotificationCenter")
+	.send(ObjId, "currentNotificationCenter"));
 
 // Ask once for the permissions this sender uses. The user's answer decides every later send.
 fn void? authorize(UnSender* self)
@@ -157,7 +158,7 @@ fn void on_authorized(void* user, bool success, ObjId error)
 // Post one request. A replacement reuses the identifier of the notification it replaces.
 fn notify::NoteId? send_un(void* state, sender::Request* request)
 {
-	UnSender* self = (UnSender*)state;
+	UnSender* self    = (UnSender*)state;
 	notify::NoteId id = request.replaces_id != 0 ? request.replaces_id : self.next_id;
 	if (request.replaces_id == 0) self.next_id = rules::next_id(id);
 	objc::Obj content = objc::adopt(objc::class_named("UNMutableNotificationContent").send(ObjId, "new"));
@@ -177,13 +178,8 @@ fn notify::NoteId? send_un(void* state, sender::Request* request)
 		identifier = foundation::from_string(string::tformat("bleu.%d", id));
 	};
 	defer identifier.close();
-	ObjId post = objc::class_named("UNNotificationRequest").send(
-		ObjId,
-		"requestWithIdentifier:content:trigger:",
-		identifier.ptr,
-		content.ptr,
-		null
-	);
+	ObjId post = objc::class_named("UNNotificationRequest")
+		.send(ObjId, "requestWithIdentifier:content:trigger:", identifier.ptr, content.ptr, null);
 	objc::Obj center = notification_center();
 	defer center.close();
 	objc::Block handler = objc::id_block(&on_added, self);

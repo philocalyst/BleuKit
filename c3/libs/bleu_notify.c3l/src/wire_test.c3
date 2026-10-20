@@ -36,7 +36,7 @@ fn void the_arguments_are_read_in_order() @test
 {
 	@pool()
 	{
-		Writer w = encode({ "default", "Open", "dangling" }, -5);
+		Writer w          = encode({ "default", "Open", "dangling" }, -5);
 		wire::Incoming in = decode(&w);
 		assert(in.app_name == "app" && in.replaces_id == 7);
 		assert(in.app_icon == "icon" && in.summary == "summary");
@@ -52,7 +52,7 @@ fn void duplicate_and_empty_action_keys_are_dropped() @test
 {
 	@pool()
 	{
-		Writer w = encode({ "a", "A", "a", "B", "", "C", "c", "C" }, 0);
+		Writer w          = encode({ "a", "A", "a", "B", "", "C", "c", "C" }, 0);
 		wire::Incoming in = decode(&w);
 		assert(in.actions.len == 2);
 		assert(in.actions[0].key == "a" && in.actions[0].label == "A");
@@ -77,7 +77,7 @@ fn void actions_stop_at_the_limit() @test
 			list[k] = key.str_view().copy(tmem);
 			list[k + 1] = "label";
 		}
-		Writer w = encode(list, 0);
+		Writer w          = encode(list, 0);
 		wire::Incoming in = decode(&w);
 		assert(in.actions.len == (sz)notify::MAX_ACTIONS);
 	};

@@ -46,7 +46,8 @@ fn Snapshot{State}*? settle(Hotkey* hotkeys, String id, BindingState want, Strin
 			seen = snapshot.generation;
 			foreach (binding : snapshot.value.bindings)
 			{
-				if (binding.id == id && binding.state == want && (trigger == "" || binding.trigger == trigger)) return snapshot;
+				if (binding.id == id && binding.state == want
+					&& (trigger == "" || binding.trigger == trigger)) return snapshot;
 			}
 			snapshot.release();
 		}
@@ -79,8 +80,8 @@ fn void the_portal_binds_reports_and_follows() @test
 
 	// A shortcut the portal binds: BOUND, with the trigger text it reports (the mock echoes preferred_trigger).
 	Chord toggle_chord = hotkey::parse_chord("Ctrl+Alt+T")!!;
-	Task* toggle = hotkeys.register("toggle", "Show or hide the bar", toggle_chord)!!;
-	Binding bound = toggle.wait(time::ms(10000))!!;
+	Task* toggle       = hotkeys.register("toggle", "Show or hide the bar", toggle_chord)!!;
+	Binding bound      = toggle.wait(time::ms(10000))!!;
 	assert(bound.state == BOUND, "the portal bound it");
 	assert(bound.trigger == "CTRL+ALT+t", "the trigger the portal reports");
 	toggle.release();
@@ -97,7 +98,7 @@ fn void the_portal_binds_reports_and_follows() @test
 
 	// The portal refuses one shortcut: that registration is REFUSED, the others stay bound.
 	command("refuse bar");
-	Task* bar = hotkeys.register("bar", "Second shortcut", hotkey::parse_chord("Ctrl+Shift+B")!!)!!;
+	Task* bar       = hotkeys.register("bar", "Second shortcut", hotkey::parse_chord("Ctrl+Shift+B")!!)!!;
 	Binding refused = bar.wait(time::ms(10000))!!;
 	assert(refused.state == REFUSED, "the portal refused it");
 	bar.release();
@@ -105,7 +106,7 @@ fn void the_portal_binds_reports_and_follows() @test
 	kept.release();
 
 	// Removing a shortcut returns the binding that was removed.
-	Task* removal = hotkeys.unregister("bar")!!;
+	Task* removal   = hotkeys.unregister("bar")!!;
 	Binding removed = removal.wait(time::ms(10000))!!;
 	assert(removed.id == "bar" && removed.state == REFUSED, "the removed binding comes back");
 	removal.release();
@@ -129,7 +130,7 @@ fn void the_portal_binds_reports_and_follows() @test
 	assert(@catch(late.wait(time::ms(10000))) == error::CANCELLED, "the user declined");
 	late.release();
 	command("mode ok");
-	Task* after = hotkeys.register("after", "Back to normal", hotkey::parse_chord("Ctrl+Alt+A")!!)!!;
+	Task* after  = hotkeys.register("after", "Back to normal", hotkey::parse_chord("Ctrl+Alt+A")!!)!!;
 	Binding back = after.wait(time::ms(10000))!!;
 	assert(back.state == BOUND, "the next round binds it");
 	after.release();

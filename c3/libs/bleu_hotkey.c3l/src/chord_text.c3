@@ -35,9 +35,9 @@ const KeyAlias[6] KEY_ALIASES = {
 *>
 fn Chord? parse_chord(String text)
 {
-	uint mod_bits = 0;
+	uint mod_bits  = 0;
 	keys::Key key;
-	bool have_key = false;
+	bool have_key  = false;
 	Splitter parts = text.tokenize("+");
 	while (try raw = parts.next())
 	{

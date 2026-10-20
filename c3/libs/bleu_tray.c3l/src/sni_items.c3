@@ -9,7 +9,7 @@ import bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::marshal, bleu::dbus:
 // Arena page sizes: identity strings, one property, and the menu tree.
 const usz IDENTITY_PAGE = 256;
 const usz PROPERTY_PAGE = 512;
-const usz MENU_PAGE = 1024;
+const usz MENU_PAGE     = 1024;
 
 // The record with this identifier (bus name and object path), or null.
 fn ItemRecord* find_record_by_id(SniBackend* b, String id)
@@ -148,8 +148,12 @@ fn void? subscribe_record(SniBackend* b, ItemRecord* r)
 fn void unsubscribe_record(SniBackend* b, ItemRecord* r)
 {
 	if (!r.subscribed || !b.connection_up) return;
-	if (catch b.connection.unsubscribe(r.signal_sub)) {}
-	if (catch b.connection.unsubscribe(r.owner_sub)) {}
+	if (catch b.connection.unsubscribe(r.signal_sub))
+	{
+	}
+	if (catch b.connection.unsubscribe(r.owner_sub))
+	{
+	}
 	r.subscribed = false;
 }
 
@@ -209,7 +213,9 @@ fn void read_everything(SniBackend* b, ItemRecord* r)
 {
 	r.interface_name = pick_interface(b, r);
 	for (usz i = 0; i < PROP_COUNT; i++) read_prop(b, r, (Prop)(char)i);
-	if (catch reload_menu(b, r, -1)) {}
+	if (catch reload_menu(b, r, -1))
+	{
+	}
 	b.dirty = true;
 }
 
@@ -242,7 +248,7 @@ fn void read_prop(SniBackend* b, ItemRecord* r, Prop prop)
 // The reply to Get holds one variant. Its contents must have the property's type.
 fn void? parse_reply(Message* reply, Prop prop, ItemRecord* r)
 {
-	Reader rd = reply.reader()!;
+	Reader rd       = reply.reader()!;
 	String contents = rd.begin_variant()!;
 	if (contents != expected_signature(prop)) return error::PROTOCOL~;
 	parse_prop(&rd, prop, r, &r.arenas[prop.ordinal])!;

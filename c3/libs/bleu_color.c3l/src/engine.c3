@@ -81,7 +81,6 @@ fn void Writes.failure(&self, fault failure)
  `3 * control.size` floats (none when the display has no size). Copies the outputs' strings.
 
  @param outputs : "The displays, with `id`, `name` and `control` set; `control.size` is 0 for none"
- @return? error::NO_MEMORY : "Allocation failed"
 *>
 fn void Engine.init(&self, Allocator allocator, ColorHub* hub, Platform* platform, Output[] outputs)
 {
@@ -93,7 +92,11 @@ fn void Engine.init(&self, Allocator allocator, ColorHub* hub, Platform* platfor
 		float[] ramp;
 		if (size >= 2) ramp = alloc::new_array(allocator, float, (sz)(3 * size));
 		self.displays[i] = {
-			.output = { .id = output.id.copy(allocator), .name = copy_text(output.name, allocator), .control = output.control },
+			.output = {
+				.id = output.id.copy(allocator),
+				.name = copy_text(output.name, allocator),
+				.control = output.control
+			},
 			.ramp = ramp,
 		};
 	}
@@ -105,7 +108,7 @@ fn void Engine.free(&self)
 	foreach (&display : self.displays)
 	{
 		alloc::free(self.allocator, display.output.id.ptr);
-		alloc::free(self.allocator, display.output.name.ptr);
+		if (display.output.name.len > 0) alloc::free(self.allocator, display.output.name.ptr);
 		if (display.ramp.len > 0) alloc::free(self.allocator, display.ramp.ptr);
 	}
 	alloc::free(self.allocator, self.displays.ptr);
@@ -116,7 +119,10 @@ fn void Engine.free(&self)
 fn String copy_text(String text, Allocator allocator) @inline => text.len == 0 ? "" : text.copy(allocator);
 
 // Whether `command` concerns the display called `id`: every display when the command names none.
-fn bool selects(Command* command, String id) => command.output_len == 0 || id == (String)command.output[0:command.output_len];
+fn bool selects(
+	Command* command,
+	String id
+) => command.output_len == 0 || id == (String)command.output[0:command.output_len];
 
 // The index of the display called `id`, or -1 when there is none.
 fn sz Engine.index_of(&self, String id)
@@ -148,9 +154,9 @@ fn void? Engine.check_target(&self, Command* command)
 *>
 fn void? Engine.apply(&self, usz index)
 {
-	Display* display  = &self.displays[index];
-	Control* control  = &display.output.control;
-	bool neutral      = (!control.temperature.has_value || control.temperature.value == kelvin::NEUTRAL)
+	Display* display = &self.displays[index];
+	Control* control = &display.output.control;
+	bool neutral     = (!control.temperature.has_value || control.temperature.value == kelvin::NEUTRAL)
 		&& (float)control.brightness == 1.0f;
 	if (neutral)
 	{
@@ -158,14 +164,19 @@ fn void? Engine.apply(&self, usz index)
 		control.active = false;
 		return;
 	}
-	// A refusal is BUSY whatever the cause: the protocol sends `failed` both when another client holds
-	// the control and when the output has no table, and the two cannot be told apart from it.
-	if (control.refused)
-	{
-		return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "display %s: its gamma control is held elsewhere or refused", display.output.id)~;
-	}
 	if (!control.gamma_supported)
 	{
+		// A refused display with no table, or one whose table is unknown: the protocol does not say which.
+		if (control.refused)
+		{
+			return error::raise(
+				error::BUSY,
+				error::Domain.INTERNAL,
+				0,
+				"display %s: its gamma control was refused",
+				display.output.id
+			)~;
+		}
 		return error::raise(
 			control.availability.refusal(),
 			error::Domain.INTERNAL,
@@ -175,6 +186,7 @@ fn void? Engine.apply(&self, usz index)
 			control.availability.note
 		)~;
 	}
+	// A refused display is tried again: this attempt decides whether it is still refused.
 	Kelvin temperature = control.temperature.has_value ? control.temperature.value : kelvin::NEUTRAL;
 	if (catch err = ramp::fill(display.ramp, (usz)control.size, temperature, control.brightness, 1.0)) return err~;
 	if (catch err = self.platform.write(self.platform.context, index, display.ramp))
@@ -235,7 +247,14 @@ fn Applied? Engine.set_temperature(&self, Command* command)
 		Control* control = &self.displays[i].output.control;
 		if (!selects(command, self.displays[i].output.id)) continue;
 		control.temperature = maybe::value(target);
-		if (catch err = self.apply(i)) { writes.failure(err); } else { writes.written++; }
+		if (catch err = self.apply(i))
+		{
+			writes.failure(err);
+		}
+		else
+		{
+			writes.written++;
+		}
 	}
 	if (writes.failed) return writes.first~;
 	return { .outputs = writes.written, .temperature = maybe::value(target) };
@@ -251,7 +270,14 @@ fn Applied? Engine.set_dim(&self, Command* command)
 	{
 		if (!selects(command, self.displays[i].output.id)) continue;
 		self.displays[i].output.control.brightness = level;
-		if (catch err = self.apply(i)) { writes.failure(err); } else { writes.written++; }
+		if (catch err = self.apply(i))
+		{
+			writes.failure(err);
+		}
+		else
+		{
+			writes.written++;
+		}
 	}
 	if (writes.failed) return writes.first~;
 	return { .outputs = writes.written, .brightness = maybe::value(level) };
@@ -267,7 +293,14 @@ fn Applied? Engine.reset(&self)
 		Control* control = &self.displays[i].output.control;
 		control.temperature.reset();
 		control.brightness = (Level)1.0f;
-		if (catch err = self.apply(i)) { writes.failure(err); } else { writes.written++; }
+		if (catch err = self.apply(i))
+		{
+			writes.failure(err);
+		}
+		else
+		{
+			writes.written++;
+		}
 	}
 	if (writes.failed) return writes.first~;
 	return { .outputs = writes.written };
@@ -308,7 +341,10 @@ fn void? Engine.follow(&self, Kelvin target)
 		if (control.temperature.has_value && control.temperature.value == target && !control.refused) continue;
 		control.temperature = maybe::value(target);
 		changed = true;
-		if (catch err = self.apply(i)) { writes.failure(err); }
+		if (catch err = self.apply(i))
+		{
+			writes.failure(err);
+		}
 	}
 	if (changed) self.announce(TEMPERATURE_CHANGED, "");
 	if (writes.failed) return writes.first~;
@@ -320,7 +356,9 @@ fn void? Engine.follow(&self, Kelvin target)
 *>
 fn void Engine.tick(&self)
 {
-	if (catch self.follow_now()) {}
+	if (catch self.follow_now())
+	{
+	}
 }
 
 // The schedule's temperature at the current time, applied.
@@ -334,8 +372,8 @@ fn void? Engine.follow_now(&self)
 // The local offset from UTC at `now`, in microseconds (the platform's time zone rules).
 fn Duration local_offset(Time now)
 {
-	DateTime utc      = datetime::from_time(now);
-	TzDateTime local  = utc.to_local();
+	DateTime utc     = datetime::from_time(now);
+	TzDateTime local = utc.to_local();
 	return (Duration)((long)local.gmt_offset * (long)time::SEC);
 }
 

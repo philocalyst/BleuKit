@@ -2,12 +2,13 @@
  The macOS backend: gamma tables through CoreGraphics, `CGSetDisplayTransferByTable`, one call per
  active display.
 
- The contract (read from the objc2-core-graphics 0.3.2 bindings generated from the Apple SDK headers,
- `CGDirectDisplay.rs` and `CGError.rs`, and cross-checked against Lunar's use of the same call, as
- docs/research/display.md section 2.8 records): the table is three arrays of `size` CGGammaValue
- floats, 0.0 to 1.0; `CGError` is an i32, 0 for success; `CGGetDisplayTransferByTable` reports the
- table's sample count and `CGDisplayRestoreColorSyncSettings` restores every display's ColorSync
- curve. A display's table is captured when the backend opens, and restored when the display is
+ The signatures are taken from the objc2-core-graphics 0.3.2 bindings, generated from the Apple SDK
+ headers (`CGDirectDisplay.rs`, `CGError.rs`); docs/research/display.md section 2.8 cites Lunar's use of
+ `CGSetDisplayTransferByTable` as the second source (not re-read in this run). The table is three
+ arrays of `size` CGGammaValue floats, 0.0 to 1.0; `CGError` is an i32, 0 for success;
+ `CGGetDisplayTransferByTable` reports the table's sample count; `CGDisplayRestoreColorSyncSettings`
+ restores every display's ColorSync curve.
+ A display's table is captured when the backend opens, and restored when the display is
  released, so that the display gets back exactly the table it had.
 
  COMPILED ONLY: type-checked for macOS, never run.
@@ -18,8 +19,21 @@ import bleu::availability, bleu::color, bleu::color::engine, bleu::color::ramp, 
 // Source: objc2-core-graphics 0.3.2, src/generated/CGDirectDisplay.rs (the SDK header's signatures).
 extern fn int getActiveDisplayList(uint max, uint* displays, uint* count) @cname("CGGetActiveDisplayList");
 extern fn uint displayIsBuiltin(uint display) @cname("CGDisplayIsBuiltin");
-extern fn int setDisplayTransferByTable(uint display, uint size, float* red, float* green, float* blue) @cname("CGSetDisplayTransferByTable");
-extern fn int getDisplayTransferByTable(uint display, uint capacity, float* red, float* green, float* blue, uint* samples) @cname("CGGetDisplayTransferByTable");
+extern fn int setDisplayTransferByTable(
+	uint display,
+	uint size,
+	float* red,
+	float* green,
+	float* blue
+) @cname("CGSetDisplayTransferByTable");
+extern fn int getDisplayTransferByTable(
+	uint display,
+	uint capacity,
+	float* red,
+	float* green,
+	float* blue,
+	uint* samples
+) @cname("CGGetDisplayTransferByTable");
 extern fn void displayRestoreColorSyncSettings() @cname("CGDisplayRestoreColorSyncSettings");
 
 <* Most displays the backend lists. CoreGraphics reports the active ones; more are ignored. *>
@@ -77,7 +91,7 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	Engine engine;
 	cg.start_engine(hub, &platform, &engine);
 	defer engine.free();
-	serve_timed(&engine, host, cg.tick);
+	engine::serve_timed(&engine, host, cg.tick);
 	cg.restore_colorsync(&engine);
 }
 
@@ -104,15 +118,17 @@ fn void? CgRamp.open_displays(&self)
 		float[MAX_SAMPLES] blue;
 		uint samples = 0;
 		if (getDisplayTransferByTable(ids[i], MAX_SAMPLES, &red, &green, &blue, &samples) != 0 || samples < 2) continue;
-		usz size = (usz)samples;
+		usz size        = (usz)samples;
 		CgDisplay* slot = &self.displays[kept];
 		slot.id = ids[i];
 		slot.size = size;
-		slot.name = displayIsBuiltin(ids[i]) != 0 ? "Built-in display".copy(self.allocator) : "External display".copy(self.allocator);
-		slot.original = alloc::new_array(self.allocator, float, 3 * size);
-		mem::copy(&slot.original[0], &red, size * float::size);
-		mem::copy(&slot.original[size], &green, size * float::size);
-		mem::copy(&slot.original[2 * size], &blue, size * float::size);
+		slot.name = displayIsBuiltin(ids[i]) != 0 ? "Built-in display".copy(self.allocator)
+			: "External display".copy(self.allocator);
+		slot.original = alloc::new_array(self.allocator, float, (sz)(3 * size));
+		sz bytes = (sz)(size * float::size);
+		mem::copy(&slot.original[0], &red, bytes);
+		mem::copy(&slot.original[size], &green, bytes);
+		mem::copy(&slot.original[2 * size], &blue, bytes);
 		kept++;
 	}
 	self.displays = self.displays[0:kept];
@@ -156,13 +172,19 @@ fn void CgRamp.start_engine(&self, ColorHub* hub, Platform* platform, Engine* en
 // Engine callback: write `ramp` (three tables of the display's size) to display `index`.
 fn void? write_ramp(void* context, usz index, float[] ramp)
 {
-	CgRamp* cg       = (CgRamp*)context;
-	CgDisplay* slot  = &cg.displays[index];
-	usz size         = slot.size;
-	int status       = setDisplayTransferByTable(slot.id, (uint)size, &ramp[0], &ramp[size], &ramp[2 * size]);
+	CgRamp* cg      = (CgRamp*)context;
+	CgDisplay* slot = &cg.displays[index];
+	usz size        = slot.size;
+	int status      = setDisplayTransferByTable(slot.id, (uint)size, &ramp[0], &ramp[size], &ramp[2 * size]);
 	if (status != 0)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, status, "CGSetDisplayTransferByTable failed on %s", slot.name)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.MACH,
+			status,
+			"CGSetDisplayTransferByTable failed on %s",
+			slot.name
+		)~;
 	}
 }
 
@@ -173,7 +195,15 @@ fn void release_ramp(void* context, usz index)
 	CgDisplay* slot = &cg.displays[index];
 	usz size        = slot.size;
 	// Restoring a table cannot be reported usefully: the display keeps the table it has.
-	if (setDisplayTransferByTable(slot.id, (uint)size, &slot.original[0], &slot.original[size], &slot.original[2 * size]) != 0) {}
+	if (setDisplayTransferByTable(
+		slot.id,
+		(uint)size,
+		&slot.original[0],
+		&slot.original[size],
+		&slot.original[2 * size]
+	) != 0)
+	{
+	}
 }
 
 <*

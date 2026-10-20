@@ -33,7 +33,7 @@ fn tray::State build_state(SniBackend* b, Allocator a)
 
 fn tray::Item[] copy_items(SniBackend* b, Allocator a)
 {
-	if (b.items.len() == 0) return {};
+	if (b.items.len() == 0) return { };
 	tray::Item[] items = alloc::new_array(a, tray::Item, b.items.len());
 	for (sz i = 0; i < b.items.len(); i++)
 	{
@@ -65,17 +65,21 @@ fn tray::Item copy_item(ItemRecord* r, Allocator a)
 		.description = convert::copy_text(r.item.tooltip.description, a),
 	};
 	item.menu_path = convert::copy_text(r.item.menu_path, a);
-	item.menu = r.item.menu_path.len > 0 ? copy_menu(&r.menu, a) : {};
+	item.menu = r.item.menu_path.len > 0 ? copy_menu(&r.menu, a) : { };
 	return item;
 }
 
 fn tray::Pixmap[] copy_pixmaps(tray::Pixmap[] source, Allocator a)
 {
-	if (source.len == 0) return {};
+	if (source.len == 0) return { };
 	tray::Pixmap[] pixmaps = alloc::new_array(a, tray::Pixmap, source.len);
 	for (sz i = 0; i < source.len; i++)
 	{
-		pixmaps[i] = { .width = source[i].width, .height = source[i].height, .pixels = convert::copy_text(source[i].pixels, a) };
+		pixmaps[i] = {
+			.width = source[i].width,
+			.height = source[i].height,
+			.pixels = convert::copy_text(source[i].pixels, a)
+		};
 	}
 	return pixmaps;
 }

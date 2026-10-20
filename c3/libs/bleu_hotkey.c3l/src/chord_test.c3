@@ -47,8 +47,8 @@ fn void every_key_round_trips_through_the_settings_spelling() @test
 	for (usz i = 0; i < keys::KEY_COUNT; i++)
 	{
 		keys::Key key = (keys::Key)(char)i;
-		Chord chord = { .mods = { .shift = true, .ctrl = true, .alt = true, .logo = true }, .key = key };
-		String text = hotkey::format_chord(chord, mem);
+		Chord chord   = { .mods = { .shift = true, .ctrl = true, .alt = true, .logo = true }, .key = key };
+		String text   = hotkey::format_chord(chord, mem);
 		defer text.free(mem);
 		Chord back = hotkey::parse_chord(text)!!;
 		assert(back.key == key, "key survives");
@@ -67,15 +67,15 @@ fn void formats_in_a_fixed_modifier_order() @test
 // The portal form: upper-case modifier names and the xkb keysym, as in the shortcuts spec example "CTRL+ALT+Return".
 fn void portal_trigger_follows_the_shortcuts_spec() @test
 {
-	Chord chord = hotkey::parse_chord("Ctrl+Alt+T")!!;
+	Chord chord    = hotkey::parse_chord("Ctrl+Alt+T")!!;
 	String trigger = hotkey::format_portal_trigger(chord, mem);
 	defer trigger.free(mem);
 	assert(trigger == "CTRL+ALT+t", "modifiers then the keysym");
-	Chord ret = hotkey::parse_chord("Ctrl+Alt+Return")!!;
+	Chord ret          = hotkey::parse_chord("Ctrl+Alt+Return")!!;
 	String ret_trigger = hotkey::format_portal_trigger(ret, mem);
 	defer ret_trigger.free(mem);
 	assert(ret_trigger == "CTRL+ALT+Return");
-	Chord play = { .key = keys::Key.MEDIA_PLAY_PAUSE };
+	Chord play          = { .key = keys::Key.MEDIA_PLAY_PAUSE };
 	String play_trigger = hotkey::format_portal_trigger(play, mem);
 	defer play_trigger.free(mem);
 	assert(play_trigger == "XF86AudioPlay");

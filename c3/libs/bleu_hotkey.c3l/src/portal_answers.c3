@@ -24,6 +24,7 @@ fn void on_reply(void* context, Message* reply, error::Status status)
 		if (try handle = reader.read_object_path())
 		{
 			hotkey::text_set(&b.reply_handle, handle, b.allocator);
+			b.replied = true;
 			return;
 		}
 	}
@@ -54,7 +55,7 @@ fn void on_response(void* context, Message* signal)
 fn void? read_response(Backend* b, Message* signal) @local
 {
 	marshal::Reader reader = signal.reader()!;
-	uint code = reader.read_u32()!;
+	uint code              = reader.read_u32()!;
 	@pool()
 	{
 		Value results = reader.read_value(tmem)!;
@@ -90,7 +91,7 @@ fn void apply_shortcuts(Backend* b, Value list, bool binding) @local
 		Binding* entry = b.bindings.get_ref(i);
 		// A registration accepted after this round's BindShortcuts was sent was not part of the answer's question.
 		if (binding && accepted_after_payload(b, entry.id)) continue;
-		bool found = false;
+		bool found    = false;
 		String wanted = "";
 		for (usz j = 0; j < list.count() && !found; j++)
 		{
@@ -175,7 +176,7 @@ fn void on_shortcuts_changed(void* context, Message* signal)
 fn void? read_changed(Backend* b, Message* signal) @local
 {
 	marshal::Reader reader = signal.reader()!;
-	String session = reader.read_object_path()!;
+	String session         = reader.read_object_path()!;
 	if (session != b.session) return;
 	Value list = reader.read_value(tmem)!;
 	apply_shortcuts(b, list, false);
@@ -198,18 +199,18 @@ fn void emit_press(void* context, Message* signal, EventKind kind) @local
 fn void? read_press(Backend* b, Message* signal, EventKind kind) @local
 {
 	marshal::Reader reader = signal.reader()!;
-	String session = reader.read_object_path()!;
+	String session         = reader.read_object_path()!;
 	if (session != b.session) return;
-	String id = reader.read_string()!;
+	String id       = reader.read_string()!;
 	ulong timestamp = reader.read_u64()!;
-	Value options = reader.read_value(tmem)!;
-	String token = "";
+	Value options   = reader.read_value(tmem)!;
+	String token    = "";
 	if (try handle = options.dict_get("activation_token"))
 	{
 		if (try text = handle.as_string()) token = text;
 	}
 	Snapshot{Event}* packet = b.hub.emit_begin();
-	Allocator arena = packet.allocator();
+	Allocator arena         = packet.allocator();
 	packet.value = {
 		.kind = kind,
 		.id = hotkey::text_copy(id, arena),

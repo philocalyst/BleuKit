@@ -1,8 +1,8 @@
 // The sender as a command: sends one notification and prints its id.
-//
+// 
 //   notify_send <summary> [body] [--app NAME] [--replace ID] [--expire MS] [--urgency low|normal|critical]
 //               [--category CAT] [--resident] [--action KEY LABEL]...
-//
+// 
 // stdout: BACKEND <name>, then SENT <id>; on failure SEND err=<fault> <message>, exit 3.
 module notify_test_send;
 import std::io, bleu::error, bleu::notify, bleu::notify::sender;
@@ -35,7 +35,7 @@ fn int main(String[] args)
 	request.app_name = "notify-send-test";
 	notify::Action[MAX_ACTIONS] actions;
 	usz action_count = 0;
-	usz index = 2;
+	usz index        = 2;
 	if (args.len > 2 && !args[2].starts_with("--"))
 	{
 		request.body = args[2];
@@ -43,7 +43,7 @@ fn int main(String[] args)
 	}
 	while (index < args.len)
 	{
-		String flag = args[index];
+		String flag    = args[index];
 		bool has_value = index + 1 < args.len;
 		if (flag == "--app" && has_value)
 		{
@@ -74,7 +74,8 @@ fn int main(String[] args)
 		else if (flag == "--urgency" && has_value)
 		{
 			String level = args[index + 1];
-			request.urgency = level == "low" ? notify::Urgency.LOW : (level == "critical" ? notify::Urgency.CRITICAL : notify::Urgency.NORMAL);
+			request.urgency = level == "low" ? notify::Urgency.LOW
+				: (level == "critical" ? notify::Urgency.CRITICAL : notify::Urgency.NORMAL);
 		}
 		else if (flag == "--category" && has_value)
 		{

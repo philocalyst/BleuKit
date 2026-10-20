@@ -60,11 +60,11 @@ struct State
 <* One capability of the service. Each has an `Availability` in `Hotkey.capability`. *>
 enum Cap : char
 {
-	REGISTER,         // binding a new shortcut
-	UNREGISTER,       // removing one
-	PRESS_RELEASE,    // `EventKind.RELEASED` events
-	CONFLICT_REPORT,  // `BindingState.CONFLICT` when another program owns the chord
-	ACTIVATION_TOKEN, // an activation token in the events, for focusing a window
+	REGISTER,           // binding a new shortcut
+	UNREGISTER,         // removing one
+	PRESS_RELEASE,      // `EventKind.RELEASED` events
+	CONFLICT_REPORT,    // `BindingState.CONFLICT` when another program owns the chord
+	ACTIVATION_TOKEN,   // an activation token in the events, for focusing a window
 	PLATFORM_TIMESTAMP, // `Event.platform_time` from the platform's own clock
 }
 
@@ -113,9 +113,9 @@ struct Command
 enum Backend : char
 {
 	AUTO,
-	PORTAL,  // Linux: org.freedesktop.portal.GlobalShortcuts (xdg-desktop-portal)
-	CARBON,  // macOS: RegisterEventHotKey
-	WIN32,   // Windows: RegisterHotKey
+	PORTAL, // Linux: org.freedesktop.portal.GlobalShortcuts (xdg-desktop-portal)
+	CARBON, // macOS: RegisterEventHotKey
+	WIN32,  // Windows: RegisterHotKey
 }
 
 <* How `open` finds and tunes a backend. *>

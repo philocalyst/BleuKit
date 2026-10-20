@@ -1,5 +1,5 @@
 // A notification centre as a test process. Started by run.sh on a private session bus.
-//
+// 
 // stdin, one command per line:
 //   close <id> <reason>        close an open notification (reason 1, 2 or 3)
 //   invoke <id> <action-key>   invoke an action; closes the notification unless resident
@@ -8,9 +8,9 @@
 //   state                      print the published state
 //   sync                       print SYNC (a round trip, for the test)
 //   quit                       stop and exit
-//
+// 
 // Events (EVENT POSTED|CLOSED|ACTION_INVOKED lines) are printed by a second thread as they happen.
-//
+// 
 // stdout: READY on success, OPEN_FAILED with the reason otherwise, then one line per answer.
 module notify_test_server;
 import std::io, std::thread, std::time, bleu::error, bleu::notify, bleu::operation, bleu::rt::foreign, bleu::stream;
@@ -25,7 +25,7 @@ fn int main(String[] args)
 		io::printfn("OPEN_FAILED %s %s", err, error::last().message());
 		return 2;
 	}
-	notify::Notify* centre = opened;
+	notify::Notify* centre                 = opened;
 	// Events are printed by a second thread, which only reads its subscription.
 	stream::Reader{notify::Event}*? events = centre.subscribe();
 	if (catch err = events) return 2;
@@ -66,7 +66,8 @@ fn int print_events(void* context)
 			notify::Event event = packet.value;
 			io::printfn(
 				"EVENT %s id=%d replaced=%d reason=%d key=%s",
-				event.kind == notify::EventKind.POSTED ? "POSTED" : (event.kind == notify::EventKind.CLOSED ? "CLOSED" : "ACTION_INVOKED"),
+				event.kind == notify::EventKind.POSTED ? "POSTED"
+					: (event.kind == notify::EventKind.CLOSED ? "CLOSED" : "ACTION_INVOKED"),
 				event.id,
 				event.replaced ? 1 : 0,
 				(uint)event.reason,
@@ -82,16 +83,16 @@ fn int print_events(void* context)
 fn bool handle(notify::Notify* centre, String line)
 {
 	Splitter words = line.tokenize(" ");
-	String verb = words.next() ?? "";
+	String verb    = words.next() ?? "";
 	if (verb == "close")
 	{
-		uint id = (words.next() ?? "0").to_uint()!!;
+		uint id     = (words.next() ?? "0").to_uint()!!;
 		uint reason = (words.next() ?? "0").to_uint()!!;
 		close(centre, id, reason);
 	}
 	else if (verb == "invoke")
 	{
-		uint id = (words.next() ?? "0").to_uint()!!;
+		uint id    = (words.next() ?? "0").to_uint()!!;
 		String key = words.next() ?? "";
 		invoke(centre, id, key);
 	}

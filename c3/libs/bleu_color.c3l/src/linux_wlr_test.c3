@@ -124,7 +124,7 @@ fn void startup(testing::MockServer* s, uint* output, uint* manager)
 	send_global(s, registry, 1, "wl_output", 4);
 	send_global(s, registry, 2, "zwlr_gamma_control_manager_v1", 1);
 	answer_sync(s, first);
-	*output  = expect_bind(s, registry, 1, "wl_output", 4);
+	*output = expect_bind(s, registry, 1, "wl_output", 4);
 	*manager = expect_bind(s, registry, 2, "zwlr_gamma_control_manager_v1", 1);
 	uint names = expect_sync(s);
 	send_output_name(s, *output, "DP-1");
@@ -148,7 +148,7 @@ fn void expect_ramp(testing::MockServer* s, uint control, ushort[6] expected)
 	testing::Message message = expect_request(s, control, 0);
 	rt::Native fd            = s.reader(message).get_fd()!!;
 	ushort[768] words;
-	sz got = sys_read(fd, &words, 1536);
+	sz got                   = sys_read(fd, &words, 1536);
 	display::native_close(fd);
 	expect(got == 1536, "the ramp descriptor holds three tables of 256 words");
 	// Red, green and blue at full scale (index 255), then at index 128, each within one word.
@@ -206,7 +206,9 @@ fn int full_scenario(void* arg)
 		// close: the control is destroyed (the compositor restores its table), then the connection ends.
 		expect_destroy(s, second);
 		// The connection is closed by the client now; the receive fails and the scenario ends.
-		if (catch s.receive()) {}
+		if (catch s.receive())
+		{
+		}
 	};
 	return 0;
 }
@@ -225,7 +227,9 @@ fn int refused_scenario(void* arg)
 		send_failed(s, measured);
 		answer_sync(s, sync);
 		expect_destroy(s, measured);
-		if (catch s.receive()) {}
+		if (catch s.receive())
+		{
+		}
 	};
 	return 0;
 }
@@ -252,7 +256,16 @@ fn int lost_scenario(void* arg)
 		// Another client takes the output: the client destroys the control when it hears this.
 		send_failed(s, first);
 		expect_destroy(s, first);
-		if (catch s.receive()) {}
+		// The next command tries again: the output is free now, so the control is taken and written.
+		uint retry = expect_get_gamma(s, manager, output);
+		uint again = expect_sync(s);
+		send_gamma_size(s, retry, 256);
+		answer_sync(s, again);
+		expect_ramp(s, retry, RAMP_2700_FULL);
+		expect_destroy(s, retry);
+		if (catch s.receive())
+		{
+		}
 	};
 	return 0;
 }
@@ -260,12 +273,15 @@ fn int lost_scenario(void* arg)
 // The test's service: the seam's descriptor, the forced wlr backend, a short tick.
 fn Color*? open_on(Seam* seam)
 {
-	return color::open(mem, {
-		.backend = Backend.WLR_GAMMA,
-		.tick = time::ms(50),
-		.connect = &seam_connect,
-		.connect_context = seam,
-	});
+	return color::open(
+		mem,
+		{
+			.backend = Backend.WLR_GAMMA,
+			.tick = time::ms(50),
+			.connect = &seam_connect,
+			.connect_context = seam,
+		}
+	);
 }
 
 fn void full_exchange_writes_and_releases_the_ramp() @test
@@ -280,7 +296,8 @@ fn void full_exchange_writes_and_releases_the_ramp() @test
 	Color* color = open_on(&seam)!!;
 	assert(color.backend_name() == "wlr-gamma");
 	Snapshot{State}* first = color.wait_after(0, time::sec(5))!!;
-	assert(first.value.outputs.len == 1 && first.value.outputs[0].id == "DP-1" && first.value.outputs[0].name == "DP-1");
+	assert(first.value.outputs.len == 1 && first.value.outputs[0].id == "DP-1"
+		&& first.value.outputs[0].name == "DP-1");
 	assert(first.value.outputs[0].control.gamma_supported && first.value.outputs[0].control.size == 256);
 	assert(!first.value.outputs[0].control.active && !first.value.outputs[0].control.refused);
 	first.release();
@@ -288,7 +305,7 @@ fn void full_exchange_writes_and_releases_the_ramp() @test
 	assert(@catch(missing.wait(time::sec(5))) == NOT_FOUND, "an output that does not exist is NOT_FOUND");
 	missing.release();
 	ApplyOperation* warm = color.set_temperature("DP-1", (Kelvin)2700)!!;
-	Applied applied = warm.wait(time::sec(5))!!;
+	Applied applied      = warm.wait(time::sec(5))!!;
 	assert(applied.outputs == 1 && applied.temperature.value == (Kelvin)2700, "one display written at 2700 K");
 	warm.release();
 	ApplyOperation* dim = color.set_dim(color::ALL_OUTPUTS, (Level)0.5f)!!;
@@ -313,7 +330,7 @@ fn void a_refused_output_is_busy_and_holds_nothing() @test
 	Seam seam = { .fd = pair.first.fd.release() };
 	Thread t;
 	t.create(&refused_scenario, &server)!!;
-	Color* color = open_on(&seam)!!;
+	Color* color           = open_on(&seam)!!;
 	Snapshot{State}* state = color.wait_after(0, time::sec(5))!!;
 	assert(state.value.outputs[0].control.refused, "the compositor refused the control");
 	assert(!state.value.outputs[0].control.gamma_supported, "a refused output without a table is not supported");
@@ -334,9 +351,9 @@ fn void losing_the_control_later_is_reported() @test
 	Seam seam = { .fd = pair.first.fd.release() };
 	Thread t;
 	t.create(&lost_scenario, &server)!!;
-	Color* color = open_on(&seam)!!;
+	Color* color            = open_on(&seam)!!;
 	Snapshot{State}* before = color.wait_after(0, time::sec(5))!!;
-	ulong generation = before.generation;
+	ulong generation        = before.generation;
 	before.release();
 	ApplyOperation* operation = color.set_temperature(color::ALL_OUTPUTS, (Kelvin)2700)!!;
 	assert(operation.wait(time::sec(5))!!.outputs == 1, "written before the control is lost");
@@ -350,7 +367,21 @@ fn void losing_the_control_later_is_reported() @test
 		after = color.wait_after(generation, time::sec(5))!!;
 	}
 	assert(!after.value.outputs[0].control.active, "a lost control is not held");
+	generation = after.generation;
 	after.release();
+	ApplyOperation* retry = color.set_temperature(color::ALL_OUTPUTS, (Kelvin)2700)!!;
+	assert(retry.wait(time::sec(5))!!.outputs == 1, "a refused display is tried again");
+	retry.release();
+	// The worker publishes after the operation completes: wait for the state that follows the retry.
+	Snapshot{State}* recovered = color.wait_after(generation, time::sec(5))!!;
+	while (!recovered.value.outputs[0].control.active)
+	{
+		generation = recovered.generation;
+		recovered.release();
+		recovered = color.wait_after(generation, time::sec(5))!!;
+	}
+	assert(!recovered.value.outputs[0].control.refused, "the retry clears the refusal");
+	recovered.release();
 	color.close();
 	t.join()!!;
 }

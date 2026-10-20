@@ -6,7 +6,7 @@
  can subscribe to `Response` before it makes the call, which avoids a race. The rule
  (org.freedesktop.portal.Request, xdg-desktop-portal data/org.freedesktop.portal.Request.xml):
 
-     /org/freedesktop/portal/desktop/request/SENDER/TOKEN
+ /org/freedesktop/portal/desktop/request/SENDER/TOKEN
 
  where SENDER is the caller's unique bus name with the leading ':' removed and every '.' replaced by
  '_', and TOKEN is the `handle_token` the caller passed. Sessions follow the same rule under
@@ -27,7 +27,7 @@ const String PORTAL_ROOT = "/org/freedesktop/portal/desktop";
 fn String? sender_element(String unique_name, Allocator allocator)
 {
 	if (unique_name.len < 2 || unique_name[0] != ':') return error::INVALID_ARGUMENT~;
-	String element = unique_name[1 : unique_name.len - 1].copy(allocator);
+	String element = unique_name[1:unique_name.len - 1].copy(allocator);
 	for (sz i = 0; i < element.len; i++)
 	{
 		if (element[i] == '.') element[i] = '_';

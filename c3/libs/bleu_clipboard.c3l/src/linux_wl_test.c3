@@ -201,6 +201,8 @@ fn int own_scenario(void* arg)
 		}
 		display::native_close(pipe_fds[0]);
 		expect((String)received[0:total] == "copied", "the served bytes were wrong");
+		// The session destroys the echoed offer (it is ours), then clears the selection.
+		expect_request(s, SERVER_ECHO, 1);
 		testing::Message clear = expect_request(s, setup.device, 0);
 		expect(s.reader(clear).get_object()!! == 0, "clear did not send a null source");
 		wire::Writer cancelled;
@@ -243,12 +245,12 @@ fn bool transfers_busy(WlSession* session)
 	return false;
 }
 
-// Connect `session` to the scenario's socket pair. The scenario thread must already be running.
-fn void connect_pair(testing::MockServer* server, WlSession* session)
+// Give the server its end of a new socket pair, and return the client's end. Attach before the scenario starts.
+fn rt::Native attach_pair(testing::MockServer* server)
 {
 	unix::SocketPair pair = unix::socket_pair(unix::SocketKind.STREAM)!!;
 	server.attach(pair.second);
-	session.connect_fd(pair.first.fd.release())!!;
+	return pair.first.fd.release();
 }
 
 fn void copy_from_another_application_is_kept_in_history() @test
@@ -262,9 +264,10 @@ fn void copy_from_another_application_is_kept_in_history() @test
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
+	rt::Native client_fd = attach_pair(&server);
 	Thread t;
 	t.create(&copy_scenario, &server)!!;
-	connect_pair(&server, &session);
+	session.connect_fd(client_fd)!!;
 	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	test::eq(board.items.len(), (sz)1);
@@ -285,9 +288,10 @@ fn void concealed_copy_is_never_read() @test
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
+	rt::Native client_fd = attach_pair(&server);
 	Thread t;
 	t.create(&concealed_scenario, &server)!!;
-	connect_pair(&server, &session);
+	session.connect_fd(client_fd)!!;
 	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 10);
 	test::eq(board.lane(Slot.CLIPBOARD).privacy, Privacy.CONCEALED);
@@ -307,9 +311,10 @@ fn void our_own_selection_serves_its_bytes_and_is_released() @test
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
+	rt::Native client_fd = attach_pair(&server);
 	Thread t;
 	t.create(&own_scenario, &server)!!;
-	connect_pair(&server, &session);
+	session.connect_fd(client_fd)!!;
 	defer { session.free(); board.free(); server.close(); }
 	Representation[1] offered = { { .mime = "text/plain;charset=utf-8", .bytes = (char[])"copied" } };
 	ulong seq = session.own(Slot.CLIPBOARD, offered[..])!!;
@@ -334,9 +339,10 @@ fn void a_capture_over_the_size_cap_is_dropped() @test
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
+	rt::Native client_fd = attach_pair(&server);
 	Thread t;
 	t.create(&oversize_scenario, &server)!!;
-	connect_pair(&server, &session);
+	session.connect_fd(client_fd)!!;
 	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	test::@check(!transfers_busy(&session));
@@ -356,9 +362,10 @@ fn void a_fetch_reads_the_chosen_type_of_the_live_offer() @test
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
+	rt::Native client_fd = attach_pair(&server);
 	Thread t;
 	t.create(&image_copy_scenario, &server)!!;
-	connect_pair(&server, &session);
+	session.connect_fd(client_fd)!!;
 	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	Operation{Bytes}* op = operation::begin{Bytes}(mem);

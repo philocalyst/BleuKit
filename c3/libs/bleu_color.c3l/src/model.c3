@@ -14,7 +14,7 @@ import std::collections::maybe, std::time, bleu::unit, bleu::availability, bleu:
 alias Degrees = double;
 
 <* The temperature of full daylight and the temperature at night when no other value is set: Redshift's defaults. *>
-const Kelvin DEFAULT_DAY = (Kelvin)6500;
+const Kelvin DEFAULT_DAY   = (Kelvin)6500;
 const Kelvin DEFAULT_NIGHT = (Kelvin)4500;
 
 <* The length of the change centred on each sunrise and sunset: 30 minutes, in microseconds. *>
@@ -72,8 +72,9 @@ struct Output
  `temperature`: the colour temperature this service applies; empty means no change.
  `brightness`: the software dimming multiplier, 1.0 for none (the GAMMA mechanism of bleu::brightness).
  `active`: this service holds the display's ramp now, so the picture shows the change.
- `refused`: the display refused gamma control at the last attempt (the compositor sent `failed`):
- another client holds it, or the display has no gamma table. Commands on it return BUSY.
+ `refused`: the last attempt to take the display's gamma control was refused (the compositor sent
+ `failed`): another client holds it, or the display has no gamma table. Each later command tries
+ again; a command on a display that cannot take a ramp at all returns BUSY while this is set.
 *>
 struct Control
 {

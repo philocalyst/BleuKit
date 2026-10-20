@@ -85,7 +85,11 @@ fn Snapshot{State}*? Hotkey.wait_after(&self, ulong seen, Duration timeout = tim
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Hotkey.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Hotkey.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Hotkey.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
@@ -143,9 +147,9 @@ fn Task*? submit(Hotkey* self, Command command, String id, String description) @
 {
 	Task* task      = operation::begin{Binding}(self.allocator);
 	Allocator arena = task.allocator();
-	command.id          = copy_text(id, arena);
+	command.id = copy_text(id, arena);
 	command.description = copy_text(description, arena);
-	command.operation   = task.retain();
+	command.operation = task.retain();
 	if (catch err = self.hub.post(command))
 	{
 		task.release();

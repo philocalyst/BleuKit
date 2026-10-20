@@ -22,10 +22,10 @@ struct Entry
 struct Posted
 {
 	notify::NoteId id;
-	bool replaced;             // an open notification with this id (or stack tag) was replaced
-	bool shown;                // false: do-not-disturb recorded it in history only
-	Maybe{Duration} timeout;   // when it expires, if it does
-	bool evicted;              // another open notification was closed to make room
+	bool replaced; // an open notification with this id (or stack tag) was replaced
+	bool shown; // false: do-not-disturb recorded it in history only
+	Maybe{Duration} timeout; // when it expires, if it does
+	bool evicted; // another open notification was closed to make room
 	notify::NoteId evicted_id;
 }
 
@@ -88,7 +88,7 @@ fn Posted Store.post(&self, Entry* e, Time now)
 {
 	Posted result;
 	notify::Urgency urgency = e.incoming.hints.urgency;
-	int index = self.find_active(e.incoming.replaces_id);
+	int index               = self.find_active(e.incoming.replaces_id);
 	if (e.incoming.replaces_id != 0) self.drop_from_history(e.incoming.replaces_id);
 	if (index < 0 && e.incoming.hints.stack_tag.len > 0) index = self.find_stack(e.incoming.hints.stack_tag);
 	notify::NoteId id;
@@ -140,7 +140,7 @@ fn Posted Store.post(&self, Entry* e, Time now)
 // Set the public record of `e` from what the wire carried. The body's runs are parsed into the entry's arena.
 fn void fill_note(Entry* e, notify::NoteId id, Time now, Maybe{Duration} timeout)
 {
-	wire::Incoming* in = &e.incoming;
+	wire::Incoming* in  = &e.incoming;
 	Maybe{Time} expires = { };
 	if (timeout.has_value) expires = maybe::value((Time)((long)now + (long)timeout.value));
 	e.note = {

@@ -49,6 +49,7 @@ fn void start_round(Backend* b)
 fn void? start_step(Backend* b, Step step)
 {
 	b.step = step;
+	b.replied = false;
 	b.answered = false;
 	b.reply_failed = false;
 	b.tokens++;
@@ -58,7 +59,13 @@ fn void? start_step(Backend* b, Step step)
 		String path  = portal_path::request_path(b.sender, token, tmem)!;
 		hotkey::text_set(&b.request, path, b.allocator);
 		subscribe_response(b, b.request)!;
-		Message* call = message::method_call(b.allocator, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE, method_name(step))!;
+		Message* call = message::method_call(
+			b.allocator,
+			PORTAL_NAME,
+			PORTAL_PATH,
+			GLOBAL_SHORTCUTS_IFACE,
+			method_name(step)
+		)!;
 		defer call.release();
 		fill_call(call, b, step, token)!;
 		b.connection.call_async(call, &on_reply, b)!;
@@ -95,7 +102,9 @@ fn void advance(Backend* b)
 		step_failed(b, b.reply_fault);
 		return;
 	}
-	if (!b.answered) return;
+	// The reply and the Response may come in either order: act once both have.
+	if (!b.replied || !b.answered) return;
+	b.replied = false;
 	b.answered = false;
 	unsubscribe_response(b);
 	if (b.answer_code != RESPONSE_SUCCESS)
@@ -192,6 +201,7 @@ fn void abort_round(Backend* b, fault failure, String text, BindingState state)
 fn void end_step(Backend* b)
 {
 	b.step = IDLE;
+	b.replied = false;
 	b.answered = false;
 	b.reply_failed = false;
 	hotkey::text_set(&b.reply_handle, "", b.allocator);
@@ -275,7 +285,7 @@ fn void? fill_call(Message* call, Backend* b, Step step, String token)
 // CreateSession: the handle token and the session handle token, which name the two object paths.
 fn void? fill_create(Message* call, String token) @local
 {
-	Writer* w = call.body_writer("a{sv}")!;
+	Writer* w             = call.body_writer("a{sv}")!;
 	OptionText[2] options = { { "handle_token", token }, { "session_handle_token", token } };
 	write_options(w, options[..])!;
 }
@@ -325,7 +335,7 @@ fn void? write_shortcuts(Writer* w, Backend* b) @local
 		Binding binding = b.bindings.get(i);
 		@pool()
 		{
-			String trigger = hotkey::format_portal_trigger(binding.chord, tmem);
+			String trigger      = hotkey::format_portal_trigger(binding.chord, tmem);
 			OptionText[2] props = { { "description", binding.description }, { "preferred_trigger", trigger } };
 			w.begin_struct()!;
 			w.append_string(binding.id)!;

@@ -21,7 +21,13 @@ fn Message*? get_property(SniBackend* b, String destination, String path, String
 // An item action with two screen coordinates: Activate, SecondaryActivate or ContextMenu (ii).
 fn void? call_position(SniBackend* b, ItemRecord* r, String member, int x, int y)
 {
-	Message* request = message::method_call(b.allocator, r.item.bus_name, r.item.object_path, r.interface_name, member)!;
+	Message* request = message::method_call(
+		b.allocator,
+		r.item.bus_name,
+		r.item.object_path,
+		r.interface_name,
+		member
+	)!;
 	defer request.release();
 	Writer* w = request.body_writer("ii")!;
 	w.append_i32(x)!;
@@ -34,7 +40,13 @@ fn void? call_position(SniBackend* b, ItemRecord* r, String member, int x, int y
 // Scroll(delta, orientation): the specification's orientation is "horizontal" or "vertical".
 fn void? call_scroll(SniBackend* b, ItemRecord* r, int delta, bool horizontal)
 {
-	Message* request = message::method_call(b.allocator, r.item.bus_name, r.item.object_path, r.interface_name, "Scroll")!;
+	Message* request = message::method_call(
+		b.allocator,
+		r.item.bus_name,
+		r.item.object_path,
+		r.interface_name,
+		"Scroll"
+	)!;
 	defer request.release();
 	Writer* w = request.body_writer("is")!;
 	w.append_i32(delta)!;
@@ -64,7 +76,13 @@ fn void? call_menu_click(SniBackend* b, ItemRecord* r, int menu_id)
 // DBusMenu AboutToShow(id): true when the application has changed that submenu and it must be read again.
 fn bool? call_about_to_show(SniBackend* b, ItemRecord* r, int menu_id)
 {
-	Message* request = message::method_call(b.allocator, r.item.bus_name, r.item.menu_path, MENU_INTERFACE, "AboutToShow")!;
+	Message* request = message::method_call(
+		b.allocator,
+		r.item.bus_name,
+		r.item.menu_path,
+		MENU_INTERFACE,
+		"AboutToShow"
+	)!;
 	defer request.release();
 	Writer* w = request.body_writer("i")!;
 	w.append_i32(menu_id)!;
@@ -78,7 +96,13 @@ fn bool? call_about_to_show(SniBackend* b, ItemRecord* r, int menu_id)
 // DBusMenu GetLayout(parent, depth, all properties): the reply is `u(ia{sv}av)`, and the caller releases it.
 fn Message*? call_layout(SniBackend* b, ItemRecord* r, int parent, int depth)
 {
-	Message* request = message::method_call(b.allocator, r.item.bus_name, r.item.menu_path, MENU_INTERFACE, "GetLayout")!;
+	Message* request = message::method_call(
+		b.allocator,
+		r.item.bus_name,
+		r.item.menu_path,
+		MENU_INTERFACE,
+		"GetLayout"
+	)!;
 	defer request.release();
 	Writer* w = request.body_writer("iias")!;
 	w.append_i32(parent)!;

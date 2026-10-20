@@ -24,8 +24,8 @@ const uint NOTIFYICON_VERSION_4 = 4;
 const uint NIN_SELECT = 0x0400;
 
 // Capacities of the text fields, in UTF-16 units, including the terminating zero (shellapi.h).
-const usz TIP_UNITS  = 128;
-const usz INFO_UNITS = 256;
+const usz TIP_UNITS   = 128;
+const usz INFO_UNITS  = 256;
 const usz TITLE_UNITS = 64;
 
 // NOTIFYICONDATAW, the version 4 layout. Field order and sizes are shellapi.h's; `cb_size` must be

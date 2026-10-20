@@ -19,37 +19,37 @@ module bleu::tray::sni @feat(LINUX);
 import std::collections::list, std::os::posix, std::time, bleu::availability, bleu::dbus::bus, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::ownership, bleu::dbus::server, bleu::dbus::value, bleu::dbus::marshal, bleu::error, bleu::observe, bleu::rt, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert;
 
 // Names, paths and interfaces of the protocol (KDE copies of the freedesktop specification).
-const String WATCHER_NAME        = "org.kde.StatusNotifierWatcher";
-const String WATCHER_PATH        = "/StatusNotifierWatcher";
-const String WATCHER_INTERFACE   = "org.kde.StatusNotifierWatcher";
-const String HOST_NAME_PREFIX    = "org.kde.StatusNotifierHost-";
-const String ITEM_INTERFACE      = "org.kde.StatusNotifierItem";
-const String ITEM_INTERFACE_FDO  = "org.freedesktop.StatusNotifierItem";
-const String ITEM_NAME_PREFIX    = "org.kde.StatusNotifierItem-";
-const String ITEM_PATH           = "/StatusNotifierItem";
-const String OWN_MENU_PATH       = "/MenuBar";
-const String MENU_INTERFACE      = "com.canonical.dbusmenu";
-const String NO_MENU_PATH        = "/NO_DBUSMENU";
-const String PROPERTIES_IFACE    = "org.freedesktop.DBus.Properties";
-const String REGISTERED_SIGNAL   = "StatusNotifierItemRegistered";
-const String UNREGISTERED_SIGNAL = "StatusNotifierItemUnregistered";
+const String WATCHER_NAME             = "org.kde.StatusNotifierWatcher";
+const String WATCHER_PATH             = "/StatusNotifierWatcher";
+const String WATCHER_INTERFACE        = "org.kde.StatusNotifierWatcher";
+const String HOST_NAME_PREFIX         = "org.kde.StatusNotifierHost-";
+const String ITEM_INTERFACE           = "org.kde.StatusNotifierItem";
+const String ITEM_INTERFACE_FDO       = "org.freedesktop.StatusNotifierItem";
+const String ITEM_NAME_PREFIX         = "org.kde.StatusNotifierItem-";
+const String ITEM_PATH                = "/StatusNotifierItem";
+const String OWN_MENU_PATH            = "/MenuBar";
+const String MENU_INTERFACE           = "com.canonical.dbusmenu";
+const String NO_MENU_PATH             = "/NO_DBUSMENU";
+const String PROPERTIES_IFACE         = "org.freedesktop.DBus.Properties";
+const String REGISTERED_SIGNAL        = "StatusNotifierItemRegistered";
+const String UNREGISTERED_SIGNAL      = "StatusNotifierItemUnregistered";
 const String HOST_REGISTERED_SIGNAL   = "StatusNotifierHostRegistered";
 const String HOST_UNREGISTERED_SIGNAL = "StatusNotifierHostUnregistered";
 
 // How long one bus call may wait for its reply, in microseconds.
-const Duration CALL_TIMEOUT = (Duration)1_000_000;
+const Duration CALL_TIMEOUT   = (Duration)1_000_000;
 // How long the worker sleeps when nothing happens, in microseconds, before it looks at the bus again.
 const Duration RETRY_INTERVAL = (Duration)2_000_000;
 // Poller tag of the bus connection; the worker's wake-up is untagged.
-const usz CONNECTION_TAG = 1;
+const usz CONNECTION_TAG      = 1;
 // Most queued work items. Beyond it the worker drops them and reads everything again.
-const usz PENDING_LIMIT = 256;
+const usz PENDING_LIMIT       = 256;
 // Deepest menu nesting accepted from an application.
-const usz MAX_MENU_DEPTH = 32;
+const usz MAX_MENU_DEPTH      = 32;
 // Commands taken from the mailbox per call.
-const usz BATCH = 8;
+const usz BATCH               = 8;
 // The number of `Prop` values; each property has its own arena (see `Prop`).
-const usz PROP_COUNT = 14;
+const usz PROP_COUNT          = 14;
 
 <*
  Which property of an item a piece of work concerns. Each has its own arena, so a signal that
@@ -165,10 +165,20 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	if (!options.publish_own)
 	{
-		capabilities.set(Cap.PUBLISH_OWN_ICON, availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false"));
-		capabilities.set(Cap.OWN_MENU, availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false"));
+		capabilities.set(
+			Cap.PUBLISH_OWN_ICON,
+			availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false")
+		);
+		capabilities.set(
+			Cap.OWN_MENU,
+			availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false")
+		);
 	}
-	SniBackend* backend = alloc::new(allocator, SniBackend, { .allocator = allocator, .publish_own = options.publish_own });
+	SniBackend* backend = alloc::new(
+		allocator,
+		SniBackend,
+		{ .allocator = allocator, .publish_own = options.publish_own }
+	);
 	backend.own = convert::copy_own(options.own, allocator);
 	backend.registry.init(allocator);
 	backend.items.init(allocator);
@@ -208,8 +218,7 @@ fn void run(void* state, TrayHub* hub, Host{tray::Command}* host)
 		{
 			count = host.mailbox().take_all(commands[..]);
 			for (usz i = 0; i < count; i++) run_command(backend, commands[i]);
-		}
-		while (count == BATCH);
+		} while (count == BATCH);
 		if (backend.connection_up) process_pending(backend);
 		publish(backend, hub);
 		Duration wait = backend.pending.len() > 0 ? time::DURATION_ZERO : RETRY_INTERVAL;
@@ -263,11 +272,23 @@ fn void? setup(SniBackend* backend, Poller* poller)
 	backend.host_bus = string::format(backend.allocator, "%s%d-%d", HOST_NAME_PREFIX, pid, backend.instance);
 	backend.own_bus = string::format(backend.allocator, "%s%d-%d", ITEM_NAME_PREFIX, pid, backend.instance);
 	backend.own_item_id = string::format(backend.allocator, "%s%s", backend.own_bus, ITEM_PATH);
-	backend.host_name = backend.connection.own_name(backend.host_bus, bus::NAME_DO_NOT_QUEUE, &on_name_acquired, null, backend)!;
+	backend.host_name = backend.connection.own_name(
+		backend.host_bus,
+		bus::NAME_DO_NOT_QUEUE,
+		&on_name_acquired,
+		null,
+		backend
+	)!;
 	subscribe_watcher_owner(backend)!;
 	if (backend.publish_own)
 	{
-		if (try own = backend.connection.own_name(backend.own_bus, bus::NAME_DO_NOT_QUEUE, &on_name_acquired, null, backend))
+		if (try own = backend.connection.own_name(
+			backend.own_bus,
+			bus::NAME_DO_NOT_QUEUE,
+			&on_name_acquired,
+			null,
+			backend
+		))
 		{
 			backend.own_item_name = own;
 		}
@@ -311,17 +332,23 @@ fn void release_names(SniBackend* backend)
 {
 	if (backend.watcher_name)
 	{
-		if (catch backend.watcher_name.release()) {}
+		if (catch backend.watcher_name.release())
+		{
+		}
 		backend.watcher_name = null;
 	}
 	if (backend.own_item_name)
 	{
-		if (catch backend.own_item_name.release()) {}
+		if (catch backend.own_item_name.release())
+		{
+		}
 		backend.own_item_name = null;
 	}
 	if (backend.host_name)
 	{
-		if (catch backend.host_name.release()) {}
+		if (catch backend.host_name.release())
+		{
+		}
 		backend.host_name = null;
 	}
 }
@@ -343,7 +370,10 @@ fn void run_command(SniBackend* backend, tray::Command command)
 	ItemRecord* record = find_record_by_id(backend, command.item_id);
 	if (record == null)
 	{
-		complete_fail(command.op, error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no tray item named '%s'", command.item_id));
+		complete_fail(
+			command.op,
+			error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no tray item named '%s'", command.item_id)
+		);
 	}
 	else
 	{
@@ -375,8 +405,8 @@ fn bool? perform(SniBackend* b, ItemRecord* record, tray::Command command)
 		case CLICK_MENU:
 			call_menu_click(b, record, command.menu_id)!;
 			return true;
-		case REFRESH:
-			return error::UNSUPPORTED~;
+		case REFRESH: return error::UNSUPPORTED~;
+		case OWN_MENU_CLICK: return error::UNSUPPORTED~;
 	}
 }
 
@@ -422,14 +452,19 @@ fn void fail_queued(Host{tray::Command}* host)
 			if (commands[i].item_id.len > 0) alloc::free(mem, commands[i].item_id.ptr);
 			complete_fail(commands[i].op, error::CANCELLED);
 		}
-	}
-	while (count == BATCH);
+	} while (count == BATCH);
 }
 
 // Stores an event for the next `publish`, which delivers it after the state it describes.
 fn void queue_event(SniBackend* backend, tray::EventKind kind, String item_id, int menu_id, int x, int y)
 {
-	tray::Event event = { .kind = kind, .item_id = convert::copy_text(item_id, backend.allocator), .menu_id = menu_id, .x = x, .y = y };
+	tray::Event event = {
+		.kind = kind,
+		.item_id = convert::copy_text(item_id, backend.allocator),
+		.menu_id = menu_id,
+		.x = x,
+		.y = y
+	};
 	backend.events.push(event);
 	backend.dirty = true;
 }
