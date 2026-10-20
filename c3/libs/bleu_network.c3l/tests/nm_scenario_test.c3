@@ -101,19 +101,29 @@ fn void reads_the_picture() @test
 
 	// A wrong passphrase: the device asks again, and the operation says so.
 	ConnectOp* wrong = net.connect({ .ssid = (char[])"Office", .passphrase = "wrong words", .autoconnect = true })!!;
-	fault wrong_fault = @catch(wrong.wait(time::sec(10)));
-	io::printfn("DEBUG wrong passphrase fault: %s status=%d detail=%s", wrong_fault, error::last().status.ordinal, error::last().message());
-	assert(wrong_fault == error::AUTH_REQUIRED, "a refused passphrase fails with AUTH_REQUIRED");
+	assert(@catch(wrong.wait(time::sec(10))) == error::AUTH_REQUIRED, "a refused passphrase fails with AUTH_REQUIRED");
 	wrong.release();
 	Snapshot{State}* rejected = await(net, first.generation, &phase_failed);
 	assert(rejected.value.wifi.failure == AUTH_REJECTED, "the failure says the passphrase was rejected");
 	rejected.release();
 
-	// The correct passphrase updates the saved profile and joins.
+	// The correct passphrase updates the saved profile and joins; the transitions are announced as events.
+	Reader{Event}* events = net.subscribe()!!;
+	defer events.release();
 	ConnectOp* right = net.connect({ .ssid = (char[])"Office", .passphrase = "correct horse", .autoconnect = true })!!;
 	Connected joined = right.wait(time::sec(10))!!;
 	assert(joined.ssid.label == "Office" && joined.interface_name == "wlan0", "the operation reports the joined network");
 	right.release();
+	bool announced = false;
+	for (int seen = 0; seen < 64 && !announced; seen++)
+	{
+		if (try packet = events.next(time::ms(500)))
+		{
+			defer packet.release();
+			announced = packet.value.kind == CONNECTION_CHANGED && packet.value.ssid.label == "Office";
+		}
+	}
+	assert(announced, "a CONNECTION_CHANGED event names the network");
 	Snapshot{State}* on = await(net, 0, &connected_to_office);
 	assert(find(&on.value, (char[])"Office").in_use, "the network in use is marked");
 	on.release();

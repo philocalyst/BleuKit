@@ -33,7 +33,7 @@ struct Service
 	String[2] add_in;
 	String[1] add_out;
 	String[1] text_args;
-	Method[11] methods;
+	Method[13] methods;
 	Property[2] properties;
 	Signal[1] signals;
 	Interface[1] interfaces;
@@ -198,6 +198,8 @@ fn void Service.describe(&self)
 		{ .name = "Touch", .handler = &touch },
 		{ .name = "MakeFd", .out_signature = "h", .handler = &make_fd },
 		{ .name = "ReadFd", .in_signature = "h", .out_signature = "s", .handler = &read_fd },
+		{ .name = "AddChild", .in_signature = "s", .in_names = self.text_args[..], .handler = &add_child },
+		{ .name = "RemoveChild", .in_signature = "s", .in_names = self.text_args[..], .handler = &remove_child },
 		{ .name = "Quit", .handler = &quit },
 	};
 	self.properties = {

@@ -380,7 +380,6 @@ def _activate(self, profile_path):
     secured = ap['psk'] is not None
     key_mgmt = settings_value(settings, '802-11-wireless-security', 'key-mgmt')
     psk = settings_value(settings, '802-11-wireless-security', 'psk')
-    print('ACTIVATE', profile_path, ssid, key_mgmt, psk, file=sys.stderr, flush=True)
     active = self.make_active(profile_path)
     self.set_wifi_state(PREPARE, 0)
 

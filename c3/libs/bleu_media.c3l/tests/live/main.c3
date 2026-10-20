@@ -193,17 +193,21 @@ fn String? ctl_calls(Connection* bus, String name)
 
 fn void? run_scenario(Media* media, Connection* bus)
 {
-	Want first = { .id = ID_A, .title = "Alpha", .has_status = true, .status = Playback.PLAYING, .active = true };
+	Want first            = {
+		.id = ID_A,
+		.title = "Alpha",
+		.has_status = true,
+		.status = Playback.PLAYING,
+		.active = true
+	};
 	bool first_ok         = wait_for(media, &first);
 	Snapshot{State}* snap = media.latest()!;
 	defer snap.release();
 	State* state = &snap.value;
 	check(first_ok, "alpha plays and is the active player");
 	Maybe{Duration} first_at = find(state, ID_A).position_now(media::monotonic_now());
-	check(
-		first_at.has_value && first_at.value >= (Duration)10_000_000,
-		"alpha's position is at least its starting ten seconds"
-	);
+	bool first_at_ok         = first_at.has_value && first_at.value >= (Duration)10_000_000;
+	check(first_at_ok, "alpha's position is at least its starting ten seconds");
 	check(state.players.len == 3, "three players: a, b, c");
 	Player* a = find(state, ID_A);
 	Player* b = find(state, ID_B);
