@@ -146,16 +146,17 @@ fn Value variant(Allocator allocator, Value inner)
 
  @param element_sig : "Element type, for example \"s\" or \"{sv}\""
  @param items : "Elements; each must have `sig == element_sig`; referenced, not copied"
- @return? error::INVALID_ARGUMENT : "An element type mismatch, or the array signature is too long"
+ @return? error::INVALID_ARGUMENT : "An element type mismatch, or the array signature is invalid or too long"
 *>
 fn Value? array(Allocator allocator, String element_sig, Value[] items)
 {
-	if (!signature::is_single(element_sig) || element_sig.len + 1 > signature::MAX_LENGTH) return error::INVALID_ARGUMENT~;
+	if (!signature::is_element(element_sig)) return error::INVALID_ARGUMENT~;
+	String full = string::format(allocator, "a%s", element_sig);
+	if (!signature::valid(full)) return error::INVALID_ARGUMENT~;
 	foreach (item : items)
 	{
 		if (item.sig != element_sig) return error::INVALID_ARGUMENT~;
 	}
-	String full = string::format(allocator, "a%s", element_sig);
 	return { .kind = ARRAY, .sig = full, .items = copy_items(allocator, items) };
 }
 

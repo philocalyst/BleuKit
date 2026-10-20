@@ -227,6 +227,18 @@ fn bool is_single(String sig)
 }
 
 <*
+ True when `sig` is exactly one complete type that may be the element of an
+ array: a dict entry qualifies here, though not on its own. Depth limits are
+ checked by `valid` on the whole array type.
+*>
+fn bool is_element(String sig)
+{
+	if (sig.len == 0) return false;
+	if (try end = element_end(sig, 0)) return end == sig.len;
+	return false;
+}
+
+<*
  Walks the complete types of a signature in order, without allocating. Validate
  the signature with `valid` first; otherwise `next` may fail part way through.
 *>

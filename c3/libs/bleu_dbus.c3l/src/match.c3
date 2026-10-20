@@ -28,7 +28,7 @@ const ERROR_TYPE = "error";
 *>
 struct Match
 {
-	Allocator allocator;
+	DynamicArenaAllocator storage;
 	DString text;
 	MessageType type;
 	bool has_type;
@@ -42,15 +42,25 @@ struct Match
 	bool[MAX_ARGUMENTS] has_arg;
 }
 
-<* Start an empty rule (matching every message) that will be stored in `allocator`. *>
+<*
+ Start an empty rule (matching every message). Its text and the copies of its
+ values are kept in `allocator`.
+
+ @param [&inout] allocator : "Allocator for the rule's memory"
+*>
 fn void Match.init(&self, Allocator allocator)
 {
-	*self = { .allocator = allocator };
+	*self = {};
+	self.storage.init(allocator, 256);
 	self.text.init(allocator);
 }
 
-<* Release the rule's text and copies. *>
-fn void Match.free(&self) => self.text.free();
+<* Release the rule's text and copies. The rule must not be used afterwards. *>
+fn void Match.free(&self)
+{
+	self.text.free();
+	self.storage.free();
+}
 
 <* The rule in bus syntax, for AddMatch and RemoveMatch. *>
 fn String Match.rule_text(&self) @inline => self.text.str_view();
@@ -229,5 +239,5 @@ fn void append_key(Match* self, String key, String value) @private
 	self.text.append_char('\'');
 }
 
-// A private copy of `value` in the rule's allocator.
-fn String copy_value(Match* self, String value) @private => value.copy(self.allocator);
+// A private copy of `value`, kept until the rule is freed.
+fn String copy_value(Match* self, String value) @private => value.copy(&self.storage);

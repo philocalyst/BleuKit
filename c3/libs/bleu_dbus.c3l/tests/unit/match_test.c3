@@ -45,6 +45,7 @@ fn void accepts_only_matching_messages() @test
 		match::Match exact;
 		exact.init(mem);
 		defer exact.free();
+		exact.with_sender(":1.7")!!;
 		exact.with_member("Ping")!!;
 		exact.with_path("/org/bleu/Mock")!!;
 		assert(exact.accepts(m, ":1.7"));
