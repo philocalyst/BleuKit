@@ -1,6 +1,6 @@
 // The kill gate is pure: these tests name every dangerous id but signal nothing.
 module bleu::sysinfo::kill_target_test;
-import std::core::test, bleu::error, bleu::sysinfo;
+import std::core::test, std::time, bleu::error, bleu::operation, bleu::sysinfo;
 
 fn void pid_zero_is_never_a_target() @test
 {
@@ -27,4 +27,18 @@ fn void this_process_is_never_a_target() @test
 	test::@error(sysinfo::check_kill_target(4242, TERMINATE, 4242), error::INVALID_ARGUMENT);
 	test::@error(sysinfo::check_kill_target(4242, FORCE, 4242), error::INVALID_ARGUMENT);
 	sysinfo::check_kill_target(4243, TERMINATE, 4242)!!;
+}
+
+// A kill still queued when the worker stops must fail, not hang its waiter (the hub hands it here).
+fn void abandoned_kill_fails_with_disconnected() @test
+{
+	@pool()
+	{
+		Operation{KillReceipt}* operation = operation::begin{KillReceipt}(mem);
+		operation.retain();
+		Command command = { .pid = 4242, .mode = TERMINATE, .operation = operation };
+		sysinfo::abandon_command(null, &command);
+		test::@error(operation.wait(time::sec(1)), error::DISCONNECTED);
+		operation.release();
+	};
 }

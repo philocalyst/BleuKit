@@ -41,10 +41,11 @@ fn double hid_idle_seconds()
 }
 
 <*
- Whether the screen is locked, from the window server's session dictionary. The key being absent
- is read as "not locked" (UNVERIFIED on hardware, like the key itself).
+ Whether the screen is locked, from the window server's session dictionary. An absent key is
+ unknown, not "unlocked": the key is UNVERIFIED on hardware, and a wrong key must not read as a
+ permanent "not locked".
 
- @return "true or false; empty when the dictionary cannot be read"
+ @return "true or false; empty when the dictionary or the key cannot be read"
 *>
 fn Maybe{bool} screen_locked()
 {
@@ -54,7 +55,7 @@ fn Maybe{bool} screen_locked()
 	cf::Ref key = cf::from_string(SESSION_SCREEN_IS_LOCKED);
 	defer key.close();
 	void* value = cf_dictionary_get_value(session.ptr, key.ptr);
-	if (value == null) return maybe::value(false);
+	if (value == null) return { };
 	if (cf::type_of(value) != cf::boolean_type_id()) return { };
 	return maybe::value(cf_boolean_get_value(value));
 }

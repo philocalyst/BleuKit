@@ -8,7 +8,7 @@ fn void sample_matches_plistlib() @test
 	String text     = $embed("../fixtures/sample.plist");
 	String expected = $embed("../fixtures/sample.plist.canon");
 	Value root      = parse(tmem, text)!!;
-	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
+	test::eq(expected.trim("\n"), value::canonical(tmem, &root)!!);
 }
 
 fn void handwritten_document_matches_plistlib() @test
@@ -16,7 +16,7 @@ fn void handwritten_document_matches_plistlib() @test
 	String text     = $embed("../fixtures/handwritten.plist");
 	String expected = $embed("../fixtures/handwritten.plist.canon");
 	Value root      = parse(tmem, text)!!;
-	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
+	test::eq(expected.trim("\n"), value::canonical(tmem, &root)!!);
 }
 
 fn void byte_order_mark_is_skipped() @test
@@ -71,7 +71,7 @@ fn void writer_round_trips_the_sample() @test
 	Value first    = parse(tmem, text)!!;
 	String written = write(tmem, &first)!!;
 	Value second   = parse(tmem, written)!!;
-	test::eq(value::canonical(tmem, &first), value::canonical(tmem, &second));
+	test::eq(value::canonical(tmem, &first)!!, value::canonical(tmem, &second)!!);
 }
 
 fn void writer_escapes_and_formats() @test
@@ -103,4 +103,25 @@ fn void writer_refuses_what_xml_cannot_hold() @test
 	// The quiet NaN bit pattern; the standard library has no NaN constant.
 	Value nan = { .kind = REAL, .real = bitcast((ulong)0x7FF8000000000000, double) };
 	test::@error(write(tmem, &nan), error::INVALID_ARGUMENT);
+}
+
+fn void invalid_utf8_documents_are_refused() @test
+{
+	test::@error(parse(tmem, "<plist><string>A\xFFB</string></plist>"), error::PROTOCOL);
+	test::@error(parse(tmem, "<plist><string>A\xC0\x80B</string></plist>"), error::PROTOCOL);
+}
+
+fn void character_references_must_be_xml_characters() @test
+{
+	// A surrogate reference: the DOM would produce CESU bytes (ED A0 80).
+	test::@error(parse(tmem, "<plist><string>A&#xD800;B</string></plist>"), error::PROTOCOL);
+	test::@error(parse(tmem, "<plist><string>A&#xDFFF;B</string></plist>"), error::PROTOCOL);
+	// Controls XML 1.0 forbids, and the two non-characters at the end of the BMP.
+	test::@error(parse(tmem, "<plist><string>A&#x1;B</string></plist>"), error::PROTOCOL);
+	test::@error(parse(tmem, "<plist><string>A&#x0;B</string></plist>"), error::PROTOCOL);
+	test::@error(parse(tmem, "<plist><string>A&#xFFFE;B</string></plist>"), error::PROTOCOL);
+	test::@error(parse(tmem, "<plist><dict><key>A&#x1;</key><true/></dict></plist>"), error::PROTOCOL);
+	// The characters XML 1.0 does allow still decode.
+	test::eq("A\tB\nC", parse(tmem, "<plist><string>A&#x9;B&#xA;C</string></plist>")!!.as_string()!!);
+	test::eq("\xF0\x9F\x98\x80", parse(tmem, "<plist><string>&#x1F600;</string></plist>")!!.as_string()!!);
 }

@@ -114,3 +114,29 @@ fn bool contains(String[] list, String value) @local
 	}
 	return false;
 }
+fn void oversized_info_plist_is_refused_before_it_is_read() @test
+{
+	String root = make_root("oversized");
+	defer (void)io::path::rmtree((Path)root);
+	String bundle = string::tformat("%s/Huge.app", root);
+	io::path::mkdir((Path)string::tformat("%s/Contents", bundle), true)!!;
+	// One byte over the cap: the size check refuses it without reading or parsing.
+	char[] big = alloc::new_array(tmem, char, MAX_PLIST_FILE_BYTES + 1);
+	io::file::save(string::tformat("%s/Contents/Info.plist", bundle), big)!!;
+	test::@error(read(tmem, bundle, { }), error::OUT_OF_RANGE);
+}
+
+fn void language_cannot_step_out_of_the_resources_folder() @test
+{
+	String root = make_root("traversal");
+	defer (void)io::path::rmtree((Path)root);
+	String bundle = make_bundle(root, "Escape.app");
+	// `../x` from Resources names `Contents/x.lproj`, which must not be consulted.
+	io::path::mkdir((Path)string::tformat("%s/Contents/x.lproj", bundle), true)!!;
+	io::file::save(
+		string::tformat("%s/Contents/x.lproj/InfoPlist.strings", bundle),
+		(char[])"<plist><dict><key>CFBundleDisplayName</key><string>Traversed</string></dict></plist>"
+	)!!;
+	AppBundle app = read(tmem, bundle, { "../x" })!!;
+	test::@check(app.display_name != "Traversed", "the traversed strings file is not read");
+}

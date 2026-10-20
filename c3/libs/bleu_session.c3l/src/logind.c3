@@ -19,7 +19,7 @@
  same bus name, session discovery and sleep signal.
 *>
 module bleu::session::logind @feat(LINUX);
-import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::observe, bleu::rt, bleu::rt::poller, bleu::rt::worker, bleu::session;
+import std::collections::list, std::collections::maybe, std::time, bleu::availability, bleu::deadline, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::observe, bleu::rt, bleu::rt::poller, bleu::rt::worker, bleu::session;
 
 extern fn int getpid() @cname("getpid");
 
@@ -62,6 +62,9 @@ struct Logind
 	bool connected;
 	Proxy manager;
 	bool has_session;
+	bool session_wanted; // a session or seat appeared: look for this process's session at the next tick
+	usz session_failures; // looks that found no session since the last connection; sets the retry delay
+	Deadline session_retry; // the next look may run once this has expired
 	String session_path; // copied; the object path of `session`
 	Proxy session;
 	String session_id; // copied; the logind id of `session`
@@ -171,14 +174,11 @@ fn void? connect(Logind* b, Poller* poller)
 		return err~;
 	}
 	b.connected = true;
-	// A session that cannot be read leaves the session features off until the next connection.
-	if (catch err = find_session(b))
+	// A session that is not found, or cannot be read, is looked for again later (see `seek_session`).
+	if (catch err = seek_session(b))
 	{
-		if (err == error::DISCONNECTED)
-		{
-			disconnect(b, poller);
-			return err~;
-		}
+		disconnect(b, poller);
+		return err~;
 	}
 }
 
@@ -194,6 +194,9 @@ fn void disconnect(Logind* b, Poller* poller)
 	b.bus.close();
 	b.bus.free();
 	forget_session(b);
+	b.session_wanted = false;
+	b.session_failures = 0;
+	b.session_retry = { };
 	b.locked = { };
 }
 
@@ -246,6 +249,8 @@ fn void on_session_list(void* context, Message* signal) @local
 {
 	Logind* b = (Logind*)context;
 	b.dirty = true;
+	// A session may have appeared for this process: the next tick looks for it again.
+	b.session_wanted = true;
 }
 
 <*
@@ -267,21 +272,55 @@ fn void on_prepare_for_sleep(void* context, Message* signal) @local
 }
 
 <*
- Find this process's logind session, if it has one. Not being in one, or logind refusing to
- say, leaves the session features off without an error. A lost bus is an error.
+ Look for this process's session, if none is known and a look is due: a session appeared (SessionNew
+ or SessionRemoved), or the backoff of the last look has run out. A lost bus disconnects, as in `pump`.
+*>
+fn void look_for_session(Logind* b, Poller* poller)
+{
+	if (!b.connected || b.has_session) return;
+	if (!b.session_wanted && !b.session_retry.expired()) return;
+	if (catch seek_session(b))
+	{
+		disconnect(b, poller);
+		b.dirty = true;
+	}
+}
+
+<*
+ One look for this process's session. Not finding one, or logind failing to answer, is not an error:
+ the next look waits `session::retry_delay`, which grows with each look that finds nothing. Only a lost
+ bus is returned, because the caller must reconnect.
+*>
+fn void? seek_session(Logind* b)
+{
+	b.session_wanted = false;
+	if (catch err = find_session(b))
+	{
+		if (err == error::DISCONNECTED) return err~;
+	}
+	if (b.has_session)
+	{
+		b.session_failures = 0;
+		// The session features are new: the next snapshot must show them.
+		b.dirty = true;
+		return;
+	}
+	b.session_retry = deadline::after(session::retry_delay(b.session_failures));
+	b.session_failures++;
+}
+
+<*
+ Read this process's session from logind into `b`. On any failure the session stays absent
+ (`has_session` false) and the error is returned for `seek_session` to decide on.
 *>
 fn void? find_session(Logind* b)
 {
+	forget_session(b);
 	Message* call = b.manager.new_call(b.allocator, "GetSessionByPID")!;
 	defer call.release();
 	call.body_writer("u")!.append_u32((uint)getpid())!;
 	Message*? reply = b.bus.call(call);
-	if (catch err = reply)
-	{
-		// Not in a session (a system service), or logind refused: the session features stay off.
-		if (err == error::DISCONNECTED) return err~;
-		return;
-	}
+	if (catch err = reply) return err~;
 	defer reply.release();
 	String path = reply.reader()!.read_object_path()!;
 	b.session_path = path.copy(b.allocator);
@@ -378,6 +417,7 @@ fn void run(void* state, SessionHub* hub, Host{Command}* host)
 				// Still unreachable; the empty state stands.
 			}
 		}
+		look_for_session(b, &poller);
 		if (timed_out || count > 0 || b.dirty)
 		{
 			b.dirty = false;

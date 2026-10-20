@@ -3,7 +3,7 @@
 // DBUS_SESSION_BUS_ADDRESS. Each check prints PASS or FAIL; the exit status is
 // the number of failures.
 module bleu::dbus::integration_test;
-import bleu::error, bleu::deadline, bleu::dbus::connection, bleu::dbus::bus, bleu::dbus::proxy, bleu::dbus::match, bleu::dbus::message, bleu::dbus::value, bleu::dbus::marshal, bleu::dbus::transport;
+import bleu::error, bleu::deadline, bleu::dbus::connection, bleu::dbus::bus, bleu::dbus::proxy, bleu::dbus::match, bleu::dbus::message, bleu::dbus::value, bleu::dbus::marshal, bleu::dbus::transport, bleu::dbus::ownership;
 import std::io, std::time;
 
 extern fn int pipe(int* fds);
@@ -142,6 +142,7 @@ fn int main()
 	signals(&bus, &mock);
 	object_tree(&bus, &mock);
 	name_changes(&bus);
+	ownership_across_a_disconnect();
 	timeouts_and_async(&bus, &mock);
 	peer_pings(&bus, &mock);
 	descriptors(&bus, &mock);
@@ -355,6 +356,74 @@ fn void name_changes(Connection* bus)
 		bus.release_name("org.bleu.Temp")!! == ReleaseReply.NON_EXISTENT,
 		"releasing an unowned name reports NON_EXISTENT"
 	);
+}
+
+<* Name-ownership callbacks: how often each one ran. *>
+struct Owner
+{
+	int acquired;
+	int lost;
+}
+
+fn void on_owned(void* context, String name)
+{
+	Owner* o = (Owner*)context;
+	o.acquired++;
+}
+
+fn void on_disowned(void* context, String name)
+{
+	Owner* o = (Owner*)context;
+	o.lost++;
+}
+
+<*
+ A name granted at once is announced once (on_acquired ran twice before the fix). The
+ owner then closes without releasing it: on_lost runs once and `held` clears, and the
+ queued connection receives the name.
+*>
+fn void ownership_across_a_disconnect()
+{
+	Connection owner;
+	owner.init(mem);
+	defer owner.free();
+	Connection waiter;
+	waiter.init(mem);
+	defer waiter.free();
+	if (catch err = owner.open_session())
+	{
+		report("open_session (owner)", err);
+		return;
+	}
+	if (catch err = waiter.open_session())
+	{
+		report("open_session (waiter)", err);
+		return;
+	}
+	Owner held_by_owner;
+	OwnedName* granted = owner.own_name("org.bleu.Regression", 0, &on_owned, &on_disowned, &held_by_owner)!!;
+	check(held_by_owner.acquired == 1, "a name granted at once is announced once");
+	check(granted.held, "the granted name is held");
+	Owner held_by_waiter;
+	OwnedName* queued = waiter.own_name("org.bleu.Regression", 0, &on_owned, &on_disowned, &held_by_waiter)!!;
+	check(!queued.held, "a queued request does not hold the name yet");
+	owner.close();
+	check(held_by_owner.lost == 1, "closing the connection reports the lost name once");
+	check(!granted.held, "a closed connection does not hold its name");
+	Deadline d = deadline::after(time::ms(WAIT_MS));
+	while (held_by_waiter.acquired == 0 && !d.expired())
+	{
+		if (catch err = waiter.process())
+		{
+			report("process (waiter)", err);
+			break;
+		}
+		transport::wait(waiter.fd()!!, true, false, time::ms(20));
+	}
+	check(held_by_waiter.acquired == 1, "the queued request is granted when the owner disconnects");
+	check(queued.held, "the queued request holds the name once it is granted");
+	granted.release()!!;
+	queued.release()!!;
 }
 
 fn void timeouts_and_async(Connection* bus, Proxy* mock)

@@ -1,18 +1,12 @@
 <*
  Objective-C blocks built from C3 (Apple Block ABI, ABI.2010.3.16).
 
- A block is a struct whose first fields the ABI fixes: `isa` (the block class:
+ The struct layouts and the flag bit are in `block_layout.c3` (with their sources).
+ A block is a literal whose first fields the ABI fixes: `isa` (the block class:
  `_NSConcreteStackBlock` before the copy, the heap class after `_Block_copy`), `flags`
- (BLOCK_HAS_COPY_DISPOSE, 1 << 25, is set here), `reserved` (0), `invoke` (called with
- the block pointer as its first argument) and `descriptor` (size and copy/dispose
- helpers). Captured variables follow. Here the only captured variable is one `context`
- pointer.
-
- Sources (cross-checked):
- * Apple, "Block Implementation Specification", clang.llvm.org/docs/Block-ABI-Apple.html
- (struct layout, flag bits, copy/dispose helper contract).
- * Rust `block2` 0.5.1, `src/abi.rs` (flag values, `_NSConcreteStackBlock`) and
- `src/ffi.rs` (`_Block_copy`, `_Block_release` as libSystem exports).
+ (BLOCK_HAS_COPY_DISPOSE), `reserved` (0), `invoke` (called with the block pointer
+ as its first argument) and `descriptor` (size and copy/dispose helpers). Captured
+ variables follow. Here the only captured variable is one `context` pointer.
 
  Design: C3 cannot capture variables, so the captured state is a single
  `BlockContext` pointer holding a C3 function pointer and its user pointer.
@@ -34,47 +28,7 @@
  Keep one with `Obj.borrow(...)`.
 *>
 module bleu::objc @feat(DARWIN) @link("Foundation.framework");
-import std::atomic, std::os::darwin::objc;
-
-<* Flag bit: the descriptor carries copy and dispose helpers. Block-ABI-Apple.html, enum of flag bits. *>
-const int BLOCK_HAS_COPY_DISPOSE = 1 << 25;
-
-<* Argument of `copy_helper`: the destination and source block literals. *>
-alias BlockCopyHelper = fn void(void* dst, void* src);
-
-<* Argument of `dispose_helper`: the block literal being destroyed. *>
-alias BlockDisposeHelper = fn void(void* src);
-
-<* Block descriptor as laid out by the ABI (`struct Block_descriptor_1`). *>
-struct BlockDescriptor
-{
-	ulong reserved;
-	ulong size;
-	BlockCopyHelper copy_helper;
-	BlockDisposeHelper dispose_helper;
-}
-
-<* Block literal as laid out by the ABI, with one captured pointer. *>
-struct BlockLiteral
-{
-	void* isa;
-	int flags;
-	int reserved;
-	void* invoke;
-	BlockDescriptor* descriptor;
-	BlockContext* context;
-}
-
-<*
- The state every block created by this file captures. Reference count:
- starts at 1 for the creator; each heap copy adds one; each dispose removes one.
-*>
-struct BlockContext
-{
-	Atomic{int} refs;
-	void* callback;
-	void* user;
-}
+import std::os::darwin::objc, bleu::objc::block_layout;
 
 <* A handler that takes nothing: `void (^)(void)`. *>
 alias VoidHandler = fn void(void* user);
@@ -98,8 +52,8 @@ extern fn void* block_copy_raw(void* block) @cname("_Block_copy");
 extern fn void block_release_raw(void* block) @cname("_Block_release");
 
 <* One descriptor shared by every block this file makes. Its size is that of a `BlockLiteral`. *>
-BlockDescriptor block_descriptor = {
-	.size = BlockLiteral::size,
+block_layout::BlockDescriptor block_descriptor = {
+	.size = block_layout::BlockLiteral::size,
 	.copy_helper = &block_copy,
 	.dispose_helper = &block_dispose,
 };
@@ -126,21 +80,21 @@ fn void Block.release(&self)
 <* Copy helper: the runtime has already moved the literal bytes; only the context gains a reference. *>
 fn void block_copy(void* dst, void* src)
 {
-	BlockLiteral* source = (BlockLiteral*)src;
+	block_layout::BlockLiteral* source = (block_layout::BlockLiteral*)src;
 	source.context.refs.add(1);
 }
 
 <* Dispose helper: drop a reference and free the context when none remain. *>
 fn void block_dispose(void* src)
 {
-	BlockLiteral* source = (BlockLiteral*)src;
+	block_layout::BlockLiteral* source = (block_layout::BlockLiteral*)src;
 	if (source.context.refs.sub(1) == 1) alloc::free(mem, source.context);
 }
 
 <* Invoke for `void (^)(void)`. The runtime passes the block pointer first. *>
-fn void invoke_void(BlockLiteral* block)
+fn void invoke_void(block_layout::BlockLiteral* block)
 {
-	BlockContext* context = block.context;
+	block_layout::BlockContext* context = block.context;
 	@objc_entry()
 	{
 		((VoidHandler)context.callback)(context.user);
@@ -148,9 +102,9 @@ fn void invoke_void(BlockLiteral* block)
 }
 
 <* Invoke for `void (^)(id)`. *>
-fn void invoke_id(BlockLiteral* block, ObjId value)
+fn void invoke_id(block_layout::BlockLiteral* block, ObjId value)
 {
-	BlockContext* context = block.context;
+	block_layout::BlockContext* context = block.context;
 	@objc_entry()
 	{
 		((IdHandler)context.callback)(context.user, value);
@@ -158,9 +112,9 @@ fn void invoke_id(BlockLiteral* block, ObjId value)
 }
 
 <* Invoke for `void (^)(BOOL, NSError *)`. *>
-fn void invoke_bool_error(BlockLiteral* block, bool success, ObjId error)
+fn void invoke_bool_error(block_layout::BlockLiteral* block, bool success, ObjId error)
 {
-	BlockContext* context = block.context;
+	block_layout::BlockContext* context = block.context;
 	@objc_entry()
 	{
 		((BoolErrorHandler)context.callback)(context.user, success, error);
@@ -168,9 +122,9 @@ fn void invoke_bool_error(BlockLiteral* block, bool success, ObjId error)
 }
 
 <* Invoke for `void (^)(id, NSError *)`. *>
-fn void invoke_id_error(BlockLiteral* block, ObjId value, ObjId error)
+fn void invoke_id_error(block_layout::BlockLiteral* block, ObjId value, ObjId error)
 {
-	BlockContext* context = block.context;
+	block_layout::BlockContext* context = block.context;
 	@objc_entry()
 	{
 		((IdErrorHandler)context.callback)(context.user, value, error);
@@ -178,9 +132,9 @@ fn void invoke_id_error(BlockLiteral* block, ObjId value, ObjId error)
 }
 
 <* Invoke for `void (^)(int)`. *>
-fn void invoke_int(BlockLiteral* block, int value)
+fn void invoke_int(block_layout::BlockLiteral* block, int value)
 {
-	BlockContext* context = block.context;
+	block_layout::BlockContext* context = block.context;
 	@objc_entry()
 	{
 		((IntHandler)context.callback)(context.user, value);
@@ -194,13 +148,13 @@ fn void invoke_int(BlockLiteral* block, int value)
 *>
 fn Block make_block(void* invoke, void* callback, void* user) @local
 {
-	BlockContext* context = alloc::new(mem, BlockContext);
+	block_layout::BlockContext* context = alloc::new(mem, block_layout::BlockContext);
 	context.refs.store(1);
 	context.callback = callback;
 	context.user = user;
-	BlockLiteral literal = {
+	block_layout::BlockLiteral literal = {
 		.isa = (void*)&NS_CONCRETE_STACK_BLOCK,
-		.flags = BLOCK_HAS_COPY_DISPOSE,
+		.flags = block_layout::BLOCK_HAS_COPY_DISPOSE,
 		.invoke = invoke,
 		.descriptor = &block_descriptor,
 		.context = context,

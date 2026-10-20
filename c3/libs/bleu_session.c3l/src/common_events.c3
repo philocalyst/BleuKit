@@ -8,7 +8,7 @@
  the state already updated.
 *>
 module bleu::session;
-import std::collections::list, std::collections::maybe, std::time, bleu::observe;
+import std::collections::list, std::collections::maybe, std::time, bleu::error, bleu::observe, bleu::operation;
 
 <* Announce `event` to every reader of the hub's events. *>
 fn void emit(SessionHub* hub, Event event)
@@ -56,4 +56,17 @@ fn void announce(List{Event}* pending, SessionHub* hub)
 {
 	for (sz i = 0; i < pending.len(); i++) emit(hub, pending.get(i));
 	pending.clear();
+}
+
+<*
+ Complete a request the worker did not run, when the backend stops or bails out before taking it:
+ its operation fails with DISCONNECTED, so no waiter hangs. Watch commands need nothing, because
+ their slots go with the worker. Registered with `Hub.start`; runs on the worker thread.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.kind != CommandKind.REQUEST) return;
+	SessionOperation* operation = command.operation;
+	operation.fail(error::DISCONNECTED);
+	operation.release();
 }

@@ -220,6 +220,30 @@ fn void killing_a_child_this_test_spawned_ends_it() @test
 	};
 }
 
+fn void offline_cpu_does_not_shift_the_frequencies() @test
+{
+	@pool()
+	{
+		String root = make_root();
+		// cpu1 is offline: it has no /proc/stat line, and its stale frequency file must not be read for cpu2.
+		write_file(
+			root,
+			"/proc/stat",
+			"cpu  100 0 100 800 0 0 0 0 0 0\ncpu0 50 0 50 400 0 0 0 0 0 0\ncpu2 50 0 50 400 0 0 0 0 0 0\n"
+		);
+		write_file(root, "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq", "111000\n");
+		write_file(root, "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq", "2222000\n");
+		Sysinfo* service = sysinfo::open(mem, { .backend = PROCFS, .root = root, .interval = time::ms(200) })!!;
+		defer service.close();
+		Snapshot{State}* snapshot = service.wait_after(0, time::sec(5))!!;
+		defer snapshot.release();
+		CpuCore[] cores = snapshot.value.cpu.cores;
+		test::eq(cores.len, 2);
+		test::@check(cores[1].name == "cpu2", "the second core is cpu2");
+		test::@check(cores[1].frequency.has_value && cores[1].frequency.value == (Mhz)2222, "cpu2 keeps its own clock");
+	};
+}
+
 fn void an_interval_below_the_minimum_is_refused() @test
 {
 	@pool()

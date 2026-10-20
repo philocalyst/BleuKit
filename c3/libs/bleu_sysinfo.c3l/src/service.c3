@@ -81,7 +81,14 @@ fn Sysinfo*? open(Allocator allocator, Options options = { })
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "sysinfo", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"sysinfo",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);

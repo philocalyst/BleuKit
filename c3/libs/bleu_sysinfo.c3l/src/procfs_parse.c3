@@ -284,16 +284,23 @@ fn delta::NetCounters[]? parse_net_dev(String text, Allocator allocator)
 		String rest;
 		if (!split_key(line, &name, &rest)) continue; // the two header lines have no colon-separated name
 		if (name == "lo") continue;
-		sz cursor      = 0;
-		ulong received = parse_count(next_field(rest, &cursor)!)!;
-		for (usz skip = 0; skip < 7; skip++)
-		{
-			next_field(rest, &cursor)!;
-		}
-		ulong sent = parse_count(next_field(rest, &cursor)!)!;
-		interfaces.push({ .name = name.copy(allocator), .received = received, .sent = sent });
+		// A malformed interface line is skipped: one bad line must not hide every other interface.
+		if (try counters = net_counters_of(name, rest, allocator)) interfaces.push(counters);
 	}
 	return alloc::clone_slice(allocator, interfaces.array_view());
+}
+
+<* The receive and transmit byte counters of one /proc/net/dev line, after its name. *>
+fn delta::NetCounters? net_counters_of(String name, String rest, Allocator allocator) @local
+{
+	sz cursor      = 0;
+	ulong received = parse_count(field_of(rest, &cursor)!)!;
+	for (usz skip = 0; skip < 7; skip++)
+	{
+		field_of(rest, &cursor)!;
+	}
+	ulong sent = parse_count(field_of(rest, &cursor)!)!;
+	return { .name = name.copy(allocator), .received = received, .sent = sent };
 }
 
 <* One line of /proc/mounts, with the kernel's octal escapes already undone. *>
@@ -319,19 +326,24 @@ fn RawMount[]? parse_mounts(String text, Allocator allocator)
 	Splitter rows = text.tokenize("\n");
 	while (try line = rows.next())
 	{
-		sz cursor          = 0;
-		String device      = next_field(line, &cursor)!;
-		String mount_point = next_field(line, &cursor)!;
-		String fs_type     = next_field(line, &cursor)!;
-		mounts.push(
-			{
-				.device = unescape_octal(device, allocator)!,
-				.mount_point = unescape_octal(mount_point, allocator)!,
-				.fs_type = fs_type.copy(allocator),
-			}
-		);
+		// A malformed mount line is skipped, so one odd entry cannot fail every sample.
+		if (try mount = raw_mount_of(line, allocator)) mounts.push(mount);
 	}
 	return alloc::clone_slice(allocator, mounts.array_view());
+}
+
+<* One /proc/mounts line: device, mount point and type, the first three fields. *>
+fn RawMount? raw_mount_of(String line, Allocator allocator) @local
+{
+	sz cursor          = 0;
+	String device      = field_of(line, &cursor)!;
+	String mount_point = field_of(line, &cursor)!;
+	String fs_type     = field_of(line, &cursor)!;
+	return {
+		.device = unescape_octal(device, allocator)!,
+		.mount_point = unescape_octal(mount_point, allocator)!,
+		.fs_type = fs_type.copy(allocator),
+	};
 }
 
 <* Decode `\NNN` octal escapes; anything else is copied as it is. *>
@@ -400,7 +412,7 @@ fn StatFields? parse_pid_stat(String text)
 	// Field 3 (state) is the first after the name; utime is field 14, stime 15, starttime 22.
 	for (usz field = 3; field <= 22; field++)
 	{
-		String token = next_field(text, &cursor)!;
+		String token = field_of(text, &cursor)!;
 		switch (field)
 		{
 			case 14: fields.utime = parse_count(token)!;
@@ -444,10 +456,14 @@ fn StatusFields? parse_status(String text)
 			fields.uid = parse_count(next_field(value, &cursor)!)!;
 			has_uid = true;
 		}
+		// A malformed VmRSS leaves the resident set unknown; it does not drop the process.
 		if (key == "VmRSS")
 		{
-			fields.rss = kib_value(value)!;
-			fields.has_rss = true;
+			if (try rss = kib_value(value))
+			{
+				fields.rss = rss;
+				fields.has_rss = true;
+			}
 		}
 	}
 	if (!has_uid) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no Uid line")~;

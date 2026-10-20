@@ -41,6 +41,11 @@ fn void tree_walk_finds_views_and_the_focus_path() @test
 			model.windows[1].urgent.has_value && model.windows[1].urgent.value,
 			"urgency is read from the node"
 		);
+		test::@check(
+			!model.windows[0].floating && !model.windows[1].floating,
+			"a tiled window is not floating: sway writes floating auto_off on it"
+		);
+		test::@check(model.windows[1].fullscreen.has_value && !model.windows[1].fullscreen.value, "fullscreen_mode 0 is not fullscreen");
 		test::@check(!model.windows[1].maximized.has_value, "sway does not report maximized");
 		test::@check(
 			model.windows[1].geometry.has_value && model.windows[1].geometry.value.x == 1280,
@@ -135,13 +140,20 @@ fn void input_layout_events_update_the_layout() @test
 		compositor::Model model = sway::build(&arena, compositor::Kind.SWAY, fixture_replies())!!;
 		backend::RawEvent event = {
 			.name = "input",
-			.payload = "{\"change\":\"xkb_layout\",\"input\":{\"identifier\":\"1:1:kbd\",\"type\":\"keyboard\",\"xkb_active_layout_name\":\"German (Germany)\",\"xkb_layout_names\":[\"English (US)\",\"German (Germany)\"],\"xkb_active_layout_index\":1}}"
+			.payload = "{\"change\":\"xkb_layout\",\"input\":{\"identifier\":\"1:1:AT_Translated_Set_2_keyboard\",\"type\":\"keyboard\",\"xkb_active_layout_name\":\"German (Germany)\",\"xkb_layout_names\":[\"English (US)\",\"German (Germany)\"],\"xkb_active_layout_index\":1}}"
 		};
 		test::@check(sway::apply(&model, &arena, event) == backend::Refresh.UPDATED, "a layout change is applied");
 		test::@check(
 			model.layouts.current.value == 1 && model.layouts.current_name == "German (Germany)",
 			"the index and name follow the event"
 		);
+		// The model holds one keyboard: a layout change on another keyboard leaves it alone.
+		backend::RawEvent other = {
+			.name = "input",
+			.payload = "{\"change\":\"xkb_layout\",\"input\":{\"identifier\":\"1133:16505:Logitech_USB_Mouse\",\"type\":\"keyboard\",\"xkb_active_layout_name\":\"Russian\",\"xkb_layout_names\":[\"Russian\"],\"xkb_active_layout_index\":0}}"
+		};
+		test::@check(sway::apply(&model, &arena, other) == backend::Refresh.NONE, "another keyboard's layout is ignored");
+		test::@check(model.layouts.current_name == "German (Germany)", "the held keyboard keeps its layout");
 	};
 }
 
@@ -152,4 +164,70 @@ fn void frames_decode_to_the_window_events() @test
 	i3ipc::Header header = i3ipc::decode_header((String)frame)!!;
 	test::@check(header.is_event(), "the frame is an event");
 	test::@check(i3ipc::event_name(header.event_type()) == "window", "the event is a window event");
+}
+
+fn void a_floating_event_reads_the_floating_field() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = sway::build(&arena, compositor::Kind.SWAY, fixture_replies())!!;
+		// sway sends the window's own container: its `floating` says whether it floats now.
+		backend::RawEvent floats = {
+			.name = "window",
+			.payload = "{\"change\":\"floating\",\"container\":{\"id\":10,\"type\":\"con\",\"floating\":\"user_on\"}}"
+		};
+		test::@check(sway::apply(&model, &arena, floats) == backend::Refresh.UPDATED, "a floating change is applied");
+		test::@check(model.windows[0].floating, "user_on makes the window float");
+		backend::RawEvent tiles = {
+			.name = "window",
+			.payload = "{\"change\":\"floating\",\"container\":{\"id\":10,\"type\":\"con\",\"floating\":\"auto_off\"}}"
+		};
+		test::@check(sway::apply(&model, &arena, tiles) == backend::Refresh.UPDATED, "a tiling change is applied");
+		test::@check(!model.windows[0].floating, "auto_off makes it tiled again");
+	};
+}
+
+fn void a_workspace_focus_moves_the_shown_workspace_and_output() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = sway::build(&arena, compositor::Kind.SWAY, fixture_replies())!!;
+		test::@check(model.outputs[0].active_workspace == "1" && model.outputs[0].focused, "the start state shows 1");
+		backend::RawEvent focus = {
+			.name = "workspace",
+			.payload = "{\"change\":\"focus\",\"current\":{\"id\":4,\"name\":\"2:web\",\"output\":\"DP-1\",\"visible\":true,\"focused\":true}}"
+		};
+		test::@check(sway::apply(&model, &arena, focus) == backend::Refresh.UPDATED, "the workspace focus is applied");
+		test::@check(
+			model.outputs[0].active_workspace == "2:web",
+			"the output now shows the workspace that was focused"
+		);
+		test::@check(model.outputs[0].focused, "the output of the focused workspace holds the focus");
+	};
+}
+
+fn void a_fullscreen_event_without_a_mode_asks_for_a_snapshot() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = sway::build(&arena, compositor::Kind.SWAY, fixture_replies())!!;
+		backend::RawEvent bare = {
+			.name = "window",
+			.payload = "{\"change\":\"fullscreen_mode\",\"container\":{\"id\":10,\"type\":\"con\"}}"
+		};
+		test::@check(
+			sway::apply(&model, &arena, bare) == backend::Refresh.REFRESH_NEEDED,
+			"a fullscreen event with no mode asks for a snapshot"
+		);
+		test::@check(model.windows[0].fullscreen.has_value, "the window's fullscreen state is not invented");
+	};
 }

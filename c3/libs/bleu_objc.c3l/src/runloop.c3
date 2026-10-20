@@ -70,12 +70,22 @@ alias RunLoopWake = fn void(void* context);
  A run loop on its own thread. The struct must not move after `start`: the
  thread keeps its address. Allocate it with `alloc::new` or keep it in a
  long-lived service object.
+
+ Ownership and shutdown (the rule that makes `wake` safe):
+ * `loop`, `source` and `running` are written under `mutex`. The loop thread sets
+   them when it becomes ready and clears `running` and `loop` when it leaves its run
+   loop, after it has removed the source from that loop.
+ * `wake` reads `source` and `loop` only while `running` is set, under `mutex`, so it
+   never touches a loop that has ended.
+ * The loop thread never releases the source. `stop_and_join` does, after `join`,
+   when no other thread can reach the source.
 *>
 struct RunLoopThread
 {
 	Thread thread;
 	void* loop;
 	void* source;
+	bool running;
 	Mutex mutex;
 	ConditionVariable ready;
 	bool is_ready;
@@ -88,7 +98,8 @@ struct RunLoopThread
 
 <*
  Start the thread. Returns after the loop exists and `setup` (if any) has run,
- so the caller can rely on `wake` immediately.
+ so the caller can rely on `wake` immediately. A stopped `RunLoopThread` may be
+ started again.
 
  @param setup : "Runs on the loop thread before the loop starts (attach sources here); may be null"
  @param on_wake : "Runs on the loop thread for every wake-up; may be null"
@@ -100,9 +111,19 @@ fn void? RunLoopThread.start(&self, RunLoopSetup setup, void* setup_context, Run
 	self.setup_context = setup_context;
 	self.on_wake = on_wake;
 	self.wake_context = wake_context;
+	self.stop_requested.store(false);
 	self.mutex.init()!;
-	self.ready.init()!;
-	self.thread.create(&run_loop_thread_entry, self)!;
+	if (catch err = self.ready.init())
+	{
+		self.mutex.destroy();
+		return err~;
+	}
+	if (catch err = self.thread.create(&run_loop_thread_entry, self))
+	{
+		self.ready.destroy();
+		self.mutex.destroy();
+		return err~;
+	}
 	self.mutex.lock()!!;
 	while (!self.is_ready) self.ready.wait(&self.mutex)!!;
 	self.mutex.unlock();
@@ -111,26 +132,34 @@ fn void? RunLoopThread.start(&self, RunLoopSetup setup, void* setup_context, Run
 <*
  Wake the loop thread. Safe from any thread, and never blocks. A wake-up that
  arrives while the loop is busy is kept and delivered when the loop returns to
- waiting.
+ waiting. Does nothing when the loop is not running (before `start` or after
+ `stop_and_join`).
 *>
 fn void RunLoopThread.wake(&self)
 {
-	if (!self.source) return;
+	self.mutex.lock()!!;
+	defer self.mutex.unlock();
+	if (!self.running) return;
 	cf_run_loop_source_signal(self.source);
 	cf_run_loop_wake_up(self.loop);
 }
 
 <*
  Ask the loop to stop, wait for the thread to finish, and release the
- run-loop resources. Call from a thread other than the loop thread.
+ run-loop resources. Call from a thread other than the loop thread. Safe to call
+ on a thread that was never started, or twice.
 
  @return? error::BACKEND_FAILURE : "when the thread cannot be joined"
 *>
 fn void? RunLoopThread.stop_and_join(&self)
 {
+	if (!self.source) return;
 	self.stop_requested.store(true);
 	self.wake();
 	self.thread.join()!;
+	cf_run_loop_source_invalidate(self.source);
+	cf_release(self.source);
+	self.source = null;
 	self.ready.destroy();
 	self.mutex.destroy();
 	self.is_ready = false;
@@ -140,12 +169,15 @@ fn void? RunLoopThread.stop_and_join(&self)
 fn int run_loop_thread_entry(void* argument) @local
 {
 	RunLoopThread* self = (RunLoopThread*)argument;
-	self.loop = cf_run_loop_get_current();
+	void* loop          = cf_run_loop_get_current();
 	RunLoopSourceContext context = { .version = 0, .info = self, .perform = (void*)&run_loop_perform };
-	self.source = cf_run_loop_source_create(null, 0, &context);
-	cf_run_loop_add_source(self.loop, self.source, KCF_RUNLOOP_DEFAULT_MODE);
-	if (self.setup) self.setup(self.loop, self.setup_context);
+	void* source        = cf_run_loop_source_create(null, 0, &context);
+	cf_run_loop_add_source(loop, source, KCF_RUNLOOP_DEFAULT_MODE);
+	if (self.setup) self.setup(loop, self.setup_context);
 	self.mutex.lock()!!;
+	self.loop = loop;
+	self.source = source;
+	self.running = true;
 	self.is_ready = true;
 	self.ready.broadcast()!!;
 	self.mutex.unlock();
@@ -153,10 +185,11 @@ fn int run_loop_thread_entry(void* argument) @local
 	{
 		cf_run_loop_run_in_mode(KCF_RUNLOOP_DEFAULT_MODE, RUN_SLICE_SECONDS, true);
 	}
+	self.mutex.lock()!!;
 	cf_run_loop_remove_source(self.loop, self.source, KCF_RUNLOOP_DEFAULT_MODE);
-	cf_run_loop_source_invalidate(self.source);
-	cf_release(self.source);
-	self.source = null;
+	self.running = false;
+	self.loop = null;
+	self.mutex.unlock();
 	return 0;
 }
 

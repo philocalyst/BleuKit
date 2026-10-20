@@ -59,9 +59,9 @@ fn Value? parse(Allocator allocator, String document)
 	) ? document[UTF8_BOM.len:document.len - UTF8_BOM.len]
 		: document;
 	text::check_utf8(source)!;
-	std::encoding::xml::XmlDocument*? document = std::encoding::xml::tparse(source);
-	if (catch document) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not well-formed XML")~;
-	std::encoding::xml::XmlNode* root = document.root;
+	std::encoding::xml::XmlDocument*? dom = std::encoding::xml::tparse(source);
+	if (catch dom) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not well-formed XML")~;
+	std::encoding::xml::XmlNode* root = dom.root;
 	if (!root || root.name != ROOT_ELEMENT) return error::raise(
 		error::PROTOCOL,
 		error::Domain.INTERNAL,

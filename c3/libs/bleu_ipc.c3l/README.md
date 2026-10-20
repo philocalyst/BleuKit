@@ -86,8 +86,8 @@ running handler must return first.
 ## Not reproduced, and why
 
 * **`defer` is `defer_reply`.** `defer` is a C3 keyword.
-* **Zero ids are omitted, not `"id":0`.** The brief's example showed `"id":0` for
-  a malformed line. dankgo declares `ID int` with `omitempty`
+* **Zero ids are omitted, not `"id":0`.** The earlier notes in
+  `docs/research/dms_surface.md` show `"id":0` for a malformed line. dankgo declares `ID int` with `omitempty`
   (`ipc/models.go:13` and `:19`), so Go drops a zero id. The wire follows the source.
   Both forms are dropped by the DMS QML client, which keys on `id` and `result`.
 * **Invalid UTF-8 is refused.** Go replaces bad bytes with U+FFFD and carries on,
@@ -100,7 +100,7 @@ running handler must return first.
   reconnects and re-reads the snapshot, which is the cure Bleu's rules name.
 * **State frames coalesce (latest wins).** A slow client receives only the newest
   value of each state, so memory stays bounded. DMS queues every value in a
-  256-entry channel per service. This is the deviation the brief asked for.
+  256-entry channel per service. This is a deliberate deviation.
 * **At most 64 clients, and at most 256 queued requests per handler thread.**
   DMS has neither limit. Past them a client is refused, or gets `server is busy`.
 * **`XDG_RUNTIME_DIR` must be set, or a socket path given.** DMS falls back to
@@ -122,7 +122,9 @@ running handler must return first.
 ## Verified how
 
 * **Run on Linux x86-64, C3 0.8.5, glibc:** `c3c compile-test` of every
-  `src/*.c3` file, 63 in-process tests: wire, line buffer, outbox (coalescing,
+  `src/*.c3` file: 36 `bleu_ipc` tests (10 wire, 5 line buffer, 6 outbox, 15
+  in-process integration), run in one binary with the 27 `bleu_rt` and `bleu_core`
+  tests that the build links. The 36 cover: wire, line buffer, outbox (coalescing,
   bounds, in-flight frames), the handshake and ping, errors and bad lines,
   subscriptions (ordering, snapshots, `all` and explicit topics, events), subscriber
   counts, deferred replies from another thread, the exactly-once rule, the
@@ -136,7 +138,8 @@ running handler must return first.
   ids up to 2^53, partial and pipelined writes, CRLF, `unsubscribe`, params,
   over-long lines, subscription ordering with two clients, and capability frames.
 * **Sanitiser:** `--sanitize=address` with `LD_PRELOAD` of libasan (the C3 test
-  binary needs the runtime first). See `docs/research/bleu_ipc.md` section 9 for
-  the result and the bug it found.
+  binary needs the runtime first). All 63 tests in the binary pass with no AddressSanitizer or
+  leak report. The run found one use-after-free, now fixed; see
+  `docs/research/bleu_ipc.md` section 7.
 * **Compiled only:** all six targets with `tools/check.sh bleu_core bleu_rt bleu_ipc`.
   On the non-POSIX targets every file is gated out and the library is empty.

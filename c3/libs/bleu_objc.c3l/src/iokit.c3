@@ -24,8 +24,13 @@ import bleu::error, bleu::mach, bleu::cf;
 *>
 alias IoObject = uint;
 
-<* `kIOMainPortDefault`: the default main port (IOKitLib.h). *>
-extern const uint K_IO_MAIN_PORT_DEFAULT @cname("kIOMainPortDefault");
+<*
+ The main-port argument that means "use the default" (IOKitLib.h:107-109: NULL
+ indicates the default, and `kIOMainPortDefault` is a synonym). The symbol itself
+ is `__API_AVAILABLE(macos(12.0))` (IOKitLib.h:111-113), so this module passes 0
+ and does not link it.
+*>
+const uint IO_MAIN_PORT_DEFAULT = 0;
 
 <* `kIOServicePlane` (IOKitKeys.h): the plane services live in. *>
 const ZString IO_SERVICE_PLANE             = "IOService";
@@ -126,6 +131,7 @@ fn cf::Ref? Service.properties(self)
 *>
 fn cf::Ref? Service.search_property(self, ZString key)
 {
+	if (!self.handle) return error::raise(error::UNAVAILABLE, error::Domain.MACH, 0, "service is closed")~;
 	cf::Ref name = cf::from_string(key.str_view());
 	defer name.close();
 	CFTypeRef value = io_registry_entry_search_cf_property(
@@ -153,7 +159,7 @@ struct ServiceIterator
 fn ServiceIterator? services_matching(ZString class_name)
 {
 	IoObject iterator = 0;
-	int result = io_service_get_matching_services(K_IO_MAIN_PORT_DEFAULT, io_service_matching(class_name), &iterator);
+	int result = io_service_get_matching_services(IO_MAIN_PORT_DEFAULT, io_service_matching(class_name), &iterator);
 	if (result != 0) return mach::raise_code(result, "IOServiceGetMatchingServices")~;
 	return { .handle = iterator };
 }
@@ -188,7 +194,7 @@ struct NotificationPort
 *>
 fn NotificationPort? create_notification_port()
 {
-	void* port = io_notification_port_create(K_IO_MAIN_PORT_DEFAULT);
+	void* port = io_notification_port_create(IO_MAIN_PORT_DEFAULT);
 	if (!port) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, 0, "IONotificationPortCreate failed")~;
 	return { .port = port };
 }
@@ -196,7 +202,11 @@ fn NotificationPort? create_notification_port()
 <* The run-loop source for the port (`CFRunLoopSourceRef`). Owned by the port; do not release. *>
 fn void* NotificationPort.source(self) => io_notification_port_get_run_loop_source(self.port);
 
-<* Destroy the port. The run-loop source must already be removed from every loop. Idempotent. *>
+<*
+ Destroy the port. `IONotificationPortDestroy` also destroys the run-loop source
+ from `source()` (IOKitLib.h:159-164), so the source must not be used afterwards.
+ Call only after the loop that the source is attached to has stopped. Idempotent.
+*>
 fn void NotificationPort.close(&self)
 {
 	if (self.port) io_notification_port_destroy(self.port);

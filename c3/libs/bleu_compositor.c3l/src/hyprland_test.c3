@@ -225,3 +225,86 @@ fn void layout_and_model_wide_events() @test
 		);
 	};
 }
+
+fn void only_the_main_keyboard_layout_is_followed() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = fixture_model(&arena);
+		test::@check(model.layouts.keyboard == "main-keyboard", "the model names the main keyboard");
+		test::@check(
+			hyprland::apply(
+				&model,
+				&arena,
+				hyprland::parse_event("activelayout>>at-translated-set-2-keyboard,Russian")!!
+			) == backend::Refresh.NONE,
+			"a layout change on another keyboard is ignored"
+		);
+		test::@check(model.layouts.current_name == "German", "the main keyboard keeps its layout");
+	};
+}
+
+fn void payloads_without_their_fields_ask_for_a_snapshot() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = fixture_model(&arena);
+		bool floating_before = model.windows[0].floating;
+		test::@check(
+			hyprland::apply(
+				&model,
+				&arena,
+				hyprland::parse_event("changefloatingmode>>0x55d1c0a4e2b0")!!
+			) == backend::Refresh.REFRESH_NEEDED,
+			"a floating event without its flag asks for a snapshot"
+		);
+		test::@check(model.windows[0].floating == floating_before, "the floating state is not invented");
+		test::@check(
+			hyprland::apply(&model, &arena, hyprland::parse_event("fullscreen>>")!!) == backend::Refresh.REFRESH_NEEDED,
+			"a fullscreen event without its flag asks for a snapshot"
+		);
+		test::@check(
+			hyprland::apply(&model, &arena, hyprland::parse_event("fullscreen>>2")!!) == backend::Refresh.REFRESH_NEEDED,
+			"a fullscreen flag that is not 0 or 1 asks for a snapshot"
+		);
+	};
+}
+
+fn void unknown_is_not_zero_in_hyprland_replies() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		hyprland::Replies replies = {
+			.clients = wire::parse_document(
+				"[{\"address\":\"0x1\",\"class\":\"foot\",\"title\":\"t\",\"workspace\":{\"id\":1,\"name\":\"1\"},\"monitor\":0,\"floating\":false,\"at\":[0,0],\"size\":[10,10]}]",
+				"clients"
+			)!!,
+			.active = wire::parse_document("{}", "active")!!,
+			.workspaces = wire::parse_document(
+				"[{\"id\":1,\"name\":\"1\",\"monitor\":\"DP-1\"},{\"name\":\"special\",\"monitor\":\"DP-1\"}]",
+				"workspaces"
+			)!!,
+			.monitors = wire::parse_document(
+				"[{\"id\":0,\"name\":\"DP-1\",\"activeWorkspace\":{\"id\":1,\"name\":\"1\"},\"focused\":true,\"x\":0,\"y\":0,\"width\":10,\"height\":10,\"scale\":1.0}]",
+				"monitors"
+			)!!,
+			.devices = wire::parse_document("{\"keyboards\":[]}", "devices")!!,
+		};
+		compositor::Model model = hyprland::build(&arena, replies)!!;
+		test::@check(
+			!model.windows[0].fullscreen.has_value && !model.windows[0].maximized.has_value,
+			"a client with no fullscreen mode reports neither fullscreen nor maximized"
+		);
+		test::@check(model.workspaces[1].id == "", "a workspace without an id has no id, not id 0");
+		test::@check(model.workspaces[0].active && !model.workspaces[1].active, "only the shown workspace is active");
+	};
+}

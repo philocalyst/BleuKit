@@ -22,6 +22,12 @@ alias Capabilities = EnumMap{Cap, Availability};
 const Duration DEFAULT_POLL = (Duration)5_000_000;
 
 <*
+ Longest wait for a backend's first publication when opening. The backend
+ publishes after its setup (bus, secret agent), so this bounds that setup.
+*>
+const Duration OPEN_TIMEOUT = (Duration)60_000_000;
+
+<*
  A Wi-Fi connection request. The backend decides the key management from the
  last scan; `passphrase` is "" for open networks and for networks whose saved
  profile already holds the secret.
@@ -70,8 +76,24 @@ fn Network*? open(Allocator allocator, Options options = { })
 		}
 		self.driver = driver;
 		self.driver_state = created;
-		if (catch err = self.hub.start(allocator, "network", driver.info.name, driver.run, self.driver_state))
+		if (catch err = self.hub.start(
+			allocator,
+			"network",
+			driver.info.name,
+			driver.run,
+			self.driver_state,
+			DEFAULT_QUEUE,
+			&abandon_command
+		))
 		{
+			driver.destroy(allocator, self.driver_state);
+			alloc::free(allocator, self);
+			return err~;
+		}
+		// The backend publishes once its setup is done, so its capabilities are final from here on.
+		if (catch err = self.await_first_state())
+		{
+			self.hub.stop();
 			driver.destroy(allocator, self.driver_state);
 			alloc::free(allocator, self);
 			return err~;
@@ -149,6 +171,7 @@ fn SettleOp*? Network.supply_credentials(&self, ulong request, String secret)
 	if (secret.len == 0 || secret.len > SECRET_MAX) return error::INVALID_ARGUMENT~;
 	self.require(WIFI_SECRET_PROMPT)!;
 	Command command = { .kind = SUPPLY_CREDENTIALS, .request = request };
+	defer wipe_command_secret(&command);
 	mem::copy(&command.secret.bytes, secret.ptr, secret.len);
 	command.secret.len = secret.len;
 	return self.submit_settle(command)!;
@@ -180,12 +203,17 @@ fn SettleOp*? Network.scan(&self)
 
 <*
  Connect to a Wi-Fi network. With an empty passphrase the saved profile is
- used; a network with no saved profile and no passphrase fails with AUTH_REQUIRED.
+ used. A network with no saved profile and no passphrase fails with AUTH_REQUIRED
+ (on the operation); a passphrase that the network refuses fails with AUTH_REQUIRED
+ too, and `State.wifi.failure` tells the two apart (AUTH_REQUIRED or AUTH_REJECTED).
+ A saved profile keeps its autoconnect setting; `autoconnect` applies to a new one.
 
- @param request : "The network, its passphrase (if any) and whether to remember it"
+ @param request : "The network, its passphrase (if any) and whether a new profile joins automatically"
  @return? error::INVALID_ARGUMENT : "The SSID is empty or longer than 32 octets, or the passphrase is longer than 255 characters"
  @return? error::UNSUPPORTED : "This backend cannot connect with the requested credentials"
  @return? error::UNAVAILABLE : "There is no Wi-Fi interface, or its radio is off"
+ @return? error::PERMISSION_DENIED : "macOS withholds the network names: Location Services must authorize this app (the operation's detail says how)"
+ @return? NOT_FOUND : "The network is not in the last scan"
 *>
 fn ConnectOp*? Network.connect(&self, ConnectRequest request)
 {
@@ -193,6 +221,7 @@ fn ConnectOp*? Network.connect(&self, ConnectRequest request)
 	if (request.passphrase.len > SECRET_MAX) return error::INVALID_ARGUMENT~;
 	self.require(request.passphrase.len > 0 ? WIFI_CONNECT_PSK : WIFI_CONNECT_OPEN)!;
 	Command command = { .kind = CONNECT, .flag = request.autoconnect };
+	defer wipe_command_secret(&command);
 	copy_ssid(&command.ssid, request.ssid);
 	if (request.passphrase.len > 0)
 	{
@@ -291,6 +320,38 @@ fn ConnectOp*? Network.submit_connect(&self, Command command)
 		return err~;
 	}
 	return op;
+}
+
+<*
+ Overwrite a command's secret with zeroes. Backends call it once a command is
+ executed or abandoned; the caller's own copy is wiped by its `defer`.
+*>
+fn void wipe_command_secret(Command* command)
+{
+	mem::set(&command.secret.bytes, (char)0, SECRET_MAX);
+	command.secret.len = 0;
+}
+
+<*
+ Complete a command that will never run (the backend stopped, or returned early):
+ its operation fails with DISCONNECTED and its secret is wiped. Runs on the worker
+ thread after the backend's run function has returned, as `Hub.start` requires.
+*>
+fn void abandon_command(void* backend, Command* command) @local
+{
+	switch (command.kind)
+	{
+		case CONNECT:
+			command.connect.fail(error::DISCONNECTED);
+			command.connect.release();
+		case REFRESH:
+		case SCAN_FINISHED:
+			// Nothing waits on these.
+		default:
+			command.settle.fail(error::DISCONNECTED);
+			command.settle.release();
+	}
+	wipe_command_secret(command);
 }
 
 // Copy an SSID into a command's fixed buffer. The caller has checked the length.

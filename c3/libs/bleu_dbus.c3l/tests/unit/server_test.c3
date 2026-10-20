@@ -617,5 +617,6 @@ fn void faults_round_trip_through_the_error_names() @test
 	assert(errors::for_name(server::error_name_for(NOT_FOUND)) == NOT_FOUND);
 	assert(errors::for_name(server::error_name_for(TIMEOUT)) == TIMEOUT);
 	assert(errors::for_name(server::error_name_for(error::DISCONNECTED)) == error::DISCONNECTED);
+	assert(errors::for_name(server::error_name_for(error::NO_MEMORY)) == error::NO_MEMORY);
 	assert(server::error_name_for(error::CANCELLED) == "org.freedesktop.DBus.Error.Failed");
 }

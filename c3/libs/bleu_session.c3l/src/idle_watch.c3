@@ -47,9 +47,12 @@ fn EventKind? IdleWatch.next(&self, Duration timeout = time::FOREVER)
 *>
 fn void IdleWatch.close(&self)
 {
-	// If the worker is already stopping, it drops every watch with it.
+	// If the worker is already stopping, it drops every watch with it. A full queue (BUSY) is not retried:
+	// the worker then keeps this watch's slot, and reports its edges, until the session closes. Nothing
+	// else receives them, because watch ids are never reused. The cost is one idle slot per such close.
 	if (catch err = self.session.hub.post({ .kind = CommandKind.UNWATCH_IDLE, .watch = self.id }))
 	{
+		// Discarded on purpose: see above.
 	}
 	self.reader.release();
 	Session* session = self.session;

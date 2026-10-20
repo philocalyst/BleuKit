@@ -87,3 +87,20 @@ fn void invalid_json_is_a_protocol_error() @test
 		test::@error(wire::parse_document("[1, 2] tail", "test"), error::PROTOCOL);
 	};
 }
+
+fn void a_line_split_over_several_feeds_is_found_when_it_completes() @test
+{
+	wire::Buffer buffer;
+	buffer.init(mem, 16);
+	defer buffer.free();
+	buffer.feed("ab")!!;
+	test::@error(buffer.take_line(), NOT_FOUND);
+	buffer.feed("cd")!!;
+	test::@error(buffer.take_line(), NOT_FOUND);
+	buffer.feed("e\nf")!!;
+	test::@check(buffer.take_line()!! == "abcde", "the line joins its pieces, scanned from where the search stopped");
+	test::@error(buffer.take_line(), NOT_FOUND);
+	// The next feed compacts the buffer; the scan position must move with the bytes.
+	buffer.feed("g\n")!!;
+	test::@check(buffer.take_line()!! == "fg", "the remainder survives the compaction");
+}

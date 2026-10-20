@@ -3,7 +3,7 @@
  reference and completes the operation exactly once, whatever the outcome.
 *>
 module bleu::sysinfo;
-import std::time, bleu::operation;
+import std::time, bleu::error, bleu::operation;
 
 <* Run one command on the worker thread and complete its operation. *>
 fn void run_command(Command* command)
@@ -18,6 +18,17 @@ fn void run_command(Command* command)
 	{
 		(void)operation.succeed({ .pid = command.pid, .mode = command.mode });
 	}
+	operation.release();
+}
+
+<*
+ Fail a command that was still queued when the worker stopped, so its waiter is
+ released instead of hanging. The worker's reference is released here.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	Operation{KillReceipt}* operation = command.operation;
+	(void)operation.fail(error::DISCONNECTED);
 	operation.release();
 }
 

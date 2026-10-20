@@ -95,16 +95,20 @@ struct AppBundle
  @param languages : "Preferred language identifiers; may be empty"
  @return? NOT_FOUND : "There is no Contents/Info.plist"
  @return? error::PROTOCOL : "Info.plist is malformed or its root is not a dictionary"
- @return? error::PERMISSION_DENIED : "Info.plist exists but cannot be read"
+ @return? error::PERMISSION_DENIED : "Info.plist exists but the OS refuses to read it"
+ @return? error::OUT_OF_RANGE : "Info.plist is larger than the reader accepts"
+ @return? error::BACKEND_FAILURE : "Info.plist exists but could not be read for another reason"
 *>
 fn AppBundle? read(Allocator allocator, String bundle_path, String[] languages)
 {
 	String info_path = string::tformat("%s/%s/%s", bundle_path.trim_right("/"), CONTENTS_DIRECTORY, INFO_PLIST_FILE);
-	char[]? bytes    = io::file::load(tmem, info_path);
+	char[]? bytes    = load_plist_file(info_path);
 	if (catch err = bytes)
 	{
-		if (err == io::FILE_NOT_FOUND) return NOT_FOUND~;
-		return error::PERMISSION_DENIED~;
+		if (err == io::FILE_NOT_FOUND || err == io::PATH_COULD_NOT_BE_FOUND) return NOT_FOUND~;
+		if (err == io::NO_PERMISSION) return error::PERMISSION_DENIED~;
+		if (err == error::OUT_OF_RANGE) return err~;
+		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "could not read %s", info_path)~;
 	}
 	Value info = plist::read(tmem, bytes)!;
 	if (!info.is(
@@ -217,6 +221,7 @@ fn String localized_string(Allocator allocator, String bundle_path, String[] lan
 // The string `key` of `<language>.lproj/InfoPlist.strings`, when that file exists and holds it.
 fn String? strings_value(String bundle_path, String language, String key, Allocator allocator) @local
 {
+	if (!is_path_component(language)) return NOT_FOUND~;
 	String path = string::tformat(
 		"%s/%s/%s/%s%s/%s",
 		bundle_path.trim_right("/"),
@@ -227,7 +232,7 @@ fn String? strings_value(String bundle_path, String language, String key, Alloca
 		STRINGS_FILE
 	);
 	if (!io::file::is_file(path)) return NOT_FOUND~;
-	char[]? bytes = io::file::load(tmem, path);
+	char[]? bytes = load_plist_file(path);
 	if (catch err = bytes) return NOT_FOUND~;
 	// A strings file that does not parse holds nothing, so the lookup moves on.
 	if (try strings = plist::read(tmem, bytes))
@@ -239,6 +244,35 @@ fn String? strings_value(String bundle_path, String language, String key, Alloca
 		}
 	}
 	return NOT_FOUND~;
+}
+
+// The largest property list the bundle reader loads, in bytes. Real Info.plist and
+// InfoPlist.strings files are a few kilobytes; a bundle a user can write must not
+// make the reader load a gigabyte.
+const long MAX_PLIST_FILE_BYTES = 1024 * 1024;
+
+// The whole property list at `path`, which must be at most `MAX_PLIST_FILE_BYTES`.
+// An oversized file is refused as OUT_OF_RANGE before it is read.
+fn char[]? load_plist_file(String path) @local
+{
+	long size = io::file::get_size(path)!;
+	if (size > MAX_PLIST_FILE_BYTES) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"%s is %d bytes, more than the %d the reader accepts",
+		path,
+		size,
+		MAX_PLIST_FILE_BYTES
+	)~;
+	return io::file::load(tmem, path);
+}
+
+// Whether `name` can be one path component: not empty, and without a separator or `..`.
+// A language identifier from the caller is joined into a path, so it must pass this.
+fn bool is_path_component(String name) @local
+{
+	return name.len > 0 && !name.contains("/") && !name.contains("\\") && !name.contains("..");
 }
 
 // The language without its region or script: `de` for `de_DE` or `de-AT`, else "".

@@ -12,8 +12,9 @@ fn void append_be(DString* out, ulong value, usz size) @local
 	}
 }
 
-// Serialise `objects` as a bplist00 file with 2-byte references and 2-byte offsets.
-// The object at index `top` is the root.
+// Serialise `objects` as a bplist00 file with 2-byte references. Offsets are 2 bytes
+// when the object region is under 64 KiB, else 4 bytes, because the trailer's offset
+// width must hold the offset of the table. The object at index `top` is the root.
 fn String build_bplist(String[] objects, usz top) @local
 {
 	DString out;
@@ -26,10 +27,11 @@ fn String build_bplist(String[] objects, usz top) @local
 		out.append_string(object);
 	}
 	usz table_offset = (usz)out.len();
-	foreach (offset : offsets) append_be(&out, offset, 2);
+	usz offset_width = table_offset > 0xFFFF ? 4 : 2;
+	foreach (offset : offsets) append_be(&out, offset, offset_width);
 	for (int i = 0; i < 5; i++) out.append_char(0);
 	out.append_char(0);
-	out.append_char(2);
+	out.append_char((char)offset_width);
 	out.append_char(2);
 	append_be(&out, objects.len, 8);
 	append_be(&out, top, 8);
@@ -60,15 +62,15 @@ fn void golden_binary_fixtures_match_plistlib() @test
 {
 	String sample = $embed("../fixtures/sample.bplist");
 	Value root    = parse(tmem, sample)!!;
-	test::eq(((String)$embed("../fixtures/sample.bplist.canon")).trim("\n"), value::canonical(tmem, &root));
+	test::eq(((String)$embed("../fixtures/sample.bplist.canon")).trim("\n"), value::canonical(tmem, &root)!!);
 
 	String shared = $embed("../fixtures/shared.bplist");
 	Value many    = parse(tmem, shared)!!;
-	test::eq(((String)$embed("../fixtures/shared.bplist.canon")).trim("\n"), value::canonical(tmem, &many));
+	test::eq(((String)$embed("../fixtures/shared.bplist.canon")).trim("\n"), value::canonical(tmem, &many)!!);
 
 	String uid = $embed("../fixtures/uid.bplist");
 	Value uids = parse(tmem, uid)!!;
-	test::eq(((String)$embed("../fixtures/uid.bplist.canon")).trim("\n"), value::canonical(tmem, &uids));
+	test::eq(((String)$embed("../fixtures/uid.bplist.canon")).trim("\n"), value::canonical(tmem, &uids)!!);
 }
 
 fn void integers_in_every_width() @test
@@ -210,5 +212,50 @@ fn void size_bombs_are_bounded() @test
 		objects[i] = ref.copy_str(tmem);
 	}
 	objects[22] = "\x09";
+	test::@error(parse(tmem, build_bplist(objects, 0)), error::OUT_OF_RANGE);
+}
+
+// An object of `size` bytes: a 0x4F data marker with a 4-byte length, then `size` 'a' bytes.
+fn String data_of_size(usz size) @local
+{
+	DString out;
+	out.init(tmem);
+	out.append_string("\x4F\x12");
+	append_be(&out, (ulong)size, 4);
+	for (usz i = 0; i < size; i++) out.append_char('a');
+	return out.copy_str(tmem);
+}
+
+// Fill `objects` (two entries) with a document whose root is an array of `count`
+// references to object 1, the data of `size` bytes. The slots are the caller's, so
+// the strings outlive this call.
+fn void shared_data_document(String[] objects, usz count, usz size) @local
+{
+	DString refs;
+	refs.init(tmem);
+	refs.append_string("\xAF\x11");
+	append_be(&refs, (ulong)count, 2);
+	for (usz i = 0; i < count; i++) append_be(&refs, 1, 2);
+	objects[0] = refs.copy_str(tmem);
+	objects[1] = data_of_size(size);
+}
+
+fn void shared_objects_are_charged_for_every_reference() @test
+{
+	// Ten references to one 1000-byte blob decode to ten copies: 10000 bytes of data.
+	String[] objects = alloc::new_array(tmem, String, 2);
+	shared_data_document(objects, 10, 1000);
+	String document = build_bplist(objects, 0);
+	test::@error(parse_limited(tmem, document, 4096), error::OUT_OF_RANGE);
+	Value shared = parse_limited(tmem, document, 64 * 1024)!!;
+	test::eq(10, shared.items.len);
+	test::eq(1000, shared.element(9)!!.as_data()!!.len);
+}
+
+fn void megabyte_blob_shared_many_times_is_refused_by_default() @test
+{
+	// 100 references to a 1 MiB blob would decode to 100 MiB, past the 64 MiB default budget.
+	String[] objects = alloc::new_array(tmem, String, 2);
+	shared_data_document(objects, 100, 1024 * 1024);
 	test::@error(parse(tmem, build_bplist(objects, 0)), error::OUT_OF_RANGE);
 }

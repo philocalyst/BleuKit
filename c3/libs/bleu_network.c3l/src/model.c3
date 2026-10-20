@@ -99,6 +99,7 @@ enum ConnectionPhase : char
 	CONNECTED,
 	DISCONNECTING,
 	FAILED,        // `failure` says why
+	UNAVAILABLE,   // the Wi-Fi device is absent, unmanaged or unavailable (radio off in firmware, no driver, not managed)
 }
 
 <*
@@ -124,6 +125,19 @@ enum FailureReason : char
 	NETWORKING_OFF,     // NM NETWORKING_OFF (78)
 	CANCELLED,          // the user disconnected while connecting (NM USER_REQUESTED (39))
 	TIMEOUT,            // bleu gave up waiting for the platform
+}
+
+<*
+ Parts of the picture that the last read could not refresh. A flagged part keeps
+ the value of the previous read, so one failed sub-read changes nothing a shell
+ shows (no spurious removed or added networks), and the flag says the value may
+ be old. Every flag is false when the read succeeded.
+*>
+struct Stale
+{
+	bool connectivity; // `connectivity` and `primary_interface`
+	bool interfaces; // `interfaces`
+	bool wifi; // everything under `wifi`
 }
 
 <* One Wi-Fi network as the last scan saw it. Entries are unique per SSID. *>
@@ -170,7 +184,7 @@ struct Wifi
 	bool radio_enabled; // software switch
 	bool hardware_blocked; // a physical switch or firmware refuses the radio
 	bool scanning;
-	bool ssid_visible; // false when the OS withholds names from this process
+	bool ssid_visible; // false when the OS withholds the connected name (`State.location` says why); see Stale
 	ConnectionPhase phase;
 	FailureReason failure; // NONE unless `phase` is FAILED or AUTH_REQUIRED
 	Ssid connected_ssid; // empty bytes when not connected or withheld
@@ -186,6 +200,7 @@ struct State
 	String primary_interface; // "" when there is no connection
 	Wifi wifi;
 	Interface[] interfaces;
+	Stale stale;
 }
 
 <* Abilities of a backend. Every service operation has one. *>
@@ -277,7 +292,10 @@ struct SsidBuffer
 	usz len;
 }
 
-<* Fixed-size copy of a secret. Zeroed after use by the backend. *>
+<*
+ Fixed-size copy of a secret. The backend wipes it (`wipe_command_secret`) as soon
+ as the command is executed or abandoned; copies the OS keeps are not wiped.
+*>
 struct SecretBuffer
 {
 	char[SECRET_MAX] bytes;
@@ -288,6 +306,7 @@ enum CommandKind : char
 {
 	REFRESH,            // read the hardware now
 	SCAN,
+	SCAN_FINISHED,      // the platform reported that a scan finished (Windows notification)
 	CONNECT,
 	DISCONNECT,
 	FORGET,

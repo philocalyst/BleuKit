@@ -79,7 +79,6 @@ fn State? read_state(Logind* b, Allocator allocator)
 			state.current = session_info(props, allocator);
 			state.locked = prop_bool(props, "LockedHint");
 			state.idle_hint = prop_bool(props, "IdleHint");
-			b.locked = state.locked;
 		}
 		state.seats = read_seats(b, allocator)!;
 		state.sessions = read_sessions(b, allocator)!;
@@ -120,8 +119,9 @@ fn SessionInfo[]? read_sessions(Logind* b, Allocator allocator)
 			SessionInfo? info = read_session(b, path, allocator);
 			if (catch err = info)
 			{
-				// A session that ended after it was listed is skipped; a lost bus is an error.
-				if (err == error::DISCONNECTED) return err~;
+				// A session that ended after it was listed is gone (UnknownObject, NOT_FOUND): skip it.
+				// Any other failure fails the whole read, so no snapshot leaves a session out silently.
+				if (err != NOT_FOUND) return err~;
 			}
 			else
 			{

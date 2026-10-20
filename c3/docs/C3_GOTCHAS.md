@@ -227,3 +227,4 @@
 * `std::encoding::json` and a library module named `bleu::json` both answer to `json::`: inside `bleu::json` the bare `json::` is the library's own module; write `std::encoding::json::...` (or import it and call `json::` only where no library module is in scope).
 * A struct returned by value whose `Slice` members point at an array literal declared in the callee is dangling: the serialiser then crashed with `Out of bounds memory access` deep inside the writer. Return fixed arrays by value and build the slices in the caller.
 * A `defer` that frees a tree on error and not on success needs a guard flag (`bool handed_over = false; defer if (!handed_over) root.free();`), set just before the successful return.
+* DMS/dankgo wire: a zero request id is OMITTED from frames (omitempty), contrary to an earlier note in dms_surface.md; `defer` is a keyword (use `defer_reply`).

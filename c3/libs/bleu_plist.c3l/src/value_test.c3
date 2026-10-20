@@ -64,7 +64,7 @@ fn void canonical_form_is_stable() @test
 		{ .key = "list", .value = { .kind = ARRAY, .items = list_items } }
 	};
 	Value root = { .kind = DICT, .members = members };
-	test::eq("{\"n\":i5,\"list\":[s\"a\\\"b\"]}", canonical(tmem, &root));
+	test::eq("{\"n\":i5,\"list\":[s\"a\\\"b\"]}", canonical(tmem, &root)!!);
 	Value flags = {
 		.kind = DICT,
 		.members = {
@@ -72,7 +72,16 @@ fn void canonical_form_is_stable() @test
 			{ .key = "u", .value = { .kind = UID, .integer = 9 } }
 		}
 	};
-	test::eq("{\"t\":true,\"u\":u9}", canonical(tmem, &flags));
+	test::eq("{\"t\":true,\"u\":u9}", canonical(tmem, &flags)!!);
 	Value text = { .kind = STRING, .text = "tab\there\\" };
-	test::eq("s\"tab\\u{9}here\\\\\"", canonical(tmem, &text));
+	test::eq("s\"tab\\u{9}here\\\\\"", canonical(tmem, &text)!!);
+}
+
+fn void canonical_refuses_text_that_is_not_utf8() @test
+{
+	Value bad = { .kind = STRING, .text = "A\xFFB" };
+	test::@error(canonical(tmem, &bad), error::PROTOCOL);
+	Value[] items = { bad };
+	Value nested = { .kind = ARRAY, .items = items };
+	test::@error(canonical(tmem, &nested), error::PROTOCOL);
 }

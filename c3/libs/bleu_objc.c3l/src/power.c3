@@ -2,6 +2,10 @@
  Power for macOS services: the battery and AC state (IOPowerSources), sleep
  inhibition (IOPMAssertion) and system sleep/wake notifications (IORegisterForSystemPower).
 
+ The power-source states, the power events and the IOKit message codes are in
+ `power_codes.c3` (pure logic, tested on every platform); this module re-exports
+ the two enums as `PowerSourceState` and `PowerEvent`.
+
  Sources (signatures and constants):
  * `IOPowerSources.h` and `IOPSKeys.h` in apple-oss-distributions/IOKitUser (`ps.subproj/`):
  IOPSCopyPowerSourcesInfo, IOPSCopyPowerSourcesList, IOPSGetPowerSourceDescription,
@@ -15,7 +19,12 @@
  and `io-kit-sys` crates' key and message constants.
 *>
 module bleu::iokit::power @feat(DARWIN) @link("IOKit.framework");
-import bleu::error, bleu::unit, bleu::iokit, bleu::cf, bleu::mach, bleu::objc;
+import bleu::error, bleu::unit, bleu::iokit, bleu::iokit::power_codes, bleu::cf, bleu::mach, bleu::objc;
+
+<* Power-source state, from `kIOPSPowerSourceStateKey` (defined in `power_codes`). *>
+alias PowerSourceState = power_codes::PowerSourceState;
+<* A system power event, classified from the IOKit message (defined in `power_codes`). *>
+alias PowerEvent = power_codes::PowerEvent;
 
 <* `kCFRunLoopDefaultMode`: the mode a power source is attached in. *>
 extern const void* KCF_RUNLOOP_DEFAULT_MODE @cname("kCFRunLoopDefaultMode");
@@ -53,13 +62,6 @@ extern fn int io_allow_power_change(uint kernel_port, long notification_id) @cna
 <* The `IOServiceInterestCallback` shape used by `IORegisterForSystemPower`. *>
 alias IoInterest = fn void(void* refcon, iokit::IoObject service, uint message, void* argument);
 
-<* `IOPSPowerSourceState` value for a battery that is not on external power (IOPSKeys.h `kIOPSBatteryPowerValue`). *>
-const ZString PS_BATTERY_POWER = "Battery Power";
-<* `kIOPSACPowerValue`: on external power. *>
-const ZString PS_AC_POWER      = "AC Power";
-<* `kIOPSOffLineValue`: the source is off-line. *>
-const ZString PS_OFF_LINE      = "Off Line";
-
 <* Key names of a power-source description dictionary (IOPSKeys.h). *>
 const ZString PS_KEY_NAME     = "Name";
 <* `kIOPSTypeKey`: the source type (`InternalBattery` or a UPS). *>
@@ -83,30 +85,6 @@ const ZString PS_KEY_TO_FULL  = "Time to Full Charge";
 const ZString ASSERTION_PREVENT_USER_IDLE_SYSTEM_SLEEP = "PreventUserIdleSystemSleep";
 <* `kIOPMAssertionLevelOn` (IOPMLib.h): the assertion is in force. *>
 const uint ASSERTION_LEVEL_ON                          = 255;
-
-<* `kIOMessageCanSystemSleep` (IOMessage.h): the system asks permission to sleep. Must be acknowledged. *>
-const uint MSG_CAN_SYSTEM_SLEEP      = 0xE0000270;
-<* `kIOMessageSystemWillSleep`: sleep is starting. Must be acknowledged. *>
-const uint MSG_SYSTEM_WILL_SLEEP     = 0xE0000280;
-<* `kIOMessageSystemWillNotSleep`: a previous sleep request was withdrawn. *>
-const uint MSG_SYSTEM_WILL_NOT_SLEEP = 0xE0000290;
-<* `kIOMessageSystemWillPowerOn`: the device tree is powering up. *>
-const uint MSG_SYSTEM_WILL_POWER_ON  = 0xE0000320;
-<* `kIOMessageSystemHasPoweredOn`: the system has woken. *>
-const uint MSG_SYSTEM_HAS_POWERED_ON = 0xE0000300;
-<* `kIOMessageSystemWillPowerOff`: shutdown is starting. *>
-const uint MSG_SYSTEM_WILL_POWER_OFF = 0xE0000250;
-<* `kIOMessageSystemWillRestart`: a restart is starting. *>
-const uint MSG_SYSTEM_WILL_RESTART   = 0xE0000310;
-
-<* Power-source state, from `kIOPSPowerSourceStateKey`. *>
-enum PowerSourceState : char
-{
-	UNKNOWN, // the key is absent or has an unexpected value
-	AC,      // on external power
-	BATTERY, // drawing from the battery
-	OFFLINE, // the source is off-line
-}
 
 <*
  One power source (the internal battery, or a UPS), as published by IOPowerSources.
@@ -145,7 +123,7 @@ fn bool description_bool(CFTypeRef description, ZString key)
 	return value && cf::type_of(value) == cf::boolean_type_id() ? cf_boolean_value(value) : false;
 }
 
-<* An integer key, `MINUTES_UNKNOWN` when absent. *>
+<* An integer key, `MINUTES_UNKNOWN` when absent or not a whole number. *>
 fn int description_minutes(CFTypeRef description, ZString key)
 {
 	CFTypeRef value = description_value(description, key);
@@ -174,8 +152,10 @@ extern fn bool cf_boolean_value(CFTypeRef boolean) @cname("CFBooleanGetValue");
 
 <*
  Read the current power sources, one `PowerSource` per source, allocated from `allocator`.
+ The call opens no temporary-memory pool of its own, so it works with any allocator,
+ including `tmem`.
 
- @return? error::BACKEND_FAILURE : "when IOPowerSources cannot produce a snapshot"
+ @return? error::BACKEND_FAILURE : "when IOPowerSources cannot produce a snapshot or the source list"
 *>
 fn PowerSource[]? read_power_sources(Allocator allocator)
 {
@@ -189,6 +169,14 @@ fn PowerSource[]? read_power_sources(Allocator allocator)
 	)~;
 	cf::Ref sources = cf::adopt(io_ps_copy_power_sources_list(snapshot.ptr));
 	defer sources.close();
+	// IOPowerSources.h: NULL means errors were encountered. An empty list is a valid
+	// answer ("no sources"), so NULL must not be read as zero sources.
+	if (sources.is_nil()) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.MACH,
+		0,
+		"IOPSCopyPowerSourcesList returned nothing"
+	)~;
 	sz count             = cf::array_count(sources.ptr);
 	PowerSource[] result = alloc::new_array(allocator, PowerSource, count);
 	for (sz i = 0; i < count; i++)
@@ -207,20 +195,27 @@ fn PowerSource[]? read_power_sources(Allocator allocator)
 	return result;
 }
 
+<*
+ The state of one description. Its state text is copied into temporary memory
+ inside a pool that this function opens, so the caller needs no pool.
+*>
+fn PowerSourceState state_of(CFTypeRef description) @local
+{
+	@pool()
+	{
+		return power_codes::classify_state(description_text(description, PS_KEY_STATE, tmem));
+	};
+}
+
 <* Convert one description dictionary into a `PowerSource`. *>
 fn PowerSource describe(CFTypeRef description, Allocator allocator) @local
 {
-	String state_text      = description_text(description, PS_KEY_STATE, tmem);
-	PowerSourceState state = UNKNOWN;
-	if (state_text == PS_AC_POWER) state = AC;
-	if (state_text == PS_BATTERY_POWER) state = BATTERY;
-	if (state_text == PS_OFF_LINE) state = OFFLINE;
 	double current = description_real(description, PS_KEY_CURRENT);
 	double maximum = description_real(description, PS_KEY_MAXIMUM);
 	return {
 		.name = description_text(description, PS_KEY_NAME, allocator),
 		.type = description_text(description, PS_KEY_TYPE, allocator),
-		.state = state,
+		.state = state_of(description),
 		.present = description_bool(description, PS_KEY_PRESENT),
 		.charging = description_bool(description, PS_KEY_CHARGING),
 		.charge = unit::from_ratio(current, maximum),
@@ -242,6 +237,9 @@ fn cf::Ref? external_adapter_details()
 	return details;
 }
 
+<* Called when the power sources change. Runs on the loop that the source is attached to. *>
+alias IoPowerSourceChanged = fn void(void* context);
+
 <*
  A run-loop source that calls `callback(context)` whenever the power sources
  change (plugged in, unplugged, battery level). Owned; attach it to a loop with
@@ -260,9 +258,6 @@ fn cf::Ref? power_source_change_source(IoPowerSourceChanged callback, void* cont
 	)~;
 	return cf::adopt(source);
 }
-
-<* Called when the power sources change. Runs on the loop that the source is attached to. *>
-alias IoPowerSourceChanged = fn void(void* context);
 
 <* Attach a run-loop source (from this module or `NotificationPort.source()`) to `loop` in the default mode. *>
 fn void attach_source(void* loop, void* source) => cf_run_loop_add_source(loop, source, KCF_RUNLOOP_DEFAULT_MODE);
@@ -300,19 +295,6 @@ fn void SleepAssertion.release(&self)
 {
 	if (self.held) io_pm_assertion_release(self.id);
 	self.held = false;
-}
-
-<* A system power event, classified from the IOKit message. `OTHER` for messages not listed here. *>
-enum PowerEvent : char
-{
-	CAN_SLEEP,
-	WILL_SLEEP,
-	WILL_NOT_SLEEP,
-	WILL_POWER_ON,
-	HAS_POWERED_ON,
-	WILL_POWER_OFF,
-	WILL_RESTART,
-	OTHER,
 }
 
 <* Called on the power notification's run loop for each event. *>
@@ -371,30 +353,14 @@ fn void SystemPower.close(&self)
 	alloc::free(mem, self);
 }
 
-<* Map an IOKit power message to a `PowerEvent`. *>
-fn PowerEvent classify_message(uint message)
-{
-	switch (message)
-	{
-		case MSG_CAN_SYSTEM_SLEEP: return CAN_SLEEP;
-		case MSG_SYSTEM_WILL_SLEEP: return WILL_SLEEP;
-		case MSG_SYSTEM_WILL_NOT_SLEEP: return WILL_NOT_SLEEP;
-		case MSG_SYSTEM_WILL_POWER_ON: return WILL_POWER_ON;
-		case MSG_SYSTEM_HAS_POWERED_ON: return HAS_POWERED_ON;
-		case MSG_SYSTEM_WILL_POWER_OFF: return WILL_POWER_OFF;
-		case MSG_SYSTEM_WILL_RESTART: return WILL_RESTART;
-		default: return OTHER;
-	}
-}
-
 <* The IOKit callback: classify, deliver, acknowledge sleep. Runs on the power port's run loop. *>
 fn void system_power_callback(void* refcon, iokit::IoObject service, uint message, void* argument) @local
 {
 	SystemPower* power = (SystemPower*)refcon;
-	PowerEvent event   = classify_message(message);
+	PowerEvent event   = power_codes::classify_message(message);
 	objc::@objc_entry()
 	{
 		if (power.handler) power.handler(power.context, event);
 	};
-	if (event == CAN_SLEEP || event == WILL_SLEEP) io_allow_power_change(power.root, (long)argument);
+	if (event == PowerEvent.CAN_SLEEP || event == PowerEvent.WILL_SLEEP) io_allow_power_change(power.root, (long)argument);
 }

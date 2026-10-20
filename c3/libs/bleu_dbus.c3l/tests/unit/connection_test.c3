@@ -153,19 +153,31 @@ fn void a_failed_send_is_reported_once() @test
 	rig.stop();
 }
 
+// What the Ping handler saw: whether it ran before the blocking call returned.
+struct Served
+{
+	bool ran;
+	bool returned;
+	bool while_waiting;
+}
+
 fn void? ping(void* context, Call* call)
 {
+	Served* s = (Served*)context;
+	s.ran = true;
+	s.while_waiting = !s.returned;
 	return call.reply({ });
 }
 
 // A call from the peer that arrives while this connection waits for its own reply is
-// answered at once. The peer waits for that answer, so queuing the call would stall both
-// sides until their timeouts.
+// answered at once, by the server, inside the wait. The peer waits for that answer, so
+// answering only after our call returns would stall both sides until their timeouts.
 fn void answers_incoming_calls_while_it_waits() @test
 {
 	Rig rig;
 	rig.start();
-	Method[1] methods        = { { .name = "Ping", .handler = &ping } };
+	Served served;
+	Method[1] methods        = { { .name = "Ping", .handler = &ping, .context = &served } };
 	Interface[1] interfaces  = { { .name = "org.bleu.Test", .methods = methods[..] } };
 	ObjectServer server;
 	server.init(mem);
@@ -181,10 +193,13 @@ fn void answers_incoming_calls_while_it_waits() @test
 	Message* ours = message::method_call(mem, "org.example.Peer", "/org/bleu/Other", "org.bleu.Other", "Never")!!;
 	defer ours.release();
 	testing::@expect_fault(rig.c.call(ours, time::ms(50)), TIMEOUT);
+	served.returned = true;
 
 	DString sent = drain(rig.peer);
 	defer sent.free();
-	assert(answers(sent.str_view(), 100), "the incoming call was not answered while the call waited");
+	assert(served.ran, "the incoming call was never answered");
+	assert(served.while_waiting, "the incoming call was answered only after the blocking call returned");
+	assert(answers(sent.str_view(), 100), "the answer to the incoming call was not sent");
 	server.free();
 	rig.stop();
 }

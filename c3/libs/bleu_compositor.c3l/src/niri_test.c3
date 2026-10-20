@@ -195,3 +195,47 @@ fn void action_requests_have_the_documented_shape() @test
 		);
 	};
 }
+
+fn void a_workspace_activation_moves_the_shown_workspace_of_its_output() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		compositor::Model model = fixture_model(&arena);
+		compositor::Output* laptop  = output_named(&model, "eDP-1");
+		compositor::Output* monitor = output_named(&model, "HDMI-A-1");
+		test::@check(laptop.active_workspace == "1", "the laptop starts out showing workspace 1");
+		// Workspace 2 ("chat") is on eDP-1 and takes focus.
+		backend::RawEvent activated = niri::parse_event("{\"WorkspaceActivated\":{\"id\":2,\"focused\":true}}")!!;
+		test::@check(niri::apply(&model, &arena, activated) == backend::Refresh.UPDATED, "the activation is applied");
+		test::@check(laptop.active_workspace == "2", "the laptop now shows workspace 2");
+		test::@check(laptop.focused, "the output of the focused workspace holds the focus");
+		test::@check(!monitor.focused, "the other output does not hold the focus");
+		test::@check(monitor.active_workspace == "3", "the other output keeps its workspace");
+	};
+}
+
+fn void an_out_of_range_layout_index_names_no_layout() @test
+{
+	DynamicArenaAllocator arena;
+	arena.init(mem, 4096);
+	defer arena.free();
+	@pool()
+	{
+		niri::Replies replies = {
+			.workspaces = niri_list("workspaces_reply", "Workspaces"),
+			.windows = niri_list("windows_reply", "Windows"),
+			.outputs = niri_object("outputs_reply", "Outputs"),
+			.layouts = wire::parse_document(
+				"{\"names\":[\"English (US)\",\"Russian\"],\"current_idx\":5}",
+				"layouts"
+			)!!,
+		};
+		compositor::Model model = niri::build(&arena, replies)!!;
+		test::eq((sz)2, model.layouts.names.len);
+		test::@check(!model.layouts.current.has_value, "an index outside the list is absent");
+		test::@check(model.layouts.current_name == "", "and it names no layout");
+	};
+}

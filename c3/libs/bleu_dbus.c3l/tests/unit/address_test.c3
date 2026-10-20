@@ -64,14 +64,17 @@ fn void rejects_malformed_addresses() @test
 	};
 }
 
-fn void resolves_runtime_directory() @test
+// The specification says a `runtime` address is only listenable: the bus that a connecting
+// client uses is the `path` address it names. So `runtime=yes` is not a connect address.
+fn void runtime_addresses_are_listen_only() @test
 {
 	@pool()
 	{
 		env::set_var("XDG_RUNTIME_DIR", "/run/user/1000", true);
-		Endpoint[] runtime = address::parse_addresses(tmem, "unix:runtime=yes")!!;
-		assert(runtime[0].path == "/run/user/1000/bus");
+		testing::@expect_fault(address::parse_addresses(tmem, "unix:runtime=yes"), error::INVALID_ARGUMENT);
 		testing::@expect_fault(address::parse_addresses(tmem, "unix:runtime=no"), error::INVALID_ARGUMENT);
+		Endpoint[] path = address::parse_addresses(tmem, "unix:path=/run/user/1000/bus")!!;
+		assert(path[0].path == "/run/user/1000/bus");
 	};
 }
 

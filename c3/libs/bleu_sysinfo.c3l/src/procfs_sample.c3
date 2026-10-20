@@ -56,9 +56,13 @@ fn void? sample_cpu(ProcfsBackend* backend, Allocator allocator, Cpu* cpu, delta
 		cpu.load_average[i] = maybe::value(*average);
 	}
 	sysinfo::fill_cpu(cpu, allocator, lines, backend.previous_cpu.array_view());
-	foreach (i, &core : cpu.cores)
+	// Offline processors have no line in /proc/stat, so cores are numbered by their line, not their position.
+	usz next = 0;
+	foreach (&line : lines)
 	{
-		core.frequency = core_frequency(root, (int)i);
+		if (line.index < 0) continue;
+		cpu.cores[next].frequency = core_frequency(root, line.index);
+		next++;
 	}
 }
 

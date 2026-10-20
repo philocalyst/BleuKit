@@ -56,8 +56,21 @@ fn Session*? open(Allocator allocator, Options options = { })
 	Session* self  = alloc::new(allocator, Session);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "session", driver.info.name, driver.run, self.driver_state))
+	void*? state = driver.create(allocator, options, &self.capabilities);
+	if (catch err = state)
+	{
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"session",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -120,17 +133,18 @@ fn stream::Reader{Event}*? Session.subscribe(&self) => self.hub.events.subscribe
 
 <*
  Lock the session this process runs in. The request completes once the OS accepted it; the
- change itself arrives through `latest` and the LOCKED event.
+ change itself arrives through `latest` and the LOCKED event. A process that is not in a session
+ the backend can lock gets UNAVAILABLE from the operation, not from this call.
 
  @return? error::UNSUPPORTED : "This backend cannot lock (see `capability`)"
- @return? error::UNAVAILABLE : "This process is not in a session the backend can lock"
  @return? error::BUSY : "The worker's queue is full"
 *>
 fn SessionOperation*? Session.lock(&self) => self.request(Request.LOCK, Cap.LOCK, "");
 
 <*
  Ask the locker of the session this process runs in to unlock it. Only the session's locker
- can unlock: this is a request, and it may be refused.
+ can unlock: this is a request, and it may be refused. An outside-session process gets
+ UNAVAILABLE from the operation, as for `lock`.
 
  @return? error::UNSUPPORTED : "This backend cannot ask for an unlock (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
@@ -140,26 +154,48 @@ fn SessionOperation*? Session.unlock(&self) => self.request(Request.UNLOCK, Cap.
 <*
  Lock the session `session_id`.
 
- @param session_id : "A session id from `State.sessions`"
+ @param session_id : "A session id from `State.sessions`; must not be empty"
+ @return? error::INVALID_ARGUMENT : "The id is empty"
  @return? error::UNSUPPORTED : "This backend cannot lock another session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
 fn SessionOperation*? Session.lock_session(
 	&self,
 	String session_id
-) => self.request(Request.LOCK_SESSION, Cap.LOCK_SESSION, session_id);
+)
+{
+	check_session_id(session_id)!;
+	return self.request(Request.LOCK_SESSION, Cap.LOCK_SESSION, session_id);
+}
 
 <*
- End the session `session_id`: its processes are stopped and it is logged out.
+ End the session `session_id`: its processes are stopped and it is logged out. Ending the session
+ this process runs in ends this process too; the operation then completes as the logout happens.
 
- @param session_id : "A session id from `State.sessions`"
+ @param session_id : "A session id from `State.sessions`; must not be empty"
+ @return? error::INVALID_ARGUMENT : "The id is empty"
  @return? error::UNSUPPORTED : "This backend cannot end a session (see `capability`)"
  @return? error::BUSY : "The worker's queue is full"
 *>
 fn SessionOperation*? Session.terminate_session(
 	&self,
 	String session_id
-) => self.request(Request.TERMINATE_SESSION, Cap.TERMINATE_SESSION, session_id);
+)
+{
+	check_session_id(session_id)!;
+	return self.request(Request.TERMINATE_SESSION, Cap.TERMINATE_SESSION, session_id);
+}
+
+// An empty id names no session: refuse it here instead of letting the backend see it.
+fn void? check_session_id(String session_id) @private
+{
+	if (session_id.len == 0) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"the session id is empty"
+	)~;
+}
 
 <*
  Start watching for `threshold` of inactivity. The returned watch reports IDLE once the user
@@ -179,7 +215,13 @@ fn IdleWatch*? Session.watch_idle(&self, Duration threshold)
 	watch.session = self;
 	watch.id = self.watches.add(1) + 1;
 	// Subscribe before the worker starts the watch, so that no edge can be missed.
-	watch.reader = self.hub.events.subscribe()!;
+	stream::Reader{Event}*? reader = self.hub.events.subscribe();
+	if (catch err = reader)
+	{
+		alloc::free(self.allocator, watch);
+		return err~;
+	}
+	watch.reader = reader;
 	if (catch err = self.hub.post({ .kind = CommandKind.WATCH_IDLE, .watch = watch.id, .threshold = threshold }))
 	{
 		watch.reader.release();
