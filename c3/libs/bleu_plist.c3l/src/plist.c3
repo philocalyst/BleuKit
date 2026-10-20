@@ -44,7 +44,8 @@ fn Value? read(Allocator allocator, char[] bytes)
 *>
 fn Value? read_limited(Allocator allocator, char[] bytes, usz max_decoded_bytes)
 {
-	if (bytes.len >= BINARY_MAGIC.len && (String)bytes[0:BINARY_MAGIC.len] == BINARY_MAGIC) return binary::parse_limited(
+	if (bytes.len >= BINARY_MAGIC.len
+		&& (String)bytes[0:BINARY_MAGIC.len] == BINARY_MAGIC) return binary::parse_limited(
 		allocator,
 		bytes,
 		max_decoded_bytes

@@ -214,7 +214,7 @@ fn Message*? error_reply(
 fn Message*? error_reply_to(Allocator parent, String destination, uint reply_serial, String error_name, String text)
 {
 	if (!names::is_error_name(error_name)) return error::INVALID_ARGUMENT~;
-	Message* m = create(parent, ERROR);
+	Message* m       = create(parent, ERROR);
 	bool handed_over = false;
 	defer if (!handed_over) m.release();
 	m.reply_serial = reply_serial;
@@ -249,7 +249,7 @@ fn String text_for_wire(Allocator allocator, String text) @private
 	usz at = 0;
 	while (at < text.len)
 	{
-		usz width   = character_width(text, at);
+		usz width    = character_width(text, at);
 		String piece = width > 0 ? text[at:width] : REPLACEMENT;
 		if (out.len() + piece.len > MAX_ERROR_TEXT) break;
 		out.append_string(piece);

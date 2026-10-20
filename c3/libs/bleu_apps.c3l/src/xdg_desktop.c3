@@ -18,7 +18,7 @@
  and the Base Directory specification, as cited in `docs/research/apps_sysinfo_secrets_appearance.md`.
 *>
 module bleu::apps::xdg_desktop @feat(LINUX);
-import std::io, std::io::path, std::os::env, std::time, std::collections::list, bleu::dbus::connection, bleu::apps, bleu::availability, bleu::error, bleu::rt::fs, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::xdg::desktop_entry, bleu::xdg::dirs, bleu::xdg::icon, bleu::xdg::exec;
+import std::io, std::io::path, std::os::env, std::time, std::time::clock, std::collections::list, bleu::dbus::connection, bleu::apps, bleu::availability, bleu::error, bleu::rt::fs, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::xdg::desktop_entry, bleu::xdg::dirs, bleu::xdg::icon, bleu::xdg::exec;
 
 const Driver DRIVER = {
 	.info = { "xdg-desktop", "Desktop Entry files in the XDG data directories", 10 },
@@ -63,6 +63,7 @@ struct XdgBackend
 	List{int} children;
 	connection::Connection bus;
 	bool bus_available;
+	String root;
 }
 
 <* Whether the desktop file probe finds any applications directory under `root`. *>
@@ -97,6 +98,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		: apps::copy_strings(arena, DEFAULT_TERMINALS[..]);
 	backend.icon_theme = (options.icon_theme.len > 0 ? options.icon_theme : DEFAULT_ICON_THEME).copy(arena);
 	backend.settle = options.settle;
+	backend.root = options.root.copy(arena);
 	backend.watcher = { .fd = -1 };
 	capabilities.init(availability::YES);
 	// A missing inotify only costs live updates: REFRESH and the next launch still see changes.
@@ -107,10 +109,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			"inotify is unavailable; the catalogue is refreshed on request only"
 		);
 	}
-	capabilities.values[Cap.DBUS_ACTIVATE.ordinal] = availability::no(
-		availability::Reason.UNSUPPORTED_BACKEND,
-		"D-Bus activation is not implemented yet; Exec is used"
-	);
+	// D-Bus activation is always offered: an app the bus cannot activate is launched with its Exec line.
 	return backend;
 }
 
@@ -209,18 +208,23 @@ fn void? visit(void* context, DesktopFile file) @private
 	DesktopEntry* entry = loaded;
 	defer entry.release();
 	if (!apps::lists_entry(entry, scan.backend.desktops)) return;
-	if (!try_exec_found(entry.try_exec)) return;
+	if (!try_exec_found(entry.try_exec, scan.backend.root)) return;
 	scan.apps.push(apps::desktop_app(entry, file.id, file.path, scan.allocator));
 }
 
 <*
- Whether `TryExec` names a program that can run: an absolute path that is
- executable, or a name found in `$PATH`. An empty `TryExec` always passes.
+ Whether `TryExec` names a program that can run: an absolute path that is executable, or a name
+ found in `$PATH`. An empty `TryExec` always passes. With a fake `root`, an absolute path is looked
+ up under it; a bare name is still searched in the host's `$PATH`.
 *>
-fn bool try_exec_found(String program) @local
+fn bool try_exec_found(String program, String root) @local
 {
 	if (program.len == 0) return true;
-	if (dirs::is_absolute(program)) return access(program.zstr_tcopy(), ACCESS_EXECUTE) == 0;
+	if (dirs::is_absolute(program))
+	{
+		String path = root.len > 0 ? string::tformat("%s%s", root, program) : program;
+		return access(path.zstr_tcopy(), ACCESS_EXECUTE) == 0;
+	}
 	String search_path = env::tget_var("PATH") ?? "";
 	foreach (directory : search_path.tsplit(ACCESS_PATH_SEPARATOR, 0, true))
 	{
@@ -266,46 +270,65 @@ fn void watch_below(Watcher* watcher, String directory, int depth) @local
 fn void run(void* state, AppsHub* hub, AppsHost* host)
 {
 	XdgBackend* backend = (XdgBackend*)state;
+	serve_until_stopped(backend, hub, host);
+	// Every way out of the loop, a stop or a broken poller, fails the launches still queued and frees the bus.
+	apps::refuse_pending(host);
+	if (backend.bus_available) backend.bus.free();
+	backend.bus_available = false;
+}
+
+<*
+ The worker's event loop, until the host stops or poll(2) itself fails. A changed catalogue is rescanned
+ once it has been quiet for `Options.settle`, or `MAX_CHANGE_DELAY` after its first change at the latest.
+*>
+fn void serve_until_stopped(XdgBackend* backend, AppsHub* hub, AppsHost* host) @local
+{
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 1)) return;
 	defer poller.free();
 	if (backend.watcher.is_open())
 	{
-		poller.add({ .handle = backend.watcher.fd, .interest = { .readable = true }, .tag = WATCH_TAG })!!;
+		if (catch poller.add({ .handle = backend.watcher.fd, .interest = { .readable = true }, .tag = WATCH_TAG })) return;
 	}
 	backend.bus_available = open_bus(backend);
 	refresh(backend, hub);
-	bool dirty = false;
+	bool dirty      = false;
+	Clock first     = clock::now();
+	Clock last      = first;
 	while (!host.stopping())
 	{
 		Duration timeout = time::FOREVER;
 		if (dirty)
 		{
-			timeout = backend.settle;
+			timeout = apps::rescan_wait(first, last, clock::now(), backend.settle, apps::MAX_CHANGE_DELAY);
 		}
 		else if (backend.children.size > 0)
 		{
 			timeout = CHILD_POLL;
 		}
-		bool timed_out = false;
 		if (catch err = poller.wait(timeout))
 		{
 			// TIMEOUT is the normal case: a quiet period ended, or a child needs reaping.
 			// Anything else means poll(2) itself failed, and the worker has no way to go on.
 			if (err != TIMEOUT) return;
-			timed_out = true;
 		}
-		if (backend.watcher.drain()) dirty = true;
+		Clock now = clock::now();
+		if (backend.watcher.drain())
+		{
+			if (!dirty) first = now;
+			dirty = true;
+			last  = now;
+		}
 		bool refresh_now = false;
 		apps::serve(backend, hub, host, &launch, &refresh_now);
 		reap(backend);
-		if (refresh_now || (dirty && timed_out))
+		bool due = dirty && apps::rescan_wait(first, last, clock::now(), backend.settle, apps::MAX_CHANGE_DELAY) == time::DURATION_ZERO;
+		if (refresh_now || due)
 		{
 			refresh(backend, hub);
 			dirty = false;
 		}
 	}
-	apps::refuse_pending(host);
 }
 
 <*

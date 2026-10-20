@@ -1,0 +1,17 @@
+{
+  // dmsd: DankMaterialShell's `core` server, rebuilt on Bleu. POSIX only (see README.md).
+  "langrev": "1",
+  "version": "0.1.0",
+  "dependency-search-paths": [ "../../libs" ],
+  "dependencies": [
+    "bleu_core", "bleu_rt", "bleu_service", "bleu_dbus", "bleu_ddc", "bleu_dl",
+    "bleu_objc", "bleu_win", "bleu_session", "bleu_power", "bleu_brightness",
+    "bleu_ipc", "bleu_json"
+  ],
+  "sources": [ "src/**" ],
+  "targets": {
+    "dmsd": {
+      "type": "executable"
+    }
+  }
+}

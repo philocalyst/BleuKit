@@ -4,11 +4,25 @@
  One refresh is one round of queries: server info, then the sinks, the
  sources, the playback and record streams, and the cards. Each list reply
  holds its records back to back with no count (protocol-native.c:3654-3656),
- so a list is read until the packet ends. The state is then built into a
- fresh snapshot and published through the shared change check.
+ so a list is read until the packet ends. A record that does not decode
+ (a layout this client does not know) ends its list: the records before it are
+ kept, and the rest of that list cannot be located, so it is dropped and noted
+ in `State.degraded`. Each list is its own reply, so the other lists still
+ publish. The state is then built into a fresh snapshot and published through
+ the shared change check.
 *>
 module bleu::audio::linux_pulse @feat(LINUX);
 import bleu::error, bleu::observe, bleu::audio, bleu::audio::pulse, std::collections::list;
+
+<*
+ Note a list that stopped early in `degraded`; the notes are joined with "; ".
+ Only an undecodable record gets here: a failed request is still an error.
+*>
+fn void note_skipped(String* degraded, String list, sz kept) @private
+{
+	String note = string::tformat("%s: stopped after %d records, the next one does not decode", list, kept);
+	*degraded = degraded.len == 0 ? note : string::tformat("%s; %s", *degraded, note);
+}
 
 <* Run one list (or single) query and return its reply reader. *>
 fn TagReader? Session.query(&self, PulseCommand command)
@@ -34,40 +48,69 @@ fn pulse::DeviceRecord? Session.read_device_info(&self, bool is_source, String n
 }
 
 <* Every device record of a sink or source list. *>
-fn DeviceRecord[]? Session.read_devices(&self, PulseCommand command, bool is_source, Allocator allocator)
+fn DeviceRecord[]? Session.read_devices(
+	&self,
+	PulseCommand command,
+	bool is_source,
+	Allocator allocator,
+	String* degraded
+)
 {
 	TagReader reply = self.query(command)!;
 	List{DeviceRecord} devices;
 	devices.init(allocator);
 	while (!reply.at_end())
 	{
-		devices.push(pulse::read_device(&reply, self.version, is_source, allocator)!);
+		DeviceRecord? device = pulse::read_device(&reply, self.version, is_source, allocator);
+		if (catch device)
+		{
+			note_skipped(degraded, is_source ? "sources" : "sinks", devices.len());
+			break;
+		}
+		devices.push(device);
 	}
 	return devices.array_view();
 }
 
-fn StreamRecord[]? Session.read_streams(&self, PulseCommand command, bool is_source_output, Allocator allocator)
+fn StreamRecord[]? Session.read_streams(
+	&self,
+	PulseCommand command,
+	bool is_source_output,
+	Allocator allocator,
+	String* degraded
+)
 {
 	TagReader reply = self.query(command)!;
 	List{StreamRecord} streams;
 	streams.init(allocator);
 	while (!reply.at_end())
 	{
-		StreamRecord stream = is_source_output ? pulse::read_source_output(&reply, self.version, allocator)!
-			: pulse::read_sink_input(&reply, self.version, allocator)!;
+		StreamRecord? stream = is_source_output ? pulse::read_source_output(&reply, self.version, allocator)
+			: pulse::read_sink_input(&reply, self.version, allocator);
+		if (catch stream)
+		{
+			note_skipped(degraded, is_source_output ? "source outputs" : "sink inputs", streams.len());
+			break;
+		}
 		streams.push(stream);
 	}
 	return streams.array_view();
 }
 
-fn CardRecord[]? Session.read_cards(&self, Allocator allocator)
+fn CardRecord[]? Session.read_cards(&self, Allocator allocator, String* degraded)
 {
 	TagReader reply = self.query(PulseCommand.GET_CARD_INFO_LIST)!;
 	List{CardRecord} cards;
 	cards.init(allocator);
 	while (!reply.at_end())
 	{
-		cards.push(pulse::read_card(&reply, self.version, allocator)!);
+		CardRecord? card = pulse::read_card(&reply, self.version, allocator);
+		if (catch card)
+		{
+			note_skipped(degraded, "cards", cards.len());
+			break;
+		}
+		cards.push(card);
 	}
 	return cards.array_view();
 }
@@ -101,11 +144,22 @@ fn void? Session.refresh(&self, AudioHub* hub)
 		records.server = self.read_server()!;
 		records.server.default_sink = self.resolve_default(records.server.default_sink, false)!;
 		records.server.default_source = self.resolve_default(records.server.default_source, true)!;
-		records.sinks = self.read_devices(PulseCommand.GET_SINK_INFO_LIST, false, tmem)!;
-		records.sources = self.read_devices(PulseCommand.GET_SOURCE_INFO_LIST, true, tmem)!;
-		records.sink_inputs = self.read_streams(PulseCommand.GET_SINK_INPUT_INFO_LIST, false, tmem)!;
-		records.source_outputs = self.read_streams(PulseCommand.GET_SOURCE_OUTPUT_INFO_LIST, true, tmem)!;
-		records.cards = self.read_cards(tmem)!;
+		records.degraded = "";
+		records.sinks = self.read_devices(PulseCommand.GET_SINK_INFO_LIST, false, tmem, &records.degraded)!;
+		records.sources = self.read_devices(PulseCommand.GET_SOURCE_INFO_LIST, true, tmem, &records.degraded)!;
+		records.sink_inputs = self.read_streams(
+			PulseCommand.GET_SINK_INPUT_INFO_LIST,
+			false,
+			tmem,
+			&records.degraded
+		)!;
+		records.source_outputs = self.read_streams(
+			PulseCommand.GET_SOURCE_OUTPUT_INFO_LIST,
+			true,
+			tmem,
+			&records.degraded
+		)!;
+		records.cards = self.read_cards(tmem, &records.degraded)!;
 		Snapshot{State}* snapshot = hub.begin();
 		State? state              = pulse::build_state(snapshot.allocator(), &records);
 		if (catch err = state)

@@ -58,15 +58,15 @@ const char VIRTUAL_HOST  = 0x50;
  Largest request payload this module builds: the opcode and arguments of Set
  VCP Feature, the largest request it encodes.
 *>
-const usz MAX_PAYLOAD       = 4;
+const usz MAX_PAYLOAD             = 4;
 <*
  Largest reply payload: opcode, two bytes of offset and 32 bytes of fragment
  (the capabilities and table-read layout, as ddcutil and the ddc crate read it). A payload longer than
  this is malformed (ddcutil `interpret_multi_part_read_response`).
 *>
-const usz MAX_REPLY_PAYLOAD = 35;
+const usz MAX_REPLY_PAYLOAD       = 35;
 <* Bytes of capabilities or table data carried by one fragment reply. *>
-const usz MAX_FRAGMENT      = 32;
+const usz MAX_FRAGMENT            = 32;
 <*
  Bytes a reply may carry ahead of its frame: one extra leading 0x6E. Some monitors
  send the destination byte twice (ddcutil `src/base/ddc_packets.c`, "Quirk: response

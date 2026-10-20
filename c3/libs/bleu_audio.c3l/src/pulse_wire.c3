@@ -26,9 +26,10 @@ import std::collections::list, bleu::error;
 const uint PROTOCOL_VERSION = 35;
 
 <*
- Low bits of the version word in AUTH and its reply. The high bits carry shared
- memory and memfd flags. UNVERIFIED: the mask value (PA_PROTOCOL_VERSION_MASK)
- is not in any file read; 0xFFFF is inferred from the flag bits sitting at 30-31.
+ Low 16 bits of the version word in AUTH and its reply. The high 16 bits are
+ flags (shared memory, memfd). Upstream protocol-native.c:2587-2600 masks the
+ version with PA_PROTOCOL_VERSION_MASK, the flags sit above it (:2709-2710), and
+ the two most significant bytes are the flags, so 0x0000FFFF is the mask.
 *>
 const uint VERSION_MASK = 0x0000FFFF;
 
@@ -75,10 +76,6 @@ const uint MASK_SINK_INPUT    = 0x0004;
 const uint MASK_SOURCE_OUTPUT = 0x0008;
 const uint MASK_SERVER        = 0x0080;
 const uint MASK_CARD          = 0x0200;
-
-const uint FACILITY_SOURCE        = 0x0001;
-const uint FACILITY_SINK_INPUT    = 0x0002;
-const uint FACILITY_SOURCE_OUTPUT = 0x0003;
 
 <*
  Command numbers. native-common.h has one unnamed enum: the value of each name
@@ -357,6 +354,27 @@ fn char[]? TagReader.raw(&self, sz count)
 	char[] bytes = self.data[self.pos:count];
 	self.pos += count;
 	return bytes;
+}
+
+<*
+ Check that a list of `count` records, each at least `min_bytes` long, can fit in
+ the bytes left in the packet. Called before the list is allocated, so a count
+ the server wrote cannot ask for memory that the packet could never fill.
+
+ @param min_bytes : "The fewest bytes one record of the list can occupy"
+ @return? error::PROTOCOL : "the count needs more bytes than the packet has left"
+*>
+fn void? TagReader.check_count(&self, uint count, sz min_bytes)
+{
+	sz left = self.data.len - self.pos;
+	if ((sz)count > left / min_bytes) return error::raise(
+		error::PROTOCOL,
+		error::Domain.PULSE,
+		0,
+		"%d records need more than the %d bytes left",
+		count,
+		left
+	)~;
 }
 
 // Consume the next tag byte, which must be `tag`.

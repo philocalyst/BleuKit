@@ -207,7 +207,7 @@ fn void link_entries_need_a_url() @test
 fn void oversized_desktop_files_are_refused() @test
 {
 	String path = string::tformat("%s/bleu-xdg-oversized.desktop", io::path::temp_directory(tmem)!!);
-	char[] big = alloc::new_array(tmem, char, (sz)keyfile::MAX_FILE_BYTES + 1);
+	char[] big  = alloc::new_array(tmem, char, (sz)keyfile::MAX_FILE_BYTES + 1);
 	io::file::save(path, big)!!;
 	defer (void)io::file::delete(path);
 	test::@error(load(mem, path, ""), error::OUT_OF_RANGE);

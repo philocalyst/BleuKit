@@ -66,3 +66,18 @@ fn void a_down_interface_leaves_fields_empty() @test
 		assert(!wlan.rx_bytes.has_value, "no statistics directory content: empty");
 	};
 }
+
+// D27: a name that is not one path element is never read; "../net/eth0" is eth0 under another name.
+fn void a_name_that_leaves_the_class_directory_is_not_read() @test
+{
+	@pool()
+	{
+		String root          = fake_tree("traverse");
+		Interface escaped = sysfs::read_interface(tmem, root, "../net/eth0", ETHERNET);
+		assert(escaped.link == UNKNOWN, "the traversal is refused, so nothing is read");
+		assert(!escaped.carrier.has_value && !escaped.speed.has_value);
+		assert(!sysfs_convert::valid_interface_name("../eth0"), "a parent directory");
+		assert(!sysfs_convert::valid_interface_name("a/b"), "a separator");
+		assert(sysfs_convert::valid_interface_name("eth0"), "a kernel name");
+	};
+}

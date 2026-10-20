@@ -98,7 +98,7 @@ c3c --libdir "$ld" \
   --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus --lib bleu_objc --lib bleu_win --lib bleu_network \
   -o "$work/testrun" compile-test "$src"/nm_convert_test.c3 "$src"/nm_settings_test.c3 "$src"/sysfs_test.c3 \
     "$src"/ssid_test.c3 "$src"/corewlan_convert_test.c3 "$src"/wlan_profile_test.c3 "$src"/scan_test.c3 \
-    "$src"/publish_test.c3 "$src"/service_test.c3 "$src"/access_points_test.c3 "$src"/nm_backend_test.c3 \
+    "$src"/publish_test.c3 "$src"/service_test.c3 "$src"/nm_backend_test.c3 \
     "$here/nm_scenario_test.c3"
 status=$?
 say "compile-test exit status: $status"

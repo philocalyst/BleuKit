@@ -134,15 +134,19 @@ fn void refuse_pending(AppsHost* host)
 	do
 	{
 		count = host.mailbox().take_all(buffer[..]);
-		foreach (command : buffer[0:count])
-		{
-			if (command.kind == LAUNCH)
-			{
-				command.request.op.fail(error::DISCONNECTED);
-				command.request.release();
-			}
-		}
+		foreach (&command : buffer[0:count]) abandon_command(null, command);
 	} while (count == buffer.len);
+}
+
+<*
+ Fail a launch the worker will never serve, so its waiter gets DISCONNECTED, and release its request.
+ The hub calls this for every command still queued after the worker stops. Refreshes carry nothing to complete.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.kind != LAUNCH) return;
+	command.request.op.fail(error::DISCONNECTED);
+	command.request.release();
 }
 
 // Look up the app and action of one request, run the launch, complete the operation.

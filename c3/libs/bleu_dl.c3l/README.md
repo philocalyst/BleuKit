@@ -30,8 +30,9 @@ from loading or crashes the process. Built on `std::os::dlopen`/`dlsym`
 
 ## Verified how
 
-* Run on Linux (glibc, x86-64): `dl_test.c3`, 9 of 9 `@test` functions pass
-  (`c3c compile-test`). Command:
+* Run on Linux (glibc, x86-64): `dl_test.c3`, 10 of 10 `@test` functions pass
+  (`c3c compile-test`), including the regression test for DL-1 (a failure with no
+  loader text reports no errno code). Command:
   `c3c --libdir libs --lib bleu_core --lib bleu_dl compile-test libs/bleu_dl.c3l/src/dl_test.c3 --sources libs/bleu_dl.c3l/src/*.c3`.
 * Type-checked (`compile-only`) for all six targets, including an instantiation of `lazy::Lazy`.
 * macOS and Windows: type-checked only (test module reached the end of type checking; no linking, no runtime).

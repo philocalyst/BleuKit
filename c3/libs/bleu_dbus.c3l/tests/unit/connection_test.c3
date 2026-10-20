@@ -5,7 +5,7 @@
 // of one process() call), the answers a blocking call gives to incoming calls,
 // failed sends, and re-entry from a handler.
 module bleu::dbus::connection_test;
-import bleu::error, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::server, bleu::dbus::testing, bleu::dbus::transport;
+import bleu::deadline, bleu::error, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::server, bleu::dbus::testing, bleu::dbus::transport;
 import std::time;
 
 extern fn int socketpair(int domain, int type, int protocol, int* fds) @cname("socketpair");
@@ -20,6 +20,9 @@ const READ_CHUNK = 4096;
 
 <* Messages the burst test sends in one go: more than one process() call can read. *>
 const BURST_MESSAGES = 200;
+
+<* Timeout of the blocking call in the incoming-call test, in milliseconds. *>
+const WAITING_CALL_MS = 300;
 
 <*
  A connection whose socket is one end of a socketpair. `peer` is the other end:
@@ -36,7 +39,12 @@ struct Rig
 fn void Rig.start(&self)
 {
 	int[2] pair;
-	assert(socketpair(transport::AF_UNIX, transport::SOCK_STREAM | SOCK_NONBLOCK, 0, &pair[0]) == 0, "socketpair failed");
+	assert(socketpair(
+		transport::AF_UNIX,
+		transport::SOCK_STREAM | SOCK_NONBLOCK,
+		0,
+		&pair[0]
+	) == 0, "socketpair failed");
 	self.peer = pair[0];
 	self.c.init(mem);
 	self.c.socket_fd = pair[1];
@@ -53,7 +61,7 @@ fn void Rig.stop(&self)
 // Writes `bytes` to `fd`, with `fds` travelling with the first byte, as a bus would send them.
 fn void send_bytes(int fd, String bytes, int[] fds)
 {
-	usz sent = 0;
+	usz sent      = 0;
 	int[] pending = fds;
 	while (sent < bytes.len)
 	{
@@ -153,19 +161,20 @@ fn void a_failed_send_is_reported_once() @test
 	rig.stop();
 }
 
-// What the Ping handler saw: whether it ran before the blocking call returned.
+// What the Ping handler saw: whether it ran, and whether the blocking call's timeout had
+// already passed by then (an answer given after the timeout is an answer given too late).
 struct Served
 {
 	bool ran;
-	bool returned;
-	bool while_waiting;
+	Deadline until;
+	bool late;
 }
 
 fn void? ping(void* context, Call* call)
 {
 	Served* s = (Served*)context;
 	s.ran = true;
-	s.while_waiting = !s.returned;
+	s.late = s.until.expired();
 	return call.reply({ });
 }
 
@@ -177,8 +186,8 @@ fn void answers_incoming_calls_while_it_waits() @test
 	Rig rig;
 	rig.start();
 	Served served;
-	Method[1] methods        = { { .name = "Ping", .handler = &ping, .context = &served } };
-	Interface[1] interfaces  = { { .name = "org.bleu.Test", .methods = methods[..] } };
+	Method[1] methods       = { { .name = "Ping", .handler = &ping, .context = &served } };
+	Interface[1] interfaces = { { .name = "org.bleu.Test", .methods = methods[..] } };
 	ObjectServer server;
 	server.init(mem);
 	server.attach(&rig.c);
@@ -192,13 +201,13 @@ fn void answers_incoming_calls_while_it_waits() @test
 	// The peer never answers this one, so the call times out, but it must answer ours first.
 	Message* ours = message::method_call(mem, "org.example.Peer", "/org/bleu/Other", "org.bleu.Other", "Never")!!;
 	defer ours.release();
-	testing::@expect_fault(rig.c.call(ours, time::ms(50)), TIMEOUT);
-	served.returned = true;
+	served.until = deadline::after(time::ms(WAITING_CALL_MS));
+	testing::@expect_fault(rig.c.call(ours, time::ms(WAITING_CALL_MS)), TIMEOUT);
 
 	DString sent = drain(rig.peer);
 	defer sent.free();
 	assert(served.ran, "the incoming call was never answered");
-	assert(served.while_waiting, "the incoming call was answered only after the blocking call returned");
+	assert(!served.late, "the incoming call was answered only after the blocking call's timeout");
 	assert(answers(sent.str_view(), 100), "the answer to the incoming call was not sent");
 	server.free();
 	rig.stop();
@@ -271,7 +280,7 @@ fn void process_is_refused_inside_a_handler() @test
 {
 	Rig rig;
 	rig.start();
-	Reentry r = { .c = &rig.c };
+	Reentry r     = { .c = &rig.c };
 	Message* call = message::method_call(mem, "org.example.Peer", "/p", "org.example.I", "M")!!;
 	defer call.release();
 	rig.c.call_async(call, &reenter, &r, time::ms(1000))!!;

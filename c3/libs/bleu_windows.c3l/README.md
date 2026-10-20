@@ -22,6 +22,8 @@ and focused-window title need. Module root `bleu::windows`. Service contract:
 * `capability(Cap) -> Availability`: each `Cap` is `YES`, `DEGRADED` (works with a
   caveat in `note`), or refused with the reason (`UNSUPPORTED_*`, `PERMISSION_NEEDED`).
 * `refresh()`: re-read the platform now.
+* `close()`: stops the worker. Actions still queued fail with `CANCELLED`; so does every
+  action queued when a worker returns early on an error. No waiter is left hanging.
 
 ## Coverage
 
@@ -36,8 +38,8 @@ target, never executed. Not done = refused with `UNSUPPORTED_*` or not implement
 | Workspaces | Run (Hyprland, sway, i3, niri) | Compiled; `DEGRADED`: only desktops that hold a window | Compiled: the focused screen's Space with `allow_private`; otherwise refused |
 | Switch workspace | Run (Hyprland, sway, niri) | Not done (undocumented API) | Not done (SIP) |
 | Move window to workspace | Run (Hyprland log; sway and niri replies) | Compiled (documented `MoveWindowToDesktop`) | Not done (SIP) |
-| Close window | Run (Hyprland log; sway, niri replies) | Compiled (`WM_CLOSE`) | Compiled (Accessibility; `PERMISSION_NEEDED`) |
-| Minimize window | Not done (no compositor reports it) | Compiled (`SW_MINIMIZE`) | Compiled (Accessibility; the focused window only) |
+| Close window | Run (Hyprland log; sway, niri replies) | Compiled (`WM_CLOSE`) | Compiled (Accessibility; `PERMISSION_NEEDED`; the named window must be the app's focused one, else `UNSUPPORTED`) |
+| Minimize window | Not done (no compositor reports it) | Compiled (`SW_MINIMIZE`; `NOT_FOUND` for a closed window) | Compiled (Accessibility; the named window must be the app's focused one, else `UNSUPPORTED`) |
 | Toggle floating | Run (Hyprland, sway logs) | Not done (no floating state) | Not done |
 | Toggle fullscreen | Run (Hyprland log) | Not done | Not done |
 | Reconnect and DISCONNECTED | Run (fake restart, no compositor, stale socket) | n/a | n/a |
@@ -48,13 +50,19 @@ target, never executed. Not done = refused with `UNSUPPORTED_*` or not implement
 * Linux: the `ext-workspace` / `ext-foreign-toplevel-list` Wayland backend for compositors
   with no IPC client (the brief allowed it only if time remained). Output-change events.
   Compositor minimized and pinned state (no compositor client reports them).
+* Linux: a compositor that stops answering fails the request after 2 s (the reply deadline
+  of `bleu_compositor`) and the connection is dropped; the reconnect runs on an absolute
+  deadline, so commands arriving meanwhile do not postpone it. A stalled `connect` or a
+  send into a full socket buffer has no deadline (see `bleu_compositor`).
 * Windows: switching or creating virtual desktops (undocumented
   `IVirtualDesktopManagerInternal`; per-build IIDs); the list of empty desktops; outputs;
   fullscreen and floating; window titles longer than 512 UTF-16 units are cut.
 * macOS: the list of Spaces (`SLSCopyManagedDisplaySpaces` shape not verified); moving
   windows between Spaces (needs SIP changes); minimized windows (not on screen, so not
-  listed); AX close and minimize act on the owning application's focused window only;
-  fullscreen; outputs.
+  listed); AX close and minimize act only on a window that is the frontmost application's
+  focused (topmost) window: any other window is refused with `UNSUPPORTED`, never swapped for
+  the focused one. Focus raises the window only when it is the application's topmost window;
+  otherwise the application is activated and the request fails with `UNSUPPORTED`. Fullscreen; outputs.
 * Windows and macOS: one service per process. The hook and the notification observer
   reach their hub through a module global, so a second service would replace the first.
 * macOS: notification-driven change needs the main thread's run loop; the 1 s poll
@@ -63,12 +71,16 @@ target, never executed. Not done = refused with `UNSUPPORTED_*` or not implement
 ## Verified how
 
 * Linux, run: `tests/run.sh` starts the fakes that `libs/bleu_compositor.c3l/tests/` ships
-  (by path), runs `tests/live/service_live.c3` against each, and checks 36 output lines and
+  (by path), runs `tests/live/service_live.c3` against each, and checks 37 output lines and
   the requests the fakes logged. Needs python3 and c3c. The restart scenario kills the
-  Hyprland fake, restarts it, and expects `DISCONNECTED` then `CONNECTED`.
+  Hyprland fake, restarts it, and expects `DISCONNECTED` then `CONNECTED`; while it is down a
+  command arrives every 100 ms, and the return must come during that storm
+  (`storm=reconnected`), which needs the retry deadline rather than a timer that each
+  wake-up restarts.
 * Unit tests (`src/*_test.c3`, `c3c compile-test`): backoff, the Linux model mapping, the
   Windows Alt-Tab predicate, window ids, executable names, workspace grouping and macOS
-  window numbers. 106 tests pass in the run that includes the other linked libraries.
+  window numbers, the queued-action shutdown (`CANCELLED`), the forced-backend error kind and
+  the zeroed state. 124 tests pass in the run that includes the other linked libraries.
 * Compiled: `tools/check.sh bleu_core bleu_rt bleu_service bleu_compositor bleu_win
   bleu_objc bleu_dl bleu_windows` is clean on all six targets.
 * Windows and macOS code has not been executed. Their constants and signatures were cross-checked

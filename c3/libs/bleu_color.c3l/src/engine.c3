@@ -42,6 +42,7 @@ struct Display
 {
 	Output output;
 	float[] ramp;
+	bool refused_seen;
 }
 
 <* The engine's state. Owned by one worker thread; the backend allocates and frees it. *>
@@ -52,6 +53,7 @@ struct Engine
 	Platform* platform;
 	Display[] displays;
 	Schedule schedule;
+	bool temperature_moved;
 }
 
 <* Most commands the worker takes from its mailbox in one batch. *>
@@ -98,6 +100,7 @@ fn void Engine.init(&self, Allocator allocator, ColorHub* hub, Platform* platfor
 				.control = output.control
 			},
 			.ramp = ramp,
+			.refused_seen = output.control.refused,
 		};
 	}
 }
@@ -162,6 +165,8 @@ fn void? Engine.apply(&self, usz index)
 	{
 		if (control.active) self.platform.release(self.platform.context, index);
 		control.active = false;
+		// Nothing is asked of the display now, so an old refusal is no longer what the state says.
+		control.refused = false;
 		return;
 	}
 	if (!control.gamma_supported)
@@ -191,12 +196,9 @@ fn void? Engine.apply(&self, usz index)
 	if (catch err = ramp::fill(display.ramp, (usz)control.size, temperature, control.brightness, 1.0)) return err~;
 	if (catch err = self.platform.write(self.platform.context, index, display.ramp))
 	{
-		if (err == error::BUSY)
-		{
-			control.refused = true;
-			control.active = false;
-			self.announce(CONTROL_CHANGED, display.output.id);
-		}
+		// Whatever the cause, the display no longer shows the ramp this service set.
+		control.active = false;
+		if (err == error::BUSY) control.refused = true;
 		return err~;
 	}
 	control.active = true;
@@ -205,14 +207,14 @@ fn void? Engine.apply(&self, usz index)
 
 <*
  The display `index` lost its gamma control to another client, or was refused it at a later
- attempt. The state says so, and the next command that needs the display reports BUSY.
+ attempt. The state says so, and the next command that needs the display reports BUSY. The
+ announcement follows at the next publication.
 *>
 fn void Engine.lost(&self, usz index)
 {
 	Display* display = &self.displays[index];
 	display.output.control.refused = true;
 	display.output.control.active = false;
-	self.announce(CONTROL_CHANGED, display.output.id);
 }
 
 // Emit one transient about `output_id` (empty for every display).
@@ -221,6 +223,18 @@ fn void Engine.announce(&self, EventKind kind, String output_id)
 	Snapshot{Event}* packet = self.hub.emit_begin();
 	packet.value = { .kind = kind, .output_id = copy_text(output_id, packet.allocator()) };
 	self.hub.emit(packet);
+}
+
+// Announce each display whose refusal began or ended since the last publication. Called after the state is published.
+fn void Engine.announce_refusals(&self)
+{
+	foreach (&display : self.displays)
+	{
+		bool refused = display.output.control.refused;
+		if (refused == display.refused_seen) continue;
+		display.refused_seen = refused;
+		self.announce(CONTROL_CHANGED, display.output.id);
+	}
 }
 
 // Apply `command` to the displays it selects and describe the result.
@@ -327,26 +341,29 @@ fn Maybe{Kelvin} Engine.target_now(&self, Time now)
 
 <*
  Give every display `target` as its temperature, and write those whose temperature changed (or
- that were refused, so that they are tried again). Emits TEMPERATURE_CHANGED when any changed.
+ that were refused, so that they are tried again). A change of temperature is announced at the
+ next publication, and a display that is only retried announces nothing.
 
  @return? error::BUSY, error::UNSUPPORTED, error::BACKEND_FAILURE : "The first display that could not take the ramp"
 *>
 fn void? Engine.follow(&self, Kelvin target)
 {
 	Writes writes;
-	bool changed = false;
 	for (usz i = 0; i < self.displays.len; i++)
 	{
 		Control* control = &self.displays[i].output.control;
-		if (control.temperature.has_value && control.temperature.value == target && !control.refused) continue;
-		control.temperature = maybe::value(target);
-		changed = true;
+		bool moved = !control.temperature.has_value || control.temperature.value != target;
+		if (!moved && !control.refused) continue;
+		if (moved)
+		{
+			control.temperature = maybe::value(target);
+			self.temperature_moved = true;
+		}
 		if (catch err = self.apply(i))
 		{
 			writes.failure(err);
 		}
 	}
-	if (changed) self.announce(TEMPERATURE_CHANGED, "");
 	if (writes.failed) return writes.first~;
 }
 
@@ -377,7 +394,8 @@ fn Duration local_offset(Time now)
 	return (Duration)((long)local.gmt_offset * (long)time::SEC);
 }
 
-// Publish the current state if it differs from the last one published.
+// Publish the current state if it differs from the last one published, then announce what changed. A transient
+// always follows the state that shows it, so a listener woken by it reads that state.
 fn void Engine.publish(&self)
 {
 	Snapshot{State}* snapshot = self.hub.begin();
@@ -394,6 +412,12 @@ fn void Engine.publish(&self)
 	}
 	snapshot.value = { .outputs = outputs, .schedule = self.schedule };
 	self.hub.publish_if_changed(snapshot);
+	self.announce_refusals();
+	if (self.temperature_moved)
+	{
+		self.temperature_moved = false;
+		self.announce(TEMPERATURE_CHANGED, "");
+	}
 }
 
 // Take every queued command and handle it.

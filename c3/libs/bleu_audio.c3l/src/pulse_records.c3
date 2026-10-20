@@ -45,6 +45,11 @@ const uint V_SERVER_CHANNEL_MAP   = 15;
 // Device flags (def.h:801-832): HW_VOLUME_CTRL 0x1, HW_MUTE_CTRL 0x10.
 const uint FLAG_HW_VOLUME_CTRL = 0x0001;
 
+// The fewest bytes one list entry can occupy, for the count checks: two strings
+// ('N' is one byte) and a u32 with its tag (five bytes), plus the fields that follow.
+const sz PORT_MIN_BYTES    = 1 + 1 + 5;           // name, description, priority
+const sz PROFILE_MIN_BYTES = 1 + 1 + 5 + 5 + 5;   // name, description, sinks, sources, priority
+
 <* What the server says about itself and its defaults. *>
 struct ServerInfo
 {
@@ -149,10 +154,11 @@ fn DeviceRecord? read_device(TagReader* r, uint version, bool is_source, Allocat
 	return d;
 }
 
-// The port list of a device or card record; the count is a u32 (pulsecore/protocol-native.c:3203-3222).
+// The port list of a device record; the count is a u32 (pulsecore/protocol-native.c:3203-3222).
 fn PortRecord[]? read_ports(TagReader* r, uint version, Allocator allocator)
 {
-	uint count         = r.u32()!;
+	uint count = r.u32()!;
+	r.check_count(count, PORT_MIN_BYTES)!;
 	PortRecord[] ports = alloc::new_array(allocator, PortRecord, (sz)count);
 	for (uint i = 0; i < count; i++)
 	{
@@ -205,6 +211,7 @@ fn CardRecord? read_card(TagReader* r, uint version, Allocator allocator)
 	r.u32()!; // owning module
 	card.driver = r.string()!;
 	uint count = r.u32()!;
+	r.check_count(count, PROFILE_MIN_BYTES)!;
 	card.profiles = alloc::new_array(allocator, ProfileRecord, (sz)count);
 	for (uint i = 0; i < count; i++)
 	{

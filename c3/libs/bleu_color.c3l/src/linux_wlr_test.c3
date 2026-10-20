@@ -5,7 +5,7 @@
  protocol defines. The ramps the compositor reads back are checked word by word.
 *>
 module bleu::color::linux_wlr_test @feat(LINUX);
-import bleu::color, bleu::color::linux_wlr, bleu::error, bleu::observe, bleu::rt, bleu::rt::foreign, bleu::rt::unix, bleu::unit, bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::wlr_gamma_control, std::thread, std::time, std::core::mem, std::math;
+import bleu::color, bleu::color::linux_wlr, bleu::error, bleu::observe, bleu::rt, bleu::rt::foreign, bleu::rt::unix, bleu::stream, bleu::unit, bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::wlr_gamma_control, std::atomic, std::thread, std::time, std::core::mem, std::math;
 
 // Read from a descriptor (the compositor's side of a ramp), without changing this test's state.
 extern fn sz sys_read(int fd, void* buffer, usz count) @cname("read");
@@ -352,6 +352,8 @@ fn void losing_the_control_later_is_reported() @test
 	Thread t;
 	t.create(&lost_scenario, &server)!!;
 	Color* color            = open_on(&seam)!!;
+	stream::Reader{Event}* events = color.subscribe()!!;
+	defer events.release();
 	Snapshot{State}* before = color.wait_after(0, time::sec(5))!!;
 	ulong generation        = before.generation;
 	before.release();
@@ -382,6 +384,73 @@ fn void losing_the_control_later_is_reported() @test
 	}
 	assert(!recovered.value.outputs[0].control.refused, "the retry clears the refusal");
 	recovered.release();
+	// Each change of refusal is announced once, after its state: the loss and the recovery. Nothing else moved.
+	int control_changes     = 0;
+	int temperature_changes = 0;
+	while (try packet = events.next(time::ms(300)))
+	{
+		defer packet.release();
+		if (packet.value.kind == EventKind.CONTROL_CHANGED) control_changes++;
+		if (packet.value.kind == EventKind.TEMPERATURE_CHANGED) temperature_changes++;
+	}
+	assert(control_changes == 2, "the loss and the recovery are each announced once");
+	assert(temperature_changes == 0, "a manual temperature is not a schedule change");
 	color.close();
 	t.join()!!;
+}
+
+// A connect that waits until the test releases it, then fails: the worker's run returns with a command queued.
+struct Gate
+{
+	Atomic{bool} released;
+}
+
+fn rt::Native? gated_connect_fail(void* context)
+{
+	Gate* gate = (Gate*)context;
+	while (!gate.released.load()) thread::sleep(time::ms(1));
+	return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "test: no compositor")~;
+}
+
+fn rt::Native? refused_connect(void* context)
+{
+	return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "test: no compositor")~;
+}
+
+// The worker gives up before it serves the queue: the queued command must fail, not wait forever.
+fn void a_command_queued_when_the_worker_returns_early_fails() @test
+{
+	Gate gate;
+	Color* color = color::open(
+		mem,
+		{ .backend = color::Backend.WLR_GAMMA, .connect = &gated_connect_fail, .connect_context = &gate }
+	)!!;
+	defer color.close();
+	ApplyOperation* operation = color.set_temperature(color::ALL_OUTPUTS, (Kelvin)2700)!!;
+	defer operation.release();
+	gate.released.store(true);
+	if (catch err = operation.wait(time::sec(5)))
+	{
+		assert(err == error::DISCONNECTED, "a command the worker never ran fails DISCONNECTED");
+	}
+	else
+	{
+		assert(false, "a command the worker never ran must not succeed");
+	}
+}
+
+// A NaN dimming level would be silently written as 0 (a black picture): it is refused before queueing.
+fn void a_nan_dimming_level_is_refused() @test
+{
+	Color* color = color::open(mem, { .backend = color::Backend.WLR_GAMMA, .connect = &refused_connect })!!;
+	defer color.close();
+	Level not_a_number = (Level)bitcast((uint)0x7FC00000, float);
+	if (catch err = color.set_dim(color::ALL_OUTPUTS, not_a_number))
+	{
+		assert(err == error::INVALID_ARGUMENT, "NaN is not a dimming level");
+	}
+	else
+	{
+		assert(false, "a NaN dimming level must not be accepted");
+	}
 }

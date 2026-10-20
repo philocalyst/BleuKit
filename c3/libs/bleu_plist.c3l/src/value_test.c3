@@ -82,6 +82,6 @@ fn void canonical_refuses_text_that_is_not_utf8() @test
 	Value bad = { .kind = STRING, .text = "A\xFFB" };
 	test::@error(canonical(tmem, &bad), error::PROTOCOL);
 	Value[] items = { bad };
-	Value nested = { .kind = ARRAY, .items = items };
+	Value nested  = { .kind = ARRAY, .items = items };
 	test::@error(canonical(tmem, &nested), error::PROTOCOL);
 }

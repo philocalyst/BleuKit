@@ -23,27 +23,27 @@ import bleu::error, bleu::plist::value, bleu::plist::text, std::encoding::base64
 <* The DOM node kinds of `std::encoding::xml`. *>
 alias NodeKind = std::encoding::xml::XmlEventKind;
 
-const String ROOT_ELEMENT       = "plist";
-const String UTF8_BOM           = "\xEF\xBB\xBF";
-const String BLANKS             = " \t\r\n";
-const String XML_DECLARATION    = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-const String DOCTYPE            = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
-const char TAB                  = '\t';
-const char LINE_FEED            = '\n';
-const char CARRIAGE_RETURN      = '\r';
-const uint FIRST_CONTROL        = 0x20;
-const uint TAB_CODE             = 0x09;
-const uint LINE_FEED_CODE       = 0x0A;
-const uint CARRIAGE_RETURN_CODE = 0x0D;
-const String TRUE_NAME          = "true";
-const String FALSE_NAME         = "false";
-const String KEY_NAME           = "key";
-const String UID_KEY            = "CF$UID";
+const String ROOT_ELEMENT         = "plist";
+const String UTF8_BOM             = "\xEF\xBB\xBF";
+const String BLANKS               = " \t\r\n";
+const String XML_DECLARATION      = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+const String DOCTYPE              = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
+const char TAB                    = '\t';
+const char LINE_FEED              = '\n';
+const char CARRIAGE_RETURN        = '\r';
+const uint FIRST_CONTROL          = 0x20;
+const uint TAB_CODE               = 0x09;
+const uint LINE_FEED_CODE         = 0x0A;
+const uint CARRIAGE_RETURN_CODE   = 0x0D;
+const String TRUE_NAME            = "true";
+const String FALSE_NAME           = "false";
+const String KEY_NAME             = "key";
+const String UID_KEY              = "CF$UID";
 const uint LAST_BEFORE_SURROGATES = 0xD7FF;
 const uint FIRST_AFTER_SURROGATES = 0xE000;
-const uint LAST_BMP_CHARACTER   = 0xFFFD;
-const uint FIRST_SUPPLEMENTARY  = 0x10000;
-const uint LAST_CODE_POINT      = 0x10FFFF;
+const uint LAST_BMP_CHARACTER     = 0xFFFD;
+const uint FIRST_SUPPLEMENTARY    = 0x10000;
+const uint LAST_CODE_POINT        = 0x10FFFF;
 
 <*
  Parse an XML property list.
@@ -54,10 +54,7 @@ const uint LAST_CODE_POINT      = 0x10FFFF;
 *>
 fn Value? parse(Allocator allocator, String document)
 {
-	String source                              = document.starts_with(
-		UTF8_BOM
-	) ? document[UTF8_BOM.len:document.len - UTF8_BOM.len]
-		: document;
+	String source = document.starts_with(UTF8_BOM) ? document[UTF8_BOM.len:document.len - UTF8_BOM.len] : document;
 	text::check_utf8(source)!;
 	std::encoding::xml::XmlDocument*? dom = std::encoding::xml::tparse(source);
 	if (catch dom) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "not well-formed XML")~;
@@ -253,7 +250,7 @@ fn void? check_xml_chars(String bytes) @local
 	{
 		text::CodePoint point = text::decode_at(bytes, at)!;
 		at += point.width;
-		uint code = point.value;
+		uint code    = point.value;
 		bool allowed = code == TAB_CODE || code == LINE_FEED_CODE || code == CARRIAGE_RETURN_CODE
 			|| (code >= FIRST_CONTROL && code <= LAST_BEFORE_SURROGATES)
 			|| (code >= FIRST_AFTER_SURROGATES && code <= LAST_BMP_CHARACTER)

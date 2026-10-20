@@ -23,8 +23,12 @@ verification: `docs/research/bleu_compositor.md`.
   or a sway container id. `pid`, `fullscreen`, `maximized`, `urgent` and `geometry`
   are `Maybe{T}`: absent when the compositor does not report them.
 * `Output{name, geometry, scale, active_workspace, focused}` (enabled outputs only).
-* `KeyboardLayouts{names, current, current_name}` for the main keyboard.
+* `KeyboardLayouts{keyboard, names, current, current_name}` for the main keyboard.
+  `keyboard` is the name (Hyprland) or identifier (sway) the layout events name; only
+  an event for that keyboard changes `current_name`.
 * `Model.clone(allocator)` is a deep copy: publish a copy, keep mutating the original.
+* `Model.sync_outputs(allocator)` recomputes each output's `active_workspace` and `focused`
+  from the workspaces. sway and niri call it after a workspace event.
 
 Unknown is never zero: a value a compositor does not report is absent, and a text
 field is `""`.
@@ -57,7 +61,7 @@ ids and quotable names; niri: decimal ids), so an id cannot add command words.
 | Detect | `HYPRLAND_INSTANCE_SIGNATURE` + `XDG_RUNTIME_DIR` | `SWAYSOCK` | `I3SOCK` | `NIRI_SOCKET` |
 | Snapshot | `j/clients`, `j/activewindow`, `j/workspaces`, `j/monitors`, `j/devices` | GET_WORKSPACES, GET_OUTPUTS, GET_TREE, GET_INPUTS | same, no GET_INPUTS | Workspaces, Windows, Outputs, KeyboardLayouts |
 | Events applied in place | `activewindowv2`, `openwindow`, `closewindow`, `windowtitlev2`, `fullscreen`, `changefloatingmode`, `urgent`, `movewindowv2`, `activelayout` | `window` (focus, title, urgent, floating, fullscreen, close), `workspace` (focus, urgent), `input` (xkb_layout) | same, no `input` | `WorkspacesChanged`, `WorkspaceActivated`, `WorkspaceUrgencyChanged`, `WindowsChanged`, `WindowOpenedOrChanged`, `WindowClosed`, `WindowFocusChanged`, `WindowUrgencyChanged`, `KeyboardLayoutsChanged`, `KeyboardLayoutSwitched` |
-| Requests a snapshot | workspace, output, monitor, special-workspace events, `configreloaded`, moves onto an unfocused workspace | `output`, `workspace` init/empty/move/rename, `window` new/move | same | `ConfigLoaded` |
+| Requests a snapshot | workspace, output, monitor, special-workspace events, `configreloaded`, `movewindowv2` to an unknown window or workspace, a payload without its fields | `output`, `workspace` init/empty/move/rename, `window` new/move | same | `ConfigLoaded` |
 | Actions | `focuswindow`, `closewindow`, `workspace`, `movetoworkspace`, `togglefloating`, `fullscreen 0` (after focus), `switchxkblayout` | `[con_id] focus`, `kill`, `workspace "N"`, `move container to workspace`, `floating toggle`, `fullscreen toggle`, `input type:keyboard xkb_switch_layout` | as sway, no layout switch | FocusWindow, CloseWindow, FocusWorkspace, MoveWindowToWorkspace (focus kept), SwitchLayout, ToggleWindowFloating, FullscreenWindow |
 | Not reported | minimized, per-window urgency in a snapshot, layout index and names | maximized | maximized, layouts | geometry, fullscreen, maximized |
 
@@ -80,8 +84,18 @@ focused window.
 * Hyprland sockets under `$XDG_RUNTIME_DIR/hypr/` only; the older `/tmp/hypr` path
   is not tried.
 * Sway `binding`, `mode`, `tick`, `shutdown` and bar events are decoded to names
-  and ignored by the model. The `input` event updates the one keyboard the model
-  holds: the last keyboard that changed layout wins.
+  and ignored by the model. The model holds the first keyboard that has layouts
+  (by identifier); a layout change on any other keyboard is ignored.
+* Hyprland `activelayout` names its keyboard; only the main keyboard's name is held,
+  so a change on another keyboard is ignored.
+* Command sockets: each request waits at most `io::REPLY_TIMEOUT` (2 s) in total for
+  its reply and then fails with DISCONNECTED. `connect` and the request `send` have no
+  deadline: a compositor that never accepts, or never reads a full socket buffer, can
+  still block them (request lines are small, so this needs a compositor that stops
+  reading altogether).
+* Hyprland `toggle_fullscreen` sends the focus and the `fullscreen 0` dispatch as two
+  requests. A focus change between them can toggle a different window. It is not
+  serialized.
 * An event the model cannot apply in place asks for a snapshot; the caller takes
   it. Applied events allocate into the model's arena, which the next snapshot
   replaces.
@@ -90,9 +104,10 @@ focused window.
 ## Verified how
 
 * Golden fixtures, hand-written from the documented formats, in `tests/fixtures/`.
-  Unit tests (`src/*_test.c3`, run with `c3c compile-test`): 32 in this library
+  Unit tests (`src/*_test.c3`, run with `c3c compile-test`): 44 in this library
   (framing, JSON accessors, i3 frames, Hyprland / sway / niri parsers, event
-  application, detection, clone). 59 with the `bleu_rt` tests linked in. All pass.
+  application, detection, clone, socket deadlines). 71 with the `bleu_rt` tests
+  linked in. All pass.
 * Live tests, `tests/run_live.sh`: a C3 driver (`tests/live/live.c3`) goes through
   `detect` -> `open` -> `snapshot` -> poller -> `read_events` -> actions against
   Python fakes (`tests/fake_*.py`) that speak each socket protocol and answer from

@@ -198,7 +198,55 @@ fn void validation_refuses_out_of_range_values() @test
 		.mode = Mode.SCHEDULE,
 		.latitude = 51.5,
 		.longitude = -0.1,
+		.day = color::DEFAULT_DAY,
+		.night = color::DEFAULT_NIGHT,
 		.transition = (Duration)(30 * MINUTE)
 	};
 	schedule::validate(good)!!;
+	// A zero temperature would publish 0 K; a temperature outside the kelvin range is not a schedule.
+	Schedule no_day = good;
+	no_day.day = (Kelvin)0;
+	assert(@catch(schedule::validate(no_day)) == error::INVALID_ARGUMENT, "a zero day temperature is refused");
+	Schedule hot_night = good;
+	hot_night.night = (Kelvin)30000;
+	assert(@catch(schedule::validate(hot_night)) == error::INVALID_ARGUMENT, "a night above 25000 K is refused");
+	Schedule equal_times = {
+		.mode = Mode.TIMES,
+		.sunrise = (Duration)hms(6, 0, 0),
+		.sunset = (Duration)hms(6, 0, 0),
+		.day = color::DEFAULT_DAY,
+		.night = color::DEFAULT_NIGHT,
+		.transition = (Duration)(30 * MINUTE)
+	};
+	assert(@catch(schedule::validate(equal_times)) == error::INVALID_ARGUMENT, "equal sunrise and sunset are refused");
+}
+
+const long DAY_SECONDS = 86400;
+
+// Sunrise at 06:00 and sunset at 06:20 with a one-hour transition: the two windows overlap. The daylight
+// curve must still move continuously. Sampled every second over a day, no step may exceed what the two
+// windows allow: a smoothstep rises at most 1.5 times its inverse width per second, and two overlap here.
+fn void overlapping_edges_stay_continuous() @test
+{
+	Schedule overlap = {
+		.mode = Mode.TIMES,
+		.sunrise = (Duration)hms(6, 0, 0),
+		.sunset = (Duration)hms(6, 20, 0),
+		.day = color::DEFAULT_DAY,
+		.night = color::DEFAULT_NIGHT,
+		.transition = (Duration)(3600 * SECOND),
+	};
+	float previous = schedule::daylight_at(overlap, MAR_20_2026, 0);
+	float largest  = 0.0f;
+	for (long second = 1; second <= DAY_SECONDS; second++)
+	{
+		float current = schedule::daylight_at(overlap, MAR_20_2026 + second * SECOND, 0);
+		float step    = math::abs(current - previous);
+		if (step > largest) largest = step;
+		previous = current;
+	}
+	float bound = 2.0f * 1.5f / 3600.0f + 0.0001f;
+	assert(largest <= bound, "no second-to-second step is larger than the two windows allow");
+	assert(schedule::daylight_at(overlap, MAR_20_2026 + hms(6, 10, 0), 0) > 0.0f, "the day is light inside the overlap");
+	assert(schedule::daylight_at(overlap, MAR_20_2026 + hms(12, 0, 0), 0) == 0.0f, "the day is over after both windows");
 }

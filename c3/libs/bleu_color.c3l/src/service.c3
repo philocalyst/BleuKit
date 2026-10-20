@@ -17,10 +17,13 @@
  `latest()` and `wait_after()`.
 *>
 module bleu::color;
-import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit, bleu::color::schedule;
+import std::collections::enummap, std::math, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit, bleu::color::schedule;
 
 alias ColorHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};
+
+<* Requests that may wait for the worker at once; a full queue refuses with BUSY. *>
+const usz COMMAND_QUEUE = 256;
 
 <*
  The output id that addresses every display: pass it where a command takes an output. No display
@@ -52,7 +55,15 @@ fn Color*? open(Allocator allocator, Options options = { })
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "color", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"color",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		COMMAND_QUEUE,
+		&abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -113,8 +124,9 @@ fn Reader{Event}*? Color.subscribe(&self) => self.hub.events.subscribe();
 
 <*
  Set the colour temperature of one display, or of every display when `output` is ALL_OUTPUTS.
- Stops any schedule. The temperature is clamped to 1000 K .. 25000 K; the operation's value
- holds the clamped temperature.
+ Stops the schedule for every display, not only the named one: the schedule is one setting of the
+ service. The temperature is clamped to 1000 K .. 25000 K; the operation's value holds the clamped
+ temperature.
 
  @param output : "A display's id, or ALL_OUTPUTS"
  @return? error::INVALID_ARGUMENT : "The output id is longer than OUTPUT_ID_CAPACITY bytes"
@@ -133,10 +145,15 @@ fn ApplyOperation*? Color.set_temperature(&self, String output, Kelvin temperatu
  client: while another client holds the display's control, this returns BUSY.
 
  @param output : "A display's id, or ALL_OUTPUTS"
- @return? error::INVALID_ARGUMENT : "The output id is longer than OUTPUT_ID_CAPACITY bytes"
+ @return? error::INVALID_ARGUMENT : "The output id is longer than OUTPUT_ID_CAPACITY bytes, or the level is NaN"
 *>
 fn ApplyOperation*? Color.set_dim(&self, String output, Level level)
 {
+	// NaN is not a level: `unit::level` would make it 0, a black picture, so it is refused.
+	if (math::is_nan((float)level))
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "the dimming level is not a number")~;
+	}
 	Command command = { .kind = CommandKind.SET_DIM, .brightness = unit::level((float)level) };
 	if (catch err = fill_output(&command, output)) return err~;
 	return self.post(command);
@@ -178,6 +195,17 @@ fn void? fill_output(Command* command, String output)
 	}
 	command.output_len = (usz)output.len;
 	if (output.len > 0) mem::copy(&command.output, output.ptr, output.len);
+}
+
+<*
+ Called by the Hub for every command still queued when the backend's run returned, whether it
+ stopped or bailed out on an error. Nothing will carry such a command out, so its operation fails
+ DISCONNECTED and the waiter returns.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	command.operation.fail(error::DISCONNECTED);
+	command.operation.release();
 }
 
 // Queue `command` with a fresh operation; the worker completes and releases its own reference.

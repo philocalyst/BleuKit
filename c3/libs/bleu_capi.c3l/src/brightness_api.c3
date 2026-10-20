@@ -431,7 +431,15 @@ fn capi::CStatus bleu_brightness_unwatch(BrightnessHandle* handle, ulong id) @ex
 		BrightnessWatch* found = remove_brightness_watch(&handle.watches, id);
 		handle.mutex.unlock();
 		if (!found) return capi::report(NOT_FOUND, "no listener has this id");
-		handle.service.unwatch(found.native);
+		if (catch err = handle.service.unwatch(found.native))
+		{
+			// The listener is still registered: keep its node, so that it can still be removed later.
+			handle.mutex.lock()!!;
+			found.next = handle.watches;
+			handle.watches = found;
+			handle.mutex.unlock();
+			return capi::report(err, "the listener could not be removed");
+		}
 		alloc::free(mem, found);
 		return capi::CStatus.OK;
 	};

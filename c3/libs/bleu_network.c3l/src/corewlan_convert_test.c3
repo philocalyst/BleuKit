@@ -33,3 +33,28 @@ fn void cw_errors_map_to_excuses() @test
 	assert(corewlan_convert::fault_from_cw_error(-3930) == error::PERMISSION_DENIED);
 	assert(corewlan_convert::fault_from_cw_error(-3931) == error::BACKEND_FAILURE, "kCWErr has no class of its own");
 }
+
+// D5: an association is one with a name, a BSSID, a signal or a rate, even when the name is withheld.
+fn void an_association_with_withheld_names_is_still_an_association() @test
+{
+	assert(corewlan_convert::is_associated(false, false, -61, 0.0), "a signal and no name: associated");
+	assert(corewlan_convert::is_associated(false, false, 0, 866.0), "a rate and no name: associated");
+	assert(corewlan_convert::is_associated(true, false, 0, 0.0));
+	assert(!corewlan_convert::is_associated(false, false, 0, 0.0), "nothing at all: not associated");
+}
+
+// D6: a withheld name without Location authorization is a permission problem, not an absent network.
+fn void a_withheld_name_is_a_permission_problem() @test
+{
+	assert(corewlan_convert::missing_network_fault(LocationAccess.DENIED, true) == error::PERMISSION_DENIED);
+	assert(corewlan_convert::missing_network_fault(LocationAccess.NOT_DETERMINED, true) == error::PERMISSION_DENIED);
+	assert(corewlan_convert::missing_network_fault(LocationAccess.AUTHORIZED, true) == NOT_FOUND, "authorized: not there");
+	assert(corewlan_convert::missing_network_fault(LocationAccess.DENIED, false) == NOT_FOUND, "nothing withheld");
+}
+
+// D32: the access point refusing this client is not a password problem.
+fn void an_association_refusal_is_not_a_password_problem() @test
+{
+	assert(corewlan_convert::fault_from_cw_error(-3909) == error::PERMISSION_DENIED);
+	assert(corewlan_convert::fault_from_cw_error(-3924) == error::AUTH_REQUIRED, "an invalid PMK is still a password");
+}

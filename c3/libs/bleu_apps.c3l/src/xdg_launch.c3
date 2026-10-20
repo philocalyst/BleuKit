@@ -21,7 +21,17 @@ fn Launched? launch(void* state, App* app, AppAction* action, LaunchRequest* req
 	XdgBackend* backend = (XdgBackend*)state;
 	if (app.dbus_activatable && backend.bus_available)
 	{
-		if (try activated = dbus_launch(backend, app, action, request)) return activated;
+		Launched? activated = dbus_launch(backend, app, action, request);
+		if (catch err = activated)
+		{
+			// Only a bus that says nobody can activate the name falls back to Exec. Any other failure (a
+			// timeout, an error reply, a lost bus) may mean the app is starting already: Exec as well would start it twice.
+			if (err != error::UNAVAILABLE) return err~;
+		}
+		else
+		{
+			return activated;
+		}
 	}
 	String exec = action != null ? action.exec : app.target;
 	if (exec.len == 0) return error::raise(
@@ -65,7 +75,7 @@ fn String[] child_environment(LaunchRequest* request, Allocator allocator) @loca
 	for (usz i = 0; entries[i] != null; i++)
 	{
 		String entry = entries[i].str_view();
-		if (entry.starts_with(ENV_STARTUP_ID) || entry.starts_with(ENV_ACTIVATION_TOKEN)) continue;
+		if (is_variable(entry, ENV_STARTUP_ID) || is_variable(entry, ENV_ACTIVATION_TOKEN)) continue;
 		vars.push(entry.copy(allocator));
 	}
 	if (request.startup_id.len > 0) vars.push(string::tformat("%s=%s", ENV_STARTUP_ID, request.startup_id)
@@ -74,6 +84,12 @@ fn String[] child_environment(LaunchRequest* request, Allocator allocator) @loca
 		string::tformat("%s=%s", ENV_ACTIVATION_TOKEN, request.activation_token)
 		.copy(allocator));
 	return vars.to_aligned_array(allocator);
+}
+
+// Whether `entry` (NAME=value) sets the variable `name`: the whole name must match, not a prefix of it.
+fn bool is_variable(String entry, String name) @local
+{
+	return entry.starts_with(name) && entry.len > name.len && entry[name.len] == '=';
 }
 
 // `invocation` followed by `extra`, in a new array from `tmem`.

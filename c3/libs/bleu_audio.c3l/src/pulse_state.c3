@@ -23,6 +23,7 @@ struct Records
 	StreamRecord[] sink_inputs;
 	StreamRecord[] source_outputs;
 	CardRecord[] cards;
+	String degraded; // notes from the reads that stopped early; "" when none
 }
 
 <* Build the state. Every string is copied into `allocator`. *>
@@ -36,6 +37,7 @@ fn State? build_state(Allocator allocator, Records* records)
 	state.inputs = inputs_of(allocator, records);
 	state.streams = streams_of(allocator, records);
 	state.mic_in_use = mic_in_use(records);
+	state.degraded = records.degraded.len > 0 ? records.degraded.copy(allocator) : "";
 	return state;
 }
 

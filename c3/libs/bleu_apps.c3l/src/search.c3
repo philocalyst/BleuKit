@@ -75,7 +75,8 @@ fn SearchHit[] rank(State* state, String query, Ranker ranker, void* context, Al
 			total += best;
 		}
 		if (!all_matched) continue;
-		if (ranker) total += ranker(context, app);
+		// The ranker orders matches of a query; an empty query lists the catalogue in its own order.
+		if (ranker && words.len > 0) total += ranker(context, app);
 		hits.push({ .index = (usz)i, .score = total });
 	}
 	sort_hits(hits.array_view());
@@ -147,22 +148,34 @@ fn bool fuzzy_possible(String text, String word) @local
 	return true;
 }
 
-// Fuzzy score: the word's letters in order, scaled by how tightly they sit together.
+// Fuzzy score: the word's letters in order, scaled by how tightly the tightest match sits together.
 fn int fuzzy_score(String text, String word) @local
 {
-	usz at    = 0;
-	usz first = 0;
-	usz last  = 0;
+	if (word.len == 0) return 0;
+	usz tightest = 0;
+	for (usz start = 0; start < text.len; start++)
+	{
+		if (fold(text[start]) != fold(word[0])) continue;
+		usz span = greedy_span(text, word, start);
+		if (span > 0 && (tightest == 0 || span < tightest)) tightest = span;
+	}
+	if (tightest == 0) return 0;
+	return (int)(SCORE_FUZZY_MAX * word.len / tightest);
+}
+
+// The span in bytes of the greedy match of `word` in `text` that begins at `start`; zero when it does not match.
+fn usz greedy_span(String text, String word, usz start) @local
+{
+	usz at   = start;
+	usz last = start;
 	foreach (i, c : word)
 	{
 		while (at < text.len && fold(text[at]) != fold(c)) at++;
 		if (at == text.len) return 0;
-		if (i == 0) first = at;
 		last = at;
 		at++;
 	}
-	usz span = last - first + 1;
-	return (int)(SCORE_FUZZY_MAX * word.len / span);
+	return last - start + 1;
 }
 
 // Whether `word` occurs in `text` at byte `at`, ignoring ASCII case.

@@ -65,9 +65,9 @@ fn CodePoint? decode_at(String bytes, usz at)
 {
 	uint lead = (uint)(bytes[at] & 0xFF);
 	if (lead < ONE_BYTE_LIMIT) return { .value = lead, .width = 1 };
-	usz width      = 0;
-	uint value     = 0;
-	uint minimum   = 0;
+	usz width    = 0;
+	uint value   = 0;
+	uint minimum = 0;
 	if (lead >= LEAD_TWO_FIRST && lead <= LEAD_TWO_LAST)
 	{
 		width = 2;

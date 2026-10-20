@@ -164,7 +164,7 @@ struct Connection
 	// Stream offset of the first byte of `inbox`: the bytes of every earlier frame, all parsed.
 	usz parsed_bytes;
 	bool dispatching; // inside a handler: calls made now must not dispatch again
-	uint depth;       // operations in progress; the outermost one dispatches what it read
+	uint depth; // operations in progress; the outermost one dispatches what it read
 	List{int} descriptors;
 	// The stream offset each descriptor arrived with, in step with `descriptors`.
 	List{usz} descriptor_at;
@@ -633,7 +633,7 @@ fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 		String buffered = c.inbox.str_view();
 		usz total       = message::frame_length(buffered[0:message::FIXED_HEADER_LENGTH])!;
 		if (c.inbox.len() < (sz)total) return;
-		usz count = frame_descriptors(c, c.parsed_bytes, total)!;
+		usz count       = frame_descriptors(c, c.parsed_bytes, total)!;
 		Message* parsed = message::parse(c.allocator, buffered[0:total], c.descriptors.array_view()[0:count])!;
 		c.inbox.delete(0, (sz)total);
 		c.parsed_bytes += total;
@@ -780,7 +780,7 @@ fn void dispatch_one(Connection* c, Message* m) @private
 			serve_call(c, m);
 		case INVALID:
 		case UNKNOWN:
-			// Unknown types are ignored, as the specification requires.
+		// Unknown types are ignored, as the specification requires.
 	}
 }
 

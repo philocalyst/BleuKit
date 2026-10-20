@@ -107,3 +107,41 @@ fn void with_bool_replaces_one_key() @test
 		assert(added.dict_get("ipv4")!!.dict_get("ignore-auto-dns")!!.as_bool()!!, "a missing group is created");
 	};
 }
+
+// D12: a saved profile gets only its new secret; its other settings (addresses, DNS, MTU) are kept.
+fn void a_saved_profile_keeps_its_settings_when_its_secret_changes() @test
+{
+	@pool()
+	{
+		Value base = nm_settings::profile_settings(
+			tmem,
+			{
+				.ssid = (char[])"Office",
+				.id = "Office",
+				.uuid = "00000000-0000-0000-0000-000000000001",
+				.autoconnect = true,
+				.key_mgmt = WPA_PSK,
+				.psk = "old password",
+			}
+		)!!;
+		Value with_ipv4 = nm_settings::with_bool(tmem, base, "ipv4", "ignore-auto-dns", true)!!;
+		Value updated   = nm_settings::with_secret(tmem, with_ipv4, WPA_PSK, "new password")!!;
+		assert(group_string(updated, "802-11-wireless-security", "psk") == "new password");
+		assert(group_string(updated, "802-11-wireless-security", "key-mgmt") == "wpa-psk");
+		assert(group_string(updated, "connection", "id") == "Office", "the id is kept");
+		assert(updated.dict_get("ipv4")!!.dict_get("ignore-auto-dns")!!.as_bool()!!, "another group is kept");
+		assert(updated.dict_get("connection")!!.dict_get("autoconnect")!!.as_bool()!!, "autoconnect is kept");
+	};
+}
+
+// D24: the UUID comes from SHA-256 and has the RFC 9562 version 8 and RFC 4122 variant bits.
+fn void uuids_are_sha256_with_version_8_and_the_rfc_variant() @test
+{
+	@pool()
+	{
+		String id = nm_settings::uuid_for_ssid(tmem, (char[])"Office");
+		assert(id[14] == '8', "version 8 (a custom UUID from a hash)");
+		assert(id[19] == '8' || id[19] == '9' || id[19] == 'a' || id[19] == 'b', "RFC 4122 variant");
+		assert(id != nm_settings::uuid_for_ssid(tmem, (char[])"Office "), "one octet apart: another network");
+	};
+}

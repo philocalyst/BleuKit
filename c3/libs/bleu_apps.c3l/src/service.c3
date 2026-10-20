@@ -79,7 +79,14 @@ fn Apps*? open(Allocator allocator, Options options = { })
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "apps", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"apps",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -125,8 +132,12 @@ fn CatalogueSnapshot*? Apps.wait_after(&self, ulong seen, Duration timeout = tim
 <* Call `listener` on the worker thread for the current and every later catalogue. Quick and non-blocking only. *>
 fn WatchId{State} Apps.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Apps.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Apps.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (apps added, removed or changed). *>
 fn Reader{Event}*? Apps.subscribe(&self) => self.hub.events.subscribe();

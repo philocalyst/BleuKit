@@ -195,7 +195,9 @@ fn void failure_without_loader_text_has_no_code() @test
 		{
 			// Clear the loader's text, then fail a call that sets errno (ENOENT) but no dlerror text.
 			native::posix_dlerror();
-			if (catch io::file::open("/nonexistent-bleu-dl/x", "rb")) {}
+			if (catch io::file::open("/nonexistent-bleu-dl/x", "rb"))
+			{
+			}
 			native::Failure failure = native::last_failure();
 			test::eq(failure.code, 0);
 			test::eq(failure.text, "the loader gave no reason");

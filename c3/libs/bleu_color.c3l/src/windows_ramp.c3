@@ -15,7 +15,7 @@
  COMPILED ONLY: type-checked for Windows, never run.
 *>
 module bleu::color::windows_ramp @feat(WIN32) @link("gdi32");
-import bleu::availability, bleu::color, bleu::color::engine, bleu::color::kelvin, bleu::color::ramp, bleu::color::windows_displays, bleu::error, bleu::rt::worker, bleu::unit, std::collections::list, std::math, std::time, std::core::mem;
+import bleu::availability, bleu::color, bleu::color::engine, bleu::color::kelvin, bleu::color::ramp, bleu::color::windows_displays, bleu::error, bleu::rt::worker, bleu::unit, std::collections::list, std::math, std::os::win32, std::time, std::core::mem;
 
 // Source: Microsoft Learn, CreateDCW, DeleteDC, SetDeviceGammaRamp, GetDeviceGammaRamp (wingdi.h, gdi32).
 extern fn void* createDCW(ushort* driver, ushort* device, void* port, void* init) @cname("CreateDCW");
@@ -88,7 +88,11 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 {
 	WinRamp* ws = (WinRamp*)state;
 	defer ws.free_displays();
-	if (catch ws.open_displays()) return;
+	// The enumeration's temporary list is released with this scope, before the engine starts.
+	@pool()
+	{
+		if (catch ws.open_displays()) return;
+	};
 	Platform platform = { .context = ws, .write = &write_ramp, .release = &release_ramp };
 	Engine engine;
 	ws.start_engine(hub, &platform, &engine);
@@ -179,7 +183,7 @@ fn void? write_ramp(void* context, usz index, float[] ramp)
 		return error::raise(
 			error::BACKEND_FAILURE,
 			error::Domain.WIN32,
-			0,
+			(int)win32::getLastError(),
 			"SetDeviceGammaRamp failed on %s",
 			slot.name
 		)~;
@@ -190,7 +194,7 @@ fn void? write_ramp(void* context, usz index, float[] ramp)
 		return error::raise(
 			error::BACKEND_FAILURE,
 			error::Domain.WIN32,
-			0,
+			(int)win32::getLastError(),
 			"%s: Windows did not apply the ramp",
 			slot.name
 		)~;
@@ -203,6 +207,7 @@ fn void release_ramp(void* context, usz index)
 	WinRamp* ws      = (WinRamp*)context;
 	WinDisplay* slot = &ws.displays[index];
 	ushort* restore  = slot.has_original ? slot.original[..].ptr : ws.identity[..].ptr;
+	// Restoring cannot be reported usefully: the display keeps the ramp it has, as on macOS.
 	if (setDeviceGammaRamp(slot.dc, restore) == 0)
 	{
 	}

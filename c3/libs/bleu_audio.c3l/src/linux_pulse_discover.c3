@@ -1,14 +1,16 @@
 <*
  Finding the PulseAudio server and its cookie on Linux.
 
- Socket, in order: the `server` option; PULSE_SERVER when it names a unix path
- ("unix:/path"; TCP host names are not supported here); then
+ Socket, in order: the `server` option; PULSE_SERVER, whose unix entry is used
+ ("unix:/path"; a value with no unix entry, such as only tcp:, is UNSUPPORTED
+ rather than a silent fall-back to another server); then
  $XDG_RUNTIME_DIR/pulse/native (pulsecore/core-util.c:1786-1798, pulse/context.c:678).
 
  Cookie, in order: the `cookie_file` option; PULSE_COOKIE; $XDG_CONFIG_HOME/pulse/cookie
  or ~/.config/pulse/cookie; ~/.pulse-cookie (pulse/client-conf.c:169-213,
- pulsecore/authkey.c:134-143). When no file exists the cookie is 256 zero bytes,
- which only an server with anonymous authentication accepts.
+ pulsecore/authkey.c:134-143). An explicit option or PULSE_COOKIE must name an
+ existing file (checked by `create`). When discovery finds no file the cookie is
+ 256 zero bytes, which only an anonymous server accepts.
 *>
 module bleu::audio::linux_pulse @feat(LINUX);
 import std::os::env, std::io::path, bleu::error, bleu::rt::fs, bleu::audio::pulse;
@@ -22,16 +24,27 @@ const String SOCKET_SUFFIX   = "pulse/native";
 const String COOKIE_SUFFIX   = "pulse/cookie";
 const String HOME_COOKIE     = ".pulse-cookie";
 
+<*
+ The unix socket of a PULSE_SERVER value. The value is a space-separated list of
+ server addresses and the first unix one is used (pulse/context.c).
+
+ @return? error::UNSUPPORTED : "the value names no unix socket"
+*>
+fn String? unix_socket_of(String servers)
+{
+	Splitter entries = servers.tokenize(" ");
+	while (try entry = entries.next())
+	{
+		if (entry.starts_with(UNIX_PREFIX)) return entry[UNIX_PREFIX.len:entry.len - UNIX_PREFIX.len];
+	}
+	return error::UNSUPPORTED~;
+}
+
 <* The socket path, copied into `allocator`. @return? error::UNAVAILABLE : "no socket path can be found" *>
 fn String? server_path(Allocator allocator, String configured)
 {
 	if (configured.len > 0) return configured.copy(allocator);
-	if (try server = env::get_var(tmem, ENV_SERVER))
-	{
-		if (server.starts_with(
-			UNIX_PREFIX
-		)) return server[UNIX_PREFIX.len:server.len - UNIX_PREFIX.len].copy(allocator);
-	}
+	if (try server = env::get_var(tmem, ENV_SERVER)) return unix_socket_of(server)!.copy(allocator);
 	if (try runtime = env::get_var(tmem, ENV_RUNTIME_DIR))
 	{
 		return string::tformat("%s/%s", runtime, SOCKET_SUFFIX).copy(allocator);
@@ -60,12 +73,12 @@ fn String cookie_path(Allocator allocator, String configured)
 }
 
 <*
- Read the cookie: exactly pulse::COOKIE_LENGTH bytes, or zeros when there is no file.
+ Read the cookie: exactly pulse::COOKIE_LENGTH bytes, or zeros when there is no path (discovery found no file).
 
  @return? error::PROTOCOL : "the file exists but is not pulse::COOKIE_LENGTH bytes"
  @return? error::PERMISSION_DENIED : "the cookie file cannot be read"
 *>
-fn void? cookie_bytes(Allocator allocator, String path_name, char[pulse::COOKIE_LENGTH]* out)
+fn void? cookie_bytes(String path_name, char[pulse::COOKIE_LENGTH]* out)
 {
 	mem::set(out, 0, pulse::COOKIE_LENGTH);
 	if (path_name.len == 0) return;

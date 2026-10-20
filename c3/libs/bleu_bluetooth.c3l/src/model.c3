@@ -201,6 +201,8 @@ struct Options
 	Backend backend;
 	String bus_address;
 	String root;
+	Duration call_timeout; // how long an ordinary request may wait for its reply; 0 means 25 s
+	Duration pairing_timeout; // how long a pairing may take, the user's answers included; 0 means 120 s
 }
 
 <* What happened, for subscribers. Re-read `latest()` for the values. *>

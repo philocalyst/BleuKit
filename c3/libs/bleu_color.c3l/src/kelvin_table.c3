@@ -3,7 +3,7 @@
 
  One row per 100 K from 1000 K to 25100 K (242 rows, three channels each). Each row is the
  RGB multiplier of a black body at that temperature, normalised so that its largest channel is
- 1.0 (red, for every row up to 25100 K).
+ 1.0 (red up to and including 6500 K, blue from 6600 K upward).
 
  Source: Redshift `src/colorramp.c`, `blackbody_color[]`
  (https://raw.githubusercontent.com/jonls/redshift/master/src/colorramp.c, fetched; the rows were

@@ -7,8 +7,7 @@
     "bleu_core",
     "bleu_json",
     "bleu_battery",
-    "bleu_sysinfo",
-    "bleu_brightness"
+    "bleu_sysinfo"
   ],
   "targets": {
     "linux-x64": {},

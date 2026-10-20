@@ -219,7 +219,11 @@ fn void write_theme(String base, String name, String inherits) @local
 	io::path::mkdir((Path)string::tformat("%s/16x16/apps", dir), true)!!;
 	io::file::save(
 		string::tformat("%s/index.theme", dir),
-		(char[])string::tformat("[Icon Theme]\nName=%s\nDirectories=16x16/apps\nInherits=%s\n[16x16/apps]\nSize=16\n", name, inherits)
+		(char[])string::tformat(
+			"[Icon Theme]\nName=%s\nDirectories=16x16/apps\nInherits=%s\n[16x16/apps]\nSize=16\n",
+			name,
+			inherits
+		)
 	)!!;
 }
 

@@ -62,7 +62,7 @@ struct DesktopEntry
 	String comment;
 	String icon;
 	String exec;
-	String url; // the target of a Link entry; required for Type=Link, empty otherwise
+	String url; // the target of a Link entry: required for Type=Link; the spec also forbids it on other types, which is not enforced
 	String try_exec;
 	String working_dir;
 	String startup_wm_class;

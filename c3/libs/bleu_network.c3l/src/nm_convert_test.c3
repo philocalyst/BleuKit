@@ -63,3 +63,11 @@ fn void strength_is_a_level() @test
 	assert(half > 0.499f && half < 0.501f);
 	assert((float)nm_convert::quality_from_strength(0) == 0.0f);
 }
+
+// D25: an unavailable or unmanaged device is its own phase, not idle.
+fn void an_unavailable_device_is_its_own_phase() @test
+{
+	assert(nm_convert::phase_from_device_state(nm_convert::DEVICE_STATE_UNAVAILABLE) == ConnectionPhase.UNAVAILABLE);
+	assert(nm_convert::phase_from_device_state(nm_convert::DEVICE_STATE_UNMANAGED) == ConnectionPhase.UNAVAILABLE);
+	assert(nm_convert::phase_from_device_state(nm_convert::DEVICE_STATE_DISCONNECTED) == ConnectionPhase.IDLE);
+}

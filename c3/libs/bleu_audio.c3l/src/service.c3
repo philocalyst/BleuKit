@@ -56,8 +56,21 @@ fn Audio*? open(Allocator allocator, Options options = { })
 	Audio* self    = alloc::new(allocator, Audio);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "audio", driver.info.name, driver.run, self.driver_state))
+	void*? state = driver.create(allocator, options, &self.capabilities);
+	if (catch err = state)
+	{
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"audio",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);

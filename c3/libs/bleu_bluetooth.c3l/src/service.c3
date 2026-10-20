@@ -55,7 +55,14 @@ fn Bluetooth*? open(Allocator allocator, Options options = { })
 		return err~;
 	}
 	self.driver_state = state;
-	if (catch err = self.hub.start(allocator, "bluetooth", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"bluetooth",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_request
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -105,8 +112,12 @@ fn WatchId{State} Bluetooth.watch(
 	void* context
 ) => self.hub.state.watch(listener, context);
 
-<* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Bluetooth.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+<*
+ Remove a listener; when this returns it is not running. Not from inside a listener.
+
+ @return? error::INVALID_STATE : "Called from inside the listener it would remove"
+*>
+fn void? Bluetooth.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <*
  Subscribe to transient events: adapters and devices added, changed or removed,
@@ -278,6 +289,14 @@ fn void? ensure_available(Bluetooth* self, Cap cap) @private
 {
 	Availability available = self.capabilities.values[cap.ordinal];
 	if (!available.ok()) return available.refusal()~;
+}
+
+// Completes a request that the worker will never run, because the service is stopping or its
+// backend has exited. The waiter sees DISCONNECTED; the worker releases the request's reference.
+fn void abandon_request(void* backend, Request* request) @private
+{
+	request.op.fail(error::DISCONNECTED);
+	request.op.release();
 }
 
 // Queue `request` for the worker. The task is created here; the worker releases the request's reference.

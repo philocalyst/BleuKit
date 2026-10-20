@@ -229,3 +229,8 @@
 * A `defer` that frees a tree on error and not on success needs a guard flag (`bool handed_over = false; defer if (!handed_over) root.free();`), set just before the successful return.
 * DMS/dankgo wire: a zero request id is OMITTED from frames (omitempty), contrary to an earlier note in dms_surface.md; `defer` is a keyword (use `defer_reply`).
 * Child-module visibility: a module only sees siblings it imports; no `offsetof` in 0.8.5 (use `$assert` on struct sizes or `Type.member.offset` via reflection if available); guard Darwin-only code with `$feat(DARWIN)` inside shared files.
+* `import libc` next to `bleu::rt::unix` → "The struct 'Fd' is defined in both" → write `unix::Fd` in the file that imports libc.
+* `service::DEFAULT_QUEUE` from a generic module is a generic constant → "did you forget the parameters" → define the number in your own module (`COMMAND_QUEUE`).
+* `std::thread::sleep(d)` returns `void?` → write `thread::sleep(d)!!;` in a function that can fail, or handle it.
+* `git archive HEAD <path>` takes the path from the repository root (`/home/user/BleuKit`), not the project dir; a failing archive in a `|` pipeline is silent → check the archive's exit status before trusting the tree.
+* While other engineers edit the dependencies, `compile-test` of your lib fails in their code → build a verification tree: `git archive <commit>` for the dependencies and your own lib directories copied over it.

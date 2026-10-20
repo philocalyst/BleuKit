@@ -14,10 +14,13 @@
  stop at the server's own version (research note A6).
 *>
 module bleu::audio::linux_pulse @feat(LINUX);
-import bleu::error, bleu::rt, bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup, bleu::audio::pulse, bleu::unit, std::time;
+import bleu::error, bleu::rt, bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup, bleu::rt::worker, bleu::audio, bleu::audio::pulse, bleu::deadline, bleu::unit, std::time;
 
 const usz SOCKET_TAG             = 1;               // poller tag of the socket
 const Duration REPLY_TIMEOUT     = (Duration)5_000_000; // 5 s: a server that does not answer is failing
+// The longest a reply wait goes without checking the worker's stop flag, so
+// that `Audio.close` is answered within this time even while a server is silent.
+const Duration STOP_POLL         = (Duration)50_000; // 50 ms
 const uint SUBSCRIBED_FACILITIES = pulse::MASK_SINK | pulse::MASK_SOURCE | pulse::MASK_SINK_INPUT
 	| pulse::MASK_SOURCE_OUTPUT
 	| pulse::MASK_CARD
@@ -33,6 +36,7 @@ struct Session
 	UnixSocket socket;
 	Wakeup idle; // never signalled, so the reply poller watches only the socket
 	Poller waiter;
+	Host{Command}* host; // the worker's host: its stop flag ends a reply wait
 	uint version; // protocol version used for decoding replies
 	uint next_tag;
 	bool events_seen; // a subscription event arrived and has not been acted on yet
@@ -43,15 +47,16 @@ struct Session
 
  @param allocator : "Allocator for the session (released by `Session.close`)"
  @param cookie : "The 256-byte authentication cookie"
- @return? error::PERMISSION_DENIED, error::UNAVAILABLE, error::DISCONNECTED, error::PROTOCOL : "the server refused, is gone or speaks another protocol"
+ @param host : "The worker's host; a stop request ends any wait for the server"
+ @return? error::PERMISSION_DENIED, error::UNAVAILABLE, error::DISCONNECTED, error::PROTOCOL, error::CANCELLED, TIMEOUT : "the server refused, is gone, speaks another protocol, is silent, or the worker is stopping"
 *>
-fn Session*? open_session(Allocator allocator, String socket_path, char[] cookie)
+fn Session*? open_session(Allocator allocator, String socket_path, char[] cookie, Host{Command}* host)
 {
 	UnixSocket socket = unix::connect(socket_path, unix::SocketKind.STREAM)!;
 	Session* session = alloc::new(
 		allocator,
 		Session,
-		{ .allocator = allocator, .socket = socket, .version = pulse::PROTOCOL_VERSION }
+		{ .allocator = allocator, .socket = socket, .version = pulse::PROTOCOL_VERSION, .host = host }
 	);
 	if (catch err = session.idle.init())
 	{
@@ -149,16 +154,15 @@ fn void? Session.acknowledge(&self, DString* request, uint tag)
 }
 
 <*
- Read one whole packet. Waits for readiness of the socket first, for at most
- REPLY_TIMEOUT; the rest of the packet is read with blocking reads, since a
- server writes whole packets.
+ Read one whole packet within REPLY_TIMEOUT, counted from its first byte. Each
+ read waits for the socket first (see `await_readable`), so a server that stops
+ part-way through a packet times out instead of parking the worker.
 *>
 fn char[]? Session.read_frame(&self)
 {
-	Ready[] ready = self.waiter.wait(REPLY_TIMEOUT)!;
-	if (ready.len == 0) return error::raise(TIMEOUT, error::Domain.PULSE, 0, "no packet from the server")~;
+	Deadline limit = deadline::after(REPLY_TIMEOUT);
 	char[pulse::FRAME_HEADER_SIZE] header;
-	self.read_exact(header[..])!;
+	self.read_exact(header[..], &limit)!;
 	FrameHeader frame = pulse::decode_header(header[..])!;
 	if (frame.length > pulse::MAX_PAYLOAD) return error::raise(
 		error::PROTOCOL,
@@ -168,18 +172,63 @@ fn char[]? Session.read_frame(&self)
 		frame.length
 	)~;
 	char[] payload = alloc::new_array(tmem, char, frame.length);
-	self.read_exact(payload)!;
+	self.read_exact(payload, &limit)!;
 	return payload;
 }
 
-// Fill `bytes` completely from the socket, looping over short reads.
-fn void? Session.read_exact(&self, char[] bytes)
+<*
+ Fill `bytes` completely from the socket, looping over short reads. A read that
+ returns no bytes means the server closed the connection: a readable socket with
+ nothing to read would otherwise make this loop spin.
+*>
+fn void? Session.read_exact(&self, char[] bytes, Deadline* limit)
 {
 	sz done = 0;
 	while (done < bytes.len)
 	{
+		self.await_readable(limit)!;
 		RecvResult got = self.socket.recv(bytes[done:bytes.len - done], { })!;
+		if (got.bytes == 0) return error::raise(
+			error::DISCONNECTED,
+			error::Domain.PULSE,
+			0,
+			"server closed the connection with %d bytes of a packet missing",
+			bytes.len - done
+		)~;
 		done += (sz)got.bytes;
+	}
+}
+
+<*
+ Wait until the socket is readable, for at most what is left of `deadline`. The
+ wait is cut into STOP_POLL slices, so a stop request from `Audio.close` is seen
+ within one slice; the worker's own wake-up is not used here, because the
+ mailbox signals it for every command and a command must not be lost in a reply wait.
+
+ @return? TIMEOUT : "the server sent nothing in time"
+ @return? error::CANCELLED : "the worker is stopping"
+*>
+fn void? Session.await_readable(&self, Deadline* limit)
+{
+	while (true)
+	{
+		if (self.host.stopping()) return error::raise(
+			error::CANCELLED,
+			error::Domain.PULSE,
+			0,
+			"the service is closing while a reply is awaited"
+		)~;
+		if (limit.expired()) return error::raise(TIMEOUT, error::Domain.PULSE, 0, "no packet from the server")~;
+		Duration left  = limit.remaining();
+		Duration slice = left < STOP_POLL ? left : STOP_POLL;
+		Ready[]? ready = self.waiter.wait(slice);
+		if (catch err = ready)
+		{
+			// TIMEOUT is the end of this slice: check the stop flag and the deadline again.
+			if (err != TIMEOUT) return err~;
+			continue;
+		}
+		if (ready.len > 0) return;
 	}
 }
 
@@ -193,7 +242,11 @@ fn void Session.close(&self)
 	alloc::free(allocator, self);
 }
 
-<* The error an ERROR reply carries, classified in the Bleu vocabulary (def.h:471-498). *>
+<*
+ The error an ERROR reply carries, classified in the Bleu vocabulary (def.h:471-498).
+ A server's own timeout is not the client's: it does not break the session, so it
+ is reported as a backend failure, and TIMEOUT stays the client's own wait.
+*>
 fn fault server_error(uint code) @private
 {
 	switch (code)
@@ -202,7 +255,7 @@ fn fault server_error(uint code) @private
 		case (uint)PulseError.NOENTITY: return error::raise(NOT_FOUND, error::Domain.PULSE, (int)code, "no such device or stream");
 		case (uint)PulseError.INVALID: return error::raise(error::INVALID_ARGUMENT, error::Domain.PULSE, (int)code, "server rejected an argument");
 		case (uint)PulseError.NOTSUPPORTED: return error::raise(error::UNSUPPORTED, error::Domain.PULSE, (int)code, "server does not support it");
-		case (uint)PulseError.TIMEOUT: return error::raise(TIMEOUT, error::Domain.PULSE, (int)code, "server timed out");
+		case (uint)PulseError.TIMEOUT: return error::raise(error::BACKEND_FAILURE, error::Domain.PULSE, (int)code, "server timed out");
 		default: return error::raise(error::BACKEND_FAILURE, error::Domain.PULSE, (int)code, "server error %d", code);
 	}
 }

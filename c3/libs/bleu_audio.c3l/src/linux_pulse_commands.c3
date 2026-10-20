@@ -45,8 +45,11 @@ fn uint? stream_index(String id) @private
 	return (uint)index;
 }
 
-<* Run one command to completion on the session. *>
-fn void? Session.execute(&self, Command* command)
+<*
+ Run one command to completion on the session. A REFRESH re-reads the whole
+ server and publishes the result, so it completes only after the state is out.
+*>
+fn void? Session.execute(&self, Command* command, AudioHub* hub)
 {
 	@pool()
 	{
@@ -59,7 +62,7 @@ fn void? Session.execute(&self, Command* command)
 		switch (command.kind)
 		{
 			case CommandKind.REFRESH:
-				return;
+				return self.refresh(hub);
 			case CommandKind.SET_DEVICE_VOLUME:
 				values = raw_volumes(command.gains, &raw)!;
 				request = pulse::request_set_device_volume(tmem, tag, input, pulse::NO_INDEX, command.target, values);

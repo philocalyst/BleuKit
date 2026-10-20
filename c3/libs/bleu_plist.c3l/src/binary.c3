@@ -31,43 +31,43 @@
 module bleu::plist::binary;
 import bleu::error, bleu::plist::value, bleu::plist::text, std::collections::list, std::collections::set, std::math;
 
-const String MAGIC_PREFIX       = "bplist0";
-const usz MAGIC_LENGTH          = 8;
-const usz TRAILER_LENGTH        = 32;
-const usz TRAILER_OFFSET_SIZE   = 6;
-const usz TRAILER_REF_SIZE      = 7;
-const usz TRAILER_OBJECT_COUNT  = 8;
-const usz TRAILER_TOP_OBJECT    = 16;
-const usz TRAILER_TABLE_OFFSET  = 24;
-const usz WORD_BYTES            = 8;
-const usz MAX_INTEGER_BYTES     = 16;
-const usz MAX_ID_BYTES          = 8;
-const usz MAX_OBJECTS           = 1 << 28;
+const String MAGIC_PREFIX         = "bplist0";
+const usz MAGIC_LENGTH            = 8;
+const usz TRAILER_LENGTH          = 32;
+const usz TRAILER_OFFSET_SIZE     = 6;
+const usz TRAILER_REF_SIZE        = 7;
+const usz TRAILER_OBJECT_COUNT    = 8;
+const usz TRAILER_TOP_OBJECT      = 16;
+const usz TRAILER_TABLE_OFFSET    = 24;
+const usz WORD_BYTES              = 8;
+const usz MAX_INTEGER_BYTES       = 16;
+const usz MAX_ID_BYTES            = 8;
+const usz MAX_OBJECTS             = 1 << 28;
 // A UTF-16 code unit becomes at most three UTF-8 bytes (a surrogate pair is two units
 // for four bytes), so this is the worst-case size of a transcoded string.
 const usz UTF8_MAX_BYTES_PER_UNIT = 3;
-const uint TYPE_MASK            = 0xF0;
-const uint LENGTH_MASK          = 0x0F;
-const uint EXTENDED_LENGTH      = 0x0F;
-const uint MARKER_FALSE         = 0x08;
-const uint MARKER_TRUE          = 0x09;
-const uint TYPE_NULL_FILL       = 0x00;
-const uint TYPE_INTEGER         = 0x10;
-const uint TYPE_REAL            = 0x20;
-const uint TYPE_DATE            = 0x30;
-const uint TYPE_DATA            = 0x40;
-const uint TYPE_ASCII           = 0x50;
-const uint TYPE_UTF16           = 0x60;
-const uint TYPE_UID             = 0x80;
-const uint TYPE_ARRAY           = 0xA0;
-const uint TYPE_SET             = 0xC0;
-const uint TYPE_DICT            = 0xD0;
-const uint REAL_FLOAT_LOG2      = 2;
-const uint REAL_DOUBLE_LOG2     = 3;
-const uint DATE_LOG2            = 3;
-const uint LARGEST_INTEGER_LOG2 = 4;
-const uint ASCII_LIMIT          = 0x80;
-const ulong SIGN_EXTENSION      = 0xFFFFFFFFFFFFFFFF;
+const uint TYPE_MASK              = 0xF0;
+const uint LENGTH_MASK            = 0x0F;
+const uint EXTENDED_LENGTH        = 0x0F;
+const uint MARKER_FALSE           = 0x08;
+const uint MARKER_TRUE            = 0x09;
+const uint TYPE_NULL_FILL         = 0x00;
+const uint TYPE_INTEGER           = 0x10;
+const uint TYPE_REAL              = 0x20;
+const uint TYPE_DATE              = 0x30;
+const uint TYPE_DATA              = 0x40;
+const uint TYPE_ASCII             = 0x50;
+const uint TYPE_UTF16             = 0x60;
+const uint TYPE_UID               = 0x80;
+const uint TYPE_ARRAY             = 0xA0;
+const uint TYPE_SET               = 0xC0;
+const uint TYPE_DICT              = 0xD0;
+const uint REAL_FLOAT_LOG2        = 2;
+const uint REAL_DOUBLE_LOG2       = 3;
+const uint DATE_LOG2              = 3;
+const uint LARGEST_INTEGER_LOG2   = 4;
+const uint ASCII_LIMIT            = 0x80;
+const ulong SIGN_EXTENSION        = 0xFFFFFFFFFFFFFFFF;
 
 <*
  Decode a binary property list within `value::DEFAULT_MAX_DECODED_BYTES`.
@@ -238,7 +238,7 @@ fn void? Parser.charge(&self, usz bytes)
 // The bytes one decoded value takes in the tree: its struct, which every reference creates again.
 fn usz node_bytes() @local
 {
-	Value probe = {};
+	Value probe = { };
 	return @sizeof(probe);
 }
 

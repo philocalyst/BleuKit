@@ -4,7 +4,7 @@
  reference on that operation until it finishes the command.
 *>
 module bleu::audio;
-import bleu::unit, bleu::operation;
+import bleu::unit, bleu::error, bleu::operation;
 
 <*
  Completion of a request: `true` when the server applied it. Waiting on it does not mean the world changed; that arrives
@@ -22,4 +22,16 @@ struct Command
 	Gain[] gains; // volumes for SET_DEVICE_VOLUME and SET_STREAM_VOLUME
 	bool flag; // the mute value for SET_DEVICE_MUTE and SET_STREAM_MUTE
 	Pending* done; // completed exactly once by the worker
+}
+
+<*
+ Completes a command that the worker never ran: the backend stopped first, so
+ the operation fails with CANCELLED and its worker reference is released. Passed
+ to `Hub.start` as the abandon callback.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	Pending* done = command.done;
+	(void)done.fail(error::CANCELLED);
+	done.release();
 }

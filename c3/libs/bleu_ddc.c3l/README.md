@@ -27,13 +27,14 @@ Sources, byte layouts and every disagreement found are in
   `Sleeper` and `real_sleeper()`.
 - `session`: `open(transport, sleeper, options)`, `Session.get_vcp`, `set_vcp`,
   `set_vcp_verified`, `save_settings`, `read_capabilities`; `Options`,
-  `default_options()`, `Statistics`, `Reading`.
+  `default_options()`, `Statistics`, `Reading`. A session with `max_tries` zero refuses
+  every operation with INVALID_ARGUMENT before writing anything.
 - `edid`: `parse(data, allocator)` returns `Edid` (PNP vendor, product, serial,
   week/year, size, gamma, preferred `Timing`, name and serial descriptors,
   extension tags) and `Edid.fingerprint()`.
 - `mock`: `MockMonitor`, a `Transport` with a VCP store, a capabilities string
-  and deterministic fault counters (drop, corrupt, null, duplicate, refused
-  write, lagging set).
+  and deterministic fault counters (drop, corrupt, null, duplicate, doubled leading
+  0x6E, refused write, lagging set).
 
 ## Not done
 
@@ -51,9 +52,11 @@ Sources, byte layouts and every disagreement found are in
 ## Verified
 
 - `c3c --libdir libs --lib bleu_core --lib bleu_ddc compile-test libs/bleu_ddc.c3l/src/*_test.c3`:
-  73 tests, all passing (packet framing and checksums, capabilities grammar,
-  EDID on four real binaries, session timing and retries against the mock, mock
-  behaviour, VCP tables, real sleeper). Golden vectors are derived in the
+  78 tests of this library, all passing (packet framing and checksums, capabilities
+  grammar, EDID on four real binaries and the features-bit rule, session timing and
+  retries against the mock, the doubled leading 0x6E quirk on Get VCP and capabilities,
+  the zero-attempt refusal, mock behaviour, VCP tables, real sleeper). The runner also
+  runs `bleu_core`'s own tests, so its total line is larger. Golden vectors are derived in the
   research note and recomputed independently in Python.
 - `tools/check.sh bleu_core bleu_ddc`: clean on all six targets. Only Linux was
   run. The macOS and Windows backends that will use this are not part of this

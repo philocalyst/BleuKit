@@ -19,7 +19,7 @@
  Everything here is pure: `now` and the local offset are arguments.
 *>
 module bleu::color::schedule;
-import bleu::color, bleu::error, bleu::unit, std::math, std::time;
+import bleu::color, bleu::color::kelvin, bleu::error, bleu::unit, std::math, std::time;
 
 <* Microseconds in one day. Internal arithmetic is in plain microseconds, so `long` throughout. *>
 const long DAY_US = 86400000000;
@@ -178,7 +178,25 @@ fn void sort_edges(Edge[] edges)
 }
 
 <*
+ The smoothstep progress of one edge's change at `unix_us`: 0 before its window, 1 after it, and
+ the smoothstep 3t^2 - 2t^3 in between. A window is `half` either side of the edge.
+*>
+fn float edge_progress(long unix_us, long at, long half) @private
+{
+	long start = at - half;
+	long end   = at + half;
+	if (unix_us < start) return 0.0f;
+	if (unix_us >= end) return 1.0f;
+	float p = (float)(unix_us - start) / (float)(end - start);
+	return p * p * (3.0f - 2.0f * p);
+}
+
+<*
  The daylight fraction at `unix_us` for a SCHEDULE or TIMES schedule, in 0.0..1.0.
+
+ Every edge is a step of the daylight state (up at a sunrise, down at a sunset) that happens
+ over its own window. The state is the state before the first edge plus the steps begun so far,
+ so two edges that fall within one transition of each other still give a continuous curve.
 
  @param utc_offset_us : "The local time zone's offset from UTC in effect at `unix_us`, in microseconds; used by TIMES"
 *>
@@ -207,24 +225,15 @@ fn float daylight_at(Schedule schedule, long unix_us, long utc_offset_us)
 	}
 	if (count == 0) return sun_is_up(schedule.latitude, schedule.longitude, unix_us) ? 1.0f : 0.0f;
 	sort_edges(edges[0:count]);
-	long half   = (long)schedule.transition / 2;
+	long half = (long)schedule.transition / 2;
 	// Before the first edge the daylight state is the opposite of what that edge sets.
 	float level = edges[0].rising ? 0.0f : 1.0f;
 	for (usz i = 0; i < count; i++)
 	{
-		float after = edges[i].rising ? 1.0f : 0.0f;
-		long start  = edges[i].at - half;
-		long end    = edges[i].at + half;
-		if (unix_us < start) return level;
-		if (unix_us < end)
-		{
-			float p = (float)(unix_us - start) / (float)(end - start);
-			float s = p * p * (3.0f - 2.0f * p);
-			return level + (after - level) * s;
-		}
-		level = after;
+		float step = edges[i].rising ? 1.0f : -1.0f;
+		level += step * edge_progress(unix_us, edges[i].at, half);
 	}
-	return level;
+	return math::clamp(level, 0.0f, 1.0f);
 }
 
 <*
@@ -246,11 +255,23 @@ fn Kelvin temperature_at(Schedule schedule, Time now, Duration utc_offset)
 <*
  Check a schedule before it is queued. MANUAL is always valid.
 
- @return? error::INVALID_ARGUMENT : "A latitude or longitude is out of range, a time of day is outside one day, or the transition exceeds one hour"
+ @return? error::INVALID_ARGUMENT : "A latitude or longitude is out of range, a temperature is outside the kelvin range, a time of day is outside one day or the sunrise and sunset are equal, or the transition exceeds one hour"
 *>
 fn void? validate(Schedule schedule)
 {
 	if (schedule.mode == Mode.MANUAL) return;
+	if (schedule.day < kelvin::MIN || schedule.day > kelvin::MAX || schedule.night < kelvin::MIN
+		|| schedule.night > kelvin::MAX)
+	{
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"day and night must be %d to %d K",
+			kelvin::MIN,
+			kelvin::MAX
+		)~;
+	}
 	if (!((long)schedule.transition >= 0 && (long)schedule.transition <= HOUR_US))
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "transition must be 0 to one hour")~;
@@ -286,5 +307,10 @@ fn void? validate(Schedule schedule)
 			0,
 			"sunrise and sunset must be times of day"
 		)~;
+	}
+	// Equal times would make a sunrise and a sunset at one instant: no day has a daylight period.
+	if (schedule.sunrise == schedule.sunset)
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "sunrise and sunset must differ")~;
 	}
 }

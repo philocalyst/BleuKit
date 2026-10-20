@@ -161,7 +161,11 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	if (catch setup(wlr)) return;
 	Platform platform = { .context = wlr, .write = &write_ramp, .release = &release_ramp };
 	Engine engine;
-	engine.init(wlr.allocator, hub, &platform, outputs_of(wlr));
+	// The outputs are temporary: the engine copies the strings it keeps.
+	@pool()
+	{
+		engine.init(wlr.allocator, hub, &platform, outputs_of(wlr));
+	};
 	defer engine.free();
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), POLLER_CAPACITY)) return;
@@ -175,6 +179,7 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 	)) return;
 	engine.publish();
 	bool connected = true;
+	bool writable  = false;
 	while (!host.stopping() && connected)
 	{
 		// Sleeps until the next tick, a command, or the compositor has something to say.
@@ -196,9 +201,11 @@ fn void run(void* state, ColorHub* hub, Host{Command}* host)
 				}
 			}
 		}
+		// Refusals first: a command drained now must see the displays the compositor took back.
+		wlr.release_lost(&engine);
 		engine.drain(host);
 		if (catch client.flush()) connected = false;
-		wlr.release_lost(&engine);
+		sync_writable(&poller, &client, &writable, &connected);
 		engine.tick();
 		engine.publish();
 	}
@@ -315,6 +322,7 @@ fn void on_output_name(void* context, wayland::WlOutput* target, String name)
 {
 	WlrDisplay* slot = (WlrDisplay*)context;
 	if (name.len > MAX_NAME) return;
+	if (slot.name.len > 0) alloc::free(slot.allocator, slot.name.ptr);
 	slot.name = name.copy(slot.allocator);
 }
 
@@ -441,6 +449,33 @@ fn void Wlr.release_lost(&self, Engine* engine)
 		slot.failed = false;
 		engine.lost(i);
 	}
+}
+
+<*
+ Wait for the compositor's write readiness exactly while the outbox holds bytes the socket did not
+ take: a partly flushed request then goes out at once, not at the next event or tick.
+*>
+fn void sync_writable(Poller* poller, wl::Client* client, bool* writable, bool* connected) @private
+{
+	bool wanted = client.wants_write();
+	if (wanted == *writable) return;
+	if (catch poller.remove(CONNECTION_TAG))
+	{
+		*connected = false;
+		return;
+	}
+	if (catch poller.add(
+		{
+			.handle = client.native(),
+			.interest = { .readable = true, .writable = wanted, .hangup = true, .failed = true },
+			.tag = CONNECTION_TAG
+		}
+	))
+	{
+		*connected = false;
+		return;
+	}
+	*writable = wanted;
 }
 
 <*

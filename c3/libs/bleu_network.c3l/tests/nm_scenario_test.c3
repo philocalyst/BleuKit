@@ -3,7 +3,7 @@
 //   BLEU_NETWORK_TEST_BUS   the bus address the mock serves
 //   BLEU_NETWORK_TEST_ROOT  the fake root (sys/class/net/{eth0,wlan0}/...)
 module bleu::network::nm_scenario_test @feat(LINUX);
-import std::io, std::time, bleu::error, bleu::network, bleu::observe, bleu::stream, bleu::rt::fs;
+import std::io, std::time, bleu::availability, bleu::error, bleu::network, bleu::observe, bleu::stream, bleu::rt::fs;
 
 extern fn ZString getenv(ZString name) @cname("getenv");
 
@@ -243,4 +243,178 @@ fn void missing_bus_does_not_open() @test
 	assert(@catch(
 		network::open(mem, { .backend = NETWORKMANAGER, .bus_address = "unix:path=/nonexistent/bus" })
 	) == error::UNAVAILABLE, "no bus, no service");
+}
+
+// The fixture: a service on the private bus, polling every 100 ms.
+fn Network* open_fixture()
+{
+	return network::open(
+		mem,
+		{
+			.backend = NETWORKMANAGER,
+			.poll = time::ms(100),
+			.root = environment("BLEU_NETWORK_TEST_ROOT"),
+			.bus_address = environment("BLEU_NETWORK_TEST_BUS"),
+		}
+	)!!;
+}
+
+// Switch a fault of the mock on ("1") or off ("0").
+fn void set_fault(String name, String value) @local
+{
+	fs::write_text(string::tformat("%s/%s", environment("BLEU_NETWORK_TEST_FAULTS"), name), value)!!;
+}
+
+fn String eth_rx_path() @local => string::tformat("%s/sys/class/net/eth0/statistics/rx_bytes", environment("BLEU_NETWORK_TEST_ROOT"));
+
+fn bool eth_rx_is_20001(State* state)
+{
+	Interface* eth = interface_named(state, "eth0");
+	return eth != null && eth.rx_bytes.has_value && (ulong)eth.rx_bytes.value == 20001;
+}
+
+fn bool eth_rx_is_20002(State* state)
+{
+	Interface* eth = interface_named(state, "eth0");
+	return eth != null && eth.rx_bytes.has_value && (ulong)eth.rx_bytes.value == 20002;
+}
+
+// Whether a NETWORKS_CHANGED event comes in during a short wait.
+fn bool networks_changed(Reader{Event}* events)
+{
+	for (int seen = 0; seen < 10; seen++)
+	{
+		if (try packet = events.next(time::ms(50)))
+		{
+			defer packet.release();
+			if (packet.value.kind == NETWORKS_CHANGED) return true;
+		}
+	}
+	return false;
+}
+
+// Whether the event `kind` about `request` comes in before a long wait runs out.
+fn bool await_event(Reader{Event}* events, EventKind kind, ulong request)
+{
+	for (int seen = 0; seen < 64; seen++)
+	{
+		Snapshot{Event}* packet = events.next(time::sec(10))!!;
+		defer packet.release();
+		if (packet.value.kind == kind && packet.value.request == request) return true;
+	}
+	return false;
+}
+
+// D2: an access point that left between the list and its read is not listed; the picture is fresh.
+fn void an_access_point_that_left_is_not_listed() @test
+{
+	Network* net = open_fixture();
+	defer net.close();
+	Snapshot{State}* first = await(net, 0, &has_networks);
+	defer first.release();
+	Reader{Event}* events = net.subscribe()!!;
+	defer events.release();
+	defer set_fault("vanish-ap", "0");
+	set_fault("vanish-ap", "1");
+	defer fs::write_text(eth_rx_path(), "12345")!!;
+	fs::write_text(eth_rx_path(), "20002")!!;
+	net.refresh()!!;
+	Snapshot{State}* read = await(net, first.generation, &eth_rx_is_20002);
+	defer read.release();
+	assert(read.value.wifi.networks.len == 4, "the access point that left is skipped, the others stay");
+	assert(!read.value.stale.wifi, "the read is fresh: nothing was kept");
+	assert(!networks_changed(events), "and no network was announced as removed or added");
+}
+
+// D2: one failed sub-read keeps the previous networks, flagged stale, with no spurious events.
+fn void a_failed_sub_read_keeps_the_previous_networks() @test
+{
+	Network* net = open_fixture();
+	defer net.close();
+	Snapshot{State}* first = await(net, 0, &has_networks);
+	defer first.release();
+	Reader{Event}* events = net.subscribe()!!;
+	defer events.release();
+	defer set_fault("wifi-fail", "0");
+	set_fault("wifi-fail", "1");
+	defer fs::write_text(eth_rx_path(), "12345")!!;
+	fs::write_text(eth_rx_path(), "20001")!!;
+	net.refresh()!!;
+	Snapshot{State}* kept = await(net, first.generation, &eth_rx_is_20001);
+	defer kept.release();
+	assert(kept.value.stale.wifi, "the failed read is recorded on the picture");
+	assert(kept.value.wifi.networks.len == 4, "the previous networks are kept, not blanked");
+	assert(has_network(&kept.value, "Office") && has_network(&kept.value, "Cafe"));
+	assert(!networks_changed(events), "no network was announced as removed or added");
+}
+
+// D7: a read whose Wi-Fi part failed settles no request from its values: the radio is off on
+// the bus, but only a good read says so.
+fn void a_failed_read_settles_no_request() @test
+{
+	Network* net = open_fixture();
+	defer net.close();
+	Snapshot{State}* first = await(net, 0, &has_networks);
+	defer first.release();
+	defer set_fault("wifi-fail", "0");
+	set_fault("wifi-fail", "1");
+	SettleOp* off = net.set_radio(false)!!;
+	assert(@catch(off.wait(time::ms(600))) == TIMEOUT, "no good read yet: the request keeps waiting");
+	set_fault("wifi-fail", "0");
+	assert(off.wait(time::sec(10))!! == CHANGED, "a good read settles it");
+	off.release();
+	SettleOp* on_again = net.set_radio(true)!!;
+	assert(on_again.wait(time::sec(10))!! == CHANGED);
+	on_again.release();
+}
+
+// D9: a prompt that NetworkManager supersedes is withdrawn by its id, before the new prompt.
+fn void a_superseded_prompt_is_withdrawn() @test
+{
+	Network* net = open_fixture();
+	defer net.close();
+	Snapshot{State}* first = await(net, 0, &has_networks);
+	defer first.release();
+	Reader{Event}* events = net.subscribe()!!;
+	defer events.release();
+	ConnectOp* first_try = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
+	ulong older = await_prompt(events, "Guest-SAE");
+	ConnectOp* second_try = net.connect({ .ssid = (char[])"Guest-SAE" })!!;
+	assert(await_event(events, CREDENTIALS_WITHDRAWN, older), "the superseded prompt is withdrawn");
+	ulong newer = await_prompt(events, "Guest-SAE");
+	SettleOp* answer = net.supply_credentials(newer, "sae-password")!!;
+	assert(answer.wait(time::sec(10))!! == CHANGED, "the answer is delivered");
+	answer.release();
+	second_try.wait(time::sec(10))!!;
+	second_try.release();
+	first_try.wait(time::sec(10))!!;
+	first_try.release();
+	SettleOp* down = net.disconnect()!!;
+	assert(down.wait(time::sec(10))!! == CHANGED);
+	down.release();
+	await(net, 0, &idle).release();
+}
+
+// D10: when NetworkManager refuses the secret agent, the capability says so instead of offering prompts.
+fn void a_refused_agent_withdraws_the_prompt_capability() @test
+{
+	defer set_fault("no-agent", "0");
+	set_fault("no-agent", "1");
+	Network* net = open_fixture();
+	defer net.close();
+	assert(!net.capability(WIFI_SECRET_PROMPT).ok(), "no prompt is offered");
+	assert(net.capability(WIFI_SECRET_PROMPT).reason == availability::Reason.PERMISSION_NEEDED, "and the reason is given");
+}
+
+// D16: forgetting a network deletes every saved profile of it, so a second forget finds none.
+fn void every_saved_profile_of_a_network_is_forgotten() @test
+{
+	Network* net = open_fixture();
+	defer net.close();
+	SettleOp* forget = net.forget((char[])"Twin")!!;
+	assert(forget.wait(time::sec(10))!! == CHANGED, "both saved profiles are deleted");
+	forget.release();
+	SettleOp* again = net.forget((char[])"Twin")!!;
+	assert(@catch(again.wait(time::sec(10))) == NOT_FOUND, "no saved profile is left");
+	again.release();
 }

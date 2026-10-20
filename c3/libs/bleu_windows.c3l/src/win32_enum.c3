@@ -487,7 +487,7 @@ fn void? minimize(void* hwnd) @private
 {
 	if (win32_user::is_window(
 		hwnd
-	) == 0) return error::raise(error::NOT_FOUND, error::Domain.INTERNAL, 0, "that window no longer exists")~;
+	) == 0) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "that window no longer exists")~;
 	win32_user::show_window(hwnd, win32_user::SW_MINIMIZE);
 }
 

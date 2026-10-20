@@ -42,37 +42,37 @@ import bleu::error, std::io, std::collections::list;
 *>
 const long MAX_FILE_BYTES = 1024 * 1024;
 
-const char LIST_SEPARATOR      = ';';
-const uint UTF8_ONE_BYTE_LIMIT   = 0x80;
-const uint UTF8_TWO_BYTE_LIMIT   = 0x800;
-const uint UTF8_THREE_BYTE_LIMIT = 0x10000;
-const uint UTF8_MAX_CODE_POINT   = 0x10FFFF;
-const uint UTF8_FIRST_SURROGATE  = 0xD800;
-const uint UTF8_LAST_SURROGATE   = 0xDFFF;
-const uint UTF8_TWO_FIRST        = 0xC2;
-const uint UTF8_TWO_LAST         = 0xDF;
-const uint UTF8_THREE_FIRST      = 0xE0;
-const uint UTF8_THREE_LAST       = 0xEF;
-const uint UTF8_FOUR_FIRST       = 0xF0;
-const uint UTF8_FOUR_LAST        = 0xF4;
-const uint UTF8_TWO_MASK         = 0x1F;
-const uint UTF8_THREE_MASK       = 0x0F;
-const uint UTF8_FOUR_MASK        = 0x07;
+const char LIST_SEPARATOR         = ';';
+const uint UTF8_ONE_BYTE_LIMIT    = 0x80;
+const uint UTF8_TWO_BYTE_LIMIT    = 0x800;
+const uint UTF8_THREE_BYTE_LIMIT  = 0x10000;
+const uint UTF8_MAX_CODE_POINT    = 0x10FFFF;
+const uint UTF8_FIRST_SURROGATE   = 0xD800;
+const uint UTF8_LAST_SURROGATE    = 0xDFFF;
+const uint UTF8_TWO_FIRST         = 0xC2;
+const uint UTF8_TWO_LAST          = 0xDF;
+const uint UTF8_THREE_FIRST       = 0xE0;
+const uint UTF8_THREE_LAST        = 0xEF;
+const uint UTF8_FOUR_FIRST        = 0xF0;
+const uint UTF8_FOUR_LAST         = 0xF4;
+const uint UTF8_TWO_MASK          = 0x1F;
+const uint UTF8_THREE_MASK        = 0x0F;
+const uint UTF8_FOUR_MASK         = 0x07;
 const uint UTF8_CONTINUATION_TAG  = 0x80;
 const uint UTF8_CONTINUATION_MASK = 0x3F;
 const uint UTF8_CONTINUATION_BITS = 6;
-const char ESCAPE              = '\\';
-const char COMMENT_START       = '#';
-const char GROUP_OPEN          = '[';
-const char GROUP_CLOSE         = ']';
-const char KEY_VALUE_SEPARATOR = '=';
-const char CARRIAGE_RETURN     = '\r';
-const char LINE_FEED           = '\n';
-const char FIRST_PRINTABLE     = ' ';
-const char LAST_PRINTABLE      = '~';
-const String UTF8_BOM          = "\xEF\xBB\xBF";
-const String BLANKS            = " \t";
-const int LOCALE_FORMS         = 4;
+const char ESCAPE                 = '\\';
+const char COMMENT_START          = '#';
+const char GROUP_OPEN             = '[';
+const char GROUP_CLOSE            = ']';
+const char KEY_VALUE_SEPARATOR    = '=';
+const char CARRIAGE_RETURN        = '\r';
+const char LINE_FEED              = '\n';
+const char FIRST_PRINTABLE        = ' ';
+const char LAST_PRINTABLE         = '~';
+const String UTF8_BOM             = "\xEF\xBB\xBF";
+const String BLANKS               = " \t";
+const int LOCALE_FORMS            = 4;
 
 <*
  One `Key[locale]=Value` line. `raw` is the value as written, with escapes
@@ -140,7 +140,9 @@ fn KeyFile? parse(Allocator allocator, String source) => parse_with(allocator, s
 fn KeyFile? parse_with(Allocator allocator, String source, KeySyntax syntax)
 {
 	// The file is UTF-8, and GLib refuses other bytes too; they would reach names and values as they are.
-	if (!well_formed_utf8(source)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "the key file is not UTF-8")~;
+	if (!well_formed_utf8(
+		source
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "the key file is not UTF-8")~;
 	KeyFile file = { .allocator = allocator, .text = source.copy(allocator) };
 	file.groups.init(allocator);
 	defer catch file.free();
@@ -689,7 +691,8 @@ fn usz utf8_length_at(String bytes, usz at) @local
 		if ((continuation & ~UTF8_CONTINUATION_MASK) != UTF8_CONTINUATION_TAG) return 0;
 		value = (value << UTF8_CONTINUATION_BITS) | (continuation & UTF8_CONTINUATION_MASK);
 	}
-	if (value < minimum || value > UTF8_MAX_CODE_POINT || (value >= UTF8_FIRST_SURROGATE && value <= UTF8_LAST_SURROGATE)) return 0;
+	if (value < minimum || value > UTF8_MAX_CODE_POINT
+		|| (value >= UTF8_FIRST_SURROGATE && value <= UTF8_LAST_SURROGATE)) return 0;
 	return width;
 }
 

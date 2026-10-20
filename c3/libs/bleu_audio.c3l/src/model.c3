@@ -147,6 +147,7 @@ struct State
 	Stream[] streams;
 	Card[] cards;
 	bool mic_in_use; // a non-muted, non-corked application is recording from a microphone
+	String degraded; // "" when every list was read; else what the server sent that could not be decoded, and what was skipped
 }
 
 <*
