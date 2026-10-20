@@ -21,3 +21,7 @@
 * Generic module code is type-checked only when instantiated → instantiate it in a check.
 * `min(len, CONST)` mixes `sz` and `usz` → keep both `sz`.
 * `Mutex` needs `init()` at run time, so a zero-initialised global cannot hold one.
+* `constset` values are typed: compare/assign to `char` needs a cast; from another module write `Type.MEMBER`.
+* `NOT_FOUND` is bare in `@return?` contracts (built-in); struct doc comments cannot carry `@param`.
+* `String` has no `+` and no `==`: use `string::tformat` or `mem::equals`. `mem::copy` traps on a null/empty source: guard empty copies.
+* Slices: `a[s : len]`, `a[x..y]` inclusive, `a[..]` full; `a[:n]` and `a[:]` are rejected. `ubyte` is not a C3 type (use `char`).
