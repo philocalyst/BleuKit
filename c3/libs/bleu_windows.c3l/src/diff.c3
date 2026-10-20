@@ -1,7 +1,8 @@
 <*
  Turning one published state into the next, and the events that describe the
- difference. Pure: the backends call `publish_changes` and the tests call
- `changes` on hand-built states.
+ difference. `changes` is pure and is what the tests call on hand-built states;
+ `publish_changes` and `publish_status` are the only calls the backends make to
+ publish, so the publishing rule lives in one place.
 *>
 module bleu::windows;
 import std::collections::list, bleu::equal, bleu::observe, bleu::stream, bleu::service;

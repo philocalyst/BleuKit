@@ -55,18 +55,20 @@ target, never executed. Not done = refused with `UNSUPPORTED_*` or not implement
   windows between Spaces (needs SIP changes); minimized windows (not on screen, so not
   listed); AX close and minimize act on the owning application's focused window only;
   fullscreen; outputs.
-* Notification-driven change on macOS needs the main thread's run loop; the 1 s poll
+* Windows and macOS: one service per process. The hook and the notification observer
+  reach their hub through a module global, so a second service would replace the first.
+* macOS: notification-driven change needs the main thread's run loop; the 1 s poll
   covers the gap.
 
 ## Verified how
 
 * Linux, run: `tests/run.sh` starts the fakes that `libs/bleu_compositor.c3l/tests/` ships
-  (by path), runs `tests/live/service_live.c3` against each, and checks 35 output lines and
+  (by path), runs `tests/live/service_live.c3` against each, and checks 36 output lines and
   the requests the fakes logged. Needs python3 and c3c. The restart scenario kills the
   Hyprland fake, restarts it, and expects `DISCONNECTED` then `CONNECTED`.
 * Unit tests (`src/*_test.c3`, `c3c compile-test`): backoff, the Linux model mapping, the
-  Windows Alt-Tab predicate, window ids, executable names and workspace grouping. 105 tests
-  pass in the run that includes the other linked libraries.
+  Windows Alt-Tab predicate, window ids, executable names, workspace grouping and macOS
+  window numbers. 106 tests pass in the run that includes the other linked libraries.
 * Compiled: `tools/check.sh bleu_core bleu_rt bleu_service bleu_compositor bleu_win
   bleu_objc bleu_dl bleu_windows` is clean on all six targets.
 * Windows and macOS code has not been executed. Their constants and signatures were cross-checked
