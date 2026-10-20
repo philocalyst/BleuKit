@@ -1,11 +1,11 @@
 <*
  The Windows backend: the clipboard API of user32.
 
- Change detection is polling `GetClipboardSequenceNumber`, which increments whenever the
- contents change (Microsoft, GetClipboardSequenceNumber, read 2026-10-20). The listener
- route, `AddClipboardFormatListener` with `WM_CLIPBOARDUPDATE`, is not used: `bleu::win::message_loop`
- does not route that message, and that library is read-only here. Until it does, the change
- arrives up to POLL_INTERVAL late.
+ Change detection is `WM_CLIPBOARDUPDATE` from `AddClipboardFormatListener`, delivered on the
+ worker's `bleu::win::message_loop.Loop` (Microsoft, AddClipboardFormatListener, read 2026-10-20).
+ The sequence number (`GetClipboardSequenceNumber`, which increments whenever the contents change)
+ is checked on each notification, and again every SAFETY_POLL_INTERVAL as a backstop for a change
+ the listener misses. If the hidden window cannot be opened, the backstop alone runs.
 
  Formats: CF_UNICODETEXT is shown as `text/plain;charset=utf-8` and read as UTF-16 converted to
  UTF-8; CF_HDROP and the other standard formats are shown by name; registered formats by their
@@ -16,10 +16,13 @@
  Compiled only: nothing in this file has been run.
 *>
 module bleu::clipboard::windows_clipboard @feat(WIN32);
-import bleu::clipboard, bleu::availability, bleu::error, bleu::operation, bleu::rt::poller, bleu::rt::wakeup, bleu::rt::worker, bleu::service, bleu::win::errors, bleu::win::text, bleu::clipboard::windows_native, std::core::mem, std::os::win32, std::thread, std::time;
+import bleu::clipboard, bleu::availability, bleu::error, bleu::operation, bleu::rt::poller, bleu::rt::wakeup, bleu::rt::worker, bleu::service, bleu::win::errors, bleu::win::message_loop, bleu::win::text, bleu::clipboard::windows_native, std::core::mem, std::os::win32, std::thread, std::time;
 
-<* How often the sequence number is read: 250 ms, since change notifications are not used. *>
-const Duration POLL_INTERVAL = (Duration)250_000;
+<*
+ How long the worker waits for a command or a clipboard notification before it checks the
+ sequence number anyway: 30 s. This is a backstop only; the listener does the normal work.
+*>
+const Duration SAFETY_POLL_INTERVAL = (Duration)30_000_000;
 
 <* The worker's state. Only the worker touches it. *>
 struct WinBackend
@@ -28,6 +31,7 @@ struct WinBackend
 	Board board;
 	usz payload_limit;
 	uint sequence;
+	ClipboardHub* hub;
 }
 
 const Driver DRIVER = {
@@ -70,27 +74,54 @@ fn void destroy(Allocator allocator, void* state)
 	alloc::free(allocator, backend);
 }
 
-<* The worker: poll the sequence number, serve commands, publish what changed. *>
+<*
+ The worker: open the listener window, wait for a notification, a command or the backstop tick,
+ serve commands, and publish what changed.
+*>
 fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 {
 	defer clipboard::fail_pending(host, error::UNAVAILABLE);
 	WinBackend* backend = (WinBackend*)state;
+	backend.hub = hub;
 	clipboard::publish_board(hub, &backend.board);
+	// Without the window the backstop tick below still sees every change, at most SAFETY_POLL_INTERVAL late.
+	message_loop::Loop* loop = null;
+	if (try opened = message_loop::open(mem, &on_event, backend)) loop = opened;
+	defer if (loop != null) loop.close();
+	if (loop != null)
+	{
+		if (catch loop.add_clipboard_listener())
+		{
+			// Without the listener the backstop tick still sees every change, at most SAFETY_POLL_INTERVAL late.
+		}
+	}
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 1)) return;
+	if (catch poller.init(mem, host.wakeup(), 1, true)) return;
 	defer poller.free();
 	Command[8] commands;
 	while (!host.stopping())
 	{
-		if (catch poller.wait(POLL_INTERVAL))
+		if (catch err = poller.wait(SAFETY_POLL_INTERVAL))
 		{
+			if (err == TIMEOUT) poll_changes(backend, hub);
 		}
+		message_loop::dispatch_pending();
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(backend, hub, &commands[i]);
-		poll_changes(backend, hub);
 	}
 	backend.board.clear(Slot.CLIPBOARD);
 	clipboard::publish_board(hub, &backend.board);
+}
+
+<*
+ A message of the listener window, on the worker thread inside `message_loop::dispatch_pending`.
+ Only `CLIPBOARD_UPDATED` is ours to act on.
+*>
+fn void on_event(void* context, message_loop::Event* event) @local
+{
+	if (event.kind != message_loop::EventKind.CLIPBOARD_UPDATED) return;
+	WinBackend* backend = (WinBackend*)context;
+	poll_changes(backend, backend.hub);
 }
 
 <*
@@ -116,7 +147,7 @@ fn void poll_changes(WinBackend* backend, ClipboardHub* hub) @private
 		}
 	};
 	win32::closeClipboard();
-	clipboard::emit_event(hub, EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
+	clipboard::emit_event(hub, clipboard::EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
 	clipboard::publish_board(hub, &backend.board);
 }
 
@@ -277,7 +308,7 @@ fn void run_set(WinBackend* backend, ClipboardHub* hub, Command* command) @priva
 		backend.board.captured(Slot.CLIPBOARD, seq, text_rep.mime, text_rep.bytes);
 	};
 	backend.sequence = windows_native::getClipboardSequenceNumber();
-	clipboard::emit_event(hub, EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
+	clipboard::emit_event(hub, clipboard::EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
 	clipboard::publish_board(hub, &backend.board);
 	op.succeed(seq);
 }
@@ -313,7 +344,7 @@ fn void run_clear(WinBackend* backend, ClipboardHub* hub, Command* command) @pri
 	win32::closeClipboard();
 	backend.board.clear(Slot.CLIPBOARD);
 	backend.sequence = windows_native::getClipboardSequenceNumber();
-	clipboard::emit_event(hub, EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
+	clipboard::emit_event(hub, clipboard::EventKind.SELECTION_CHANGED, Slot.CLIPBOARD);
 	clipboard::publish_board(hub, &backend.board);
 	op.succeed(held);
 }

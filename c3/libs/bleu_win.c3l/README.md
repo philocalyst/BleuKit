@@ -10,7 +10,7 @@ anywhere else; no Windows machine was available. `tools/check.sh bleu_core bleu_
 type-checks the library for all six targets, and the Windows parts are checked against the
 standard library's Win32 bindings. The platform-neutral parts (GUID parsing and formatting,
 WinRT parameterized IIDs, the HRESULT mapping, UTF-16 conversion, message decoding and the
-application message allocator) were run on Linux: 30 `@test` functions pass under `c3c compile-test`. Every layout, constant and vtable slot is
+application message allocator, the registered-message range) were run on Linux: 31 `@test` functions pass under `c3c compile-test`. Every layout, constant and vtable slot is
 cited in `docs/research/bleu_win.md`.
 
 ## Public API
@@ -29,7 +29,7 @@ cited in `docs/research/bleu_win.md`.
 | `bleu::win::hstring` | `Hstring`: `create`, `close`, `to_string` |
 | `bleu::win::bstr` | `Bstr`: `create`, `close`, `to_string` |
 | `bleu::win::registry` | `Key`: `open(hive, path, view, access)`, `dword`, `qword`, `string`, `multi_string`, `binary`, `subkeys`, `values`, `set_dword`, `set_qword`, `set_string`; `watch_key` gives a `Watch` whose `handle()` feeds `bleu::rt`'s poller |
-| `bleu::win::message_loop` | `open(allocator, handler, context)` → `Loop` (hidden window), `post_wake`, `allocate_message` (application message ids), `add_clipboard_listener`/`remove_clipboard_listener`, `register_hotkey`/`unregister_hotkey`, `watch_power`, `watch_devices`, `pump(timeout)`, `dispatch_pending`; `Event` kinds: `POWER_SETTING`, `POWER_STATE`, `DISPLAY_CHANGE`, `DEVICE_CHANGE`, `SESSION_CHANGE`, `SETTING_CHANGE`, `DPI_CHANGE`, `WAKE`, `CUSTOM_MESSAGE` (`message`, `wparam`, `lparam`), `CLIPBOARD_UPDATED`, `HOTKEY` (`hotkey_id`, `modifiers`, `vk`) |
+| `bleu::win::message_loop` | `open(allocator, handler, context)` → `Loop` (hidden window), `post_wake`, `allocate_message` (application message ids), `register_named_message` (ids such as TaskbarCreated), `add_clipboard_listener`/`remove_clipboard_listener`, `register_hotkey`/`unregister_hotkey`, `watch_power`, `watch_devices`, `pump(timeout)`, `dispatch_pending`; `Event` kinds: `POWER_SETTING`, `POWER_STATE`, `DISPLAY_CHANGE`, `DEVICE_CHANGE`, `SESSION_CHANGE`, `SETTING_CHANGE`, `DPI_CHANGE`, `WAKE`, `CUSTOM_MESSAGE` (`message`, `wparam`, `lparam`), `CLIPBOARD_UPDATED`, `HOTKEY` (`hotkey_id`, `modifiers`, `vk`); every event has `time` (milliseconds, `GetMessageTime`) |
 | `bleu::win::session` | `register`/`unregister` (WTS session notifications), `is_locked(session)` |
 | `bleu::win::process` | `is_elevated`, `current_user_sid`, `query_image_name`, `wts_session_id`, `locked_workstation` |
 
@@ -195,6 +195,9 @@ the enumerator has taken its own, so `stop` frees the shell.
 * Hot keys: `RegisterHotKey` reports the press only (no key-up). A loop refuses an id it already holds
   (`INVALID_STATE`), and `close` unregisters the hot keys it still holds.
 * Application message ids are per loop and are never reused; an exhausted range is `CAPACITY_EXCEEDED`.
+* `Event.time` is `GetMessageTime` at dispatch. For a message that was sent rather than posted (system
+  broadcasts), it is the time of the last message the loop retrieved, not the time it was sent. Not run.
+* The `RegisterWindowMessageW` range 0xC000 through 0xFFFF is cited from Learn only.
 * The clipboard listener, hot keys and application messages are compiled only (see section 13 of
   `docs/research/bleu_win.md`).
 

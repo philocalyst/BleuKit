@@ -95,6 +95,12 @@ fn sz utf8_unit(String text, sz i, bool* valid)
 fn void? JsonWriter.emit_quoted(&self, String text)
 {
 	self.emit("\"")!;
+	// An empty String may have no storage at all, so it is never sliced.
+	if (text.len == 0)
+	{
+		self.emit("\"")!;
+		return;
+	}
 	sz run = 0; // start of the bytes not yet written
 	sz i = 0;
 	while (i < text.len)

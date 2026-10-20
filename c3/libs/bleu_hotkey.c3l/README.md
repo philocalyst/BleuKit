@@ -55,8 +55,8 @@ bleu_dl bleu_win bleu_hotkey` is clean on all six targets.
 * macOS and Windows backends have never been executed. Carbon presses need the host's main thread to
   run its event loop; whether a worker thread may call the Carbon registration functions is unverified
   (Hammerspoon calls them on the main thread).
-* Windows: `WM_HOTKEY` is not one of the messages `bleu::win::message_loop` reports, so the worker
-  drains the queue itself (`windows.c3`). A `HOTKEY` event kind in `message_loop` would remove that.
+* Windows: the hot keys are registered on a `bleu::win::message_loop.Loop` owned by the worker; a conflict
+  with another program is kept as a CONFLICT binding that cannot fire.
 * Portal: no event taps, no low-level hooks, no KDE, GNOME or Hyprland native routes, no X11 grab
   (research cut). A desktop whose portal lacks GlobalShortcuts reports UNSUPPORTED; no fallback.
 * Portal: a bus restart is handled by reconnecting and binding again on the next tick, but the tests

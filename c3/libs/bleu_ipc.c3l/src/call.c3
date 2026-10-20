@@ -126,7 +126,7 @@ fn void? Call.respond_error(&self, String message) @maydiscard
  The Deferred must be completed, or the request is never closed: the client then
  waits for its own timeout, and the request's small state is leaked.
 *>
-fn Deferred Call.defer(&self)
+fn Deferred Call.defer_reply(&self)
 {
 	Pending* pending = self.pending;
 	if (pending.deferred || pending.answered.load()) return { .pending = null };

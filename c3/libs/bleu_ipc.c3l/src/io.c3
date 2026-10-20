@@ -11,7 +11,7 @@
  behind a handler; only registered methods go to the handler threads.
 *>
 module bleu::ipc @feat(POSIX);
-import std::collections::list, std::thread, std::atomic, bleu::error, bleu::deadline, bleu::rt::worker, bleu::rt::poller, bleu::rt::unix, bleu::ipc::wire, bleu::ipc::line, bleu::ipc::outbox, std::collections::object;
+import std::collections::list, std::thread, std::atomic, std::time, bleu::error, bleu::deadline, bleu::rt::worker, bleu::rt::poller, bleu::rt::unix, bleu::ipc::wire, bleu::ipc::line, bleu::ipc::outbox, std::collections::object;
 
 <* What another thread asks the I/O thread to do. *>
 enum IoKind : char
@@ -64,7 +64,7 @@ fn poller::Source connection_source(Connection* conn, bool writable) @private
  @return? error::UNAVAILABLE : "The server is stopped"
  @return? error::BUSY : "The I/O queue is full"
 *>
-fn void? Server.post_io(&self, IoCommand command) @private
+fn void? Server.post_io(&self, IoCommand command)
 {
 	if (catch err = self.io.mailbox.post(command))
 	{
@@ -79,7 +79,7 @@ fn void? Server.post_io(&self, IoCommand command) @private
 
  @return? error::UNAVAILABLE, error::BUSY : "The reply could not be queued"
 *>
-fn void? Server.post_reply(&self, usz conn_id, String frame) @private
+fn void? Server.post_reply(&self, usz conn_id, String frame)
 {
 	return self.post_io({ .kind = REPLY, .conn_id = conn_id, .bytes = frame });
 }
@@ -99,21 +99,21 @@ fn void io_main(void* context, worker::Host{IoCommand}* host)
 }
 
 // Take and apply every queued command, then write what the sockets accept.
-fn void Server.apply_commands(&self, worker::Host{IoCommand}* host, IoCommand[] batch) @private
+fn void Server.apply_commands(&self, worker::Host{IoCommand}* host, IoCommand[] batch)
 {
-	bool any = false;
+	bool applied = false;
 	while (true)
 	{
 		usz taken = host.mailbox().take_all(batch);
 		if (taken == 0) break;
-		any = true;
+		applied = true;
 		for (usz i = 0; i < taken; i++) self.apply(batch[(sz)i]);
 	}
-	if (any) self.flush_all();
+	if (applied) self.flush_all();
 }
 
 // Apply one command.
-fn void Server.apply(&self, IoCommand command) @private
+fn void Server.apply(&self, IoCommand command)
 {
 	switch (command.kind)
 	{
@@ -132,7 +132,7 @@ fn void Server.apply(&self, IoCommand command) @private
  Wait for readiness, bounded by the nearest stall deadline, and handle it: accept
  new clients, read from ready clients. Then write what can go out.
 *>
-fn void Server.serve_once(&self) @private
+fn void Server.serve_once(&self)
 {
 	Ready[]? ready = self.io_poller.wait(self.next_stall_wait());
 	if (catch err = ready)
@@ -163,7 +163,7 @@ fn void Server.serve_once(&self) @private
 }
 
 // The time the poller may wait: until the nearest stall deadline, or forever.
-fn Duration Server.next_stall_wait(&self) @private
+fn Duration Server.next_stall_wait(&self)
 {
 	Duration wait = time::FOREVER;
 	for (sz i = 0; i < self.connections.len(); i++)
@@ -177,7 +177,7 @@ fn Duration Server.next_stall_wait(&self) @private
 }
 
 // Disconnect every client that has refused output for longer than the write-stall limit.
-fn void Server.expire_stalls(&self) @private
+fn void Server.expire_stalls(&self)
 {
 	for (sz i = (sz)self.connections.len() - 1; i >= 0; i--)
 	{
@@ -187,7 +187,7 @@ fn void Server.expire_stalls(&self) @private
 }
 
 // Write queued output of every client, and keep each poller interest in step with its queue.
-fn void Server.flush_all(&self) @private
+fn void Server.flush_all(&self)
 {
 	for (sz i = (sz)self.connections.len() - 1; i >= 0; i--)
 	{
@@ -197,7 +197,7 @@ fn void Server.flush_all(&self) @private
 }
 
 // Write as much of the queue as the socket accepts. False when the client is gone.
-fn bool Server.flush(&self, Connection* conn) @private
+fn bool Server.flush(&self, Connection* conn)
 {
 	while (!conn.output.is_empty())
 	{
@@ -206,7 +206,7 @@ fn bool Server.flush(&self, Connection* conn) @private
 		usz? accepted = conn.socket.send((char[])rest);
 		if (catch err = accepted)
 		{
-			if (err == BUSY)
+			if (err == error::BUSY)
 			{
 				if (!conn.stalled)
 				{
@@ -225,7 +225,7 @@ fn bool Server.flush(&self, Connection* conn) @private
 }
 
 // Make the poller wait for writability exactly while output is queued. False when the poller refuses.
-fn bool Server.sync_interest(&self, Connection* conn) @private
+fn bool Server.sync_interest(&self, Connection* conn)
 {
 	bool want = !conn.output.is_empty();
 	if (want == conn.watching_writable) return true;
@@ -236,21 +236,21 @@ fn bool Server.sync_interest(&self, Connection* conn) @private
 }
 
 // Read what the socket has now and handle every complete line. False when the client must close.
-fn bool Server.read_from(&self, Connection* conn) @private
+fn bool Server.read_from(&self, Connection* conn)
 {
 	char[] room = conn.input.reserve();
 	RecvResult? got = conn.socket.recv(room, {});
 	if (catch err = got)
 	{
 		// Nothing to read yet keeps the client; a closed or broken connection does not.
-		return err == BUSY;
+		return err == error::BUSY;
 	}
 	conn.input.commit(got.bytes);
 	return self.process_lines(conn);
 }
 
 // Handle every complete line buffered for a client. False when the client must close.
-fn bool Server.process_lines(&self, Connection* conn) @private
+fn bool Server.process_lines(&self, Connection* conn)
 {
 	while (true)
 	{
@@ -265,7 +265,7 @@ fn bool Server.process_lines(&self, Connection* conn) @private
 }
 
 // Handle one request line: answer it here, or send it to a handler thread.
-fn bool Server.handle_line(&self, Connection* conn, String line) @private
+fn bool Server.handle_line(&self, Connection* conn, String line)
 {
 	Job* job = alloc::new(self.allocator, Job);
 	job.allocator = self.allocator;
@@ -299,7 +299,7 @@ fn bool Server.handle_line(&self, Connection* conn, String line) @private
 }
 
 // Send a request to a handler thread, on the least busy one.
-fn bool Server.dispatch(&self, Connection* conn, Job* job, Method* method, ParsedRequest request) @private
+fn bool Server.dispatch(&self, Connection* conn, Job* job, Method* method, ParsedRequest request)
 {
 	Pending* pending = new_pending(self.allocator, self, conn.id, request.id);
 	job.method = method;
@@ -320,7 +320,7 @@ fn bool Server.dispatch(&self, Connection* conn, Job* job, Method* method, Parse
 }
 
 // The handler thread with the fewest requests in progress or queued.
-fn PoolSlot* Server.least_busy_slot(&self) @private
+fn PoolSlot* Server.least_busy_slot(&self)
 {
 	PoolSlot* best = &self.slots[0];
 	for (sz i = 1; i < self.slots.len; i++)
@@ -331,13 +331,13 @@ fn PoolSlot* Server.least_busy_slot(&self) @private
 }
 
 // Queue an error reply. False when the client's queue refuses it.
-fn bool Server.reply_error(&self, Connection* conn, long request_id, String message) @private
+fn bool Server.reply_error(&self, Connection* conn, long request_id, String message)
 {
 	return self.enqueue(conn, wire::error_frame(self.allocator, request_id, message), request_id, outbox::NO_KEY);
 }
 
 // Queue a `method not found` reply.
-fn bool Server.reply_unknown(&self, Connection* conn, long request_id, String method) @private
+fn bool Server.reply_unknown(&self, Connection* conn, long request_id, String method)
 {
 	String frame;
 	@pool()
@@ -348,20 +348,20 @@ fn bool Server.reply_unknown(&self, Connection* conn, long request_id, String me
 }
 
 // Queue a result reply. False when the client's queue refuses it.
-fn bool Server.reply_result(&self, Connection* conn, long request_id, String json) @private
+fn bool Server.reply_result(&self, Connection* conn, long request_id, String json)
 {
 	return self.enqueue(conn, wire::result_frame(self.allocator, request_id, json), request_id, outbox::NO_KEY);
 }
 
 // Queue a frame for a client. False when the queue refuses it: the client must close.
-fn bool Server.enqueue(&self, Connection* conn, String frame, long request_id, usz key) @private
+fn bool Server.enqueue(&self, Connection* conn, String frame, long request_id, usz key)
 {
 	if (catch conn.output.put(frame, request_id, key)) return false;
 	return true;
 }
 
 // Accept every connection waiting on the listener.
-fn void Server.accept_pending(&self) @private
+fn void Server.accept_pending(&self)
 {
 	while (true)
 	{
@@ -378,7 +378,7 @@ fn void Server.accept_pending(&self) @private
 }
 
 // Set up an accepted connection and send its handshake.
-fn void Server.add_connection(&self, unix::UnixSocket socket) @private
+fn void Server.add_connection(&self, unix::UnixSocket socket)
 {
 	Connection* conn = alloc::new(self.allocator, Connection);
 	conn.id = self.next_connection_id;
@@ -406,7 +406,7 @@ fn void Server.add_connection(&self, unix::UnixSocket socket) @private
 }
 
 // Queue a reply frame that a handler produced, if its connection is still open.
-fn void Server.deliver_reply(&self, usz conn_id, String frame) @private
+fn void Server.deliver_reply(&self, usz conn_id, String frame)
 {
 	Connection* conn = self.find_connection(conn_id);
 	if (conn == null)
@@ -418,7 +418,7 @@ fn void Server.deliver_reply(&self, usz conn_id, String frame) @private
 }
 
 // Fan a publication out to every subscription that wants `topic`.
-fn void Server.fan_out(&self, Topic* topic, String data, bool state) @private
+fn void Server.fan_out(&self, Topic* topic, String data, bool state)
 {
 	for (sz i = (sz)self.connections.len() - 1; i >= 0; i--)
 	{
@@ -429,7 +429,7 @@ fn void Server.fan_out(&self, Topic* topic, String data, bool state) @private
 }
 
 // Queue a publication on every subscription of one client that wants `topic`. False when the queue refuses.
-fn bool Server.fan_out_to(&self, Connection* conn, Topic* topic, String data, bool state) @private
+fn bool Server.fan_out_to(&self, Connection* conn, Topic* topic, String data, bool state)
 {
 	for (sz s = 0; s < conn.subscriptions.len(); s++)
 	{
@@ -443,7 +443,7 @@ fn bool Server.fan_out_to(&self, Connection* conn, Topic* topic, String data, bo
 }
 
 // Send the `server` frame with the current capabilities on every subscription.
-fn void Server.fan_out_capabilities(&self) @private
+fn void Server.fan_out_capabilities(&self)
 {
 	String info = self.server_info_json(self.allocator);
 	for (sz i = (sz)self.connections.len() - 1; i >= 0; i--)
@@ -455,7 +455,7 @@ fn void Server.fan_out_capabilities(&self) @private
 }
 
 // Queue a `server` frame on every subscription of one client. False when the queue refuses.
-fn bool Server.server_frames_to(&self, Connection* conn, String info) @private
+fn bool Server.server_frames_to(&self, Connection* conn, String info)
 {
 	for (sz s = 0; s < conn.subscriptions.len(); s++)
 	{
@@ -467,13 +467,13 @@ fn bool Server.server_frames_to(&self, Connection* conn, String info) @private
 }
 
 // The `ServerInfo` JSON value, now.
-fn String Server.server_info_json(&self, Allocator allocator) @private
+fn String Server.server_info_json(&self, Allocator allocator)
 {
 	return wire::server_info(allocator, self.config.api_version, self.capabilities_now());
 }
 
 // The connection with this id, or null.
-fn Connection* Server.find_connection(&self, usz id) @private
+fn Connection* Server.find_connection(&self, usz id)
 {
 	for (sz i = 0; i < self.connections.len(); i++)
 	{
@@ -487,7 +487,7 @@ fn Connection* Server.find_connection(&self, usz id) @private
  Close a connection: its poller registration, its subscriptions (which stop
  counting towards their topics), its queues and its socket.
 *>
-fn void Server.close_connection(&self, Connection* conn) @private
+fn void Server.close_connection(&self, Connection* conn)
 {
 	if (catch self.io_poller.remove(conn.id)) {}
 	for (sz s = 0; s < conn.subscriptions.len(); s++)
@@ -517,7 +517,7 @@ fn void Server.close_connection(&self, Connection* conn) @private
 
 // Runs once the loop has stopped, on the I/O thread: closes everything and frees
 // the commands that were queued but never taken, so their bytes do not leak.
-fn void Server.shutdown_io(&self, worker::Host{IoCommand}* host, IoCommand[] batch) @private
+fn void Server.shutdown_io(&self, worker::Host{IoCommand}* host, IoCommand[] batch)
 {
 	for (sz i = (sz)self.connections.len() - 1; i >= 0; i--) self.close_connection(self.connections.get(i));
 	self.listener.close();

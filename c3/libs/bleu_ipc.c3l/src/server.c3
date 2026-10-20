@@ -36,7 +36,7 @@ alias CapabilitiesFn = fn String[](void* context);
 <*
  A method handler. Runs on a handler thread. It answers the request either by
  calling `call.respond_*` before it returns, or by taking a `Deferred` with
- `call.defer()` and answering later from any thread. A handler that returns
+ `call.defer_reply()` and answering later from any thread. A handler that returns
  without either is answered with an error.
 
  @param context : "The context given to `register_method`"
@@ -336,7 +336,7 @@ fn void? Server.start(&self)
 }
 
 // Start the handler threads, the poller and the I/O thread. Undoes what it started on failure.
-fn void? Server.start_threads(&self) @private
+fn void? Server.start_threads(&self)
 {
 	for (sz i = 0; i < (sz)self.config.workers; i++)
 	{
@@ -353,7 +353,7 @@ fn void? Server.start_threads(&self) @private
 		return err~;
 	}
 	self.io_poller_ready = true;
-	if (catch err = self.io_poller.add({ .handle = self.listener.fd.raw(), .interest = read_interest(), .tag = LISTENER_TAG }))
+	if (catch err = self.io_poller.add({ .handle = self.listener.fd.raw(), .interest = connection_interest(false), .tag = LISTENER_TAG }))
 	{
 		self.stop_slots((sz)self.config.workers);
 		self.release_poller();
@@ -368,7 +368,7 @@ fn void? Server.start_threads(&self) @private
 }
 
 // Stop the first `count` handler threads and release their pollers.
-fn void Server.stop_slots(&self, sz count) @private
+fn void Server.stop_slots(&self, sz count)
 {
 	for (sz i = 0; i < count; i++)
 	{
@@ -378,7 +378,7 @@ fn void Server.stop_slots(&self, sz count) @private
 }
 
 // Release the poller of the I/O thread, if it was set up.
-fn void Server.release_poller(&self) @private
+fn void Server.release_poller(&self)
 {
 	if (!self.io_poller_ready) return;
 	self.io_poller.free();
@@ -386,12 +386,12 @@ fn void Server.release_poller(&self) @private
 }
 
 // Close the listening socket and remove its path, if this server bound it.
-fn void Server.release_listener(&self) @private
+fn void Server.release_listener(&self)
 {
 	if (self.listening)
 	{
 		self.listener.close();
-		if (catch io::path::delete(self.socket_path)) {}
+		if (catch io::path::delete((io::path::Path)self.socket_path)) {}
 		self.listening = false;
 	}
 	if (self.socket_path.len > 0) alloc::free(self.allocator, self.socket_path.ptr);
@@ -416,9 +416,8 @@ fn void Server.stop(&self)
 <*
  Stop the server if it runs, then release its memory, its topics and its methods.
  After this, every `Topic` pointer is invalid, and a `Deferred` that was never
- completed is leaked.
-
- @require every handler has returned : "stop() joins the handler threads; no handler may still run"
+ completed is leaked. No handler may still be running: `stop` joins the handler
+ threads, and this must be called only after it has returned.
 *>
 fn void Server.free(&self)
 {
@@ -467,7 +466,7 @@ fn void? Server.notify_capabilities_changed(&self) @maydiscard
 fn int Server.subscriber_count(&self, Topic* topic) => topic.subscribers.load();
 
 <* The capability names now, from the configured function or list. Called on the I/O thread. *>
-fn String[] Server.capabilities_now(&self) @private
+fn String[] Server.capabilities_now(&self)
 {
 	if (self.config.capabilities_fn != null) return self.config.capabilities_fn(self.config.capabilities_context);
 	return self.config.capabilities;
@@ -484,7 +483,7 @@ fn unix::UnixSocket? bind_socket(String path, bool owned) @private
 {
 	if (owned)
 	{
-		if (catch io::path::delete(path)) {}
+		if (catch io::path::delete((io::path::Path)path)) {}
 	}
 	unix::UnixSocket socket = unix::listen(path, unix::SocketKind.STREAM, LISTEN_BACKLOG)!;
 	if (chmod_owner_only(path) != 0)

@@ -1,5 +1,5 @@
 <*
- Clipboard-change and hot-key registrations for a `Loop`'s window. Part of
+ Clipboard-change, hot-key and named-message registrations for a `Loop`'s window. Part of
  `bleu::win::message_loop`: they arrive as `CLIPBOARD_UPDATED` and `HOTKEY` events,
  through the same handler as every other event.
 

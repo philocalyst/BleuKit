@@ -8,24 +8,15 @@
  * WM_HOTKEY: learn.microsoft.com/windows/win32/inputdev/wm-hotkey, sent to the window passed to
  RegisterHotKey, or to the thread queue when the window is NULL.
  * ERROR_HOTKEY_ALREADY_REGISTERED 1409 and ERROR_HOTKEY_NOT_REGISTERED 1419: winerror.h (MinGW-w64
- mirror, read).
+ mirror, read); mapped by `bleu::win::hresult` to BUSY and NOT_FOUND.
 
- A hot key is registered for the worker's window. WM_HOTKEY is not one of the messages
- `message_loop` reports, so the worker drains the queue itself: WM_HOTKEY becomes a PRESSED event,
- everything else is dispatched as `message_loop::dispatch_pending` would. Release is not reported:
- RegisterHotKey has no key-up message.
+ A hot key is registered through `bleu::win::message_loop.Loop`, which owns the hidden window and
+ reports WM_HOTKEY as a HOTKEY event on this worker. Release is not reported: RegisterHotKey has no
+ key-up message. A chord another program holds fails with BUSY; the registration is then kept as a
+ CONFLICT binding that cannot fire.
 *>
 module bleu::hotkey::windows @feat(WIN32) @link("user32");
-import std::os::win32, std::time::clock, std::collections::maybe, std::collections::list, bleu::availability, bleu::error, bleu::hotkey, bleu::hotkey::keys, bleu::hotkey::keymap_windows, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::win::message_loop;
-
-const uint WM_HOTKEY                       = 0x0312;
-const uint MOD_NOREPEAT                    = 0x4000;
-const uint ERROR_HOTKEY_ALREADY_REGISTERED = 1409;
-const uint ERROR_HOTKEY_NOT_REGISTERED     = 1419;
-
-extern fn Win32_BOOL registerHotKey(Win32_HWND window, int id, uint modifiers, uint key) @cname("RegisterHotKey");
-extern fn Win32_BOOL unregisterHotKey(Win32_HWND window, int id) @cname("UnregisterHotKey");
-extern fn Win32_LRESULT dispatchMessageW(win32::Win32_MSG* message) @cname("DispatchMessageW");
+import std::time::clock, std::collections::maybe, std::collections::list, bleu::availability, bleu::error, bleu::hotkey, bleu::hotkey::keys, bleu::hotkey::keymap_windows, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::win::message_loop;
 
 const Driver DRIVER = {
 	.info = { "win32", "RegisterHotKey on a hidden window of the service thread", 10 },
@@ -36,22 +27,23 @@ const Driver DRIVER = {
 	.run = &run,
 };
 
-// One registration of this backend. `native` is the id given to RegisterHotKey, 0 when the system does not hold it.
+// One registration of this backend. `native` is the id given to the loop's `register_hotkey`, 0 when the system does not hold it.
 struct Entry
 {
 	String id;
 	String description;
 	Chord chord;
 	BindingState state;
-	int native;
+	uint native;
 }
 
 struct Backend
 {
 	Allocator allocator;
 	HotkeyHub* hub;
-	void* window;
-	int next_native;
+	// The hidden window and its hot keys. Opened by `run` on the worker thread, closed when `run` returns.
+	message_loop::Loop* loop;
+	uint next_native;
 	List{Entry} entries;
 }
 
@@ -87,19 +79,14 @@ fn void destroy(Allocator allocator, void* state)
 	alloc::free(allocator, b);
 }
 
-// Ignored: `message_loop` reports power, device and display changes, which the hot keys do not need.
-fn void ignore_event(void* context, message_loop::Event* event) @local
-{
-}
-
 fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 {
 	Backend* b = (Backend*)state;
 	b.hub = hub;
-	message_loop::Loop* loop = message_loop::open(mem, &ignore_event, null) ?? null;
+	message_loop::Loop* loop = message_loop::open(mem, &on_event, b) ?? null;
 	if (loop == null) return;
 	defer loop.close();
-	b.window = loop.window;
+	b.loop = loop;
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 1, true)) return;
 	defer poller.free();
@@ -112,14 +99,11 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 		{
 			// TIMEOUT is the normal tick.
 		}
-		drain_messages(b);
+		// WM_HOTKEY reaches `on_event` here, as a press.
+		message_loop::dispatch_pending();
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) accept(b, commands[i]);
 		publish(b);
-	}
-	foreach (entry : b.entries)
-	{
-		if (entry.native != 0) unregisterHotKey(b.window, entry.native);
 	}
 	// Requests that arrived after the last take are refused, so no caller waits for ever.
 	while (true)
@@ -136,24 +120,15 @@ fn void run(void* state, HotkeyHub* hub, Host{Command}* host)
 
 const Duration TICK = (Duration)500_000; // 0.5 s in microseconds
 
-// Take every message queued for this thread: WM_HOTKEY is a press; the rest is dispatched.
-fn void drain_messages(Backend* b) @local
+<* Hot-key presses arrive here on the worker thread. The loop's other events are not this backend's. *>
+fn void on_event(void* context, message_loop::Event* event) @local
 {
-	win32::Win32_MSG message;
-	while (win32::peekMessageW(&message, null, 0, 0, win32::PM_REMOVE) != 0)
-	{
-		if (message.message == WM_HOTKEY)
-		{
-			press(b, (int)message.wParam, message.time);
-			continue;
-		}
-		win32::translateMessage(&message);
-		dispatchMessageW(&message);
-	}
+	if (event.kind != message_loop::EventKind.HOTKEY) return;
+	press((Backend*)context, event.hotkey_id, event.time);
 }
 
 // Emit the press of the registration `native`, with the time the system stamped the message.
-fn void press(Backend* b, int native, uint time) @local
+fn void press(Backend* b, uint native, uint time) @local
 {
 	foreach (entry : b.entries)
 	{
@@ -195,14 +170,15 @@ fn void accept_register(Backend* b, Command command)
 		.state = BOUND,
 		.native = b.next_native++,
 	};
-	uint modifiers = keymap_windows::windows_modifiers(command.chord.mods) | MOD_NOREPEAT;
-	if (registerHotKey(b.window, entry.native, modifiers, keymap_windows::windows_virtual_key(command.chord.key)) == 0)
+	uint modifiers = keymap_windows::windows_modifiers(command.chord.mods) | message_loop::MOD_NOREPEAT;
+	uint key       = keymap_windows::windows_virtual_key(command.chord.key);
+	if (catch failure = b.loop.register_hotkey(entry.native, modifiers, key))
 	{
-		uint code = win32::getLastError();
-		if (code != ERROR_HOTKEY_ALREADY_REGISTERED)
+		if (failure != error::BUSY)
 		{
 			free_entry(b.allocator, &entry);
-			fail_native(command.operation, error::BACKEND_FAILURE, code);
+			(void)command.operation.fail(failure);
+			command.operation.release();
 			return;
 		}
 		// Another program holds the chord: the registration exists, but it cannot fire.
@@ -223,12 +199,12 @@ fn void accept_unregister(Backend* b, Command command)
 		return;
 	}
 	Entry* entry = b.entries.get_ref(index);
-	if (entry.native != 0 && unregisterHotKey(b.window, entry.native) == 0)
+	if (entry.native != 0)
 	{
-		uint code = win32::getLastError();
-		if (code != ERROR_HOTKEY_NOT_REGISTERED)
+		if (catch failure = b.loop.unregister_hotkey(entry.native))
 		{
-			fail_native(command.operation, error::BACKEND_FAILURE, code);
+			(void)command.operation.fail(failure);
+			command.operation.release();
 			return;
 		}
 	}
@@ -267,13 +243,6 @@ fn void publish(Backend* b) @local
 fn void refuse(Task* op, fault failure, String text) @local
 {
 	(void)op.fail(error::raise(failure, error::Domain.INTERNAL, 0, "%s", text));
-	op.release();
-}
-
-// Fail `op` with the Windows error `code` as the native detail.
-fn void fail_native(Task* op, fault failure, uint code) @local
-{
-	(void)op.fail(error::raise(failure, error::Domain.WIN32, (int)code, "RegisterHotKey or UnregisterHotKey failed"));
 	op.release();
 }
 

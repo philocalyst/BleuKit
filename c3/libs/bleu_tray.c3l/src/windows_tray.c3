@@ -19,11 +19,11 @@ module bleu::tray::windows_tray @feat(WIN32);
 import std::os::win32, std::time, bleu::availability, bleu::error, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert, bleu::tray::windows_api, bleu::tray::windows_user, bleu::win::errors, bleu::win::message_loop, bleu::win::text, bleu::observe;
 
 // The identifier of our one notification icon.
-const uint TRAY_ICON_ID           = 1;
+const uint TRAY_ICON_ID      = 1;
 // Bytes of one UTF-16 code unit.
-const usz UTF16_UNIT_BYTES        = 2;
+const usz UTF16_UNIT_BYTES   = 2;
 // How long the worker sleeps between checks for a stop request, in microseconds.
-const Duration WAIT_INTERVAL      = (Duration)1_000_000;
+const Duration WAIT_INTERVAL = (Duration)1_000_000;
 
 struct WinBackend
 {
@@ -269,7 +269,7 @@ fn void show_menu(WinBackend* backend, int x, int y)
 {
 	if (backend.own.menu.len == 0) return;
 	void* window = backend.loop.window;
-	void*? menu = windows_user::create_menu();
+	void*? menu  = windows_user::create_menu();
 	if (catch menu) return;
 	defer windows_user::destroyMenu(menu);
 	for (sz i = 0; i < backend.own.menu.len; i++)

@@ -52,12 +52,15 @@ fn Request? parse_request(Allocator allocator, String line)
 	Object*? parsed = json::parse(allocator, line, json::JsonFlavor.JSON);
 	if (catch parsed) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not strict JSON")~;
 	Object* root = parsed;
+	bool handed_over = false;
+	defer if (!handed_over) root.free();
 	if (!root.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not a JSON object")~;
 	long id = read::get_int(root, "id")!;
 	if (id > read::MAX_EXACT_INTEGER || id < -read::MAX_EXACT_INTEGER) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request id %d is not an exact JavaScript integer", id)~;
 	String method = read::get_string(root, "method")!;
 	Object* params = read::present(root, "params")!;
 	if (params && !params.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request params is not an object")~;
+	handed_over = true;
 	return { id, method, params, root };
 }
 

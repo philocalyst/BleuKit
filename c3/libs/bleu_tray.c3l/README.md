@@ -65,7 +65,7 @@ type-checked for the target only (`tools/check.sh`), never executed; **Not done*
 - Own icon and menu are fixed at `open`; changing them needs a new service.
 - Bus calls are synchronous on the worker with a 1 s timeout; a hung application costs the worker up to two calls per item.
 - macOS: `open` and `close` must run on the main thread (AppKit); menu clicks are delivered through the mailbox, and a click racing `close` is dropped.
-- Windows: the own icon is on a window this library creates, not on `bleu::win::message_loop` (which has no route for a custom callback message).
+- Windows: the own icon's callbacks and TaskbarCreated arrive as `CUSTOM_MESSAGE` events of a `bleu::win::message_loop.Loop` on the worker.
 
 ## Tests
 

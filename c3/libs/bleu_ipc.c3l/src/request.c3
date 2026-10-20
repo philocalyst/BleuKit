@@ -30,7 +30,7 @@ fn ParsedRequest? parse_request(String line, Allocator arena)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid json: input is not UTF-8")~;
 	}
-	Object*? parsed = json::parse(arena, line, json::JSON);
+	Object*? parsed = json::parse(arena, line, json::JsonFlavor.JSON);
 	if (catch err = parsed)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid json: malformed JSON")~;

@@ -7,6 +7,7 @@
  0.59.0 crate and Microsoft Learn; docs/research/bleu_win.md, section 7):
  * `WM_APP` and the application range 0x8000 through 0xBFFF: Learn "WM_APP".
  * `WM_HOTKEY` 0x0312 and its wParam/lParam layout: Learn "WM_HOTKEY".
+ * `RegisterWindowMessageW` range 0xC000 through 0xFFFF: Learn "RegisterWindowMessage" (see `FIRST_NAMED_MESSAGE`).
  * `WM_CLIPBOARDUPDATE` 0x031D: Learn "WM_CLIPBOARDUPDATE".
  * `LOWORD` and `HIWORD`: mingw-w64 `minwindef.h`, Wine `include/minwindef.h`.
 *>

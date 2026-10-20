@@ -1,11 +1,11 @@
 <*
- The user32 calls of the Windows tray that std::os::win32 does not bind: popup menus, icon files,
- and the registered message the shell sends when Explorer restarts. Signatures and constants are
- the Windows SDK's (winuser.h, wingdi.h). Sources: Microsoft Learn, CreatePopupMenu, AppendMenuW,
- TrackPopupMenu, RegisterWindowMessageW and LoadImageW.
+ The user32 calls of the Windows tray that std::os::win32 does not bind: popup menus and icon files.
+ Signatures and constants are the Windows SDK's (winuser.h, wingdi.h). Sources: Microsoft Learn,
+ CreatePopupMenu, AppendMenuW, TrackPopupMenu and LoadImageW. The TaskbarCreated message is
+ registered by `bleu::win::message_loop` (`Loop.register_named_message`).
 *>
 module bleu::tray::windows_user @feat(WIN32) @link("user32");
-import std::os::win32, bleu::error, bleu::win::errors, bleu::win::text;
+import std::os::win32, bleu::win::errors;
 
 // AppendMenuW flags.
 const uint MF_STRING    = 0x00000000;
@@ -36,7 +36,6 @@ extern fn int trackPopupMenu(
 	void* window,
 	void* rect
 ) @cname("TrackPopupMenu");
-extern fn uint registerWindowMessageW(WString name) @cname("RegisterWindowMessageW");
 extern fn void* loadImageW(void* instance, WString name, uint kind, int cx, int cy, uint flags) @cname("LoadImageW");
 
 <* A new popup menu, or the failure. *>
@@ -57,12 +56,4 @@ fn void? append_menu(void* menu, uint flags, int id, WString text)
 fn int track_menu(void* menu, int x, int y, void* window)
 {
 	return trackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, x, y, 0, window, null);
-}
-
-// The message the shell broadcasts to every window when Explorer starts again.
-fn uint? taskbar_created_message()
-{
-	WideZ name = text::to_wide(mem, "TaskbarCreated")!;
-	defer name.free();
-	return registerWindowMessageW(name.as_wstring());
 }

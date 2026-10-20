@@ -35,7 +35,7 @@ Not done = absent in v1.
 | WRITE_TEXT | Run (mock compositor) | Compiled | Compiled |
 | WRITE_TYPES | Run (mock compositor, one text type) | Compiled (any type) | Not done (text only, UNSUPPORTED) |
 | FETCH_TYPE | Run (live offer, image type; history text) | Compiled | Compiled (text only, DEGRADED) |
-| WATCH | Run for events from the session; worker loop Compiled | Compiled (polling `changeCount`) | Compiled (polling sequence number) |
+| WATCH | Run for events from the session; worker loop Compiled | Compiled (polling `changeCount`) | Compiled (`WM_CLIPBOARDUPDATE` listener, 30 s backstop poll) |
 | PRIMARY_SELECTION | Compiled only, not exercised by any test | Not done (no such selection) | Not done (no such selection) |
 | HISTORY | Run (mock) and pure tests | Compiled; pure tests run | Compiled; pure tests run |
 | PRIVACY_MARKERS | Run (mock: KDE hint, nothing read); pure tests | Compiled; pure tests run | Compiled; pure tests run |
@@ -53,8 +53,9 @@ Linux handlers are reached through the session the tests drive, but `run` itself
 * Linux: a served `send` and the pipe reads are bounded by `transfer_timeout` on the worker thread.
 * macOS: the pasteboard privacy control of macOS 15.4 (`accessBehavior`) is not used; its names are
   UNVERIFIED. Types are pasteboard identifiers, mapped only for UTF-8 text.
-* Windows: change notification is polling (`GetClipboardSequenceNumber`, 250 ms). The listener
-  route needs `bleu::win::message_loop` to deliver `WM_CLIPBOARDUPDATE` (not in that library).
+* Windows: change notification is `WM_CLIPBOARDUPDATE` on a `bleu::win::message_loop` window. The sequence
+  number is read on each notification and every 30 s as a backstop. Not run: a change the listener misses
+  waits up to 30 s.
   Only text is written and fetched live; `CanIncludeInClipboardHistory` counts only when its DWORD is 0.
 * Image and file-list history, rich-text round trips and the WinRT clipboard history are out of v1.
 * `Entry` has no source application and no `sensitive` flag: content with a marker is never stored,

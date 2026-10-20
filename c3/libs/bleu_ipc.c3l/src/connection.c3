@@ -46,7 +46,7 @@ struct Connection
 
  @return? error::OUT_OF_RANGE : "The client's output queue is full; the connection must close"
 *>
-fn void? Server.subscribe(&self, Connection* conn, long request_id, Object* params) @private
+fn void? Server.subscribe(&self, Connection* conn, long request_id, Object* params)
 {
 	Subscription* sub = alloc::new(self.allocator, Subscription);
 	sub.request_id = request_id;
@@ -84,7 +84,7 @@ fn void? Server.subscribe(&self, Connection* conn, long request_id, Object* para
 }
 
 // Set `wants` for the topics named in a subscribe request's `services`.
-fn void Server.choose_topics(&self, bool[] wants, Object* params) @private
+fn void Server.choose_topics(&self, bool[] wants, Object* params)
 {
 	bool all = false;
 	bool named = false;

@@ -219,3 +219,4 @@
 * `std::os::win32::dwmGetWindowAttribute` takes `HWND*` (wrong for the C API): declare your own extern. Declare missing user32 calls locally until they move into `bleu_win`.
 * A panic on a non-test thread under the std test runner longjmps across threads and HANGS the suite (a failure looks like a hang in the next test): in thread helpers, report and `os::exit(1)` instead of asserting.
 * `c3fmt` is not idempotent on some aligned declaration groups (oscillates): format until stable, separate groups with blank lines.
+* `catch` is rejected inside `&&`; importing a module with a generic-looking `EventKind` can make it ambiguous with another lib's `EventKind`: qualify it.
