@@ -77,7 +77,7 @@ fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 {
 	WlBackend* backend = (WlBackend*)state;
 	WlSession* session = &backend.session;
-	defer fail_pending(host, error::UNAVAILABLE);
+	defer clipboard::fail_pending(host, error::UNAVAILABLE);
 	session.wakeup = host.wakeup();
 	clipboard::publish_board(hub, &backend.board);
 	if (catch session.connect_env()) return;

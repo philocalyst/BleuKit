@@ -10,6 +10,9 @@
 
  The handlers run from `process()`, on the connection's thread.
 
+ A successful `own_name` does NOT mean the name is held: a queued request succeeds with
+ `OwnedName.held == false`. Check `held` (or use DO_NOT_QUEUE and treat refusal as failure).
+
  Sources: D-Bus specification, "Message Bus Specification": RequestName (flags,
  reply codes), ReleaseName, and the NameAcquired and NameLost signals.
 *>

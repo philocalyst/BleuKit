@@ -73,7 +73,7 @@ fn void destroy(Allocator allocator, void* state)
 <* The worker: poll the sequence number, serve commands, publish what changed. *>
 fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 {
-	defer fail_pending(host, error::UNAVAILABLE);
+	defer clipboard::fail_pending(host, error::UNAVAILABLE);
 	WinBackend* backend = (WinBackend*)state;
 	clipboard::publish_board(hub, &backend.board);
 	Poller poller;

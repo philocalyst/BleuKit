@@ -179,3 +179,20 @@
 * A `std::thread` created by a C3 program needs `foreign::@foreign_entry()` for temporary memory and must return `int` (`ThreadFn`).
 * `Store.post`-style helpers that copy into an arena per notification avoid copying on the wire path: give each entry its own `DynamicArenaAllocator` and free the arena with the entry.
 * `foreach (x : arr)` copies; mutate through `foreach (&x : arr)` (x is then a pointer). A `@return?` contract on a void function is accepted but meaningless.
+* `case A, B:` (several labels in one case) → "Missing ':' after case" → one `case` per value, or `if` chains.
+* `case X:` with an empty body followed by another case → "Fallthrough cases with empty rows" → give each case its own `return`.
+* `if (T* r = f())` (a declaration in an `if` condition) is rejected → declare first, then test `r != null`.
+* `void?` passed as a parameter (`complete(op, call(...))`) → "Parameters may not be optional" → return `bool?` and test it with `catch` at the caller.
+* `x ?? y` after `if (catch err = x)` on a variable → "No optional to use '??' with" → after the catch the variable is already unwrapped.
+* `value::i32(...)` / `value::boolean(...)` return `Value`, not `Value?`: a `!` after them is "No optional to rethrow".
+* A `!` inside a `void` helper's catch/expression (e.g. `{ value::str(tmem, s)! }` inside an `if (catch ...)`) rethrows into a void function → build the value with `if (try v = ...)` first.
+* `Duration` in a module that imports `bleu::tray` only → "Did you mean the distinct type 'Duration'" → `import std::time` in that file.
+* `List.pop_first()` is optional → iterate with `while (try p = list.pop_first())`; `list.array_view()` is the slice for a `List{T}`.
+* Indexing and loops over `.len()` (signed `sz`) with `usz` counters, and `mem::copy` lengths, give narrowing errors → keep one signed type for indexes and cast the byte counts.
+* `libc::getpid` is absent → `import std::os::posix` and call `posix::getpid()` (`@feat(POSIX)`).
+* `Shell_NotifyIconW`, `CreatePopupMenu`, `AppendMenuW`, `TrackPopupMenu`, `LoadImageW`, `RegisterWindowMessageW` are not bound by `std::os::win32` → declare them as `extern fn` in a module with `@link("shell32")` / `@link("user32")`.
+* A module named `bleu::x::win32` that also calls `win32::` from `std::os::win32` resolves the prefix to itself → name the module differently (`windows_tray`).
+* `tmem` inside a `@test` leaks unless it is pooled; `mem` with `LEAKS DETECTED` in a test → allocate test strings with `tmem`.
+* `macro expect_fault(#result, ...)` → "Expression parameters are not allowed in function-like macros" → name it `macro @expect_fault(...)`.
+* `Obj item = { .ptr = sender };` borrows a foreign object without retaining it (the struct literal of `objc::Obj`); `borrow` retains.
+* A string `case` value in `switch` was avoided; the tray code uses `if (text == "...")` chains for string enums (not verified that `switch` on `String` is rejected).
