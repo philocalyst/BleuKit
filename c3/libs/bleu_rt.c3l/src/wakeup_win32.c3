@@ -23,10 +23,10 @@ const Win32_BOOL MANUAL_RESET = 1;
 
 fn void? native_open(Wakeup* self) @private
 {
-	Win32_HANDLE event = createEventA(null, MANUAL_RESET, 0, null);
+	Win32_HANDLE event = win32::createEventA(null, MANUAL_RESET, 0, null);
 	if (!event)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)getLastError(), "CreateEvent failed")~;
+		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "CreateEvent failed")~;
 	}
 	self.read_end = event;
 	self.write_end = event;
@@ -35,17 +35,17 @@ fn void? native_open(Wakeup* self) @private
 fn void native_close(Wakeup* self) @private
 {
 	// One handle serves both ends; close it exactly once.
-	(void)closeHandle(self.read_end);
+	(void)win32::closeHandle(self.read_end);
 }
 
 fn void? native_signal(Wakeup* self) @private
 {
-	if (setEvent(self.write_end)) return;
-	return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)getLastError(), "SetEvent failed")~;
+	if (win32::setEvent(self.write_end)) return;
+	return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "SetEvent failed")~;
 }
 
 fn void? native_drain(Wakeup* self) @private
 {
-	if (resetEvent(self.read_end)) return;
-	return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)getLastError(), "ResetEvent failed")~;
+	if (win32::resetEvent(self.read_end)) return;
+	return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, (int)win32::getLastError(), "ResetEvent failed")~;
 }

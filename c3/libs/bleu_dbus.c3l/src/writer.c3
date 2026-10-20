@@ -57,7 +57,7 @@ fn void Writer.free(&self) => self.buffer.free();
 fn String Writer.bytes(&self) @inline => self.buffer.str_view();
 
 <* Number of bytes written so far. *>
-fn usz Writer.size(&self) @inline => self.buffer.len();
+fn usz Writer.size(&self) @inline => (usz)self.size();
 
 <*
  Check that the whole signature has been written and no container is open.
@@ -73,7 +73,7 @@ fn void? Writer.finish(&self)
 <* Pad the buffer with NUL bytes up to a multiple of `alignment`. *>
 fn void Writer.align(&self, usz alignment)
 {
-	usz pad = padding_for(self.buffer.len(), alignment);
+	usz pad = padding_for(self.size(), alignment);
 	for (usz i = 0; i < pad; i++) self.buffer.append_char(0);
 }
 
@@ -199,10 +199,10 @@ fn void? Writer.begin_array(&self, String array_sig)
 	if (!signature::is_single(array_sig) || array_sig[0] != signature::ARRAY) return error::INVALID_ARGUMENT~;
 	claim(self, array_sig)!;
 	put_fixed(self, 0, 4);
-	usz length_at = self.buffer.len() - 4;
+	usz length_at = self.size() - 4;
 	String element = array_sig[1:array_sig.len];
 	self.align(signature::alignment_of(element));
-	push(self, ARRAY, element, length_at, self.buffer.len())!;
+	push(self, ARRAY, element, length_at, self.size())!;
 }
 
 <*
@@ -214,7 +214,7 @@ fn void? Writer.begin_array(&self, String array_sig)
 fn void? Writer.end_array(&self)
 {
 	Frame* f = top(self, ARRAY)!;
-	usz length = self.buffer.len() - f.data_at;
+	usz length = self.size() - f.data_at;
 	if (length > MAX_ARRAY_LENGTH) return error::INVALID_ARGUMENT~;
 	patch_fixed(self, f.length_at, length, 4);
 	self.depth--;
@@ -384,7 +384,7 @@ fn void patch_fixed(Writer* self, usz at, ulong v, usz n) @private
 	for (usz i = 0; i < n; i++)
 	{
 		usz shift = self.big_endian ? (n - 1 - i) * 8 : i * 8;
-		self.buffer.set(at + i, (char)(v >> shift));
+		self.buffer.set((sz)(at + i), (char)(v >> shift));
 	}
 }
 
