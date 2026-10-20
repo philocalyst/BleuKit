@@ -9,4 +9,4 @@ import std::os::win32;
  A waitable native object: a kernel object handle (event, process, thread,
  timer or wait-able socket event) that `WaitForMultipleObjects` accepts.
 *>
-typedef Native = Win32_HANDLE;
+alias Native = Win32_HANDLE;

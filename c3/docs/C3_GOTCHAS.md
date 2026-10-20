@@ -12,3 +12,12 @@
 * `import std::os::objc` does not exist → it is `std::os::darwin::objc`.
 * Generic module instantiation: `Observable{State}`, functions: `observe::begin{State}(alloc)`.
 * Cross-compilation check: `--target macos-aarch64` etc. with `compile-only --no-obj` needs no SDK.
+* Inline fn-type struct member does not parse → `alias F = fn ...; F name @tag(...)`.
+* No static methods (first param must be the type) → use free functions (`dl::open`, not `Library.open`).
+* `$elif` does not exist → `$switch/$case/$default`.
+* A line starting with `@` inside `<* *>` is parsed as a contract tag → put examples in `//` comments.
+* Format strings reject `%u` → use `%d`.
+* After `if (catch x = f())` on a variable, x is unwrapped; a following `!!` errors "No optional to rethrow".
+* Generic module code is type-checked only when instantiated → instantiate it in a check.
+* `min(len, CONST)` mixes `sz` and `usz` → keep both `sz`.
+* `Mutex` needs `init()` at run time, so a zero-initialised global cannot hold one.

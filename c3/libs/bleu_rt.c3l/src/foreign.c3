@@ -22,19 +22,11 @@ module bleu::rt::foreign;
 const usz FOREIGN_POOL_SIZE = 64 * 1024;
 
 <*
- Run `@body` with a temporary allocator available on the current thread.
-
-     fn void* on_callback(void* context)
-     {
-         @foreign_entry()
-         {
-             String text = string::tformat("event %d", 7);
-             // ... enqueue, never publish or block ...
-         };
-         return null;
-     }
-
- The body must not let temporary memory escape the block.
+ Run the body with a temporary allocator available on the current thread. The
+ allocator is created for this one call from the heap and destroyed when the
+ body ends, so temporary memory allocated inside must not escape the body. Use
+ it as a block after a callback's trampoline: the trampoline calls the macro,
+ and the body enqueues work to a mailbox, never publishing or blocking.
 *>
 macro void @foreign_entry(; @body)
 {

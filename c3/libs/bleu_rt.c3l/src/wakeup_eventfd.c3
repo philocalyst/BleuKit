@@ -21,14 +21,14 @@ const CInt EFD_CLOEXEC = 0x80000;
 const CInt EFD_NONBLOCK = 0x800;
 
 // The eventfd counter is a 64-bit unsigned integer (eventfd(2), "Description").
-const usz EVENTFD_COUNTER_SIZE = ulong.sizeof;
+const sz EVENTFD_COUNTER_SIZE = (sz)ulong::size;
 
 extern fn CInt eventfd(CUInt initval, CInt flags);
 
 fn void? native_open(Wakeup* self) @private
 {
 	CInt fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-	if (fd < 0) return error::raise(error::BACKEND_FAILURE, error::ERRNO, libc::errno(), "eventfd failed")~;
+	if (fd < 0) return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "eventfd failed")~;
 	self.read_end = fd;
 	self.write_end = fd;
 }
@@ -42,17 +42,17 @@ fn void native_close(Wakeup* self) @private
 fn void? native_signal(Wakeup* self) @private
 {
 	ulong one = 1;
-	sz written = libc::write(self.write_end, &one, EVENTFD_COUNTER_SIZE);
+	sz written = libc::write(self.write_end, &one, (usz)EVENTFD_COUNTER_SIZE);
 	// EAGAIN means the counter is at its maximum: a signal is already pending.
 	if (written == EVENTFD_COUNTER_SIZE || libc::errno() == EAGAIN) return;
-	return error::raise(error::BACKEND_FAILURE, error::ERRNO, libc::errno(), "eventfd signal failed")~;
+	return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "eventfd signal failed")~;
 }
 
 fn void? native_drain(Wakeup* self) @private
 {
 	ulong counter;
-	sz read = libc::read(self.read_end, &counter, EVENTFD_COUNTER_SIZE);
+	sz read = libc::read(self.read_end, &counter, (usz)EVENTFD_COUNTER_SIZE);
 	// EAGAIN means nothing was pending, which is what a drain wants.
 	if (read == EVENTFD_COUNTER_SIZE || libc::errno() == EAGAIN) return;
-	return error::raise(error::BACKEND_FAILURE, error::ERRNO, libc::errno(), "eventfd drain failed")~;
+	return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "eventfd drain failed")~;
 }

@@ -46,8 +46,6 @@ macro void? bind(table, library)
 			$error "every member of a bound table needs @tag(\"sym\", \"<C symbol>\")";
 		$endif
 
-
-
 		{
 			const String SYMBOL = $member.get_tag("sym");
 			void* address       = library.find(SYMBOL);

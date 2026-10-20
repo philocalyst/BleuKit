@@ -17,4 +17,12 @@ import libc;
  A waitable native object: a file descriptor on POSIX systems. The poller and
  the wake-up use it; it is not owned by them unless the owning type says so.
 *>
-typedef Native = CInt;
+alias Native = CInt;
+
+<*
+ fcntl(2) with an integer argument: the commands used by Bleu (F_SETFD,
+ F_SETFL, F_GETFL, F_DUPFD_CLOEXEC) all take one int. Declared here because the
+ standard library binds it only for some systems. Returns -1 on error, with
+ errno set.
+*>
+extern fn CInt fcntl(CInt fd, CInt cmd, CInt arg) @cname("fcntl");

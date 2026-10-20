@@ -14,14 +14,14 @@
 module bleu::dl;
 import std::os, bleu::error, bleu::dl::native;
 
+const sz LIBRARY_NAME_CAPACITY = 256;
+
 <*
  A shared object, or the program itself, opened at run time.
 
  `Library` is a value: keep it in the service that uses it, and close it only
  when nothing can call into it any more (see `close`).
 *>
-const sz LIBRARY_NAME_CAPACITY = 256;
-
 struct Library
 {
 	DylibHandle handle;
@@ -54,8 +54,8 @@ const DylibOpenOptions DEFAULT_OPTIONS = { .safe_search = true };
 <*
  Open the first candidate the platform loader accepts. Candidates are tried in
  order. A bare name ("libpulse.so.0", "dwmapi.dll") lets the loader search its
- usual places; a path names one file, and it is opened even if the path
- exists only in the dyld shared cache (macOS).
+ usual places; a path names one file. (Whether macOS opens a
+ framework path that exists only in the dyld shared cache is unverified.)
 
  The library stays loaded until `close`, and the loader resolves the library's
  own dependencies lazily, so an unrelated missing dependency symbol does not

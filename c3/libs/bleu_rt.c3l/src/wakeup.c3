@@ -22,9 +22,9 @@ import bleu::error, bleu::rt;
 <*
  A wake-up object. Create it with `init`, and destroy it with `close`.
 
- @param read_end : "The handle a poller waits on (see `native`)"
- @param write_end : "The handle `signal` writes to: the same as `read_end` on eventfd and Windows"
- @param is_open : "True between `init` and `close`"
+ `read_end` is the handle a poller waits on (see `native`). `write_end` is the
+ handle `signal` writes to; it equals `read_end` on eventfd and Windows. `is_open`
+ is true between `init` and `close`.
 *>
 struct Wakeup
 {
@@ -41,7 +41,7 @@ struct Wakeup
 *>
 fn void? Wakeup.init(&self)
 {
-	native_open(self)?;
+	native_open(self)!;
 	self.is_open = true;
 }
 
@@ -64,7 +64,7 @@ fn void Wakeup.close(&self)
 *>
 fn void? Wakeup.signal(&self) @inline
 {
-	native_signal(self)?;
+	native_signal(self)!;
 }
 
 <*
@@ -76,7 +76,7 @@ fn void? Wakeup.signal(&self) @inline
 *>
 fn void? Wakeup.drain(&self) @inline
 {
-	native_drain(self)?;
+	native_drain(self)!;
 }
 
 <*
