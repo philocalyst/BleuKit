@@ -162,7 +162,7 @@ fn void zero_length_seqpacket_message_is_a_message_not_end_of_file() @test
 	unix::SocketPair pair = unix::socket_pair(SEQPACKET)!!;
 	defer (void)pair.second.close();
 	unix::Fd[1] none;
-	test::eq((usz)0, pair.first.send("", none[..])!!);
+	test::eq((usz)0, pair.first.send("")!!);
 	char[4] buffer;
 	unix::RecvResult empty = pair.second.recv(buffer[..], none[..])!!;
 	test::eq((usz)0, empty.bytes);
@@ -184,7 +184,7 @@ fn void descriptors_without_data_are_refused() @test
 	test::eq(0, posix::pipe(&pipes));
 	unix::Fd[1] passed = { { .value = pipes[0] } };
 	defer (void)passed[0].close();
-	defer (void)(unix::Fd){ .value = pipes[1] }.close();
+	defer (void)(unix::Fd) { .value = pipes[1] }.close();
 	test::@error(pair.first.send("", passed[..]), error::INVALID_ARGUMENT);
 	test::@error(pair.first.send_all("", passed[..]), error::INVALID_ARGUMENT);
 }
@@ -196,7 +196,7 @@ fn void an_empty_receive_buffer_is_refused() @test
 	defer (void)pair.second.close();
 	char[1] unused;
 	unix::Fd[1] none;
-	test::@error(pair.second.recv(unused[..0], none[..]), error::INVALID_ARGUMENT);
+	test::@error(pair.second.recv(unused[0:0], none[..]), error::INVALID_ARGUMENT);
 }
 
 fn void excess_descriptors_are_refused_and_closed() @test
@@ -206,8 +206,8 @@ fn void excess_descriptors_are_refused_and_closed() @test
 	defer (void)pair.second.close();
 	CInt[2] pipes;
 	test::eq(0, posix::pipe(&pipes));
-	defer (void)(unix::Fd){ .value = pipes[0] }.close();
-	defer (void)(unix::Fd){ .value = pipes[1] }.close();
+	defer (void)(unix::Fd) { .value = pipes[0] }.close();
+	defer (void)(unix::Fd) { .value = pipes[1] }.close();
 	unix::Fd[3] sent = { { .value = pipes[0] }, { .value = pipes[0] }, { .value = pipes[0] } };
 	// The kernel duplicates each descriptor into the message, so three sends of one pipe end are fine.
 	test::eq((usz)1, pair.first.send("x", sent[..])!!);
@@ -225,8 +225,8 @@ fn void truncated_message_is_refused_and_its_descriptor_closed() @test
 	defer (void)pair.second.close();
 	CInt[2] pipes;
 	test::eq(0, posix::pipe(&pipes));
-	defer (void)(unix::Fd){ .value = pipes[0] }.close();
-	defer (void)(unix::Fd){ .value = pipes[1] }.close();
+	defer (void)(unix::Fd) { .value = pipes[0] }.close();
+	defer (void)(unix::Fd) { .value = pipes[1] }.close();
 	unix::Fd[1] sent = { { .value = pipes[0] } };
 	test::eq((usz)10, pair.first.send("0123456789", sent[..])!!);
 	unix::Fd[1] received;
@@ -239,26 +239,29 @@ fn void control_data_truncation_is_a_protocol_error() @test
 {
 	// 100 descriptors need about 420 bytes of control data; the receiver's control buffer
 	// holds 256, so the kernel truncates the control data and sets MSG_CTRUNC.
-	const usz PASSED = 100;
+	const usz PASSED      = 100;
 	unix::SocketPair pair = unix::socket_pair(SEQPACKET)!!;
 	defer (void)pair.first.close();
 	defer (void)pair.second.close();
 	CInt[2] pipes;
 	test::eq(0, posix::pipe(&pipes));
-	defer (void)(unix::Fd){ .value = pipes[0] }.close();
-	defer (void)(unix::Fd){ .value = pipes[1] }.close();
+	defer (void)(unix::Fd) { .value = pipes[0] }.close();
+	defer (void)(unix::Fd) { .value = pipes[1] }.close();
 	char[512] control;
 	unix::CmsgHdr* header = (unix::CmsgHdr*)&control;
-	usz data_len    = PASSED * CInt::size;
+	usz data_len          = PASSED * CInt::size;
 	header.set_rights(data_len);
 	CInt* values = (CInt*)(&control[0] + unix::cmsg_align(unix::CMSG_HEADER_SIZE));
 	for (usz i = 0; i < PASSED; i++) values[i] = pipes[0];
-	char[1] data = { 'x' };
+	char[1] data    = { 'x' };
 	unix::IoVec iov = { .base = &data, .len = 1 };
 	unix::MsgHdr msg;
 	msg.attach(&iov, 1, &control, unix::cmsg_align(unix::CMSG_HEADER_SIZE) + data_len);
 	test::eq((sz)1, unix::sys_sendmsg(pair.first.fd.raw(), &msg, 0));
-	unix::Fd[16] received;
+	// Room for every descriptor that fits in the control buffer ((256 - 16) / 4 = 60), so the
+	// refusal comes from the truncation flag and not from the count.
+	unix::Fd[64] received;
 	char[4] buffer;
 	test::@error(pair.second.recv(buffer[..], received[..]), error::PROTOCOL);
+	test::@check(error::last().message() == "ancillary data was truncated", "the kernel set MSG_CTRUNC");
 }

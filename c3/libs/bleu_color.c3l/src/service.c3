@@ -83,6 +83,7 @@ fn Color*? open(Allocator allocator, Options options = { })
 fn void Color.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);

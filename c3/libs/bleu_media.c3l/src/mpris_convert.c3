@@ -78,11 +78,17 @@ fn Maybe{Level} volume_of(double volume)
 	return maybe::value(unit::level((float)volume));
 }
 
-<* A rate as the model stores it. NaN becomes normal speed. Zero is kept; `Player.position_now` treats it as paused. *>
-fn PlaybackRate rate_of(double rate)
+<* A rate as the model stores it: NaN and infinities become normal speed, and a magnitude beyond `MAX_RATE` is clamped. Zero is kept; `Player.position_now` treats it as paused. *>
+fn PlaybackRate rate_of(double rate) => media::sane_rate((PlaybackRate)rate);
+
+<*
+ An art URL the shell may fetch: https or file only. Any other scheme (http, javascript,
+ anything a peer invents) is dropped, so a shell that loads art never fetches an arbitrary URL.
+*>
+fn String art_url_text(String url, Allocator allocator)
 {
-	if (rate != rate) return (PlaybackRate)1.0;
-	return (PlaybackRate)rate;
+	if (!url.starts_with("https://") && !url.starts_with("file://")) return "";
+	return media::copy_text(url, allocator);
 }
 
 <*

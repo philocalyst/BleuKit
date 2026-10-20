@@ -47,7 +47,7 @@ fn Maybe{Duration} time_at_rate(MilliWattHour energy, MilliWatt rate)
 <* Reading note: some devices could not be read and are left out of the sources. *>
 const String DEGRADED_NOTE = "Some power sources could not be read and are left out";
 <* Reading note: the newest read failed, so the sources are the last good reading. *>
-const String STALE_NOTE = "The newest reading failed; the sources are the last good reading";
+const String STALE_NOTE    = "The newest reading failed; the sources are the last good reading";
 
 <*
  An available capability with a caveat: it works, and `note` says what does not.
@@ -144,9 +144,9 @@ fn String copy_text(String text, Allocator allocator)
 fn Source copy_source(Source* from, Allocator allocator)
 {
 	Source source = *from;
-	source.id     = copy_text(from.id, allocator);
+	source.id = copy_text(from.id, allocator);
 	source.vendor = copy_text(from.vendor, allocator);
-	source.model  = copy_text(from.model, allocator);
+	source.model = copy_text(from.model, allocator);
 	source.serial = copy_text(from.serial, allocator);
 	return source;
 }

@@ -126,7 +126,7 @@ fn String? brightness_snapshot_json(void* native, Allocator allocator)
 fn void*? brightness_reader_next(void* native, Duration timeout)
 {
 	stream::Reader{brightness::Event}* reader = (stream::Reader{brightness::Event}*)native;
-	Snapshot{brightness::Event}* packet = reader.next(timeout)!;
+	Snapshot{brightness::Event}* packet       = reader.next(timeout)!;
 	return (void*)packet;
 }
 
@@ -197,8 +197,8 @@ fn void brightness_reader_done(void* owner)
 fn void brightness_listener(void* context, Snapshot{brightness::State}* snapshot)
 {
 	BrightnessWatch* watch = (BrightnessWatch*)context;
-	capi::CSnapshot view = capi::view_of(&BRIGHTNESS_SNAPSHOT, snapshot);
-	void* previous = capi::enter_callback(watch.owner);
+	capi::CSnapshot view   = capi::view_of(&BRIGHTNESS_SNAPSHOT, snapshot);
+	void* previous         = capi::enter_callback(watch.owner);
 	defer capi::leave_callback(previous);
 	watch.callback(watch.context, &view);
 }
@@ -234,7 +234,10 @@ fn void free_brightness_watches(BrightnessWatch* watch)
  Open a brightness service. Pass NULL for the defaults. Release the handle with
  `bleu_brightness_close`.
 *>
-fn capi::CStatus bleu_brightness_open(BrightnessOptions* options, BrightnessHandle** out) @export("bleu_brightness_open")
+fn capi::CStatus bleu_brightness_open(
+	BrightnessOptions* options,
+	BrightnessHandle** out
+) @export("bleu_brightness_open")
 {
 	capi::@capi_entry()
 	{
@@ -247,7 +250,9 @@ fn capi::CStatus bleu_brightness_open(BrightnessOptions* options, BrightnessHand
 			if (status != capi::CStatus.OK) return status;
 		}
 		if (given.poll_ms > capi::MAX_MILLISECONDS) return capi::argument_error("poll_ms is longer than one year");
-		if (given.transition_step_ms > capi::MAX_MILLISECONDS) return capi::argument_error("transition_step_ms is longer than one year");
+		if (given.transition_step_ms > capi::MAX_MILLISECONDS) return capi::argument_error(
+			"transition_step_ms is longer than one year"
+		);
 		brightness::Options native = {
 			.backend = given.backend,
 			.poll = (Duration)(given.poll_ms * 1000),
@@ -295,7 +300,11 @@ fn capi::CStatus bleu_brightness_close(BrightnessHandle* handle) @export("bleu_b
 }
 
 <* The name of the backend in use ("linux", "win32", "macos"). Free it with `bleu_free`. *>
-fn capi::CStatus bleu_brightness_backend_name(BrightnessHandle* handle, char** out, usz* len) @export("bleu_brightness_backend_name")
+fn capi::CStatus bleu_brightness_backend_name(
+	BrightnessHandle* handle,
+	char** out,
+	usz* len
+) @export("bleu_brightness_backend_name")
 {
 	capi::@capi_entry()
 	{
@@ -305,12 +314,18 @@ fn capi::CStatus bleu_brightness_backend_name(BrightnessHandle* handle, char** o
 }
 
 <* Whether a capability works with this backend, and if not, why. *>
-fn capi::CStatus bleu_brightness_capability(BrightnessHandle* handle, brightness::Cap cap, capi::Capability* out) @export("bleu_brightness_capability")
+fn capi::CStatus bleu_brightness_capability(
+	BrightnessHandle* handle,
+	brightness::Cap cap,
+	capi::Capability* out
+) @export("bleu_brightness_capability")
 {
 	capi::@capi_entry()
 	{
 		if (!handle || !out) return capi::argument_error("handle and out must not be NULL");
-		if ((usz)cap.ordinal > (usz)brightness::Cap.TRANSITION.ordinal) return capi::argument_error("unknown capability");
+		if ((usz)cap.ordinal > (usz)brightness::Cap.TRANSITION.ordinal) return capi::argument_error(
+			"unknown capability"
+		);
 		capi::fill_capability(out, handle.service.capability(cap));
 		return capi::CStatus.OK;
 	};
@@ -329,7 +344,10 @@ fn capi::CStatus bleu_brightness_refresh(BrightnessHandle* handle) @export("bleu
 }
 
 <* The newest state, as an owned snapshot to release with `bleu_snapshot_release`. *>
-fn capi::CStatus bleu_brightness_snapshot(BrightnessHandle* handle, capi::CSnapshot** out) @export("bleu_brightness_snapshot")
+fn capi::CStatus bleu_brightness_snapshot(
+	BrightnessHandle* handle,
+	capi::CSnapshot** out
+) @export("bleu_brightness_snapshot")
 {
 	capi::@capi_entry()
 	{
@@ -347,7 +365,11 @@ fn capi::CStatus bleu_brightness_snapshot(BrightnessHandle* handle, capi::CSnaps
  The newest state as JSON, the same text `bleu_snapshot_json` gives for a snapshot.
  Free the buffer with `bleu_free`.
 *>
-fn capi::CStatus bleu_brightness_snapshot_json(BrightnessHandle* handle, char** out, usz* len) @export("bleu_brightness_snapshot_json")
+fn capi::CStatus bleu_brightness_snapshot_json(
+	BrightnessHandle* handle,
+	char** out,
+	usz* len
+) @export("bleu_brightness_snapshot_json")
 {
 	capi::@capi_entry()
 	{
@@ -366,7 +388,12 @@ fn capi::CStatus bleu_brightness_snapshot_json(BrightnessHandle* handle, char** 
  Start with `seen` 0 and pass the previous snapshot's generation after that.
  `timeout_ms` is -1 to wait forever, 0 to only poll.
 *>
-fn capi::CStatus bleu_brightness_wait(BrightnessHandle* handle, ulong seen, long timeout_ms, capi::CSnapshot** out) @export("bleu_brightness_wait")
+fn capi::CStatus bleu_brightness_wait(
+	BrightnessHandle* handle,
+	ulong seen,
+	long timeout_ms,
+	capi::CSnapshot** out
+) @export("bleu_brightness_wait")
 {
 	capi::@capi_entry()
 	{
@@ -375,7 +402,7 @@ fn capi::CStatus bleu_brightness_wait(BrightnessHandle* handle, ulong seen, long
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
 		*out = null;
 		Snapshot{brightness::State}*? next = handle.service.wait_after(seen, capi::wait_duration(timeout_ms));
-		if (catch err = next) return capi::report(err, "no newer brightness state arrived");
+		if (catch err = next) return capi::report(err, "no newer brightness state: timed out or the service closed");
 		*out = capi::new_snapshot(&BRIGHTNESS_SNAPSHOT, next, true);
 		return capi::CStatus.OK;
 	};
@@ -385,7 +412,9 @@ fn capi::CStatus bleu_brightness_wait(BrightnessHandle* handle, ulong seen, long
  The state a snapshot holds, borrowed until that snapshot is released. Returns NULL
  for a snapshot of another service.
 *>
-fn brightness::State* bleu_brightness_snapshot_state(capi::CSnapshot* snapshot) @export("bleu_brightness_snapshot_state")
+fn brightness::State* bleu_brightness_snapshot_state(
+	capi::CSnapshot* snapshot
+) @export("bleu_brightness_snapshot_state")
 {
 	capi::@capi_scope()
 	{
@@ -400,11 +429,18 @@ fn brightness::State* bleu_brightness_snapshot_state(capi::CSnapshot* snapshot) 
  listener runs on the worker thread for every later state, and once immediately on
  this thread for the current one.
 *>
-fn capi::CStatus bleu_brightness_watch(BrightnessHandle* handle, BrightnessListener callback, void* context, ulong* out_id) @export("bleu_brightness_watch")
+fn capi::CStatus bleu_brightness_watch(
+	BrightnessHandle* handle,
+	BrightnessListener callback,
+	void* context,
+	ulong* out_id
+) @export("bleu_brightness_watch")
 {
 	capi::@capi_entry()
 	{
-		if (!handle || !callback || !out_id) return capi::argument_error("handle, callback and out_id must not be NULL");
+		if (!handle || !callback || !out_id) return capi::argument_error(
+			"handle, callback and out_id must not be NULL"
+		);
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
 		BrightnessWatch* watch = alloc::new(mem, BrightnessWatch);
 		*watch = { .owner = handle, .callback = callback, .context = context };
@@ -450,7 +486,10 @@ fn capi::CStatus bleu_brightness_unwatch(BrightnessHandle* handle, ulong id) @ex
  Subscribe to brightness events (level changes, devices added or removed). Read them
  with `bleu_reader_next`; release the reader before closing the handle.
 *>
-fn capi::CStatus bleu_brightness_subscribe(BrightnessHandle* handle, capi::CReader** out) @export("bleu_brightness_subscribe")
+fn capi::CStatus bleu_brightness_subscribe(
+	BrightnessHandle* handle,
+	capi::CReader** out
+) @export("bleu_brightness_subscribe")
 {
 	capi::@capi_entry()
 	{
@@ -463,7 +502,12 @@ fn capi::CStatus bleu_brightness_subscribe(BrightnessHandle* handle, capi::CRead
 		handle.readers++;
 		handle.mutex.unlock();
 		capi::CReader* result = alloc::new(mem, capi::CReader);
-		*result = { .ops = &BRIGHTNESS_READER, .native = reader, .owner = handle, .owner_release = &brightness_reader_done };
+		*result = {
+			.ops = &BRIGHTNESS_READER,
+			.native = reader,
+			.owner = handle,
+			.owner_release = &brightness_reader_done
+		};
 		*out = result;
 		return capi::CStatus.OK;
 	};
@@ -485,7 +529,11 @@ fn brightness::Event* bleu_brightness_packet_event(capi::CPacket* packet) @expor
  with `bleu_operation_wait`, read the result with `bleu_brightness_set_result`, and
  release it with `bleu_operation_release`.
 *>
-fn capi::CStatus bleu_brightness_set_level(BrightnessHandle* handle, BrightnessSetRequest* request, capi::COperation** out) @export("bleu_brightness_set_level")
+fn capi::CStatus bleu_brightness_set_level(
+	BrightnessHandle* handle,
+	BrightnessSetRequest* request,
+	capi::COperation** out
+) @export("bleu_brightness_set_level")
 {
 	capi::@capi_entry()
 	{
@@ -526,7 +574,10 @@ fn brightness::Applied* bleu_brightness_set_result(capi::COperation* operation) 
  The device at `index` of a brightness state, or NULL when `index` is out of range.
  The pointer is borrowed like the state it came from.
 *>
-fn brightness::Device* bleu_brightness_device_at(brightness::State* state, usz index) @export("bleu_brightness_device_at")
+fn brightness::Device* bleu_brightness_device_at(
+	brightness::State* state,
+	usz index
+) @export("bleu_brightness_device_at")
 {
 	capi::@capi_scope()
 	{
@@ -539,7 +590,10 @@ fn brightness::Device* bleu_brightness_device_at(brightness::State* state, usz i
  The control at `index` of a device, or NULL when `index` is out of range. Controls are
  in preference order: the order a request tries them in.
 *>
-fn brightness::Control* bleu_brightness_control_at(brightness::Device* device, usz index) @export("bleu_brightness_control_at")
+fn brightness::Control* bleu_brightness_control_at(
+	brightness::Device* device,
+	usz index
+) @export("bleu_brightness_control_at")
 {
 	capi::@capi_scope()
 	{

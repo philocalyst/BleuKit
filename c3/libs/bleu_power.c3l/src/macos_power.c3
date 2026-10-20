@@ -342,7 +342,7 @@ fn Inhibitor? take_assertion(Mac* mac, String type, Command* command)
 	if (result != 0) return mach::raise_code(result, "IOPMAssertionCreateWithName")~;
 	uint id = ++mac.next_hold;
 	mac.holds.push({ .id = id, .assertion = assertion });
-	return make_inhibitor(command, id);
+	return power::make_inhibitor(command, id);
 }
 
 // Release the assertion with `id`. IOPMAssertionRelease is idempotent for the caller here: an id is removed once.

@@ -16,7 +16,7 @@
  balance (empty `Maybe`), where PulseAudio returns 0.0.
 *>
 module bleu::audio::pulse;
-import std::collections::maybe, bleu::unit;
+import std::collections::maybe, bleu::unit, bleu::audio::volume;
 
 const uint VOLUME_NORM  = 0x10000;  // volume.h:120, 100 %
 const uint VOLUME_MUTED = 0;        // volume.h:123, the volume of silence (not the mute flag)
@@ -92,9 +92,5 @@ fn Maybe{float} balance_of(CVolume* volume, ChannelMap* map)
 		}
 	}
 	if (left_count == 0 || right_count == 0) return { };
-	uint left  = left_sum / left_count;
-	uint right = right_sum / right_count;
-	if (left == right) return maybe::value(0.0f);
-	if (left > right) return maybe::value(-1.0f + (float)right / (float)left);
-	return maybe::value(1.0f - (float)left / (float)right);
+	return maybe::value(volume::stereo_balance((float)(left_sum / left_count), (float)(right_sum / right_count)));
 }

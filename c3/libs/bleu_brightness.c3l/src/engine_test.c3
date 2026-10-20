@@ -136,6 +136,7 @@ fn void prefer_hardware_writes_the_backlight() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	Applied applied = request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
 	assert(applied.mechanism == Mechanism.BACKLIGHT && applied.raw == 40, "the writable backlight carries the request");
@@ -150,6 +151,7 @@ fn void prefer_hardware_uses_software_only_when_no_hardware_is_writable() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	Applied applied = request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
 	assert(applied.mechanism == Mechanism.GAMMA, "the result says it was software");
@@ -163,6 +165,7 @@ fn void exact_on_a_read_only_control_is_refused_not_redirected() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	if (catch err = request(&hub, brightness::exact(Mechanism.BACKLIGHT), (Level)0.4f, time::DURATION_ZERO))
 	{
@@ -181,6 +184,7 @@ fn void hardware_failure_is_an_error_under_prefer_hardware() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	if (catch err = request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO))
 	{
@@ -199,6 +203,7 @@ fn void hardware_failure_falls_back_only_under_allow_software() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	Applied applied = request(&hub, brightness::allow_software(), (Level)0.4f, time::DURATION_ZERO)!!;
 	assert(applied.mechanism == Mechanism.GAMMA, "ALLOW_SOFTWARE moves on to the software ramp");
@@ -210,6 +215,7 @@ fn void transition_steps_to_the_target() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	Applied applied = request(&hub, brightness::prefer_hardware(), (Level)0.8f, (Duration)100_000)!!;
 	assert((float)applied.applied > 0.79f && (float)applied.applied < 0.81f, "the last step is the target");
@@ -223,6 +229,7 @@ fn void a_new_request_cancels_the_transition_in_progress() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	SetOperation* slow = operation::begin{Applied}(mem);
 	defer slow.release();
@@ -256,6 +263,7 @@ fn void a_level_change_is_announced_as_an_event() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	stream::Reader{Event}* reader = hub.events.subscribe()!!;
 	defer reader.release();
@@ -285,6 +293,7 @@ fn void a_request_queued_when_the_backend_returns_early_fails() @test
 	Gate gate;
 	BrightnessHub hub;
 	hub.start(mem, "test", "early", &early_run, &gate, brightness::COMMAND_QUEUE, &brightness::abandon_command)!!;
+	defer hub.free();
 	defer hub.stop();
 	SetOperation* op = operation::begin{Applied}(mem);
 	defer op.release();
@@ -315,6 +324,7 @@ fn void the_state_is_published_before_its_event() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	stream::Reader{Event}* reader = hub.events.subscribe()!!;
 	defer reader.release();
@@ -332,6 +342,7 @@ fn void an_unreadable_platform_keeps_the_last_state() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	request(&hub, brightness::prefer_hardware(), (Level)0.4f, time::DURATION_ZERO)!!;
 	world.read_fails = true;
@@ -350,6 +361,7 @@ fn void a_transition_needs_a_readable_start_level() @test
 	world.platform.context = &world;
 	BrightnessHub hub;
 	hub.start(mem, "test", "world", &world_run, &world)!!;
+	defer hub.free();
 	defer hub.stop();
 	if (catch err = request(&hub, brightness::prefer_hardware(), (Level)0.4f, (Duration)100_000))
 	{

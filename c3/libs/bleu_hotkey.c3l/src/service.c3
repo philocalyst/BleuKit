@@ -54,6 +54,7 @@ fn Hotkey*? open(Allocator allocator, Options options = { })
 fn void Hotkey.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -92,7 +93,7 @@ fn WatchId{State} Hotkey.watch(
 ) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Hotkey.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Hotkey.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <*
  Subscribe to presses and releases. Only events after this call are delivered. Release the reader

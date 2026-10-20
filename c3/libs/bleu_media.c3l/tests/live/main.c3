@@ -203,6 +203,22 @@ fn void? run_scenario(Media* media, Connection* bus)
 	Maybe{Duration} first_at = find(state, ID_A).position_now(media::monotonic_now());
 	bool first_at_ok         = first_at.has_value && first_at.value >= (Duration)10_000_000;
 	check(first_at_ok, "alpha's position is at least its starting ten seconds");
+	// Regression (M-02): a playing player whose state did not change publishes nothing while its position advances.
+	ulong quiet_gen = snap.generation;
+	bool settled    = false;
+	for (int round = 0; round < 5 && !settled; round++)
+	{
+		if (try later = media.wait_after(quiet_gen, time::sec(2)))
+		{
+			quiet_gen = later.generation;
+			later.release();
+		}
+		else
+		{
+			settled = true;
+		}
+	}
+	check(settled, "a steady playing player publishes nothing for two seconds");
 	check(state.players.len == 3, "three players: a, b, c");
 	Player* a = find(state, ID_A);
 	Player* b = find(state, ID_B);

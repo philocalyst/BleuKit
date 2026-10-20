@@ -14,9 +14,13 @@ fn void print_list(registry::Slot[] slots)
 		{
 			io::printfn("%-12s %s", slot.spec.name, slot.spec.backend(slot.handle));
 		}
-		else
+		else if (slot.attempted)
 		{
 			io::printfn("%-12s unavailable: %s", slot.spec.name, slot.failure_message);
+		}
+		else
+		{
+			io::printfn("%-12s not selected", slot.spec.name);
 		}
 	}
 }

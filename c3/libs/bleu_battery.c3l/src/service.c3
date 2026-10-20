@@ -87,7 +87,7 @@ fn Battery*? open(Allocator allocator, Options options = { })
 <* Stop the backend and release everything. *>
 fn void Battery.close(&self)
 {
-	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	self.startup.free();
 	Allocator allocator = self.allocator;

@@ -346,5 +346,5 @@ fn String? take_wide(Allocator allocator, Char16* memory) @inline
 {
 	if (!memory) return "";
 	defer co_task_mem_free(memory);
-	return text::from_wide(allocator, (WString)memory) ?? "";
+	return text::from_wide(allocator, (WString)memory);
 }

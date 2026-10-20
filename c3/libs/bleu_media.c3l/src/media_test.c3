@@ -1,5 +1,5 @@
 module bleu::media;
-import std::collections::list, std::collections::maybe, std::time, bleu::dbus::value, bleu::error, bleu::media::mpris_convert, bleu::media::smtc_convert, bleu::media::scripting_convert, bleu::unit;
+import std::collections::list, std::collections::maybe, std::thread, std::time, bleu::dbus::value, bleu::error, bleu::media::mpris_convert, bleu::media::smtc_convert, bleu::media::scripting_convert, bleu::operation, bleu::rt::worker, bleu::service, bleu::unit;
 
 <* Seconds as a Duration, for test arithmetic. *>
 fn Duration secs(long n) => (Duration)(n * 1_000_000);
@@ -254,4 +254,97 @@ fn void scripting_rejects_malformed_lines() @test
 	{
 		assert(false, "an empty line must fail");
 	}
+}
+// Regression (M-01): a command still queued when the worker stops fails with DISCONNECTED; before, nothing completed it.
+fn void a_command_left_queued_at_stop_fails() @test
+{
+	MediaHub hub;
+	hub.start(mem, "media-test", "test", &wait_until_stopped, null, service::DEFAULT_QUEUE{State, Command, Event}, &abandon_command)!!;
+	CommandOp* op = operation::begin(mem);
+	Command c     = command(PLAY, 1);
+	c.op = op.retain();
+	hub.post(c)!!;
+	hub.stop();
+	if (catch err = op.wait(time::sec(2)))
+	{
+		assert(err == error::DISCONNECTED, "the abandoned command fails with DISCONNECTED");
+	}
+	else
+	{
+		assert(false, "the abandoned command must complete");
+	}
+	op.release();
+	hub.free();
+}
+
+// The worker of the test above: runs until stopped, and never takes a command.
+fn void wait_until_stopped(void* backend, MediaHub* hub, Host{Command}* host) @private
+{
+	while (!host.stopping()) thread::sleep(time::ms(1))!!;
+}
+
+// Regression (M-02): a reading that agrees with the anchor keeps it, so an unchanged player does not republish.
+fn void a_steady_reading_keeps_the_anchor() @test
+{
+	Maybe{Duration} none = { };
+	Anchor known         = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Anchor} current = maybe::value(known);
+	Anchor same           = { .position = secs(12), .taken_at = secs(102) };
+	assert(!needs_reanchor(current, same, PLAYING, 1.0, none), "a reading that agrees changes nothing");
+	Anchor jumped = { .position = secs(20), .taken_at = secs(102) };
+	assert(needs_reanchor(current, jumped, PLAYING, 1.0, none), "a reading that disagrees replaces the anchor");
+	Maybe{Anchor} no_anchor = { };
+	assert(needs_reanchor(no_anchor, same, PLAYING, 1.0, none), "without an anchor, take the reading");
+}
+
+// Regression (M-03): a title with a tab is kept whole; the artist and album are the last two fields.
+fn void a_title_with_tabs_is_kept_whole() @test
+{
+	Reading r = scripting_convert::parse_reading("playing\t12345\t70\t180000\tPart one\tPart two\tAnn\tAlbum")!!;
+	assert(r.title == "Part one\tPart two", "the title keeps its tab");
+	assert(r.artist == "Ann" && r.album == "Album", "artist and album are the last two fields");
+}
+
+// Regression (M-04): a zero LastUpdatedTime (1601) is unknown, not 424 years old.
+fn void an_unset_stamp_is_no_age() @test
+{
+	assert(smtc_convert::age_of(0, (Time)12_000_000) == time::DURATION_ZERO, "a zero stamp counts as no age");
+	assert(smtc_convert::age_of(0, (Time)12_000_000) < smtc_convert::MAX_STAMP_AGE, "and the position stays bounded");
+}
+
+// Regression (M-05): a peer's rate is made safe: NaN is normal speed, a huge rate is clamped to MAX_RATE.
+fn void a_peer_rate_is_made_safe() @test
+{
+	Anchor a               = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Duration} none   = { };
+	PlaybackRate huge      = (PlaybackRate)1.0e15;
+	PlaybackRate nan       = bitcast((ulong)0x7FF8000000000000, double);
+	PlaybackRate infinity  = bitcast((ulong)0x7FF0000000000000, double);
+	assert(position_at(a, PLAYING, huge, none, secs(102)) == secs(42), "clamped to MAX_RATE: 10 + 2 * 16");
+	assert(position_at(a, PLAYING, nan, none, secs(102)) == secs(12), "NaN is normal speed");
+	assert(sane_rate(infinity) == 1.0, "an infinity is normal speed");
+	assert(position_at(a, PLAYING, (PlaybackRate)-huge, none, secs(102)) == time::DURATION_ZERO, "a huge rewind stops at zero");
+}
+
+// Regression (L-04): only https and file art URLs are kept.
+fn void only_https_and_file_art_urls_are_kept() @test
+{
+	@pool()
+	{
+		assert(mpris_convert::art_url_text("https://e.org/a.png", tmem) == "https://e.org/a.png");
+		assert(mpris_convert::art_url_text("file:///tmp/a.png", tmem) == "file:///tmp/a.png");
+		assert(mpris_convert::art_url_text("http://e.org/a.png", tmem) == "", "http is dropped");
+		assert(mpris_convert::art_url_text("javascript:alert(1)", tmem) == "", "any other scheme is dropped");
+	};
+}
+
+// Peer text is cut to MAX_TEXT_BYTES on a character boundary.
+fn void long_peer_text_is_cut() @test
+{
+	@pool()
+	{
+		char[] long_text = alloc::new_array(tmem, char, 5000);
+		for (sz k = 0; k < long_text.len; k++) long_text[k] = 'a';
+		assert(cut_utf8((String)long_text, MAX_TEXT_BYTES).len == MAX_TEXT_BYTES);
+	};
 }

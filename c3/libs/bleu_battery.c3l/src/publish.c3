@@ -2,9 +2,9 @@
  Publishing a reading from a backend. Every backend ends its refresh here, on the
  worker thread, so that the same rules hold on every platform:
  - a reading that differs from the last one is published, and the transients between
-   them (`changes`) are emitted first;
+ them (`changes`) are emitted first;
  - a failed read never publishes an empty state: the last good reading is republished
-   with its `reading` marked stale, and before any good reading nothing is published.
+ with its `reading` marked stale, and before any good reading nothing is published.
 *>
 module bleu::battery;
 import std::collections::list, bleu::equal, bleu::observe, bleu::service;
@@ -62,4 +62,3 @@ fn void emit_changes(BatteryHub* hub, State* before, State* after)
 		}
 	};
 }
-

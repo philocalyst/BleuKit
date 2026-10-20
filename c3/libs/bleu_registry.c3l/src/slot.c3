@@ -16,6 +16,7 @@ struct Slot
 	Spec* spec;
 	Allocator allocator;
 	void* handle; // null unless the service is open
+	bool attempted; // `open` was called (whether it succeeded or not)
 	fault failure; // why it did not open; the excuse is kept so the status survives
 	String failure_message; // the message of `failure`, owned by `allocator`
 	Tap tap;
@@ -26,9 +27,12 @@ struct Slot
 
  @return "The message, copied into `allocator`"
 *>
-fn String describe_failure(Allocator allocator)
+fn String describe_failure(fault failure, Allocator allocator)
 {
-	return string::tformat("%s", error::last().message()).copy(allocator);
+	String message = error::last().message();
+	// A backend that failed without a message still gets a reason: its status name.
+	if (!message.len) message = string::tformat("%s: no backend works here", error::status_of(failure));
+	return message.copy(allocator);
 }
 
 <*
@@ -41,11 +45,12 @@ fn void? Slot.open(&self, Spec* spec, Allocator allocator, OpenOptions options)
 {
 	self.spec = spec;
 	self.allocator = allocator;
+	self.attempted = true;
 	void*? opened = spec.open(allocator, options);
 	if (catch err = opened)
 	{
 		self.failure = err;
-		self.failure_message = describe_failure(allocator);
+		self.failure_message = describe_failure(err, allocator);
 		return err~;
 	}
 	self.handle = opened;
@@ -150,7 +155,7 @@ fn void? Slot.write_summary(&self, json::JsonWriter* out)
 	else
 	{
 		out.key("reason")!;
-		out.put_string(self.failure_message)!;
+		out.put_string(self.attempted ? self.failure_message : "not selected")!;
 	}
 	return out.end_object();
 }
@@ -174,11 +179,13 @@ fn usz? index_of_service(String name)
  Each named service is attempted once. A service that fails stays closed and keeps
  its reason in its slot, so one failure does not stop the others.
 
- @param slots : "One slot per registered service, in table order (`SERVICE_COUNT` of them)"
+ @param slots : "One slot per registered service, in table order (`SERVICE_COUNT` of them); each gets its spec"
  @return? error::INVALID_ARGUMENT : "A name in the list is not a registered service"
 *>
 fn void? open_selected(Slot[] slots, String names, Allocator allocator, OpenOptions options)
 {
+	// Every slot knows its service, opened or not, so that every request can name it.
+	for (usz i = 0; i < SERVICE_COUNT; i++) slots[i].spec = SERVICES[i];
 	bool[SERVICE_COUNT] wanted = { };
 	if (names.len == 0)
 	{

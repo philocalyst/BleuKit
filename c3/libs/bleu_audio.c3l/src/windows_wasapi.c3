@@ -112,18 +112,28 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 	windows_com::IMMDeviceEnumerator* enumerator = opened;
 	defer windows_endpoints::release_ref(enumerator);
 	NotifyShell* shell = register_notifications(enumerator, backend);
-	if (!shell) return;
-	defer unregister_notifications(enumerator, shell);
+	// Without notifications the one-second tick still re-reads every state, so a change shows within a second.
+	bool listening = shell != null;
+	defer if (listening) unregister_notifications(enumerator, shell);
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 1)) return;
+	if (catch poller.init(mem, host.wakeup(), 1))
+	{
+		audio::publish_empty(hub);
+		return;
+	}
 	defer poller.free();
 	Command[COMMAND_BATCH] buffer;
 	refresh(enumerator, hub);
 	while (!host.stopping())
 	{
-		if (catch poller.wait(POLL_INTERVAL))
+		if (catch err = poller.wait(POLL_INTERVAL))
 		{
-			// TIMEOUT is the one-second tick that re-reads volumes.
+			// TIMEOUT is the one-second tick that re-reads volumes; any other failure ends the worker.
+			if (err != TIMEOUT)
+			{
+				audio::publish_empty(hub);
+				return;
+			}
 		}
 		usz count = host.mailbox().take_all(buffer[..]);
 		for (usz i = 0; i < count; i++)
@@ -272,10 +282,16 @@ fn NotifyShell* register_notifications(windows_com::IMMDeviceEnumerator* enumera
 	return shell;
 }
 
-// Unregister and drop the system's reference, which frees the shell.
+// Unregister and drop the system's reference, which frees the shell. If the system
+// refuses to unregister, it keeps the pointer: the shell is then left alive on
+// purpose, with its mailbox pointer cleared so that a late notification posts nothing
+// to a mailbox that `worker.free` has released.
 fn void unregister_notifications(windows_com::IMMDeviceEnumerator* enumerator, NotifyShell* shell) @private
 {
-	enumerator.vtbl.unregister_callback(enumerator, shell);
+	if (enumerator.vtbl.unregister_callback(enumerator, shell).failed())
+	{
+		shell.context = null;
+	}
 }
 
 const windows_com::IMMNotificationClientVtbl NOTIFY_TABLE = {
@@ -289,14 +305,17 @@ const windows_com::IMMNotificationClientVtbl NOTIFY_TABLE = {
 	.on_property_value_changed = &on_property_value_changed,
 };
 
-// Ask the worker for a refresh. Runs on a system thread: only posts.
+// Ask the worker for a refresh. Runs on a system thread: only posts. A null mailbox
+// means the shell outlived its registration (see unregister_notifications): nothing to post to.
 fn void request_refresh(void* self) @private
 {
 	NotifyShell* shell        = com_shell::from_this{windows_com::IMMNotificationClientVtbl}(self);
 	Mailbox{Command}* mailbox = (Mailbox{Command}*)shell.context;
+	if (!mailbox) return;
+	// BUSY means the queue is full. The worker re-reads the state on every turn anyway, so a dropped request costs nothing.
 	if (catch err = mailbox.post({ .kind = CommandKind.REFRESH }))
 	{
-		// BUSY means a refresh is already queued, which is all that is needed.
+		// See above: the worker refreshes on every turn regardless.
 	}
 }
 

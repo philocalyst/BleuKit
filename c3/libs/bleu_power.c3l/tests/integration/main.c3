@@ -517,7 +517,7 @@ fn void run_after_close_checks(String mode)
 		check(false, "open the logind mechanism for the release-after-close checks");
 		return;
 	}
-	Power* svc = opened;
+	Power* svc         = opened;
 	Inhibitor held;
 	bool got_inhibitor = false;
 	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "after close"))
@@ -583,8 +583,8 @@ fn void run_after_close_checks(String mode)
 // old inhibitor closes its descriptor, and a new inhibitor can be taken.
 fn void run_bounce_checks()
 {
-	String dir        = env::tget_var("BLEU_POWER_BOUNCE_DIR")!!;
-	Power*? opened    = power::open(mem, { .backend = power::Backend.LOGIND });
+	String dir     = env::tget_var("BLEU_POWER_BOUNCE_DIR")!!;
+	Power*? opened = power::open(mem, { .backend = power::Backend.LOGIND });
 	if (catch err = opened)
 	{
 		check(false, "open the logind mechanism for the bus restart");

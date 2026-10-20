@@ -239,3 +239,23 @@
 * `Hub.stop` no longer frees the observable and stream lists → every service `close()` and every test must call `hub.free()` after `stop`, or `LEAKS DETECTED` is reported.
 * A generic module's alias needs its parameters at the use site: `service::RunFn{input::State, input::Command, input::Event}`, not `RunFn`.
 * An aligned struct literal in a `Command command = {...}` line can oscillate under `c3fmt`; bind the copied field to a named local first.
+* `kill(0, sig)` (or any kill that reaches a process group) in a test run under `compile-test` takes down `c3c` and the tool shell too → run such tests under `setsid -w`, and never let a test signal anything it did not spawn.
+* A library's `Process` struct clashes with a sibling `Process` type of the same module (`bleu::sysinfo`) → write `std::os::process::Process child = process::spawn(...)`.
+* `Clock` (monotonic) does not mix with `Duration`/`NanoDuration`: `clock + (Clock)ns` is rejected → `(Clock)((ulong)clock + (ulong)ns)`, and a `Duration` result from `Clock - Clock` needs `.to_duration()`.
+* `String` has `compare_to` (returns `int`) and no `<`/`>`; sort strings with `a.compare_to(b) > 0`.
+* `MockServer.receive()` blocks with no timeout: to check a message was NOT sent, send a sync request after the step and read the mock's inbox up to it.
+* In bleu_core, `Observable.close` and `Stream.close` no longer free their lists (`destroy` does); a service whose `Hub.stop` only calls `close` leaks at every stop → the Hub must call `destroy` after the worker has stopped.
+* `Observable.unwatch` returns `void?` (refused from inside its own listener): services that forward it must propagate with `void?`, not `void`.
+* `@export` takes the C name after the declaration: `struct X @export("c_name")`, `fn f(..) @export("c_name")`, `enum E : int @export("c_name")`, `typedef N @export("c_name") = T;`. It is refused on `alias` (the header then names the alias by its mangled C3 name).
+* `@foreign_entry` (`@pool_init`) asserts `!top_temp`: it traps on a thread that already has a temp allocator (C3 worker threads do) and when nested → test `std::core::mem::allocators::top_temp != null` first.
+* A struct cannot be declared inside a function (`Unexpected 'struct'`); the size of a type is `Type::size`, not `Type.sizeof` (which works on values only).
+* `c3c dynamic-lib` exports every function, including `Type.method` symbols, so the header's functions must be restricted at link time (`--linker=custom` gets raw `ld` arguments; a `--version-script` works, a `bleu_*` glob does not).
+* c3c's header drops the element type of a slice (`Source[]` → `c3slice_t`): a struct reached only through a slice is not emitted; export accessors that name it.
+* `mem::copy` and `alloc::new_array` take signed `sz`: cast a `usz` length with `(sz)`.
+* A `void?` function that returns a result of another optional can propagate it with `x.method(args)!;` as a statement.
+* `a[..0]` is inclusive (one element), so a test that means "an empty buffer" must write `a[0:0]`; a `recv` into the one-element slice blocks forever.
+* A SEQPACKET `recvmsg` returns 0 both for a zero-length message and for a closed peer; only `poll(2)` POLLHUP tells them apart (`UnixSocket.peer_hung_up`).
+* Types of a generic module used from outside need the parameters even when they are typedef/enum members: `operation::Phase{int}`, `observe::WatchId{int}` (alias them in tests).
+* A macro can read a struct member's name at compile time: `$foreach $member : $Type::members: $if $member.name == "value":` works (checked in a probe on 0.8.5).
+* `Hub.stop` keeps every lock alive on purpose; `Hub.free` destroys them. Write `defer hub.free();` before `defer hub.stop();` so the stop runs first.
+* `pkill -f <pattern>` matches the calling shell too when the pattern appears in its own command line: kill test binaries by exact name with `pgrep -x`.

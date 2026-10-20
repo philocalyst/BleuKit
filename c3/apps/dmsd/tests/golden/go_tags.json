@@ -1,0 +1,105 @@
+{
+ "source": "AvengeMedia/DankMaterialShell core/internal/server",
+ "revision": "8be08999",
+ "structs": {
+  "SessionState": {
+   "file": "core/internal/server/loginctl/types.go",
+   "lines": [
+    13,
+    33
+   ],
+   "fields": [
+    "sessionId",
+    "sessionPath",
+    "locked",
+    "active",
+    "idleHint",
+    "idleSinceHint",
+    "lockedHint",
+    "sessionType",
+    "sessionClass",
+    "user",
+    "userName",
+    "remoteHost",
+    "service",
+    "tty",
+    "display",
+    "remote",
+    "seat",
+    "vtnr",
+    "preparingForSleep"
+   ],
+   "omitempty": []
+  },
+  "Device": {
+   "file": "core/internal/server/brightness/types.go",
+   "lines": [
+    21,
+    29
+   ],
+   "fields": [
+    "class",
+    "id",
+    "name",
+    "current",
+    "max",
+    "currentPercent",
+    "backend"
+   ],
+   "omitempty": []
+  },
+  "State": {
+   "file": "core/internal/server/brightness/types.go",
+   "lines": [
+    31,
+    33
+   ],
+   "fields": [
+    "devices"
+   ],
+   "omitempty": []
+  },
+  "DeviceUpdate": {
+   "file": "core/internal/server/brightness/types.go",
+   "lines": [
+    35,
+    37
+   ],
+   "fields": [
+    "device"
+   ],
+   "omitempty": []
+  },
+  "SuccessResult": {
+   "file": "core/internal/server/models/types.go",
+   "lines": [
+    3,
+    7
+   ],
+   "fields": [
+    "success",
+    "message",
+    "value"
+   ],
+   "omitempty": [
+    "message",
+    "value"
+   ]
+  },
+  "ServerInfo": {
+   "file": "core/internal/server/server.go",
+   "lines": [
+    50,
+    54
+   ],
+   "fields": [
+    "apiVersion",
+    "cliVersion",
+    "capabilities"
+   ],
+   "omitempty": [
+    "cliVersion"
+   ]
+  }
+ }
+}

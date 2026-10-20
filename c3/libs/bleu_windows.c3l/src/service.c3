@@ -82,6 +82,7 @@ fn Windows*? open(Allocator allocator, Options options = { })
 fn void Windows.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -120,7 +121,7 @@ fn WatchId{State} Windows.watch(
 ) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Windows.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Windows.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (windows opened, focus moved, workspaces changed). *>
 fn Reader{Event}*? Windows.subscribe(&self) => self.hub.events.subscribe();

@@ -72,7 +72,9 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	);
 	capabilities.set(
 		Cap.HEALTH,
-		battery::degraded("Design and full capacity come from the battery class IOCTLs; without them only the summary is published")
+		battery::degraded(
+			"Design and full capacity come from the battery class IOCTLs; without them only the summary is published"
+		)
 	);
 	capabilities.set(
 		Cap.CYCLES,

@@ -54,7 +54,7 @@ fn void changes_name_each_transition_once() @test
 fn void an_unchanged_reading_has_no_transients() @test
 {
 	Source[1] sources = { { .id = "BAT0", .kind = BATTERY, .state = DISCHARGING } };
-	State state = { .sources = sources[..] };
+	State state       = { .sources = sources[..] };
 	List{Event} events;
 	events.init(mem);
 	defer events.free();
@@ -65,8 +65,8 @@ fn void an_unchanged_reading_has_no_transients() @test
 fn void a_removed_source_is_reported() @test
 {
 	Source[1] old_sources = { { .id = "BAT0", .kind = BATTERY } };
-	State before = { .sources = old_sources[..] };
-	State after = { };
+	State before          = { .sources = old_sources[..] };
+	State after           = { };
 	List{Event} events;
 	events.init(mem);
 	defer events.free();
@@ -80,8 +80,8 @@ fn void a_copy_survives_the_source_it_came_from() @test
 	@pool()
 	{
 		Source[1] sources = { { .id = "BAT0", .kind = BATTERY, .model = "Cell9" } };
-		State from = { .on_mains = true, .sources = sources[..], .reading = availability::YES };
-		State copy = battery::copy_state(&from, tmem);
+		State from        = { .on_mains = true, .sources = sources[..], .reading = availability::YES };
+		State copy        = battery::copy_state(&from, tmem);
 		assert(copy.on_mains && copy.sources.len == 1);
 		assert(copy.sources.ptr != from.sources.ptr, "the sources are copied, not shared");
 		assert(copy.sources[0].model == "Cell9" && copy.sources[0].id == "BAT0");
@@ -91,7 +91,8 @@ fn void a_copy_survives_the_source_it_came_from() @test
 fn void reading_states_say_what_they_mean() @test
 {
 	assert(battery::reading_after(0).ok() && battery::reading_after(0).reason == availability::Reason.AVAILABLE);
-	assert(battery::reading_after(2).ok() && battery::reading_after(2).reason == availability::Reason.DEGRADED, "a degraded reading is still OK");
+	assert(battery::reading_after(2)
+		.ok() && battery::reading_after(2).reason == availability::Reason.DEGRADED, "a degraded reading is still OK");
 	assert(!battery::stale_reading().ok(), "a stale reading is not OK");
 	assert(battery::degraded("x").ok());
 }

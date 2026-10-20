@@ -50,9 +50,18 @@ fn Options? parse(String[] args)
 			}
 			String value = args[i];
 			i++;
-			if (arg == "--services") options.services = value;
-			else if (arg == "--fake-root") options.fake_root = value;
-			else options.socket = value;
+			if (arg == "--services")
+			{
+				options.services = value;
+			}
+			else if (arg == "--fake-root")
+			{
+				options.fake_root = value;
+			}
+			else
+			{
+				options.socket = value;
+			}
 		}
 		else
 		{

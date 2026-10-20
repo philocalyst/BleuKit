@@ -97,6 +97,7 @@ fn Network*? open(Allocator allocator, Options options = { })
 		if (catch err = self.await_first_state())
 		{
 			self.hub.stop();
+			self.hub.free();
 			driver.destroy(allocator, self.driver_state);
 			alloc::free(allocator, self);
 			return err~;
@@ -112,6 +113,7 @@ fn Network*? open(Allocator allocator, Options options = { })
 fn void Network.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);

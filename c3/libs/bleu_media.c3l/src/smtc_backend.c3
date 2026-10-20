@@ -26,11 +26,17 @@ const Duration CALL_TIMEOUT = (Duration)5_000_000;
 <* Commands taken from the mailbox per pass of the loop. *>
 const usz COMMAND_BATCH = 16;
 
+<* Consecutive failed polls after which the failure is published (see `poll_counting`). *>
+const usz POLL_FAILURE_LIMIT = 3;
+
 <* What the backend remembers of one session between polls, keyed by its app user model id. *>
 struct Known
 {
 	ulong handle;
 	String id; // owned by the backend's allocator
+	String title; // copies owned by the backend's allocator: a session whose read failed is reported from them
+	String artist;
+	String album;
 	Playback status;
 	Duration status_since;
 	long position_ticks; // as last reported, to tell an unchanged reading
@@ -82,13 +88,10 @@ const Driver DRIVER = {
 fn bool probe(Options* options) => true;
 
 <* Activate the session manager once on this thread, so `open` fails when SMTC is absent. *>
+// Nothing touches COM here: `open` may run on any thread. The session manager is probed by the worker (see `run`).
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	fill_capabilities(capabilities);
-	winrt::Runtime runtime = winrt::enter(com::Model.MULTI_THREADED)!;
-	defer runtime.leave();
-	smtc_api::Manager* manager = request_manager()!;
-	smtc_api::release_object(manager);
 	return alloc::new(allocator, Backend, { .allocator = allocator, .refresh = options.refresh });
 }
 
@@ -277,7 +280,7 @@ fn Entry? read_entry(smtc_api::Session* session, Allocator allocator) @local
 		double rate                    = 1.0;
 		hresult::Hresult hr            = box.vtbl.value(box, &rate);
 		if (hr.failed()) return errors::raise_hresult(hr, "PlaybackRate")~;
-		e.rate = rate;
+		e.rate = media::sane_rate(rate);
 	}
 	if (e.status == Playback.PLAYING && e.rate == 0.0) e.status = Playback.PAUSED;
 
@@ -324,10 +327,7 @@ fn void? Smtc.open(&self, Allocator allocator)
 fn void Smtc.close(&self)
 {
 	smtc_api::release_object(self.manager);
-	foreach (k : self.known.array_view())
-	{
-		if (k.id.len > 0) alloc::free(self.allocator, k.id.ptr);
-	}
+	self.forget();
 	self.known.free();
 }
 
@@ -379,7 +379,7 @@ fn void*? view_at(smtc_api::VectorView* views, uint index)
 }
 
 <* Read every session, sort them by id and drop a second session with an id already seen. *>
-fn void? Smtc.read_all(&self, List{Entry}* out)
+fn void? Smtc.read_all(&self, List{Entry}* out, List{String}* failed)
 {
 	smtc_api::VectorView* views = self.sessions()!;
 	defer smtc_api::release_object(views);
@@ -388,9 +388,22 @@ fn void? Smtc.read_all(&self, List{Entry}* out)
 	{
 		void* raw                  = view_at(views, i)!;
 		smtc_api::Session* session = (smtc_api::Session*)raw;
-		if (try entry = read_entry(session, tmem)) out.push(entry);
+		if (try entry = read_entry(session, tmem))
+		{
+			out.push(entry);
+		}
+		else if (try id = session_id(session, tmem))
+		{
+			failed.push(id);
+		}
 		smtc_api::release_object(raw);
 	}
+}
+
+// The app user model id of `session`, copied into `allocator`.
+fn String? session_id(smtc_api::Session* session, Allocator allocator) @private
+{
+	return hstring_of(object_of(session.vtbl.source_app_user_model_id, session)!, allocator);
 }
 
 <*
@@ -403,14 +416,16 @@ fn void? Smtc.poll(&self, MediaHub* hub)
 	{
 		List{Entry} read;
 		read.init(tmem);
-		self.read_all(&read)!;
+		List{String} failed;
+		failed.init(tmem);
+		self.read_all(&read, &failed)!;
 		Entry[] sorted = read.array_view();
 		sort_by_id(sorted);
 		Entry[] unique            = unique_by_id(sorted);
 		Duration now              = media::monotonic_now();
 		Time wall                 = time::now();
 		Snapshot{State}* snapshot = hub.begin();
-		snapshot.value = self.adopt(unique, snapshot.allocator(), now, wall);
+		snapshot.value = self.adopt(unique, failed.array_view(), snapshot.allocator(), now, wall);
 		ulong[] none = { };
 		media::publish_built(hub, snapshot, none);
 	};
@@ -447,28 +462,22 @@ fn Entry[] unique_by_id(Entry[] sorted) @private
 
 <*
  Make the remembered sessions match this poll: handles stay with their ids,
- anchors and status times are kept while the reported values are unchanged,
- and the players are built into `allocator`.
+ anchors and status times are kept while the reported values are unchanged, and
+ a session whose read failed this time keeps its last good values (`failed` lists
+ those ids). The players are built into `allocator`.
 *>
-fn State Smtc.adopt(&self, Entry[] entries, Allocator allocator, Duration now, Time wall)
+fn State Smtc.adopt(&self, Entry[] entries, String[] failed, Allocator allocator, Duration now, Time wall)
 {
-	usz count = (usz)entries.len;
-	if (count == 0)
-	{
-		self.forget();
-		return { };
-	}
 	List{Known} next;
 	next.init(self.allocator);
-	Player[] players    = alloc::new_array(allocator, Player, (sz)count);
-	Playback[] statuses = alloc::new_array(tmem, Playback, (sz)count);
-	Duration[] since    = alloc::new_array(tmem, Duration, (sz)count);
-	for (sz i = 0; i < entries.len; i++)
+	foreach (&e : entries)
 	{
-		Entry* e   = &entries[i];
 		Known* old = self.find_id(e.id);
 		Known k = {
 			.id = media::copy_text(e.id, self.allocator),
+			.title = media::copy_text(e.title, self.allocator),
+			.artist = media::copy_text(e.artist, self.allocator),
+			.album = media::copy_text(e.album, self.allocator),
 			.handle = old != null ? old.handle : self.take_handle(),
 			.status = e.status,
 			.status_since = old != null && old.status == e.status ? old.status_since : now,
@@ -493,31 +502,84 @@ fn State Smtc.adopt(&self, Entry[] entries, Allocator allocator, Duration now, T
 			k.position = maybe::value(anchor);
 		}
 		next.push(k);
-		statuses[i] = e.status;
+	}
+	foreach (&old : self.known.array_view())
+	{
+		if (contains_id(entries, old.id) || !contains_text(failed, old.id)) continue;
+		next.push({
+			.id = media::copy_text(old.id, self.allocator),
+			.title = media::copy_text(old.title, self.allocator),
+			.artist = media::copy_text(old.artist, self.allocator),
+			.album = media::copy_text(old.album, self.allocator),
+			.handle = old.handle,
+			.status = old.status,
+			.status_since = old.status_since,
+			.position_ticks = old.position_ticks,
+			.updated_ticks = old.updated_ticks,
+			.position = old.position,
+			.controls = old.controls,
+			.rate = old.rate,
+			.shuffle = old.shuffle,
+			.loop = old.loop,
+			.has_length = old.has_length,
+			.length = old.length,
+		});
+	}
+	usz count = next.size;
+	if (count == 0)
+	{
+		self.forget();
+		self.known = next;
+		return { };
+	}
+	Player[] players    = alloc::new_array(allocator, Player, (sz)count);
+	Playback[] statuses = alloc::new_array(tmem, Playback, (sz)count);
+	Duration[] since    = alloc::new_array(tmem, Duration, (sz)count);
+	foreach (i, &k : next.array_view())
+	{
+		players[i] = player_of(k, allocator);
+		statuses[i] = k.status;
 		since[i] = k.status_since;
-		players[i] = {
-			.handle = k.handle,
-			.id = media::copy_text(e.id, allocator),
-			.identity = media::copy_text(e.id, allocator),
-			.status = e.status,
-			.track = {
-				.title = media::copy_text(e.title, allocator),
-				.artists = artists_of(e.artist, allocator),
-				.album = media::copy_text(e.album, allocator),
-				.length = e.has_length ? maybe::value(k.length) : { },
-			},
-			.position = k.position,
-			.rate = e.rate,
-			.shuffle = e.shuffle,
-			.loop = e.loop,
-			.controls = k.controls,
-		};
 	}
 	self.forget();
 	self.known = next;
 	sz active = media::select_active(statuses, since);
 	players[active].is_active = true;
 	return { .players = players };
+}
+
+// The player a remembered session describes, with its strings copied into `allocator`.
+fn Player player_of(Known* k, Allocator allocator) @private
+{
+	return {
+		.handle = k.handle,
+		.id = media::copy_text(k.id, allocator),
+		.identity = media::copy_text(k.id, allocator),
+		.status = k.status,
+		.track = {
+			.title = media::copy_text(k.title, allocator),
+			.artists = artists_of(k.artist, allocator),
+			.album = media::copy_text(k.album, allocator),
+			.length = k.has_length ? maybe::value(k.length) : { },
+		},
+		.position = k.position,
+		.rate = k.rate,
+		.shuffle = k.shuffle,
+		.loop = k.loop,
+		.controls = k.controls,
+	};
+}
+
+fn bool contains_id(Entry[] entries, String id) @private
+{
+	foreach (&e : entries) if (e.id == id) return true;
+	return false;
+}
+
+fn bool contains_text(String[] texts, String text) @private
+{
+	foreach (t : texts) if (t == text) return true;
+	return false;
 }
 
 // The one artist as a list, or none when there is no artist text.
@@ -540,12 +602,19 @@ fn ulong Smtc.take_handle(&self)
 // Free the strings of the remembered sessions (the list itself is replaced by the caller).
 fn void Smtc.forget(&self)
 {
-	foreach (k : self.known.array_view())
-	{
-		if (k.id.len > 0) alloc::free(self.allocator, k.id.ptr);
-	}
+	foreach (k : self.known.array_view()) free_strings(self.allocator, k);
 	self.known.free();
 	self.known.init(self.allocator);
+}
+
+// Free the strings a remembered session owns (the list itself is the caller's business).
+fn void free_strings(Allocator allocator, Known k) @private
+{
+	String[4] owned = { k.id, k.title, k.artist, k.album };
+	foreach (text : owned)
+	{
+		if (text.len > 0) alloc::free(allocator, text.ptr);
+	}
 }
 
 <*
@@ -562,11 +631,10 @@ fn smtc_api::Session*? Smtc.open_session(&self, String id, Allocator allocator)
 	{
 		void* raw                  = view_at(views, i)!;
 		smtc_api::Session* session = (smtc_api::Session*)raw;
-		String text                = hstring_of(
-			object_of(session.vtbl.source_app_user_model_id, session)!,
-			allocator
-		) ?? "";
-		if (text == id) return session;
+		if (try text = session_id(session, allocator))
+		{
+			if (text == id) return session;
+		}
 		smtc_api::release_object(raw);
 	}
 	return NOT_FOUND~;
@@ -650,7 +718,7 @@ fn void? Smtc.perform(&self, Command* c)
 			case CommandKind.STOP: return settle(s.vtbl.try_stop_async, s);
 			case CommandKind.NEXT: return settle(s.vtbl.try_skip_next_async, s);
 			case CommandKind.PREVIOUS: return settle(s.vtbl.try_skip_previous_async, s);
-			case CommandKind.SEEK: return settle_ticks(s.vtbl.try_change_playback_position_async, s, smtc_convert::ticks_of_micros(target_of(k, c.amount)));
+			case CommandKind.SEEK: return settle_ticks(s.vtbl.try_change_playback_position_async, s, smtc_convert::ticks_of_micros(target_of(k, c.amount)!));
 			case CommandKind.SET_POSITION: return settle_ticks(s.vtbl.try_change_playback_position_async, s, smtc_convert::ticks_of_micros(c.amount));
 			case CommandKind.SET_RATE: return settle_double(s.vtbl.try_change_playback_rate_async, s, (double)c.rate);
 			case CommandKind.SET_SHUFFLE: return settle_flag(s.vtbl.try_change_shuffle_active_async, s, c.flag);
@@ -663,10 +731,10 @@ fn void? Smtc.perform(&self, Command* c)
 	};
 }
 
-// Where a relative seek of `offset` from `k` lands: the position now, plus the offset.
-fn Duration target_of(Known* k, Duration offset) @private
+// Where a relative seek of `offset` from `k` lands: the position now, plus the offset. Without an anchor there is nothing to move from.
+fn Duration? target_of(Known* k, Duration offset) @private
 {
-	if (!k.position.has_value) return offset;
+	if (!k.position.has_value) return error::UNAVAILABLE~;
 	Maybe{Duration} length = k.has_length ? maybe::value(k.length) : { };
 	Duration at            = media::position_at(k.position.value, k.status, k.rate, length, media::monotonic_now());
 	return at + offset;
@@ -681,20 +749,30 @@ fn void run(void* state, MediaHub* hub, Host{Command}* host)
 		defer runtime.leave();
 		run_entered(backend, hub, host);
 	}
+	else
+	{
+		media::emit_failure(hub, "COM could not start on the SMTC thread");
+	}
 }
 
 fn void run_entered(Backend* backend, MediaHub* hub, Host{Command}* host) @private
 {
 	Smtc smtc;
-	if (catch err = smtc.open(backend.allocator)) return;
+	if (catch err = smtc.open(backend.allocator))
+	{
+		media::emit_failure(hub, error::last().message());
+		return;
+	}
 	defer smtc.close();
 	Poller poller;
-	if (catch err = poller.init(mem, host.wakeup(), 1)) return;
+	if (catch err = poller.init(mem, host.wakeup(), 1))
+	{
+		media::emit_failure(hub, "the SMTC worker has no wake-up");
+		return;
+	}
 	defer poller.free();
 	Command[COMMAND_BATCH] commands;
-	if (catch err = smtc.poll(hub))
-	{
-	}
+	usz failures = poll_counting(&smtc, hub, 0);
 	while (!host.stopping())
 	{
 		if (catch err = poller.wait(backend.refresh))
@@ -703,8 +781,18 @@ fn void run_entered(Backend* backend, MediaHub* hub, Host{Command}* host) @priva
 		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) smtc.execute(&commands[i]);
-		if (catch err = smtc.poll(hub))
-		{
-		}
+		failures = poll_counting(&smtc, hub, failures);
 	}
+}
+
+// One poll. A failed poll keeps the last state; after POLL_FAILURE_LIMIT failures in a row the failure is published once. Returns the run of failures.
+fn usz poll_counting(Smtc* smtc, MediaHub* hub, usz failures) @private
+{
+	if (catch err = smtc.poll(hub))
+	{
+		usz run = failures + 1;
+		if (run == POLL_FAILURE_LIMIT) media::emit_failure(hub, error::last().message());
+		return run;
+	}
+	return 0;
 }

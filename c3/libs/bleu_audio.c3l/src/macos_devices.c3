@@ -36,14 +36,15 @@ fn HalDevice[]? list_devices(Allocator allocator)
 		macos_hal::SYSTEM_OBJECT,
 		{ macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }
 	)!;
-	sz count                  = size / uint::size;
-	macos_hal::ObjectId[] ids = alloc::new_array(tmem, macos_hal::ObjectId, count);
-	macos_hal::read_property(
+	macos_hal::ObjectId[] ids = alloc::new_array(tmem, macos_hal::ObjectId, size / uint::size);
+	// The device list can shrink between the size query and this read: only the IDs the HAL wrote are used.
+	uint written = macos_hal::read_property_bytes(
 		macos_hal::SYSTEM_OBJECT,
 		{ macos_hal::SELECTOR_DEVICES, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN },
 		ids.ptr,
 		size
 	)!;
+	sz count                  = (sz)(written / uint::size);
 	HalDevice[] devices = alloc::new_array(allocator, HalDevice, count);
 	for (sz i = 0; i < count; i++)
 	{
@@ -178,7 +179,7 @@ fn Device device_of(Allocator allocator, HalDevice hal, Flow flow, bool is_defau
 		{ macos_hal::SELECTOR_VOLUME_SCALAR, scope_of(flow), macos_hal::ELEMENT_LEFT }
 	);
 	if (device.volume.len == 2) device.balance = maybe::value(
-		volume::stereo_balance(device.volume[0], device.volume[1])
+		volume::stereo_balance((float)device.volume[0], (float)device.volume[1])
 	);
 	if (macos_hal::has_property(hal.id, { macos_hal::SELECTOR_MUTE, scope_of(flow), macos_hal::ELEMENT_MAIN }))
 	{

@@ -143,7 +143,7 @@ fn void close_from_a_listener_stops_further_delivery() @test
 	defer state.destroy();
 	publish_value(&state, 1);
 	Closer closer = { .state = &state };
-	WatchId id = state.watch(&closing_listener, &closer);
+	WatchId id    = state.watch(&closing_listener, &closer);
 	test::eq(1, closer.calls);
 	publish_value(&state, 2);
 	test::eq(2, closer.calls);

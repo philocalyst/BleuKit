@@ -10,9 +10,6 @@
 module bleud::daemon @feat(POSIX);
 import std::io, std::thread, std::time, std::atomic, std::core::string, bleu::error, bleu::registry, bleu::ipc, bleu::json;
 
-<* Capabilities announced in the handshake. *>
-const String[3] CAPABILITIES = { "services", "topics", "commands" };
-
 <* Set by SIGINT and SIGTERM; the serving loop ends when it is set. *>
 Atomic{bool} stop_requested;
 
@@ -38,6 +35,8 @@ struct Daemon
 {
 	registry::Slot[registry::SERVICE_COUNT] slots;
 	ipc::Topic*[registry::SERVICE_COUNT] topics;
+	// The handshake's capabilities. They live here, not in a constant, because the server keeps a slice of them.
+	String[3] capabilities;
 	ipc::Server server;
 }
 
@@ -99,7 +98,8 @@ fn int count_open(Daemon* daemon) @private
 *>
 fn void? start(Daemon* daemon, String path)
 {
-	daemon.server.init(mem, { .app_name = "bleud", .api_version = 1, .capabilities = CAPABILITIES[..], .socket_path = path })!;
+	daemon.capabilities = { "services", "topics", "commands" };
+	daemon.server.init(mem, { .app_name = "bleud", .api_version = 1, .capabilities = daemon.capabilities[..], .socket_path = path })!;
 	foreach (i, &slot : daemon.slots)
 	{
 		daemon.topics[i] = daemon.server.register_topic(slot.spec.name)!;

@@ -58,6 +58,7 @@ fn Tray*? open(Allocator allocator, Options options = { })
 fn void Tray.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -92,7 +93,7 @@ fn Snapshot{State}*? Tray.wait_after(&self, ulong seen, Duration timeout = time:
 fn WatchId{State} Tray.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Tray.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Tray.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events: items added and removed, and clicks on our own icon and menu. *>
 fn Reader{Event}*? Tray.subscribe(&self) => self.hub.events.subscribe();

@@ -19,7 +19,7 @@ fn void tap_listener(void* context, Snapshot{State}* snapshot)
 		buffer.init(tmem);
 		out.init_dstring(&buffer);
 		// Serialising a plain-data state cannot fail except by running out of memory, which aborts.
-		state_json::write{State}(&out, snapshot)!!;
+		state_json::write{State}(&out, snapshot, false)!!;
 		tap.sink(tap.context, out.written());
 	};
 }

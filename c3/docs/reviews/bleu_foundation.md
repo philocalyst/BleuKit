@@ -68,3 +68,40 @@ Moving target: other agents committed changes to the reviewed libraries while th
    * `p_sock.c3`: H (empty `SEQPACKET`) reports `DISCONNECTED` with the peer alive; I (`send_all` with empty bytes and a descriptor) reports success and delivers nothing.
    * `p_stream.c3`: J (stream close, drain, release) passes all checks.
 5. No library code was changed by the review. The only file this review wrote is `docs/reviews/bleu_foundation.md`. Scratch binaries and test output stayed in the scratch directory, outside the repository.
+
+## Resolution
+
+Every finding is marked below. Evidence is the test named, or the probe re-run against the new code. Suspicions S1 to S5 were not in scope and are unchanged.
+
+| ID | Status | What changed, and where it is proven |
+| --- | --- | --- |
+| C1 | FIXED | Lifetime rule: `Hub.stop` closes but frees nothing; new `Hub.free` destroys the locks and is called by every service `close()` after `stop`. `Hub.post` checks an atomic `accepting` flag before touching the mailbox, so a post after stop, after a failed start, or on a never-started hub returns `UNAVAILABLE`. Tests `posts_are_refused_when_the_hub_is_not_running`; probe `p_hub` case B now prints `UNAVAILABLE`. |
+| S3 | FIXED | Same rule: stop never frees a lock a poster can take. `posts_racing_stop_are_each_processed_or_abandoned` runs 200 rounds with a poster thread racing `stop` and checks accepted = processed + abandoned exactly; 5 repeated runs of the suite pass. |
+| H1 | FIXED in `bleu_service` (open work in two services) | `abandon` stays optional (no default change, so no call site breaks). Leftover commands without `abandon` are counted and logged to stderr; `Hub.start` documents the rule. The waiter still blocks, because the hub cannot know a command's `Operation`. Services that carry Operations but pass no `abandon`: clipboard and secrets (suggested task `task_397ece63`). |
+| H2 | FIXED at HEAD | Early `run` return closes the mailbox (`4545758`). Test `commands_left_behind_are_abandoned_not_lost`; probe `p_hub_c` shows `UNAVAILABLE`. |
+| M1 | FIXED | Listeners run with the state lock released, under a separate delivery lock. A listener may call `latest`, `wait_after` (with a timeout), `watch`, `close`, and `unwatch` of other listeners. `unwatch` of itself or of a listener it runs inside returns `INVALID_STATE`. `unwatch` from another thread waits for a running listener. `watch` makes its first call on the caller's thread, outside the state lock, and documents it. Tests `a_listener_may_read_watch_and_refuse_to_unwatch_itself`, `close_from_a_listener_stops_further_delivery`, `unwatch_waits_for_a_listener_running_on_another_thread`; probe `p_obs` case D completes. |
+| M2 | FIXED | `Operation.detail` returns the completing thread's own record when its status matches, otherwise an empty detail with the status only; never the caller's thread-local. Tests `detail_of_an_unrecorded_failure_has_no_text`, `detail_recorded_on_the_completing_thread_is_kept`; probe G prints an empty text. |
+| M3 | FIXED | `recv` treats zero bytes as end of file only on a stream, or on a SEQPACKET whose peer has hung up (`POLLHUP`, since the kernel returns 0 for both). Probe H: the empty message is delivered and the peer stays connected. Test `zero_length_seqpacket_message_is_a_message_not_end_of_file`. |
+| M4 | FIXED | Added `observe_test`, `stream_test`, `operation_test`, `deadline_test`, hub cases (post after stop, not running, start twice, no abandon, abandon on stop, the race), and receive-side tests (MSG_CTRUNC, excess descriptors, truncated message, closed descriptors on the error path). 74 tests across core, rt and service pass. |
+| L1 | FIXED | `Operation.then` returns `void?`, refuses a second callback with `INVALID_STATE`, and keeps the first. No callers outside the file. Test `a_second_callback_is_refused_and_the_first_is_kept`. |
+| L2 | FIXED | `send` and `send_all` refuse descriptors with no data (`INVALID_ARGUMENT`). Probe I and test `descriptors_without_data_are_refused`. |
+| L3 | FIXED | `Hub.start` on a hub that is not NEW returns `INVALID_STATE` before it touches any field. Test `start_twice_is_refused_and_a_freed_hub_starts_again`. |
+| L4 | FIXED | `Deadline.wait` ignores only `thread::WAIT_TIMEOUT`; any other fault is an invariant violation (`unreachable`). |
+| L5 | FIXED | `Operation.wait`, `Observable.wait_after` and `Reader.next` re-test the predicate once after the deadline passes, so a racing completion is not reported as `TIMEOUT`. Test `completion_racing_the_deadline_is_never_lost`. |
+| L6 | FIXED | `destroy()` added to `Observable` and `Stream` (called by `Hub.free`). `watch` after `close` registers nothing and returns 0. `close` is idempotent. Test `publishing_after_close_delivers_nothing`, `watch` after `close` in `close_from_a_listener...`. |
+| L7 | FIXED (NaN) / WONTFIX (`Maybe` payload) | `deep` treats NaN as equal to itself (test `nan_compares_equal_to_itself`). WONTFIX for the unset `Maybe` payload: `deep` cannot tell, inside a macro, whether a struct has a `has_value` sibling without a struct-shape query that 0.8.5 does not offer. The effect is a spurious publish only when a stale payload sits under `has_value == false`. |
+| L8 | FIXED | `error::raise_text` (no formatting, no temporary memory) is used on the mailbox refusals, the hub refusals and the wake-up signal failures. The wake-up doc's "never allocates" now holds. |
+| L9 | FIXED | Detail truncation backs up to the start of a UTF-8 sequence (`store_text`). |
+| L10 | FIXED | `read_into` distinguishes end of file from a read fault on the probe byte. Test `a_file_exactly_the_size_of_the_buffer_is_read_whole`. |
+| L11 | WONTFIX | `std::io` faults carry no native code, and errno cannot be read back reliably after the standard library's calls. The `Domain.NONE` choice is documented in `fs.c3`. |
+| L12 | FIXED | `schedule_repeating` refuses a non-positive period at run time (`INVALID_ARGUMENT`; the `@require` was removed so the refusal is reachable). `pop_expired` requires a non-empty buffer. Test `a_repeating_timer_needs_a_positive_period`. |
+| L13 | FIXED | `from_raw` computes in double. |
+
+Other changes made while fixing the list, all in other libraries and all minimal: `hub.free()` added after `hub.stop()` in the services' `close()` paths (clipboard, sysinfo, battery, bluetooth, apps, display, audio, brightness, color, hotkey, media, network, notify, power, secrets, tray, windows; session, input and appearance already had it); `unwatch` wrappers now `void?` in clipboard, audio, hotkey, media, notify, tray, windows; `defer hub.free()` added in brightness `engine_test` and windows `abandon_test`. `recv` also refuses an empty buffer (INVALID_ARGUMENT), since zero bytes there were read as end of file.
+
+### Final regression
+
+* `c3c compile-test` on bleu_core, bleu_rt, bleu_service (one run, `-o` in a private directory): 74 passed, 0 failed; five repeated runs of the binary all pass.
+* `tools/check.sh` over all libraries on all six targets: see the result line below. `bleu_power` and `bleu_media` fail type-checking on every target in their own sources (`linux_calls.c3`, `linux_logind.c3`, `smtc_backend.c3`, `mpris_convert.c3`, and others): other engineers' work in progress, not touched by this change.
+* Live scripts (each run from a private directory): `bleu_battery` `tests/run.sh`: live and absent passed. `bleu_session` `tests/run.sh`: live, calls, late session and absent passed. `bleu_power` `tests/run.sh`: not run, the library does not compile (above).
+* `c3fmt --check` clean on the three libraries and on every other file edited here.

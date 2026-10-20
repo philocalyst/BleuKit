@@ -91,16 +91,16 @@ struct Watcher @private
 *>
 struct Observable
 {
-	Mutex mutex;               // guards every field below except `delivery`
-	Mutex delivery;            // held while listeners run; see the module comment
+	Mutex mutex; // guards every field below except `delivery`
+	Mutex delivery; // held while listeners run; see the module comment
 	ConditionVariable changed;
 	Snapshot* current;
 	ulong generation;
 	bool closed;
 	List{Watcher} watchers;
 	uint next_watch_id;
-	List{uint} running;        // ids of the listeners on the stack of `notifier`, innermost last
-	Thread notifier;           // the thread running the listeners in `running`
+	List{uint} running; // ids of the listeners on the stack of `notifier`, innermost last
+	Thread notifier; // the thread running the listeners in `running`
 }
 
 <* Opaque registration returned by `watch`. 0 means "not registered" (the observable is closed). *>
@@ -183,7 +183,7 @@ fn ulong Observable.publish(&self, Snapshot* snapshot)
 	// that replaces it while listeners still borrow it.
 	snapshot.retain();
 	ulong generation = self.generation;
-	uint newest = self.next_watch_id;
+	uint newest      = self.next_watch_id;
 	self.changed.broadcast()!!;
 	self.mutex.unlock();
 	deliver(self, snapshot, newest);

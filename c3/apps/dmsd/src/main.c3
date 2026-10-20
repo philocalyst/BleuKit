@@ -19,9 +19,6 @@
 module dmsd;
 import std::io, std::collections::list, std::os::posix, libc, bleu::ipc, bleu::error, dmsd::contract, dmsd::capabilities, dmsd::core_methods, dmsd::loginctl_mod, dmsd::brightness_mod;
 
-// DMS's protocol version (server.go:42), as the handshake and getServerInfo report it.
-const int DMS_API_VERSION = 38;
-
 // The pipe a signal handler writes to; `serve` blocks reading its other end.
 CInt shutdown_fd = -1;
 
@@ -136,7 +133,7 @@ fn int main(String[] args)
 	contract::Context context = { .allocator = mem, .options = &options, .server = &server };
 	ipc::Config config = {
 		.app_name = "dmsd",
-		.api_version = DMS_API_VERSION,
+		.api_version = core_methods::API_VERSION,
 		.socket_path = options.socket_path,
 		.capabilities_fn = &capabilities::handshake,
 		.capabilities_context = &context,

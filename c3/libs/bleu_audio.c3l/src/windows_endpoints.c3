@@ -69,7 +69,15 @@ fn bool endpoint_property(windows_com::IMMDevice* device, windows_com::PropertyK
 	return hr.succeeded();
 }
 
-<* The friendly name of an endpoint, copied into `allocator`; the endpoint id when the name is missing. *>
+<*
+ The friendly name of an endpoint, copied into `allocator`; the endpoint id when the name is missing.
+
+ Ownership: the PROPVARIANT owns its VT_LPWSTR payload. `PropVariantClear` frees it
+ with CoTaskMemFree (Microsoft Learn, PropVariantClear: "frees the contents" of a
+ variant), and it runs once, when this function returns. The name is therefore
+ copied with `text::from_wide`, not taken with `take_wide`, which would free the
+ same pointer a second time.
+*>
 fn String endpoint_name(Allocator allocator, windows_com::IMMDevice* device, String fallback) @local
 {
 	windows_com::PropVariant value;
@@ -80,7 +88,7 @@ fn String endpoint_name(Allocator allocator, windows_com::IMMDevice* device, Str
 	)) return fallback.copy(allocator);
 	defer windows_com::prop_variant_clear(&value);
 	if (value.vt != windows_com::VT_LPWSTR) return fallback.copy(allocator);
-	return windows_com::take_wide(allocator, (Char16*)value.payload0) ?? fallback;
+	return text::from_wide(allocator, (WString)(Char16*)value.payload0) ?? fallback.copy(allocator);
 }
 
 // The form factor of an endpoint (PKEY_AudioEndpoint_FormFactor, a VT_UI4).
@@ -171,31 +179,47 @@ fn Device[]? endpoints_of(
 	uint count = 0;
 	hr = collection.vtbl.get_count(collection, &count);
 	if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDeviceCollection::GetCount")~;
-	Device[] devices = alloc::new_array(allocator, Device, count);
+	List{Device} devices;
+	devices.init(allocator);
 	for (uint i = 0; i < count; i++)
 	{
 		windows_com::IMMDevice* device = null;
 		hr = collection.vtbl.item(collection, i, &device);
 		if (hr.failed()) return errors::raise_hresult(hr, "windows_com::IMMDeviceCollection::Item")~;
 		defer release_ref(device);
-		String id      = endpoint_id(allocator, device)!;
-		Gain[] volumes = endpoint_volumes(allocator, device) ?? { };
-		devices[i] = {
-			.id = id,
-			.name = endpoint_name(allocator, device, id),
-			.flow = flow == windows_com::E_CAPTURE ? INPUT : OUTPUT,
-			.form_factor = form_factor_of(device),
-			.bus = UNKNOWN,
-			.is_default = id == default_id,
-			.volume = volumes,
-			.muted = endpoint_muted(device),
-			.volume_is_hardware = false,
-		};
-		Device* made = &devices[i];
-		made.level = volume::loudest(made.volume).nominal();
-		if (made.volume.len == 2) made.balance = maybe::value(volume::stereo_balance(made.volume[0], made.volume[1]));
+		// A device whose id is not valid text is not listed: an empty id would collide with other such devices.
+		if (try id = endpoint_id(allocator, device))
+		{
+			devices.push(endpoint_device(allocator, device, id, flow, default_id));
+		}
 	}
-	return devices;
+	return devices.array_view();
+}
+
+// One listed endpoint: its identity, form factor, volume and mute.
+fn Device endpoint_device(
+	Allocator allocator,
+	windows_com::IMMDevice* device,
+	String id,
+	uint flow,
+	String default_id
+) @local
+{
+	Gain[] volumes = endpoint_volumes(allocator, device) ?? { };
+	Device made = {
+		.id = id,
+		.name = endpoint_name(allocator, device, id),
+		.flow = flow == windows_com::E_CAPTURE ? INPUT : OUTPUT,
+		.form_factor = form_factor_of(device),
+		.bus = UNKNOWN,
+		.is_default = id == default_id,
+		.volume = volumes,
+		.muted = endpoint_muted(device),
+		.volume_is_hardware = false,
+	};
+	made.level = volume::loudest(made.volume).nominal();
+	if (made.volume.len == 2) made.balance = maybe::value(volume::stereo_balance((float)made.volume[0], (float)made.volume[1]));
+	return made;
 }
 
 
@@ -260,7 +284,7 @@ fn Stream? session_stream(
 	Char16* instance = null;
 	if (control2.vtbl.get_session_instance_identifier(control2, &instance).succeeded())
 	{
-		stream.id = windows_com::take_wide(allocator, instance) ?? "";
+		stream.id = windows_com::take_wide(allocator, instance)!;
 	}
 	uint pid = 0;
 	if (control2.vtbl.get_process_id(control2, &pid).succeeded()) stream.pid = pid;
@@ -278,7 +302,8 @@ fn Stream? session_stream(
 		stream.binary = file_name_of(allocator, image);
 		if (stream.app_name.len == 0) stream.app_name = stream.binary;
 	}
-	if (control2.vtbl.is_system_sounds_session(control2).succeeded() && stream.app_name.len == 0)
+	// IsSystemSoundsSession answers S_OK for the system-sounds session and S_FALSE otherwise; both are success codes.
+	if ((uint)control2.vtbl.is_system_sounds_session(control2) == hresult::S_OK && stream.app_name.len == 0)
 	{
 		stream.app_name = "System sounds".copy(allocator);
 	}
@@ -448,7 +473,7 @@ fn windows_com::ISimpleAudioVolume*? session_volume_if(
 	Char16* raw = null;
 	if (control2.vtbl.get_session_instance_identifier(control2, &raw).failed()) return NOT_FOUND~;
 	String id = windows_com::take_wide(tmem, raw) ?? "";
-	if (id != instance) return NOT_FOUND~;
+	if (id.len == 0 || id != instance) return NOT_FOUND~;
 	windows_com::ISimpleAudioVolume* simple = null;
 	if (query_ref(control2, windows_com::IID_ISIMPLE_AUDIO_VOLUME, (void**)&simple)
 		.failed()) return error::UNSUPPORTED~;

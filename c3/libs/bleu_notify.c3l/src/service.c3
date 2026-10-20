@@ -79,6 +79,7 @@ fn Notify*? open(Allocator allocator, Options options = { })
 		// The worker failed (its reason travels with the operation) or never reported.
 		*error::last() = *startup.detail();
 		self.hub.stop();
+		self.hub.free();
 		driver.destroy(allocator, self.driver_state);
 		startup.release();
 		alloc::free(allocator, self);
@@ -100,6 +101,7 @@ fn void abandon_command(void* backend, Command* command)
 fn void Notify.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -138,7 +140,7 @@ fn WatchId{State} Notify.watch(
 ) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Notify.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Notify.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <*
  Subscribe to what happened: POSTED, CLOSED and ACTION_INVOKED. A reader that

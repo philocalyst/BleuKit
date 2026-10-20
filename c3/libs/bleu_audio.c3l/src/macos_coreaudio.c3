@@ -15,6 +15,9 @@ import std::time, bleu::availability, bleu::audio, bleu::error, bleu::observe, b
 const usz MAX_WATCHED   = 32; // devices whose volume, mute and running state are watched
 const usz MAX_ADDRESSES = 12; // listener addresses per device: 3 volume elements x 2 scopes, 2 mutes, 1 running state
 const usz COMMAND_BATCH = 16;
+// The wait when the system listeners could not be registered: nothing but a command wakes the
+// worker then, so the state is re-read this often instead.
+const Duration FALLBACK_TICK = (Duration)1_000_000; // 1 s
 
 <* One device's registered listeners, kept so they can be removed with the same addresses. *>
 struct Watch
@@ -111,17 +114,27 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 	CoreAudioBackend* backend = (CoreAudioBackend*)state;
 	backend.mailbox = host.mailbox();
 	Poller poller;
-	if (catch poller.init(mem, host.wakeup(), 1)) return;
+	if (catch poller.init(mem, host.wakeup(), 1))
+	{
+		audio::publish_empty(hub);
+		return;
+	}
 	defer poller.free();
-	if (!add_system_listeners(backend)) return;
-	defer remove_system_listeners(backend);
+	bool listening = add_system_listeners(backend);
+	if (listening) defer remove_system_listeners(backend);
+	Duration tick = listening ? time::FOREVER : FALLBACK_TICK;
 	Command[COMMAND_BATCH] buffer;
 	refresh(backend, hub);
 	while (!host.stopping())
 	{
-		if (catch poller.wait())
+		if (catch err = poller.wait(tick))
 		{
-			// Nothing ready is not an error here; only the wake-up matters.
+			// TIMEOUT is the tick without listeners; any other failure ends the worker.
+			if (err != TIMEOUT)
+			{
+				audio::publish_empty(hub);
+				return;
+			}
 		}
 		usz count = host.mailbox().take_all(buffer[..]);
 		for (usz i = 0; i < count; i++)
@@ -168,12 +181,14 @@ fn void refresh(CoreAudioBackend* backend, AudioHub* hub) @private
 			macos_hal::SYSTEM_OBJECT,
 			{ macos_hal::SELECTOR_DEFAULT_INPUT, macos_hal::SCOPE_GLOBAL, macos_hal::ELEMENT_MAIN }
 		) ?? 0;
+		// Listeners first, then the state: a change made after the listeners exist posts a refresh,
+		// and one made before this read is in the state read below.
+		sync_watches(backend, devices);
 		Snapshot{State}* snapshot          = hub.begin();
 		macos_devices::devices_into(snapshot.allocator(), devices, default_output, default_input, &snapshot.value);
 		snapshot.value.mic_in_use = any_input_running(devices);
 		snapshot.value.cards = { };
 		snapshot.value.streams = { };
-		sync_watches(backend, devices);
 		audio::publish_snapshot(hub, snapshot);
 	};
 }
@@ -192,9 +207,18 @@ fn bool any_input_running(macos_devices::HalDevice[] devices) @private
 	return false;
 }
 
-// Watch the devices present and drop the watches of devices that went away.
+// Watch the devices present and drop the watches of devices that went away. Nothing is
+// touched when the same devices are present as last time: re-registering on every turn
+// opened a window in which a change was not reported.
 fn void sync_watches(CoreAudioBackend* backend, macos_devices::HalDevice[] devices) @private
 {
+	usz expected = devices.len < MAX_WATCHED ? devices.len : MAX_WATCHED;
+	if (backend.watch_count == expected)
+	{
+		bool same = true;
+		for (usz i = 0; i < expected && same; i++) same = backend.watches[i].device == devices[i].id;
+		if (same) return;
+	}
 	remove_all_watches(backend);
 	foreach (&d : devices)
 	{
@@ -323,7 +347,7 @@ fn macos_hal::OsStatus on_property(
 	Mailbox{Command}* mailbox = (Mailbox{Command}*)client;
 	if (catch err = mailbox.post({ .kind = CommandKind.REFRESH }))
 	{
-		// BUSY means a refresh is already queued, which is all this needs.
+		// BUSY means the queue is full; the worker re-reads the state on every turn anyway.
 	}
 	return 0;
 }
@@ -379,25 +403,21 @@ fn void? set_volume(Command* command) @private
 		macos_hal::write_property(id, main, &value, float::size)!;
 		return;
 	}
+	// Every channel is checked before the first write, so a refusal leaves the device as it was.
 	for (usz i = 0; i < command.gains.len; i++)
 	{
-		macos_hal::PropertyAddress channel = {
-			macos_hal::SELECTOR_VOLUME_SCALAR,
-			scope,
-			macos_hal::ELEMENT_LEFT + (uint)i
-		};
-		if (!macos_hal::has_property(
-			id,
-			channel
-		)) return error::raise(
+		if (!macos_hal::has_property(id, channel_address(scope, i))) return error::raise(
 			error::INVALID_ARGUMENT,
 			error::Domain.INTERNAL,
 			0,
 			"the device has no channel %d",
 			i + 1
 		)~;
+	}
+	for (usz i = 0; i < command.gains.len; i++)
+	{
 		float value = (float)command.gains[i];
-		macos_hal::write_property(id, channel, &value, float::size)!;
+		macos_hal::write_property(id, channel_address(scope, i), &value, float::size)!;
 	}
 }
 
@@ -430,4 +450,10 @@ fn void? set_default(Command* command) @private
 		&id,
 		uint::size
 	)!;
+}
+
+// The volume address of channel `index` (0 is the left channel) in `scope`.
+fn macos_hal::PropertyAddress channel_address(uint scope, usz index) @private
+{
+	return { macos_hal::SELECTOR_VOLUME_SCALAR, scope, macos_hal::ELEMENT_LEFT + (uint)index };
 }

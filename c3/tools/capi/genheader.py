@@ -204,77 +204,75 @@ def resolve_enums(items):
 
 # ----------------------------------------------------------- docs
 
-def collect_docs(path):
-    """Doc blocks of one C3 file: a list of (names, doc, opaque).
+DECL_HEAD = re.compile(r"(fn|struct|enum|typedef|alias|constset|bitstruct)\s+(\w+)")
 
-    `names` are what the declaration introduces: its @export name when it has one,
-    otherwise its C3 name (for aliases and other-library types), keyed by both.
+
+def collect_docs(path):
+    """The declarations of one C3 file, each with the doc block before it.
+
+    Returns a list of (names, doc, opaque). `names` are the keys a declaration is
+    known by: its @export name, or for aliases and types the C3 name, as
+    `alias:<Name>` / `type:<Name>`. `opaque` is true after a `// capi:opaque` line.
     """
     lines = open(path, encoding="utf-8").read().split("\n")
     found = []
-    doc = None
-    pending_opaque = False
+    block = None   # lines of a doc block that is still open
+    doc = ""       # the last closed doc block, until the next declaration takes it
+    marked = False
     for i, raw in enumerate(lines):
         s = raw.strip()
-        if doc is not None:
-            if s.endswith("*>"):
-                tail = s[:-2].strip()
-                if tail:
-                    doc.append(tail)
-                text = "\n".join(x for x in doc if x) if doc else ""
-                doc = None
-                pending = text
-                pending_doc = pending
-            else:
-                doc.append(s)
+        if block is not None:
+            closes = s.endswith("*>")
+            body = s[:-2].strip() if closes else s
+            if body:
+                block.append(body)
+            if closes:
+                doc = "\n".join(block)
+                block = None
             continue
         if s.startswith("<*"):
             rest = s[2:].strip()
             if rest.endswith("*>"):
-                pending_doc = rest[:-2].strip()
+                doc = rest[:-2].strip()
             else:
-                doc = [rest] if rest else []
+                block = [rest] if rest else []
             continue
         if s == "// capi:opaque":
-            pending_opaque = True
+            marked = True
             continue
         if not s or s.startswith("//"):
             continue
-        decl = " ".join(x.strip() for x in lines[i:i + 8])
-        names = []
-        export = re.search(r'@export\("([^"]+)"\)', decl.split("{")[0].split(";")[0])
-        alias = re.match(r"alias (\w+) =", s)
-        head = re.match(r"(fn|struct|enum|typedef|alias|constset|bitstruct)\s+(\w+)?", s)
+        head = DECL_HEAD.match(s)
+        if not head:
+            doc, marked = "", False
+            continue
+        header = " ".join(x.strip() for x in lines[i:i + 8]).split("{")[0].split(";")[0]
+        export = re.search(r'@export\("([^"]+)"\)', header)
         if export:
-            names.append(export.group(1))
-            if head and head.group(1) in ("struct", "enum", "typedef") and pending_opaque:
-                found.append(("opaque", export.group(1)))
-        elif alias:
-            names.append("alias:" + alias.group(1))
-        elif head and head.group(1) in ("struct", "enum", "constset", "bitstruct", "typedef") and head.group(2):
-            names.append("type:" + head.group(2))
-        if names and pending_doc:
-            found.append(("doc", names, pending_doc))
-        pending_doc = ""
-        pending_opaque = False
+            names = [export.group(1)]
+        elif head.group(1) == "alias":
+            names = ["alias:" + head.group(2)]
+        elif head.group(1) != "fn":
+            names = ["type:" + head.group(2)]
+        else:
+            names = []
+        if names:
+            found.append((names, doc, marked))
+        doc, marked = "", False
     return found
 
 
 def doc_tables(src_files, libs_dir):
-    """`own` maps export/alias names of capi to doc text; `others` maps (lib, C3 name) to doc text."""
+    """`own`: doc and opaque status of this library's declarations, by export or alias key.
+    `others`: doc of other libraries' types, by (library, C3 name), for the mangled names."""
     own, opaque, others = {}, set(), {}
     for path in src_files:
-        for entry in collect_docs(path):
-            if entry[0] == "opaque":
-                opaque.add(entry[1])
-            elif entry[0] == "doc":
-                for name in entry[1]:
-                    if name.startswith("alias:"):
-                        own[name] = entry[2]
-                    elif name.startswith("type:"):
-                        continue
-                    else:
-                        own.setdefault(name, entry[2])
+        for names, doc, is_opaque in collect_docs(path):
+            for name in names:
+                if doc:
+                    own.setdefault(name, doc)
+                if is_opaque and not name.startswith(("alias:", "type:")):
+                    opaque.add(name)
     for lib in sorted(os.listdir(libs_dir)):
         src = os.path.join(libs_dir, lib, "src")
         if not lib.endswith(".c3l") or not os.path.isdir(src):
@@ -282,12 +280,10 @@ def doc_tables(src_files, libs_dir):
         for fn in sorted(os.listdir(src)):
             if not fn.endswith(".c3") or fn.endswith("_test.c3"):
                 continue
-            for entry in collect_docs(os.path.join(src, fn)):
-                if entry[0] != "doc":
-                    continue
-                for name in entry[1]:
-                    if name.startswith("type:"):
-                        others.setdefault((lib[:-4], name[5:]), entry[2])
+            for names, doc, _ in collect_docs(os.path.join(src, fn)):
+                for name in names:
+                    if name.startswith("type:") and doc:
+                        others.setdefault((lib[:-4], name[len("type:"):]), doc)
     return own, opaque, others
 
 
@@ -310,11 +306,11 @@ class Namer:
         return text
 
     def _ident(self, name):
-        if name in self.subst:
-            return self.text(self.subst[name]) if not name == "String" else "bleu_slice_t"
-        if name == "c3slice_t":
+        if name == "String" or name == "c3slice_t":
             return "bleu_slice_t"
-        if name.startswith(("bleu_", "std_")) and name not in ("bleu_slice_t",):
+        if name in self.subst:
+            return self.text(self.subst[name])
+        if name.startswith(("bleu_", "std_")):
             return clean_type(name)
         return name
 
@@ -460,10 +456,9 @@ def render(model):
                 blocks.append(enum_block(name, d))
                 continue
             text = d["body"]
-            if d["kind"] == "struct" and text is not None:
-                text = "typedef struct %s %s;\n%s" % (name, name, text)
-            elif d["kind"] == "struct":
-                text = "typedef struct %s %s;" % (name, name)
+            if d["kind"] == "struct":
+                # Opaque structs are declared only; the others are declared, then defined.
+                text = "typedef struct %s %s;%s" % (name, name, "" if text is None else "\n" + text)
             blocks.append(with_doc(d["doc"], text))
         for p in protos:
             if p["service"] != group:

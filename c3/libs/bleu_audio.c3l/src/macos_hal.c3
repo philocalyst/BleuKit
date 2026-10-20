@@ -123,9 +123,21 @@ fn uint? property_size(ObjectId object, PropertyAddress address)
 <* Read a property's value into `out`, which must be as large as the value. *>
 fn void? read_property(ObjectId object, PropertyAddress address, void* out, uint size)
 {
+	read_property_bytes(object, address, out, size)!;
+}
+
+<*
+ Read a property's value into `out` (at most `size` bytes) and return how many
+ bytes the HAL wrote. The value can be shorter than the size asked for when the
+ property changed in between, so a caller that sized its buffer from an earlier
+ query must use this count.
+*>
+fn uint? read_property_bytes(ObjectId object, PropertyAddress address, void* out, uint size)
+{
 	uint got        = size;
 	OsStatus status = audio_object_get_property_data(object, &address, 0, null, &got, out);
 	if (status != 0) return hal_error(status, "AudioObjectGetPropertyData")~;
+	return got;
 }
 
 <* Write a property's value from `data`. *>

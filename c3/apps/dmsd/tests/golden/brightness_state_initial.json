@@ -1,0 +1,1 @@
+{"devices":[{"class":"backlight","id":"backlight:intel_backlight","name":"intel_backlight","current":48000,"max":96000,"currentPercent":50,"backend":"sysfs"},{"class":"leds","id":"leds:input5::kbd_backlight","name":"input5::kbd_backlight","current":1,"max":3,"currentPercent":34,"backend":"sysfs"}]}

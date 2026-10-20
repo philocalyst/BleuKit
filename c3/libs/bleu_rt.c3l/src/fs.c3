@@ -107,14 +107,7 @@ fn String? read_into(String path, char[] buffer) @private
 		if (err == io::EOF) return data;
 		return io_error("read", path, err)~;
 	}
-	return error::raise(
-		error::PROTOCOL,
-		error::Domain.INTERNAL,
-		0,
-		"%s is longer than %d bytes",
-		path,
-		buffer.len
-	)~;
+	return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%s is longer than %d bytes", path, buffer.len)~;
 }
 
 // Translate a standard-library fault into the Bleu excuse vocabulary. The native

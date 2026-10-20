@@ -240,7 +240,7 @@ fn CStatus bleu_reader_next(CReader* reader, long timeout_ms, CPacket** out) @ex
 		if (timeout_ms < -1) return argument_error("timeout_ms must be -1 or more");
 		*out = null;
 		void*? native = reader.ops.next(reader.native, wait_duration(timeout_ms));
-		if (catch err = native) return report(err, "no event arrived");
+		if (catch err = native) return report(err, "no event arrived: timed out or the service closed");
 		*out = new_packet(reader.ops.packets, native);
 		return CStatus.OK;
 	};
@@ -297,7 +297,7 @@ fn CStatus bleu_operation_wait(COperation* operation, long timeout_ms) @export("
 		if (catch err = operation.ops.wait(operation.native, wait_duration(timeout_ms)))
 		{
 			adopt_detail(operation.ops.detail(operation.native));
-			return report(err, "the operation failed");
+			return report(err, "the operation did not succeed");
 		}
 		return CStatus.OK;
 	};

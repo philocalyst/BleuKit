@@ -19,6 +19,7 @@ fn void a_command_queued_when_the_worker_returns_is_cancelled() @test
 {
 	WindowsHub hub;
 	hub.start(mem, "test", "test", &return_once_posted, null, COMMAND_QUEUE, &cancel_command)!!;
+	defer hub.free();
 	defer hub.stop();
 	Operation{bool}* request = operation::begin{bool}(mem);
 	defer request.release();

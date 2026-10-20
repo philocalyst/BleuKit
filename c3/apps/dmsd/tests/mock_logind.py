@@ -27,7 +27,7 @@ import asyncio
 import os
 import sys
 
-from dbus_next import BusType, Message, Variant
+from dbus_next import BusType, Message
 from dbus_next.aio import MessageBus
 from dbus_next.constants import MessageType, PropertyAccess
 from dbus_next.service import ServiceInterface, dbus_property, method, signal
@@ -120,7 +120,7 @@ class Session(ServiceInterface):
 
     def set_locked(self, locked):
         STATE['locked'] = locked
-        self.emit_properties_changed({'LockedHint': Variant('b', locked)})
+        self.emit_properties_changed({'LockedHint': locked})
 
     @method()
     def Lock(self):

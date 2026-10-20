@@ -265,7 +265,7 @@ fn Inhibitor? take_request(Win* win, Command* command)
 		}
 		uint id = ++win.next_hold;
 		win.holds.push({ .id = id, .request = request, .type = type });
-		return make_inhibitor(command, id);
+		return power::make_inhibitor(command, id);
 	};
 }
 

@@ -81,6 +81,7 @@ fn void abandon_command(void* backend, Command* command)
 fn void Media.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -119,7 +120,7 @@ fn WatchId{State} Media.watch(
 ) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Media.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Media.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events: players added, removed, status, track, seeks, active player. *>
 fn Reader{Event}*? Media.subscribe(&self) => self.hub.events.subscribe();

@@ -58,7 +58,9 @@ fn void wait_gives_up_when_nothing_signals() @test
 	defer cond.destroy();
 	Deadline soon = deadline::after(time::ms(5));
 	mutex.lock()!!;
-	while (soon.wait(&cond, &mutex)) {}
+	while (soon.wait(&cond, &mutex))
+	{
+	}
 	mutex.unlock();
 	test::@check(soon.expired(), "the loop ends only when the deadline passed");
 }

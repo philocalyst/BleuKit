@@ -1,0 +1,16 @@
+[
+  ["unknown.method", null, "unknown method: unknown.method"],
+  ["brightness.setBrightness", {"percent": 5}, "missing or invalid 'device' parameter"],
+  ["brightness.setBrightness", {"device": "backlight:intel_backlight"}, "missing or invalid 'percent' parameter"],
+  ["brightness.setBrightness", {"device": "backlight:intel_backlight", "percent": -5}, "percent out of range: -5"],
+  ["brightness.setBrightness", {"device": "nope", "percent": 5}, "device not found: nope"],
+  ["brightness.increment", {"device": "nope"}, "device not found: nope"],
+  ["brightness.subscribe", null, "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"brightness\"] instead"],
+  ["loginctl.subscribe", null, "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"loginctl\"] instead"],
+  ["loginctl.activate", null, "not supported: bleu_session cannot activate a session"],
+  ["loginctl.setIdleHint", {"idle": true}, "not supported: bleu_session reads the idle hint and cannot write it"],
+  ["loginctl.setLockedHint", {"locked": true}, "not supported: bleu_session reads the locked hint and cannot write it"],
+  ["loginctl.setLockBeforeSuspend", {"enabled": "yes"}, "missing or invalid 'enabled' parameter"],
+  ["shell.ready", {"pid": 0}, "invalid shell pid"],
+  ["shell.ready", null, "invalid shell pid"]
+]

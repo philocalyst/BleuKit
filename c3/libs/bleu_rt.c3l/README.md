@@ -14,16 +14,20 @@ Sources and decisions: `docs/research/bleu_rt.md`.
   `add(Source)`, `remove(tag)`, `wait(timeout) -> Ready[]` (TIMEOUT when nothing).
   `Source{handle, interest, tag}`, `Interest{readable, writable, hangup, failed}`.
 * `bleu::rt::mailbox <Command>` - `Mailbox{Command}`: `init(alloc, max)`, `post`
-  (UNAVAILABLE after close, BUSY when full), `take_all(buffer)`, `close`, `wakeup()`.
-* `bleu::rt::timers` - `TimerQueue`: `schedule`, `schedule_repeating`, `cancel(id)`,
-  `next_timeout`, `pop_expired(buffer)`. Monotonic clock.
+  (UNAVAILABLE after close, BUSY when full; no temporary memory used), `take_all(buffer)`,
+  `close` (idempotent, frees nothing), `free` (after close and after the last post).
+* `bleu::rt::timers` - `TimerQueue`: `schedule`, `schedule_repeating` (refuses a
+  zero period), `cancel(id)`, `next_timeout`, `pop_expired(buffer)` (non-empty buffer).
+  Monotonic clock.
 * `bleu::rt::worker <Command>` - `Worker{Command}`: `init(alloc, max_queue)`,
   `start(name, RunFn, context)`, `stop()` (idempotent, joins). `Host{Command}`:
   `stopping()`, `mailbox()`, `wakeup()`.
 * `bleu::rt::foreign` - `@foreign_entry(; @body)`: temp allocator for any thread.
 * `bleu::rt::unix` (POSIX) - `Fd`, `UnixSocket`, `SocketPair`, `connect`, `listen`,
   `socket_pair`, `send`/`send_all`/`recv` with SCM_RIGHTS, `peer_credentials`,
-  `errno_to_fault`.
+  `errno_to_fault`. Zero bytes from `recv` mean end of file on a stream, and on a
+  sequenced-packet socket only once the peer has hung up; a zero-length SEQPACKET
+  message is a message. Descriptors need at least one byte of data to travel with.
 * `bleu::rt::fs` - `read_file`, `read_trimmed`, `read_integer`, `write_text`, `list_dir`.
 
 ## Not done

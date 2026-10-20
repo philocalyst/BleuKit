@@ -82,6 +82,7 @@ fn Options resolve(Options options) @private
 fn void Clipboard.close(&self)
 {
 	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
@@ -120,7 +121,7 @@ fn WatchId{State} Clipboard.watch(
 ) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
-fn void Clipboard.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
+fn void? Clipboard.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
 
 <* Subscribe to transient events (a selection changed, ownership was lost). *>
 fn Reader{Event}*? Clipboard.subscribe(&self) => self.hub.events.subscribe();

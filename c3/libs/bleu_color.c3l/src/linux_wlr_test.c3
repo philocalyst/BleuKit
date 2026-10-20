@@ -353,7 +353,6 @@ fn void losing_the_control_later_is_reported() @test
 	t.create(&lost_scenario, &server)!!;
 	Color* color                  = open_on(&seam)!!;
 	stream::Reader{Event}* events = color.subscribe()!!;
-	defer events.release();
 	Snapshot{State}* before = color.wait_after(0, time::sec(5))!!;
 	ulong generation        = before.generation;
 	before.release();
@@ -395,6 +394,7 @@ fn void losing_the_control_later_is_reported() @test
 	}
 	assert(control_changes == 2, "the loss and the recovery are each announced once");
 	assert(temperature_changes == 0, "a manual temperature is not a schedule change");
+	events.release();
 	color.close();
 	t.join()!!;
 }

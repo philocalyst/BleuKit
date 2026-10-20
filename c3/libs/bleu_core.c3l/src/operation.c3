@@ -38,7 +38,7 @@ struct Operation
 	ConditionVariable finished;
 	Phase state;
 	fault failure;
-	Detail failure_detail;  // what the completing thread recorded for the failure; empty if none
+	Detail failure_detail; // what the completing thread recorded for the failure; empty if none
 	Value value;
 	Atomic{bool} cancel_flag;
 	Completion completion;

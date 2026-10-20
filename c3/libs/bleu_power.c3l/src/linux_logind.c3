@@ -141,7 +141,10 @@ fn void destroy(Allocator allocator, void* state)
 	alloc::free(allocator, backend);
 }
 
-<* Record a failed call. A lost connection stops the bus until the next reconnect; other failures leave their fields unknown. *>
+<*
+ Record a failed call. A lost connection stops the bus until the next reconnect; other failures leave their fields
+ unknown.
+*>
 fn void Logind.note_failure(&self, fault failure)
 {
 	if (failure == error::DISCONNECTED) lose_bus(self);
@@ -159,9 +162,9 @@ fn void run(void* state, PowerHub* hub, Host{Command}* host)
 	}
 	else
 	{
-		if (catch err = start(backend))
+		if (catch failure = start(backend))
 		{
-			backend.startup.fail(err);
+			backend.startup.fail(failure);
 		}
 		else
 		{
@@ -204,8 +207,8 @@ fn void? connect_bus(Logind* b)
 	b.manager = proxy::for_object(&b.bus, LOGIND_BUS, LOGIND_PATH, LOGIND_MANAGER)!;
 	// Probe logind before anything else: when it is absent, nothing below can work.
 	b.manager.get_all_properties(b.allocator)!;
-	b.has_session         = false;
-	b.has_profiles        = false;
+	b.has_session = false;
+	b.has_profiles = false;
 	b.has_modern_profiles = false;
 	find_session(b)!;
 	find_profiles(b)!;

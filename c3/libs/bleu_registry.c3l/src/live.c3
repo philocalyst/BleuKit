@@ -22,7 +22,7 @@ fn void? state(void* handle, json::JsonWriter* out)
 	Svc* svc = (Svc*)handle;
 	Snapshot{State}* snapshot = svc.wait_after(0, FIRST_STATE_TIMEOUT)!;
 	defer snapshot.release();
-	return state_json::write{State}(out, snapshot);
+	return state_json::write{State}(out, snapshot, true);
 }
 
 fn void? state_after(void* handle, ulong seen, Duration timeout, json::JsonWriter* out)
@@ -30,13 +30,17 @@ fn void? state_after(void* handle, ulong seen, Duration timeout, json::JsonWrite
 	Svc* svc = (Svc*)handle;
 	Snapshot{State}* snapshot = svc.wait_after(seen, timeout)!;
 	defer snapshot.release();
-	return state_json::write{State}(out, snapshot);
+	return state_json::write{State}(out, snapshot, true);
 }
 
-<* Write the capabilities as an array; each entry is `{"cap", "reason", "note"}`. *>
+<* Write `{"ok": true, "capabilities": [...]}`; each entry is `{"cap", "reason", "note"}`. *>
 fn void? capabilities(void* handle, json::JsonWriter* out)
 {
 	Svc* svc = (Svc*)handle;
+	out.begin_object()!;
+	out.key("ok")!;
+	out.put_bool(true)!;
+	out.key("capabilities")!;
 	out.begin_array()!;
 	for (usz i = 0; i < Cap::len; i++)
 	{
@@ -51,7 +55,8 @@ fn void? capabilities(void* handle, json::JsonWriter* out)
 		out.put_string(availability.note)!;
 		out.end_object()!;
 	}
-	return out.end_array();
+	out.end_array()!;
+	return out.end_object();
 }
 
 fn String backend(void* handle)

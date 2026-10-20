@@ -45,7 +45,11 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		)
 	);
 	// What the kernel interface cannot tell us at all, on any hardware.
-	return alloc::new(allocator, Backend, { .root = options.root.copy(allocator), .poll = options.poll, .startup = startup });
+	return alloc::new(
+		allocator,
+		Backend,
+		{ .root = options.root.copy(allocator), .poll = options.poll, .startup = startup }
+	);
 }
 
 fn void destroy(Allocator allocator, void* state)

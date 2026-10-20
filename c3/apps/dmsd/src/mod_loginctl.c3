@@ -48,7 +48,8 @@ struct LoginctlModule
 	bool locker_ready;
 	bool lock_before_suspend;
 	Mutex inhibit_mutex;        // guards `inhibitor` and `inhibiting`; held across power calls
-	bool inhibiting;
+	bool inhibiting;            // the inhibitor is held now
+	bool inhibit_wanted;        // DMS's `sleepInhibitorEnabled`: take it again after a sleep
 	power::Inhibitor inhibitor;
 	power::Power* power_service; // null when power is absent; `power_reason` says why
 	String power_reason;
@@ -154,6 +155,7 @@ fn void? run_session_action(ipc::Call* call, LoginctlModule* m, bool lock)
 	session::SessionOperation* op = lock ? m.login_service.lock()! : m.login_service.unlock()!;
 	defer op.release();
 	await(op, lock ? "lock" : "unlock")!;
+	if (!lock) m.clear_locker_ready();
 	wire::respond_success(call, lock ? "locked" : "unlocked")!;
 }
 
@@ -178,6 +180,7 @@ fn void? LoginctlModule.set_sleep_inhibitor(&self, bool enabled)
 {
 	self.inhibit_mutex.lock()!!;
 	defer self.inhibit_mutex.unlock();
+	self.inhibit_wanted = enabled;
 	if (!enabled)
 	{
 		self.release_inhibitor();
@@ -207,6 +210,14 @@ fn void LoginctlModule.release_inhibitor(&self)
 	self.inhibiting = false;
 }
 
+// Forget an earlier `lockerReady`: DMS keeps it until the session is unlocked (manager.go, prelockedReady).
+fn void LoginctlModule.clear_locker_ready(&self)
+{
+	self.state_mutex.lock()!!;
+	defer self.state_mutex.unlock();
+	self.locker_ready = false;
+}
+
 // Remember the lock-before-suspend flag.
 fn void LoginctlModule.set_lock_before_suspend(&self, bool enabled)
 {
@@ -224,14 +235,24 @@ fn void LoginctlModule.mark_locker_ready(&self)
 	self.locker_cond.broadcast()!!;
 }
 
-// Answer one `PREPARE_SLEEP` barrier: lock first when asked to, then release the barrier.
+// Whether the sleep delay inhibitor is held (DMS: `inhibitFile != nil`).
+fn bool LoginctlModule.holds_inhibitor(&self)
+{
+	self.inhibit_mutex.lock()!!;
+	defer self.inhibit_mutex.unlock();
+	return self.inhibiting;
+}
+
+// Answer one `PREPARE_SLEEP` barrier, as DMS does (monitor.go, PrepareForSleep): lock first when
+// lock-before-suspend is on and the session is not locked yet; while the inhibitor is held, wait
+// for the locker (`lockerReady`) unless it was ready before the sleep began; then release the barrier.
 fn void LoginctlModule.answer_sleep(&self, uint ticket)
 {
 	self.state_mutex.lock()!!;
+	bool ready_before = self.locker_ready;
 	bool lock_first = self.lock_before_suspend;
-	self.locker_ready = false;
 	self.state_mutex.unlock();
-	if (lock_first)
+	if (lock_first && !self.session_locked())
 	{
 		if (try op = self.login_service.lock())
 		{
@@ -241,9 +262,40 @@ fn void LoginctlModule.answer_sleep(&self, uint ticket)
 		{
 			contract::warn("loginctl: lock before suspend refused: %s", contract::failure_text("no reason given"));
 		}
-		self.wait_for_locker();
 	}
+	if (!ready_before && self.holds_inhibitor()) self.wait_for_locker();
+	// DMS releases its delay inhibitor once the locker is ready, and takes it again on resume.
+	self.drop_inhibitor();
 	if (catch self.power_service.ack(ticket)) contract::warn("loginctl: could not release the sleep barrier");
+}
+
+// Release the sleep delay inhibitor, if held, without forgetting that it is wanted.
+fn void LoginctlModule.drop_inhibitor(&self)
+{
+	self.inhibit_mutex.lock()!!;
+	defer self.inhibit_mutex.unlock();
+	self.release_inhibitor();
+}
+
+// After a sleep: take the sleep delay inhibitor again when DMS wants it (monitor.go, PrepareForSleep false).
+fn void LoginctlModule.reacquire_after_resume(&self)
+{
+	self.inhibit_mutex.lock()!!;
+	bool wanted = self.inhibit_wanted;
+	self.inhibit_mutex.unlock();
+	if (!wanted) return;
+	if (catch self.set_sleep_inhibitor(true)) contract::warn("loginctl: sleep inhibitor not taken after resume");
+}
+
+// Whether the session's state says it is locked (DMS: `state.Locked`).
+fn bool LoginctlModule.session_locked(&self)
+{
+	if (try snapshot = self.login_service.latest())
+	{
+		defer snapshot.release();
+		return snapshot.value.locked.has_value && snapshot.value.locked.value;
+	}
+	return false;
 }
 
 // Wait until `lockerReady` arrives, or the timeout passes, or the module stops.
@@ -280,6 +332,10 @@ fn void LoginctlModule.run_barrier(&self)
 			if (packet.value.kind == power::EventKind.PREPARE_SLEEP && packet.value.ticket != 0)
 			{
 				self.answer_sleep(packet.value.ticket);
+			}
+			else if (packet.value.kind == power::EventKind.RESUMED)
+			{
+				self.reacquire_after_resume();
 			}
 			continue;
 		}
@@ -339,6 +395,10 @@ fn bool start(contract::Context* context, contract::Module* self)
 	m.inhibit_mutex.init()!!;
 	m.stop_barrier.store(false);
 	m.open_power(context.allocator);
+	if (m.power_service)
+	{
+		if (catch m.set_sleep_inhibitor(true)) contract::warn("loginctl: sleep inhibitor not taken: %s", contract::failure_text("no reason given"));
+	}
 	ipc::Topic* topic = context.server.register_topic("loginctl")!!;
 	context.server.register_method("loginctl.getState", &handle_get_state, m)!!;
 	context.server.register_method("loginctl.lock", &handle_lock, m)!!;
@@ -375,6 +435,7 @@ fn void stop(contract::Context* context, contract::Module* self)
 	m.inhibit_mutex.unlock();
 	if (m.events) m.events.release();
 	if (m.power_service) m.power_service.close();
+	if (m.power_reason.len > 0) alloc::free(context.allocator, m.power_reason.ptr);
 	m.state_pump.stop();
 	m.state_pump.free();
 	m.login_service.close();

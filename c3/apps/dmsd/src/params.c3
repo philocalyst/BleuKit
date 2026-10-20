@@ -24,13 +24,6 @@ fn long? param_int(Object* params, String key)
 	return invalid_param(key)~;
 }
 
-<* A required number as a float64. *>
-fn double? param_float(Object* params, String key)
-{
-	if (try value = json::read::get_double(params, key)) return value;
-	return invalid_param(key)~;
-}
-
 <* A required boolean. *>
 fn bool? param_bool(Object* params, String key)
 {

@@ -65,7 +65,10 @@ macro void @capi_entry(; @body)
 	error::Detail* detail = error::last();
 	detail.status = error::Status.OK;
 	detail.len = 0;
-	@capi_scope() { @body(); };
+	@capi_scope()
+	{
+		@body();
+	};
 }
 
 <*
@@ -119,7 +122,7 @@ fn String text_of(ZString text)
 *>
 fn CStatus copy_out(String text, char** out, usz* length)
 {
-	usz count = (usz)text.len;
+	usz count    = (usz)text.len;
 	char* buffer = alloc::new_array(mem, char, (sz)count + 1);
 	if (count > 0) mem::copy(buffer, text.ptr, (sz)count);
 	buffer[count] = 0;

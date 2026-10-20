@@ -100,7 +100,7 @@ fn String? battery_snapshot_json(void* native, Allocator allocator)
 fn void*? battery_reader_next(void* native, Duration timeout)
 {
 	stream::Reader{battery::Event}* reader = (stream::Reader{battery::Event}*)native;
-	Snapshot{battery::Event}* packet = reader.next(timeout)!;
+	Snapshot{battery::Event}* packet       = reader.next(timeout)!;
 	return (void*)packet;
 }
 
@@ -134,9 +134,9 @@ fn void battery_reader_done(void* owner)
 // The listener the observable calls: it wraps the snapshot as a view and enters the callback mark.
 fn void battery_listener(void* context, Snapshot{battery::State}* snapshot)
 {
-	BatteryWatch* watch = (BatteryWatch*)context;
+	BatteryWatch* watch  = (BatteryWatch*)context;
 	capi::CSnapshot view = capi::view_of(&BATTERY_SNAPSHOT, snapshot);
-	void* previous = capi::enter_callback(watch.owner);
+	void* previous       = capi::enter_callback(watch.owner);
 	defer capi::leave_callback(previous);
 	watch.callback(watch.context, &view);
 }
@@ -230,7 +230,11 @@ fn capi::CStatus bleu_battery_close(BatteryHandle* handle) @export("bleu_battery
 }
 
 <* The name of the backend in use ("sysfs", "upower", "iokit", "win32"). Free it with `bleu_free`. *>
-fn capi::CStatus bleu_battery_backend_name(BatteryHandle* handle, char** out, usz* len) @export("bleu_battery_backend_name")
+fn capi::CStatus bleu_battery_backend_name(
+	BatteryHandle* handle,
+	char** out,
+	usz* len
+) @export("bleu_battery_backend_name")
 {
 	capi::@capi_entry()
 	{
@@ -240,7 +244,11 @@ fn capi::CStatus bleu_battery_backend_name(BatteryHandle* handle, char** out, us
 }
 
 <* Whether a capability works with this backend, and if not, why. *>
-fn capi::CStatus bleu_battery_capability(BatteryHandle* handle, battery::Cap cap, capi::Capability* out) @export("bleu_battery_capability")
+fn capi::CStatus bleu_battery_capability(
+	BatteryHandle* handle,
+	battery::Cap cap,
+	capi::Capability* out
+) @export("bleu_battery_capability")
 {
 	capi::@capi_entry()
 	{
@@ -282,7 +290,11 @@ fn capi::CStatus bleu_battery_snapshot(BatteryHandle* handle, capi::CSnapshot** 
  The newest state as JSON, without any binding: the same text `bleu_snapshot_json`
  gives for a snapshot. Free the buffer with `bleu_free`.
 *>
-fn capi::CStatus bleu_battery_snapshot_json(BatteryHandle* handle, char** out, usz* len) @export("bleu_battery_snapshot_json")
+fn capi::CStatus bleu_battery_snapshot_json(
+	BatteryHandle* handle,
+	char** out,
+	usz* len
+) @export("bleu_battery_snapshot_json")
 {
 	capi::@capi_entry()
 	{
@@ -301,7 +313,12 @@ fn capi::CStatus bleu_battery_snapshot_json(BatteryHandle* handle, char** out, u
  Start with `seen` 0 and pass the previous snapshot's generation after that.
  `timeout_ms` is -1 to wait forever, 0 to only poll.
 *>
-fn capi::CStatus bleu_battery_wait(BatteryHandle* handle, ulong seen, long timeout_ms, capi::CSnapshot** out) @export("bleu_battery_wait")
+fn capi::CStatus bleu_battery_wait(
+	BatteryHandle* handle,
+	ulong seen,
+	long timeout_ms,
+	capi::CSnapshot** out
+) @export("bleu_battery_wait")
 {
 	capi::@capi_entry()
 	{
@@ -310,7 +327,7 @@ fn capi::CStatus bleu_battery_wait(BatteryHandle* handle, ulong seen, long timeo
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
 		*out = null;
 		Snapshot{battery::State}*? next = handle.service.wait_after(seen, capi::wait_duration(timeout_ms));
-		if (catch err = next) return capi::report(err, "no newer battery state arrived");
+		if (catch err = next) return capi::report(err, "no newer battery state: timed out or the service closed");
 		*out = capi::new_snapshot(&BATTERY_SNAPSHOT, next, true);
 		return capi::CStatus.OK;
 	};
@@ -336,11 +353,18 @@ fn battery::State* bleu_battery_snapshot_state(capi::CSnapshot* snapshot) @expor
  listener runs on the worker thread for every later state, and once immediately
  on this thread for the current one.
 *>
-fn capi::CStatus bleu_battery_watch(BatteryHandle* handle, BatteryListener callback, void* context, ulong* out_id) @export("bleu_battery_watch")
+fn capi::CStatus bleu_battery_watch(
+	BatteryHandle* handle,
+	BatteryListener callback,
+	void* context,
+	ulong* out_id
+) @export("bleu_battery_watch")
 {
 	capi::@capi_entry()
 	{
-		if (!handle || !callback || !out_id) return capi::argument_error("handle, callback and out_id must not be NULL");
+		if (!handle || !callback || !out_id) return capi::argument_error(
+			"handle, callback and out_id must not be NULL"
+		);
 		if (capi::is_inside_callback(handle)) return capi::reentry_refused();
 		BatteryWatch* watch = alloc::new(mem, BatteryWatch);
 		*watch = { .owner = handle, .callback = callback, .context = context };

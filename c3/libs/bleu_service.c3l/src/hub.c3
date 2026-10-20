@@ -175,8 +175,11 @@ fn void abandon_leftovers(Hub* hub, WorkerHost* host) @private
 	}
 	if (dropped > 0)
 	{
-		io::eprintfn("bleu: service '%s' stopped with %d queued command(s) and no abandon handler; they were dropped",
-			hub.name, dropped);
+		io::eprintfn(
+			"bleu: service '%s' stopped with %d queued command(s) and no abandon handler; they were dropped",
+			hub.name,
+			dropped
+		);
 	}
 }
 
@@ -248,7 +251,12 @@ fn void Hub.emit(&self, EventPacket* packet) => self.events.publish(packet);
 *>
 fn StateSnapshot*? Hub.latest(&self)
 {
-	if (!self.initialized.load()) return error::raise_text(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "hub has no state")~;
+	if (!self.initialized.load()) return error::raise_text(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"hub has no state"
+	)~;
 	return self.state.latest();
 }
 

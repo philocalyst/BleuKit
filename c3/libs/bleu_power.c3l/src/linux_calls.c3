@@ -123,7 +123,7 @@ fn ProfileHold? hold_profile(Logind* b, Command* command)
 	}
 	String name = convert::profile_name(command.profile)!;
 	uint cookie = hold_call(b, name, command.why)!;
-	return make_hold(command, cookie);
+	return power::make_hold(command, cookie);
 }
 
 fn uint? hold_call(Logind* b, String profile, String reason)
@@ -176,7 +176,7 @@ fn Inhibitor? inhibit(Logind* b, Command* command)
 	unix::Fd fd            = inhibit_fd(b, request.what, command.who, command.why, request.mode)!;
 	uint id                = ++b.next_lock;
 	b.locks.push({ .id = id, .fd = fd });
-	return make_inhibitor(command, id);
+	return power::make_inhibitor(command, id);
 }
 
 // Inhibit(what, who, why, mode): the reply's descriptor is duplicated, because the reply owns the original.

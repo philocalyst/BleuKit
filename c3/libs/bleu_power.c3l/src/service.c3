@@ -100,7 +100,7 @@ fn Power*? open(Allocator allocator, Options options = { })
 fn void Power.close(&self)
 {
 	self.link.shut();
-	self.hub.stop();
+	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	self.startup.free();
 	self.link.drop();

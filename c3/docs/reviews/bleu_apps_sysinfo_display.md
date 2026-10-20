@@ -1,6 +1,6 @@
 # Review of bleu_apps, bleu_sysinfo, bleu_display
 
-Scope: `libs/bleu_apps.c3l`, `libs/bleu_sysinfo.c3l`, `libs/bleu_display.c3l`, with the focus areas the lead named. Read against `docs/REVIEW_CHECKLIST.md`, `ARCHITECTURE.md`, `STYLE.md`, `SERVICE_TEMPLATE.md` and `C3_GOTCHAS.md`. No library code was edited; scratch probes live outside the repo. Line numbers are the working tree as read on 2026-10-20. Note: `libs/bleu_service.c3l/src/hub.c3` has an uncommitted change from another agent (an `abandon` hook for leftover commands). It bears on SI-3 and AP-1 and is not reflected in those libraries yet.
+Scope: `libs/bleu_apps.c3l`, `libs/bleu_sysinfo.c3l`, `libs/bleu_display.c3l`, with the focus areas the lead named. Read against `docs/REVIEW_CHECKLIST.md`, `ARCHITECTURE.md`, `STYLE.md`, `SERVICE_TEMPLATE.md` and `C3_GOTCHAS.md`. The findings were recorded before any edit; the fixes and their status are in "Status after fixes" at the end. Scratch probes live outside the repo. Line numbers are the working tree as read on 2026-10-20. Note: `libs/bleu_service.c3l/src/hub.c3` has an uncommitted change from another agent (an `abandon` hook for leftover commands). It bears on SI-3 and AP-1 and is not reflected in those libraries yet.
 
 Verdict:
 1. bleu_sysinfo is not safe to ship. `Sysinfo.kill` forwards any `uint` to `kill(2)`: pid 0 signals the caller's own process group (proved: the probe and a `sleep` in the same group were killed, the tool shell survived), and pids at or above 2^31 become `kill(-n)` or `kill(-1)` (by the cast; not executed).
@@ -96,3 +96,57 @@ Gaps in the tests that matter:
 * No test covers a wlr request timing out and the compositor answering later (DI-2), a stop during an apply (DI-3), or a rollback that the platform refuses (DI-6).
 * No test covers D-Bus activation timing out (AP-2), file URIs with spaces or `%` (AP-3), or per-core frequency with an offline CPU (SI-5).
 * The apps test set does not assert the DBUS_ACTIVATE capability (AP-4).
+
+## Status after fixes
+
+Every finding is FIXED or WONTFIX with a reason. "Test" names the regression test (fails before, passes
+after, unless marked otherwise). Unit tests ran with `c3c compile-test` on Linux x86-64 (c3c 0.8.5);
+the six-target check is listed at the end.
+
+| ID | Status | Evidence |
+| --- | --- | --- |
+| SI-1 | FIXED | `kill_target_test.c3` (gate: 0, >= 2^31, 1 without FORCE, self); `linux_test` `kill_of_pid_zero...` (fails before: the unfixed code accepted pid 0, shown under `setsid`); `killing_a_child_this_test_spawned_ends_it` (live, child spawned by the test). The gate runs at `Sysinfo.kill` and again on the worker before `kill(2)`. |
+| SI-2 | WONTFIX | The API takes a bare pid, so the signal can reach a reused pid between the snapshot and the worker. Closing it needs the start time in the request (an API change) or a pidfd. The SI-1 gate removes the dangerous targets; the window remains and is in README "Not done". |
+| SI-3 | FIXED | `abandon_command` test (`kill_target_test.c3`: a queued kill fails with DISCONNECTED); `abandon:` wired in `service.c3`. |
+| SI-4 | WONTFIX (partly) | Queued kills are now failed (SI-3). Publishing the sampler stop is not done: a poll(2) failure cannot be injected without a seam, and no event exists for it. Stated in README "Not done". |
+| SI-5 | FIXED | `linux_test` `offline_cpu_does_not_shift_the_frequencies` (fails before: cpu2 read cpu1's clock). |
+| SI-6 | FIXED | `procfs_parse_test` `truncated_stat_line_is_a_protocol_error`. |
+| SI-7 | FIXED (skip only) | `malformed_net_line_is_skipped`, `short_mount_line_is_skipped`, `malformed_vmrss_leaves_the_rss_unknown`. The review's "count the bad line" is not done: no counter is published. |
+| AP-1 | FIXED | `run` routes every exit through `refuse_pending` and frees the bus; the hub's `abandon` fails queued launches with DISCONNECTED. No direct test (the exits need a broken poller). |
+| AP-2 | FIXED | Live `tests/run.sh`: `org.example.Hang` is accepted and never answered; the launch fails within 2 s and its Exec line does not run. Fallback only on "no owner" (`UNAVAILABLE`); the call has a 2 s bound (`ACTIVATION_TIMEOUT`). |
+| AP-3 | FIXED | `xdg_test` `file_uris_percent_encode_the_path`. |
+| AP-4 | FIXED | `xdg_test` `dbus_activation_is_offered`. |
+| AP-5 | FIXED | The bus is freed at the end of `run`. No automated test (needs a live bus in a unit test). |
+| AP-6 | FIXED | `search_test` `rescan_waits_for_quiet_but_not_past_the_cap` (`rescan_wait`, capped at `MAX_CHANGE_DELAY`). |
+| AP-7 | WONTFIX | A multi-file launch can start the first child before a later spawn fails. Reporting partial success needs a result with several pids; not done in this pass. Stated in README "Not done". |
+| AP-8 | FIXED | `xdg_test` `only_the_exact_variable_name_is_filtered`. |
+| AP-9 | FIXED | `xdg_test` `try_exec_under_a_fake_root_is_looked_up_in_the_root`. A bare name is still searched in the host `$PATH` (README). |
+| AP-10 | FIXED | `serve_until_stopped` refuses a failed `poller.add` (no `!!`). No test: no fault seam. |
+| AP-11 | FIXED | `dbus_launch` contract corrected (no PROTOCOL; the pre-send failures are UNAVAILABLE). Documentation change. |
+| AP-12 | FIXED | `search_test` `empty_query_ignores_the_ranker`. |
+| AP-13 | FIXED | `search_test` `fuzzy_takes_the_tightest_span` (66, not 50). |
+| AP-14 | FIXED | `search_test` `listing_order_does_not_change_the_fingerprint`. |
+| DI-1 | FIXED | `pure_test` `revert_window_maps_zero_to_the_default_and_refuses_negative`, `forever_never_comes_due` (fails before: FOREVER wrapped into the past), `deadlines_saturate_instead_of_wrapping`. Semantics: 0 = 15 s, FOREVER = no rollback (applied as APPLY), negative = INVALID_ARGUMENT. |
+| DI-2 | FIXED | `linux_test` `a_timed_out_configuration_is_destroyed`: the configuration object is destroyed before its `Pending` is freed. The compositor's late answer is dropped (the proxy is retired). |
+| DI-3 | FIXED | `linux_test` `stop_during_an_apply_does_not_strand_its_waiter`: the in-flight change fails with DISCONNECTED before a rollback takes the pending slot. |
+| DI-4 | FIXED | `sync_apply_test` `a_plain_apply_that_changes_nothing_forgets_the_pending_rollback`. Decision: a successful plain APPLY supersedes a pending rollback, changed or not; TEST_ONLY and APPLY_WITH_REVERT no-ops leave it. The wlr route has the same rule (code only). |
+| DI-5 | FIXED | `sync_apply_test` `a_failed_read_while_capturing_the_rollback_rejects_the_change` (fails before: the unfixed code aborted with `!!`). |
+| DI-6 | FIXED | `sync_apply_test` `a_refused_rollback_reports_failure_and_keeps_the_change` (the return value). `REVERT_FAILED` is emitted by `revert_and_announce` and by the wlr `finish_failed`; the event carries no reason field. |
+| DI-7 | FIXED | `sync_apply_test` `a_second_unconfirmed_change_keeps_the_last_confirmed_layout`. Decision: the rollback point is the last confirmed layout; a second change moves the deadline. The wlr route has the same rule (code only). |
+| DI-8 | FIXED | `linux_test` `a_head_missing_from_the_configuration_is_refused` (`change_index` returns INVALID_STATE, never output 0). |
+| DI-9 | FIXED | `pure_test` `logical_size_and_scale_bounds_are_checked` (1x1 at scale 4 has no logical size; scale 0.25 to 10; mode up to 65535). |
+| DI-10 | FIXED | `pure_test` `the_deadline_is_one_instant_for_confirm_and_due`. |
+| DI-11 | FIXED (untested) | The wayland loop breaks on a poll error and stops the session; a dispatch failure no longer leaves only the inner loop. No test: no poll(2) fault seam. |
+| DI-12 | FIXED (compiled only) | `windows_config.c3`: the SetDisplayConfig status is the native code (Windows only; not run here). |
+| DI-13 | FIXED (compiled only, latent) | `macos_cg.c3` `configure_all` skips disabled outputs. Unreachable today (toggling is refused). |
+| DI-14 | WONTFIX | A rollback armed at stop is sent and flushed without awaiting its answer, because the connection closes at once. Waiting would block `close()` on a compositor round trip. Stated in the display README "Not done". |
+
+Verification at the time of writing:
+* `tools/check.sh` on the fifteen named libraries: clean on all six targets.
+* Module suites (`compile-test`, Linux x86-64): sysinfo 36 of 36 (24 before, 12 new), display 31 of 31
+  (19 before, 12 new), apps 23 of 23 (15 before, 8 new); `tests/run.sh` (apps, live D-Bus) passes.
+* Fail-before: the reverting mutants of SI-1, SI-5, SI-6, DI-1 to DI-5, and AP-2 (live) fail their target
+  test; the other mutants are listed in the status log of the run (see the report).
+* Not caused by these libraries: the `bleu_service` `hub_test` assertion (`hub_test.c3:152`), and in the
+  working tree `bleu_core`'s `Observable.close` no longer freeing its lists, which makes every service test
+  report LEAKS (the committed `bleu_rt` was used for these runs; the working-tree `bleu_rt` has a test in progress).

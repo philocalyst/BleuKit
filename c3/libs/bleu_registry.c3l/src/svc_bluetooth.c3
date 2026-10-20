@@ -11,7 +11,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 }
 
 <* Wait for a task and write the success object. *>
-fn void? finish(registry::Request* request, bluetooth::Task task) @private
+fn void? finish(registry::Request* request, bluetooth::Task* task) @private
 {
 	defer task.release();
 	registry::await{bluetooth::Done}(task, request.timeout)!;
