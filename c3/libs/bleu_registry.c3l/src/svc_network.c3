@@ -5,7 +5,7 @@ import bleu::network, bleu::registry, bleu::registry::live, bleu::json, bleu::re
 <* Open the network service. Its root and bus address options point tests at fakes. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	network::Options opened = { .root = options.root };
+	network::Options opened   = { .root = options.root };
 	network::Network* service = network::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -13,7 +13,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 <* `network.scan`: ask the backend for a fresh list of access points. *>
 fn void? scan(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
+	network::Network* service    = (network::Network*)request.handle;
 	network::SettleOp* operation = service.scan()!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -27,7 +27,7 @@ fn void? scan(registry::Request* request)
 fn void? connect(registry::Request* request)
 {
 	network::Network* service = (network::Network*)request.handle;
-	String ssid = request.params.string("ssid")!;
+	String ssid               = request.params.string("ssid")!;
 	network::ConnectRequest connect = {
 		.ssid = (char[])ssid,
 		.passphrase = registry::string_or(request.params, "passphrase", "")!,
@@ -56,7 +56,7 @@ fn void? out_connected(json::JsonWriter* out, network::Connected joined) @privat
 <* `network.disconnect`: leave the current network. *>
 fn void? disconnect(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
+	network::Network* service    = (network::Network*)request.handle;
 	network::SettleOp* operation = service.disconnect()!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -66,8 +66,8 @@ fn void? disconnect(registry::Request* request)
 <* `network.forget {ssid}`: remove the saved profile of a network. *>
 fn void? forget(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
-	String ssid = request.params.string("ssid")!;
+	network::Network* service    = (network::Network*)request.handle;
+	String ssid                  = request.params.string("ssid")!;
 	network::SettleOp* operation = service.forget((char[])ssid)!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -77,8 +77,8 @@ fn void? forget(registry::Request* request)
 <* `network.set_radio {enabled}`: turn the Wi-Fi radio on or off. *>
 fn void? set_radio(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
-	bool enabled = request.params.boolean("enabled")!;
+	network::Network* service    = (network::Network*)request.handle;
+	bool enabled                 = request.params.boolean("enabled")!;
 	network::SettleOp* operation = service.set_radio(enabled)!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -88,9 +88,9 @@ fn void? set_radio(registry::Request* request)
 <* `network.credentials.submit {request, secret}`: answer a request for a passphrase. *>
 fn void? credentials_submit(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
-	long id = request.params.integer("request")!;
-	String secret = request.params.string("secret")!;
+	network::Network* service    = (network::Network*)request.handle;
+	long id                      = request.params.integer("request")!;
+	String secret                = request.params.string("secret")!;
 	network::SettleOp* operation = service.supply_credentials((ulong)id, secret)!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -100,8 +100,8 @@ fn void? credentials_submit(registry::Request* request)
 <* `network.credentials.cancel {request}`: refuse a request for a passphrase. *>
 fn void? credentials_cancel(registry::Request* request)
 {
-	network::Network* service = (network::Network*)request.handle;
-	long id = request.params.integer("request")!;
+	network::Network* service    = (network::Network*)request.handle;
+	long id                      = request.params.integer("request")!;
 	network::SettleOp* operation = service.cancel_credentials((ulong)id)!;
 	defer operation.release();
 	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
@@ -114,8 +114,16 @@ const registry::Command[7] COMMANDS = {
 	{ .name = "network.disconnect", .summary = "Leave the current network.", .run = &disconnect },
 	{ .name = "network.forget", .summary = "Remove a saved network: {ssid}.", .run = &forget },
 	{ .name = "network.set_radio", .summary = "Turn the Wi-Fi radio on or off: {enabled}.", .run = &set_radio },
-	{ .name = "network.credentials.submit", .summary = "Answer a passphrase request: {request, secret}.", .run = &credentials_submit },
-	{ .name = "network.credentials.cancel", .summary = "Refuse a passphrase request: {request}.", .run = &credentials_cancel },
+	{
+		.name = "network.credentials.submit",
+		.summary = "Answer a passphrase request: {request, secret}.",
+		.run = &credentials_submit
+	},
+	{
+		.name = "network.credentials.cancel",
+		.summary = "Refuse a passphrase request: {request}.",
+		.run = &credentials_cancel
+	},
 };
 
 const registry::Spec NETWORK = {

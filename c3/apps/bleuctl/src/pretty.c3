@@ -14,9 +14,9 @@ const usz INDENT = 2;
 *>
 fn void format(String compact, DString* out)
 {
-	usz depth = 0;
+	usz depth      = 0;
 	bool in_string = false;
-	bool escaped = false;
+	bool escaped   = false;
 	for (usz i = 0; i < compact.len; i++)
 	{
 		char c = compact[i];

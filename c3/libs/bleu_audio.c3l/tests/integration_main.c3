@@ -309,7 +309,7 @@ fn void stalled_handshake_does_not_block_close(Options options)
 	}
 	Audio* stalled = opened;
 	Pending*[40] queued;
-	Gain[] gains = { (Gain)0.5f };
+	Gain[] gains   = { (Gain)0.5f };
 	for (int i = 0; i < 40; i++)
 	{
 		queued[i] = stalled.set_device_volume(Flow.OUTPUT, "alsa_output.test", gains) ?? null;

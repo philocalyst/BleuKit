@@ -109,9 +109,10 @@ bleu_battery_close(battery);
   `void (*)(void *context, const bleu_snapshot_t *snapshot)`.
 * The callback runs on the service's worker thread for every new state, and once on the calling
   thread from inside `watch` for the current state. Rules: it must return quickly and must not
-  block; it must not call into its own handle (such a call returns `BLEU_STATUS_INVALID_STATE`
-  straight away, for `snapshot`, `wait`, `watch`, `unwatch` and the rest alike); calls into other
-  handles are fine.
+  block; it must not call into its own handle's service calls (`snapshot`, `snapshot_json`, `wait`,
+  `watch`, `unwatch`, `subscribe`, `refresh`, `set_level`, `close`): those return
+  `BLEU_STATUS_INVALID_STATE` straight away. Accessors on snapshots and packets, and `capability` and
+  `backend_name`, do not take the service's lock and work; calls into other handles are fine.
 * The snapshot argument is a view, valid only during the call. `bleu_snapshot_retain` keeps it.
 * After `unwatch` returns, the callback is not running and will not run again.
 

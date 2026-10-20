@@ -12,8 +12,8 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 <* `power.set_profile {profile}`: switch to a power profile, waiting for the platform to confirm. *>
 fn void? set_profile(registry::Request* request)
 {
-	power::Power* service = (power::Power*)request.handle;
-	power::Profile profile = registry::parse_enum{power::Profile}(request.params.string("profile")!)!;
+	power::Power* service              = (power::Power*)request.handle;
+	power::Profile profile             = registry::parse_enum{power::Profile}(request.params.string("profile")!)!;
 	power::ProfileOperation* operation = service.set_profile(profile)!;
 	defer operation.release();
 	power::Profile applied = registry::await{power::Profile}(operation, request.timeout)!;
@@ -23,8 +23,8 @@ fn void? set_profile(registry::Request* request)
 <* `power.perform {action}`: suspend, hibernate, reboot ... as the platform allows. *>
 fn void? perform(registry::Request* request)
 {
-	power::Power* service = (power::Power*)request.handle;
-	power::Action action = registry::parse_enum{power::Action}(request.params.string("action")!)!;
+	power::Power* service             = (power::Power*)request.handle;
+	power::Action action              = registry::parse_enum{power::Action}(request.params.string("action")!)!;
 	power::ActionOperation* operation = service.perform(action)!;
 	defer operation.release();
 	power::Action done = registry::await{power::Action}(operation, request.timeout)!;

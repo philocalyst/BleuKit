@@ -1,8 +1,8 @@
 <*
  Command-line options of `bleud`.
 
-   bleud [--services a,b,c] [--fake-root DIR] [--socket PATH]
-   bleud --list [--services a,b,c] [--fake-root DIR]
+ bleud [--services a,b,c] [--fake-root DIR] [--socket PATH]
+ bleud --list [--services a,b,c] [--fake-root DIR]
 
  `--services` names the services to open (default: every service). `--fake-root`
  points the sysfs, procfs and DDC services at a fake tree for tests. `--socket`

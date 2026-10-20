@@ -1,12 +1,12 @@
 <*
  Command-line options of `bleuctl`.
 
-   bleuctl [--socket PATH] list
-   bleuctl [--socket PATH] state <service>
-   bleuctl [--socket PATH] caps <service>
-   bleuctl [--socket PATH] watch <service>
-   bleuctl [--socket PATH] call <method> [json-params]
-   bleuctl --embedded [--fake-root DIR] <command> ...
+ bleuctl [--socket PATH] list
+ bleuctl [--socket PATH] state <service>
+ bleuctl [--socket PATH] caps <service>
+ bleuctl [--socket PATH] watch <service>
+ bleuctl [--socket PATH] call <method> [json-params]
+ bleuctl --embedded [--fake-root DIR] <command> ...
 
  `--embedded` runs the same commands in this process, opening the service itself
  instead of asking a running `bleud`.
@@ -37,7 +37,7 @@ const String USAGE = "usage: bleuctl [--socket PATH | --embedded [--fake-root DI
 fn Options? parse(String[] args)
 {
 	Options options = { .params = "{}" };
-	usz i = 1;
+	usz i           = 1;
 	while (i < args.len && args[i].len > 0 && args[i][0] == '-')
 	{
 		String flag = args[i];
@@ -78,17 +78,29 @@ fn Options? parse(String[] args)
 	}
 	options.command = args[i];
 	i++;
-	bool needs_target = options.command == "state" || options.command == "caps"
-		|| options.command == "watch" || options.command == "call";
+	bool needs_target = options.command == "state" || options.command == "caps" || options.command == "watch"
+		|| options.command == "call";
 	if (!needs_target && options.command != "list")
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "unknown command: %s", options.command)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"unknown command: %s",
+			options.command
+		)~;
 	}
 	if (needs_target)
 	{
 		if (i >= args.len)
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "%s needs an argument", options.command)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"%s needs an argument",
+				options.command
+			)~;
 		}
 		options.target = args[i];
 		i++;

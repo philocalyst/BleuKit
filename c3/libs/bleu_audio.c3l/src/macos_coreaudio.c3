@@ -12,9 +12,9 @@
 module bleu::audio::macos_coreaudio @feat(DARWIN);
 import std::time, bleu::availability, bleu::audio, bleu::error, bleu::observe, bleu::operation, bleu::unit, bleu::rt::poller, bleu::rt::mailbox, bleu::rt::worker, bleu::audio::macos_hal, bleu::audio::macos_devices;
 
-const usz MAX_WATCHED   = 32; // devices whose volume, mute and running state are watched
-const usz MAX_ADDRESSES = 12; // listener addresses per device: 3 volume elements x 2 scopes, 2 mutes, 1 running state
-const usz COMMAND_BATCH = 16;
+const usz MAX_WATCHED        = 32;                  // devices whose volume, mute and running state are watched
+const usz MAX_ADDRESSES      = 12;                  // listener addresses per device: 3 volume elements x 2 scopes, 2 mutes, 1 running state
+const usz COMMAND_BATCH      = 16;
 // The wait when the system listeners could not be registered: nothing but a command wakes the
 // worker then, so the state is re-read this often instead.
 const Duration FALLBACK_TICK = (Duration)1_000_000; // 1 s
@@ -184,7 +184,7 @@ fn void refresh(CoreAudioBackend* backend, AudioHub* hub) @private
 		// Listeners first, then the state: a change made after the listeners exist posts a refresh,
 		// and one made before this read is in the state read below.
 		sync_watches(backend, devices);
-		Snapshot{State}* snapshot          = hub.begin();
+		Snapshot{State}* snapshot = hub.begin();
 		macos_devices::devices_into(snapshot.allocator(), devices, default_output, default_input, &snapshot.value);
 		snapshot.value.mic_in_use = any_input_running(devices);
 		snapshot.value.cards = { };
@@ -406,7 +406,10 @@ fn void? set_volume(Command* command) @private
 	// Every channel is checked before the first write, so a refusal leaves the device as it was.
 	for (usz i = 0; i < command.gains.len; i++)
 	{
-		if (!macos_hal::has_property(id, channel_address(scope, i))) return error::raise(
+		if (!macos_hal::has_property(
+			id,
+			channel_address(scope, i)
+		)) return error::raise(
 			error::INVALID_ARGUMENT,
 			error::Domain.INTERNAL,
 			0,

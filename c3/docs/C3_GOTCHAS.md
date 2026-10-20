@@ -261,3 +261,11 @@
 * `pkill -f <pattern>` matches the calling shell too when the pattern appears in its own command line: kill test binaries by exact name with `pgrep -x`.
 * `Hub.stop` does not free the hub's state and stream (bleu_service): a service's `close` must call `Hub.free` after it, or every run reports LEAKS DETECTED.
 * `Mutex.unlock()` returns void, while `Mutex.lock()` returns `void?`: write `lock()!!;` and a plain `unlock();` (not `unlock()!!`).
+* `alloc::new_array(tmem, ...)` with a hostile count does not show in a test: the temporary pool fails quietly and a later read errors first → test over-allocation with a 64-byte `ArenaAllocator` (`std::core::mem::allocators`), where the allocation failure is deterministic.
+* `alloc::new_array` panics on out-of-memory (`!!`); an unbounded count from the wire is therefore a process abort, not an error → check the count against the bytes left before allocating.
+* `Socket.recv` returns 0 bytes at end of stream with no error (bleu_rt `unix_message.c3`): a read loop that retries on 0 spins forever → treat 0 as a disconnect.
+* `if (x) defer stmt;` is rejected → `defer if (x) stmt;` (the `defer if` form is the one that compiles).
+* A local named `deadline` shadows the `bleu::deadline` module in the same way as `error` → name it `limit`.
+* `--test-filter` belongs to `c3c compile-test` (the tests run inside that command); pass it there, not to the test binary.
+* `pkill -f <pattern>` kills the shell that runs it when the pattern is in its own command line → find the PID with an anchored `pgrep -f "^/path/binary"` and kill it.
+* A mock or test control request sent right after a state change can be handled after the next request → wait until the server closes the control connection before the next step.

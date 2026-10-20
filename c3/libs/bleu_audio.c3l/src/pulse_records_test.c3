@@ -214,7 +214,7 @@ fn void port_count_must_fit_the_packet() @test
 		pulse::put_string(&one, "b");
 		pulse::put_u32(&one, 7);
 		pulse::TagReader fits = { .data = (char[])one.str_view() };
-		PortRecord[] ports = pulse::read_ports(&fits, 15, tmem)!!;
+		PortRecord[] ports    = pulse::read_ports(&fits, 15, tmem)!!;
 		assert(fits.at_end() && ports.len == 1 && ports[0].name == "a" && ports[0].priority == 7);
 	};
 }

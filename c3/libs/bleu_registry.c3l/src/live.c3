@@ -19,7 +19,7 @@ const Duration FIRST_STATE_TIMEOUT = (Duration)5_000_000;
 *>
 fn void? state(void* handle, json::JsonWriter* out)
 {
-	Svc* svc = (Svc*)handle;
+	Svc* svc                  = (Svc*)handle;
 	Snapshot{State}* snapshot = svc.wait_after(0, FIRST_STATE_TIMEOUT)!;
 	defer snapshot.release();
 	return state_json::write{State}(out, snapshot, true);
@@ -27,7 +27,7 @@ fn void? state(void* handle, json::JsonWriter* out)
 
 fn void? state_after(void* handle, ulong seen, Duration timeout, json::JsonWriter* out)
 {
-	Svc* svc = (Svc*)handle;
+	Svc* svc                  = (Svc*)handle;
 	Snapshot{State}* snapshot = svc.wait_after(seen, timeout)!;
 	defer snapshot.release();
 	return state_json::write{State}(out, snapshot, true);
@@ -44,7 +44,7 @@ fn void? capabilities(void* handle, json::JsonWriter* out)
 	out.begin_array()!;
 	for (usz i = 0; i < Cap::len; i++)
 	{
-		Cap cap = Cap::from_ordinal(i);
+		Cap cap                   = Cap::from_ordinal(i);
 		Availability availability = svc.capability(cap);
 		out.begin_object()!;
 		out.key("cap")!;

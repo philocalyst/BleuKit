@@ -5,7 +5,7 @@ import bleu::sysinfo, bleu::registry, bleu::registry::live, bleu::json, bleu::op
 <* Open the system information service. Its root points at a fake /proc, /sys and /etc in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	sysinfo::Options opened = { .root = options.root };
+	sysinfo::Options opened   = { .root = options.root };
 	sysinfo::Sysinfo* service = sysinfo::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -16,10 +16,10 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 *>
 fn void? kill(registry::Request* request)
 {
-	sysinfo::Sysinfo* service = (sysinfo::Sysinfo*)request.handle;
-	uint pid = (uint)request.params.integer("pid")!;
-	String mode = registry::string_or(request.params, "mode", "terminate")!;
-	sysinfo::KillMode kind = registry::parse_enum{sysinfo::KillMode}(mode)!;
+	sysinfo::Sysinfo* service                  = (sysinfo::Sysinfo*)request.handle;
+	uint pid                                   = (uint)request.params.integer("pid")!;
+	String mode                                = registry::string_or(request.params, "mode", "terminate")!;
+	sysinfo::KillMode kind                     = registry::parse_enum{sysinfo::KillMode}(mode)!;
 	Operation{sysinfo::KillReceipt}* operation = service.kill(pid, kind)!;
 	defer operation.release();
 	sysinfo::KillReceipt receipt = registry::await{sysinfo::KillReceipt}(operation, request.timeout)!;

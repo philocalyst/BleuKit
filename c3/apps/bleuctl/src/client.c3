@@ -42,7 +42,7 @@ fn int? request_once(ipc::client::Client* client, options::Options opts) @privat
 	@pool()
 	{
 		String method = request_method(opts);
-		String line = client.request(method, request_params(opts), REQUEST_TIMEOUT)!;
+		String line   = client.request(method, request_params(opts), REQUEST_TIMEOUT)!;
 		defer alloc::free(mem, line.ptr);
 		return print_reply(line);
 	};
@@ -99,7 +99,7 @@ fn String fragment(String line, String key, usz closing) @private
 {
 	usz start = (usz)(line.index_of(key) ?? 0);
 	start += key.len;
-	return line[start : line.len - closing - start];
+	return line[start:line.len - closing - start];
 }
 
 <* Print a JSON value pretty, on stdout. *>

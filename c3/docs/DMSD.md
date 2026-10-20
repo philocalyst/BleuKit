@@ -6,11 +6,12 @@ unmodified shell connects to it. This page is the reference: what is covered, wh
 is not, how the wire compares with DMS, how to add a module, and what was verified.
 The author's notes are in `apps/dmsd/README.md`.
 
-Sources cited below are DMS `core/internal/server/...` at master `8be08999` (the
-revision `docs/research/dms_surface.md` pinned is `806799614cd5` for `server`; the
-`brightness` and `loginctl` packages are identical at both, checked with `cmp`).
-`dms_surface.md` is the inventory; the Go sources are in `apps/dmsd/tests/golden/go_tags.json`
-(regenerate with `apps/dmsd/tests/extract_go_tags.py <DMS checkout>`).
+Sources cited below are DMS `core/internal/server/...` at master commit `8be08999`
+(a local checkout; the files read were compared byte for byte with
+`raw.githubusercontent.com` master). `dms_surface.md` is the inventory, and its pins
+(dankgo v1.6.3, DMS `806799614cd5`) were not re-checked against this revision. The Go
+struct tags the tests use are in `apps/dmsd/tests/golden/go_tags.json`, regenerated with
+`apps/dmsd/tests/extract_go_tags.py <DMS checkout>`.
 
 ## Status at a glance
 
@@ -206,10 +207,10 @@ the method answers `unknown method: <name>`. Names are from `dms_surface.md` sec
 
 Each is deliberate unless it says otherwise.
 
-1. **Socket name.** `dmsd-<pid>.sock`, not `danklinux-<pid>.sock`. A shell that looks for
-   DMS's name must be given the path (`DMS_SOCKET`). This is the one change the shell
-   needs, and it is a setting, not a code change. Unverified: the shell code that sets
-   `DMS_SOCKET` was not in the fetched sources (`dms_surface.md` section 8).
+1. **Socket name.** `dmsd-<pid>.sock`, not `danklinux-<pid>.sock`. The shell reads the path
+   from `DMS_SOCKET` (`DMSService.qml:38`), so it has to be given dmsd's path. Who sets
+   `DMS_SOCKET` was not in the fetched sources (`dms_surface.md` section 8), so how a
+   shell launch would pass it is unverified.
 2. **`cliVersion`** is "0.1.0", not DMS's build version.
 3. **Capability names.** DMS always advertises `plugins`, `dgop`, `lyrics`, `lyrics.plugins`.
    dmsd omits them: it does not provide those services.
@@ -230,8 +231,9 @@ Each is deliberate unless it says otherwise.
     once, so these answer `not supported` and point to top-level `subscribe`.
 11. **Brightness exponent.** Sysfs uses the request's exponent; DDC uses the fixed 2.0 that
     DMS's `ddc.go` uses. The arithmetic is DMS's (`brightness_math.c3`).
-12. **Lock-before-suspend.** DMS's lock and wait are reproduced; the wait is bounded at 5 s
-    (DMS waits for its fallback timer). Its value is the design's choice, not DMS's.
+12. **Lock-before-suspend.** DMS's lock and wait are reproduced. DMS also has a fallback
+    timer (`initializeFallbackDelay`, `loginctl/manager.go`, not read in full); dmsd's wait is
+    bounded at a fixed 5 s instead.
 13. **Bleu's native panel (macOS `NATIVE`) and gamma/overlay devices** are not listed: DMS's
     `native` backend class is not in the fetched sources, and software brightness is not built
     on Linux.

@@ -7,7 +7,7 @@ import bleu::battery, bleu::registry, bleu::registry::live, bleu::json, bleu::re
 <* Open the battery service. Its root option points at a fake sysfs tree in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	battery::Options opened = { .root = options.root };
+	battery::Options opened   = { .root = options.root };
 	battery::Battery* service = battery::open(allocator, opened)!;
 	return (void*)service;
 }

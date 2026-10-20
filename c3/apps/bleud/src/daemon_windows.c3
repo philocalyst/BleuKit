@@ -13,5 +13,10 @@ import bleu::error, bleu::registry;
 *>
 fn int? serve(registry::Slot[] slots, String socket_path)
 {
-	return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "bleud serve needs Unix domain sockets; this build has none")~;
+	return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"bleud serve needs Unix domain sockets; this build has none"
+	)~;
 }

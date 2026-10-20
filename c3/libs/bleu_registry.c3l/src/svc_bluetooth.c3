@@ -5,7 +5,7 @@ import bleu::bluetooth, bleu::registry, bleu::registry::live, bleu::json, bleu::
 <* Open the Bluetooth service. Its root and bus address options point tests at fakes. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	bluetooth::Options opened = { .root = options.root };
+	bluetooth::Options opened     = { .root = options.root };
 	bluetooth::Bluetooth* service = bluetooth::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -22,8 +22,8 @@ fn void? finish(registry::Request* request, bluetooth::Task* task) @private
 fn void? power(registry::Request* request)
 {
 	bluetooth::Bluetooth* service = (bluetooth::Bluetooth*)request.handle;
-	String adapter = request.params.string("adapter")!;
-	bool on = request.params.boolean("on")!;
+	String adapter                = request.params.string("adapter")!;
+	bool on                       = request.params.boolean("on")!;
 	return finish(request, service.set_powered(adapter, on)!);
 }
 
@@ -31,8 +31,8 @@ fn void? power(registry::Request* request)
 fn void? discovery(registry::Request* request)
 {
 	bluetooth::Bluetooth* service = (bluetooth::Bluetooth*)request.handle;
-	String adapter = request.params.string("adapter")!;
-	bool on = request.params.boolean("on")!;
+	String adapter                = request.params.string("adapter")!;
+	bool on                       = request.params.boolean("on")!;
 	if (on) return finish(request, service.start_discovery(adapter)!);
 	return finish(request, service.stop_discovery(adapter)!);
 }
@@ -72,9 +72,9 @@ fn void? remove(registry::Request* request)
 fn void? pairing_reply(registry::Request* request)
 {
 	bluetooth::Bluetooth* service = (bluetooth::Bluetooth*)request.handle;
-	long id = request.params.integer("request")!;
-	bool accept = request.params.boolean("accept")!;
-	String secret = registry::string_or(request.params, "secret", "")!;
+	long id                       = request.params.integer("request")!;
+	bool accept                   = request.params.boolean("accept")!;
+	String secret                 = registry::string_or(request.params, "secret", "")!;
 	return finish(request, service.reply_pairing((ulong)id, accept, secret)!);
 }
 
@@ -85,7 +85,11 @@ const registry::Command[8] COMMANDS = {
 	{ .name = "bluetooth.connect", .summary = "Connect a device: {device}.", .run = &connect },
 	{ .name = "bluetooth.disconnect", .summary = "Disconnect a device: {device}.", .run = &disconnect },
 	{ .name = "bluetooth.remove", .summary = "Forget a device: {device}.", .run = &remove },
-	{ .name = "bluetooth.pairing.reply", .summary = "Answer a pairing prompt: {request, accept, secret?}.", .run = &pairing_reply },
+	{
+		.name = "bluetooth.pairing.reply",
+		.summary = "Answer a pairing prompt: {request, accept, secret?}.",
+		.run = &pairing_reply
+	},
 	{ .name = "bluetooth.refresh", .summary = "Read the adapters and devices now.", .run = &refresh },
 };
 

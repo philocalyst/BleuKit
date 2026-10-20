@@ -130,7 +130,7 @@ fn void? Slot.call(&self, String method, json::read::Params params, json::JsonWr
 	if (!command) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "unknown method: %s", method)~;
 	self.require_open()!;
 	Duration timeout = command.timeout == time::DURATION_ZERO ? DEFAULT_TIMEOUT : command.timeout;
-	Request request = { .handle = self.handle, .params = params, .out = out, .timeout = timeout };
+	Request request  = { .handle = self.handle, .params = params, .out = out, .timeout = timeout };
 	return command.run(&request);
 }
 
@@ -198,7 +198,7 @@ fn void? open_selected(Slot[] slots, String names, Allocator allocator, OpenOpti
 		{
 			usz end = start;
 			while (end < names.len && names[end] != ',') end++;
-			usz index = index_of_service(names[start : end - start])!;
+			usz index = index_of_service(names[start:end - start])!;
 			wanted[index] = true;
 			start = end + 1;
 		}
@@ -207,7 +207,9 @@ fn void? open_selected(Slot[] slots, String names, Allocator allocator, OpenOpti
 	{
 		if (!wanted[i]) continue;
 		// The failure is kept in the slot for every later request to report; it is not raised here.
-		if (catch slots[i].open(SERVICES[i], allocator, options)) {}
+		if (catch slots[i].open(SERVICES[i], allocator, options))
+		{
+		}
 	}
 }
 

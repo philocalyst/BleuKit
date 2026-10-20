@@ -18,8 +18,8 @@ import bleu::error, bleu::rt, bleu::rt::unix, bleu::rt::poller, bleu::rt::wakeup
 
 const usz SOCKET_TAG             = 1;               // poller tag of the socket
 const Duration REPLY_TIMEOUT     = (Duration)5_000_000; // 5 s: a server that does not answer is failing
-// The longest a reply wait goes without checking the worker's stop flag, so
-// that `Audio.close` is answered within this time even while a server is silent.
+                                                    // The longest a reply wait goes without checking the worker's stop flag, so
+                                                    // that `Audio.close` is answered within this time even while a server is silent.
 const Duration STOP_POLL         = (Duration)50_000; // 50 ms
 const uint SUBSCRIBED_FACILITIES = pulse::MASK_SINK | pulse::MASK_SOURCE | pulse::MASK_SINK_INPUT
 	| pulse::MASK_SOURCE_OUTPUT

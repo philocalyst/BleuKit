@@ -56,8 +56,8 @@ fn void? previous(registry::Request* request)
 fn void? seek(registry::Request* request)
 {
 	media::Media* service = (media::Media*)request.handle;
-	ulong player = (ulong)request.params.integer("player")!;
-	Duration offset = (Duration)request.params.integer("offset_us")!;
+	ulong player          = (ulong)request.params.integer("player")!;
+	Duration offset       = (Duration)request.params.integer("offset_us")!;
 	return transport(request, service.seek(player, offset)!);
 }
 

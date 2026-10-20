@@ -29,7 +29,6 @@ c3flags=(--libdir "$libdir" "${args[@]}" --no-entry -O1 --warn-deprecation=error
 echo "== c3c: header"
 c3c "${c3flags[@]}" --header-output "$work/hdr" dynamic-lib "${sources[@]}" -o libbleu_capi >"$work/c3-dyn.log" 2>&1 \
   || { cat "$work/c3-dyn.log"; exit 1; }
-grep -v "warning\|^ \|^$\|Dynamic library" "$work/c3-dyn.log" || true
 
 echo "== genheader"
 gen=(--header "$work/hdr/libbleu_capi.h" --src "$repo/libs/bleu_capi.c3l/src" --libs "$repo/libs" --exports "$work/exports.txt")

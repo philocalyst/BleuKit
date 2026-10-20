@@ -5,7 +5,7 @@ import bleu::notify, bleu::registry, bleu::registry::live, bleu::json, bleu::ope
 <* Open the notification service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	notify::Options opened = {};
+	notify::Options opened  = { };
 	notify::Notify* service = notify::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -16,9 +16,9 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 *>
 fn void? close(registry::Request* request)
 {
-	notify::Notify* service = (notify::Notify*)request.handle;
-	notify::NoteId id = (notify::NoteId)request.params.integer("id")!;
-	uint code = (uint)request.params.int_or("reason", (long)(uint)notify::CloseReason.DISMISSED)!;
+	notify::Notify* service    = (notify::Notify*)request.handle;
+	notify::NoteId id          = (notify::NoteId)request.params.integer("id")!;
+	uint code                  = (uint)request.params.int_or("reason", (long)(uint)notify::CloseReason.DISMISSED)!;
 	notify::CloseReason reason = (notify::CloseReason)code;
 	Operation{bool}* operation = service.close_notification(id, reason)!;
 	defer operation.release();
@@ -29,9 +29,9 @@ fn void? close(registry::Request* request)
 <* `notify.invoke {id, key}`: invoke one of a notification's actions. *>
 fn void? invoke(registry::Request* request)
 {
-	notify::Notify* service = (notify::Notify*)request.handle;
-	notify::NoteId id = (notify::NoteId)request.params.integer("id")!;
-	String key = request.params.string("key")!;
+	notify::Notify* service    = (notify::Notify*)request.handle;
+	notify::NoteId id          = (notify::NoteId)request.params.integer("id")!;
+	String key                 = request.params.string("key")!;
 	Operation{bool}* operation = service.invoke_action(id, key)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;

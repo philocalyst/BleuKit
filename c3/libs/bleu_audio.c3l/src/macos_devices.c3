@@ -44,7 +44,7 @@ fn HalDevice[]? list_devices(Allocator allocator)
 		ids.ptr,
 		size
 	)!;
-	sz count                  = (sz)(written / uint::size);
+	sz count            = (sz)(written / uint::size);
 	HalDevice[] devices = alloc::new_array(allocator, HalDevice, count);
 	for (sz i = 0; i < count; i++)
 	{

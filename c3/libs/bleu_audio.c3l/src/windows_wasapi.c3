@@ -113,7 +113,7 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 	defer windows_endpoints::release_ref(enumerator);
 	NotifyShell* shell = register_notifications(enumerator, backend);
 	// Without notifications the one-second tick still re-reads every state, so a change shows within a second.
-	bool listening = shell != null;
+	bool listening     = shell != null;
 	defer if (listening) unregister_notifications(enumerator, shell);
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 1))

@@ -33,7 +33,7 @@ def check(name, condition, detail=""):
 
 
 def make_fake_tree():
-    """A battery with one charging state, and an empty mains adapter."""
+    """A battery on mains-less discharge, an empty mains adapter and one backlight."""
     os.makedirs(os.path.join(SUPPLY, "BAT0"))
     os.makedirs(os.path.join(SUPPLY, "AC"))
     values = {
@@ -45,6 +45,12 @@ def make_fake_tree():
     }
     for rel, text in values.items():
         with open(os.path.join(SUPPLY, rel), "w") as f:
+            f.write(text + "\n")
+    backlight = os.path.join(FAKE, "sys/class/backlight/intel_backlight")
+    os.makedirs(backlight)
+    for rel, text in {"brightness": "400", "max_brightness": "1000",
+                      "actual_brightness": "400", "type": "firmware"}.items():
+        with open(os.path.join(backlight, rel), "w") as f:
             f.write(text + "\n")
 
 
@@ -91,7 +97,7 @@ def main():
     shutil.rmtree(FAKE, ignore_errors=True)
     make_fake_tree()
     sock = os.path.join(WORK, "bleud.sock")
-    daemon = start_daemon(sock, "battery,brightness,sysinfo", FAKE)
+    daemon = start_daemon(sock, "battery,brightness", FAKE)
     try:
         run_checks(sock)
     finally:
@@ -192,11 +198,13 @@ def check_concurrency(sock):
     def worker(n):
         ok = True
         for k in range(5):
-            _, reply = call(sock, "battery.state", rid=n * 10 + k)
-            if reply.get("id") != n * 10 + k or reply.get("result", {}).get("ok") is not True:
+            # Ids start at 1: the server leaves a zero id out of its replies.
+            rid = n * 10 + k + 1
+            _, reply = call(sock, "battery.state", rid=rid)
+            if reply.get("id") != rid or reply.get("result", {}).get("ok") is not True:
                 print("   battery.state for client %d, call %d: %s" % (n, k, str(reply)[:160]))
                 ok = False
-            _, reply = call(sock, "network.state", rid=n * 10 + k)
+            _, reply = call(sock, "network.state", rid=rid)
             if not reply.get("error", "").startswith("UNAVAILABLE: "):
                 print("   network.state for client %d, call %d: %s" % (n, k, str(reply)[:160]))
                 ok = False

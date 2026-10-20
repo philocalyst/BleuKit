@@ -12,7 +12,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 <* `input.switch {layout}`: switch to a keyboard layout by its id. *>
 fn void? switch_layout(registry::Request* request)
 {
-	input::Input* service = (input::Input*)request.handle;
+	input::Input* service             = (input::Input*)request.handle;
 	input::SwitchOperation* operation = service.switch_to(request.params.string("layout")!)!;
 	defer operation.release();
 	input::SwitchOutcome outcome = registry::await{input::SwitchOutcome}(operation, request.timeout)!;
@@ -22,7 +22,7 @@ fn void? switch_layout(registry::Request* request)
 <* `input.next`: switch to the next keyboard layout. *>
 fn void? next(registry::Request* request)
 {
-	input::Input* service = (input::Input*)request.handle;
+	input::Input* service             = (input::Input*)request.handle;
 	input::SwitchOperation* operation = service.next()!;
 	defer operation.release();
 	input::SwitchOutcome outcome = registry::await{input::SwitchOutcome}(operation, request.timeout)!;

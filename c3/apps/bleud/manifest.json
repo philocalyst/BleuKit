@@ -1,0 +1,19 @@
+{
+  "provides": "bleud",
+  "sources": [
+    "src/**"
+  ],
+  "dependencies": [
+    "bleu_registry",
+    "bleu_ipc",
+    "bleu_json"
+  ],
+  "targets": {
+    "linux-x64": {},
+    "linux-aarch64": {},
+    "macos-x64": {},
+    "macos-aarch64": {},
+    "windows-x64": {},
+    "windows-aarch64": {}
+  }
+}

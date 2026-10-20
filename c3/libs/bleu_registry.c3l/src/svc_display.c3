@@ -5,7 +5,7 @@ import bleu::display, bleu::registry, bleu::registry::live, bleu::json, bleu::re
 <* Open the display service. Its root points at a fake tree for EDID lookup in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	display::Options opened = { .root = options.root };
+	display::Options opened   = { .root = options.root };
 	display::Display* service = display::open(allocator, opened)!;
 	return (void*)service;
 }

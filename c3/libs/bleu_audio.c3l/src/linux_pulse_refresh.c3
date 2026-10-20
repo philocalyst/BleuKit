@@ -147,12 +147,7 @@ fn void? Session.refresh(&self, AudioHub* hub)
 		records.degraded = "";
 		records.sinks = self.read_devices(PulseCommand.GET_SINK_INFO_LIST, false, tmem, &records.degraded)!;
 		records.sources = self.read_devices(PulseCommand.GET_SOURCE_INFO_LIST, true, tmem, &records.degraded)!;
-		records.sink_inputs = self.read_streams(
-			PulseCommand.GET_SINK_INPUT_INFO_LIST,
-			false,
-			tmem,
-			&records.degraded
-		)!;
+		records.sink_inputs = self.read_streams(PulseCommand.GET_SINK_INPUT_INFO_LIST, false, tmem, &records.degraded)!;
 		records.source_outputs = self.read_streams(
 			PulseCommand.GET_SOURCE_OUTPUT_INFO_LIST,
 			true,

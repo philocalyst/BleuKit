@@ -5,7 +5,7 @@ import bleu::brightness, bleu::registry, bleu::registry::live, bleu::json, bleu:
 <* Open the brightness service. Its root points at a fake sysfs tree in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	brightness::Options opened = { .root = options.root };
+	brightness::Options opened      = { .root = options.root };
 	brightness::Brightness* service = brightness::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -18,10 +18,10 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? set(registry::Request* request)
 {
 	brightness::Brightness* service = (brightness::Brightness*)request.handle;
-	String device = request.params.string("device")!;
-	Level level = (Level)(float)request.params.number("level")!;
-	brightness::Policy policy = brightness::DEFAULT_POLICY;
-	String kind = registry::string_or(request.params, "policy", "prefer_hardware")!;
+	String device                   = request.params.string("device")!;
+	Level level                     = (Level)(float)request.params.number("level")!;
+	brightness::Policy policy       = brightness::DEFAULT_POLICY;
+	String kind                     = registry::string_or(request.params, "policy", "prefer_hardware")!;
 	policy.kind = registry::parse_enum{brightness::PolicyKind}(kind)!;
 	if (policy.kind == brightness::PolicyKind.EXACT)
 	{

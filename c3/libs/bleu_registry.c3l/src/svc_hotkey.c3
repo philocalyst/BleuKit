@@ -5,7 +5,7 @@ import bleu::hotkey, bleu::registry, bleu::registry::live, bleu::json, bleu::ope
 <* Open the global hotkey service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	hotkey::Options opened = {};
+	hotkey::Options opened  = { };
 	hotkey::Hotkey* service = hotkey::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -17,9 +17,9 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? register(registry::Request* request)
 {
 	hotkey::Hotkey* service = (hotkey::Hotkey*)request.handle;
-	String id = request.params.string("id")!;
-	String description = registry::string_or(request.params, "description", "")!;
-	hotkey::Chord chord = hotkey::parse_chord(request.params.string("chord")!)!;
+	String id               = request.params.string("id")!;
+	String description      = registry::string_or(request.params, "description", "")!;
+	hotkey::Chord chord     = hotkey::parse_chord(request.params.string("chord")!)!;
 	hotkey::Task* operation = service.register(id, description, chord)!;
 	defer operation.release();
 	hotkey::Binding binding = registry::await{hotkey::Binding}(operation, request.timeout)!;

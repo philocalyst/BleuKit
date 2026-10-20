@@ -12,7 +12,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 <* `session.lock`: lock the current session. *>
 fn void? lock(registry::Request* request)
 {
-	session::Session* service = (session::Session*)request.handle;
+	session::Session* service            = (session::Session*)request.handle;
 	session::SessionOperation* operation = service.lock()!;
 	defer operation.release();
 	session::Request done = registry::await{session::Request}(operation, request.timeout)!;
@@ -22,7 +22,7 @@ fn void? lock(registry::Request* request)
 <* `session.unlock`: unlock the current session. *>
 fn void? unlock(registry::Request* request)
 {
-	session::Session* service = (session::Session*)request.handle;
+	session::Session* service            = (session::Session*)request.handle;
 	session::SessionOperation* operation = service.unlock()!;
 	defer operation.release();
 	session::Request done = registry::await{session::Request}(operation, request.timeout)!;

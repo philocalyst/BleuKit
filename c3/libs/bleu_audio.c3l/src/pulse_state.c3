@@ -238,20 +238,19 @@ fn Stream stream_of(Allocator allocator, StreamRecord* record, Flow flow, String
 	String app_name = find_property(record.props, "application.name");
 	if (app_name.len == 0) app_name = record.media_name;
 	String pid_text = find_property(record.props, "application.process.id");
-	Stream stream = {
-		.id = string::format(allocator, "%d", record.index),
-		.flow = flow,
-		.app_name = app_name.copy(allocator),
-		.app_id = find_property(record.props, "application.id")
-		.copy(allocator), .app_icon = find_property(record.props, "application.icon_name")
-			.copy(allocator), .binary = find_property(record.props, "application.process.binary")
-				.copy(
-					allocator
-				), .pid = (uint)(long)(pid_text.to_long() ?? 0), .device_id = device.copy(
-					allocator
-				), .media_name = record.media_name.copy(
-					allocator
-				), .volume_writable = record.volume_writable, .muted = record.muted, .corked = record.corked, };
+	Stream stream;
+	stream.id = string::format(allocator, "%d", record.index);
+	stream.flow = flow;
+	stream.app_name = app_name.copy(allocator);
+	stream.app_id = find_property(record.props, "application.id").copy(allocator);
+	stream.app_icon = find_property(record.props, "application.icon_name").copy(allocator);
+	stream.binary = find_property(record.props, "application.process.binary").copy(allocator);
+	stream.pid = (uint)(long)(pid_text.to_long() ?? 0);
+	stream.device_id = device.copy(allocator);
+	stream.media_name = record.media_name.copy(allocator);
+	stream.volume_writable = record.volume_writable;
+	stream.muted = record.muted;
+	stream.corked = record.corked;
 	if (record.has_volume) stream.volume = gains_of(allocator, &record.volume);
 	return stream;
 }

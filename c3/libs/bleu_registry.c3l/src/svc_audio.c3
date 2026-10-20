@@ -30,7 +30,14 @@ fn usz? fill_device_gains(audio::Audio* service, audio::Flow flow, String id, Le
 		usz channels = device.volume.len;
 		if (channels == 0 || channels > gains.len)
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "device %s has %d channels", id, channels)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"device %s has %d channels",
+				id,
+				channels
+			)~;
 		}
 		for (usz i = 0; i < channels; i++)
 		{
@@ -47,12 +54,12 @@ fn usz? fill_device_gains(audio::Audio* service, audio::Flow flow, String id, Le
 *>
 fn void? set_volume(registry::Request* request)
 {
-	audio::Audio* service = (audio::Audio*)request.handle;
-	audio::Flow flow = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
-	String id = request.params.string("id")!;
-	Level level = (Level)(float)request.params.number("volume")!;
+	audio::Audio* service     = (audio::Audio*)request.handle;
+	audio::Flow flow          = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
+	String id                 = request.params.string("id")!;
+	Level level               = (Level)(float)request.params.number("volume")!;
 	Gain[CHANNEL_LIMIT] gains;
-	usz channels = fill_device_gains(service, flow, id, level, &gains)!;
+	usz channels              = fill_device_gains(service, flow, id, level, &gains)!;
 	audio::Pending* operation = service.set_device_volume(flow, id, gains[0:channels])!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;
@@ -62,10 +69,10 @@ fn void? set_volume(registry::Request* request)
 <* `audio.set_mute {flow, id, muted}`: mute or unmute a device. *>
 fn void? set_mute(registry::Request* request)
 {
-	audio::Audio* service = (audio::Audio*)request.handle;
-	audio::Flow flow = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
-	String id = request.params.string("id")!;
-	bool muted = request.params.boolean("muted")!;
+	audio::Audio* service     = (audio::Audio*)request.handle;
+	audio::Flow flow          = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
+	String id                 = request.params.string("id")!;
+	bool muted                = request.params.boolean("muted")!;
 	audio::Pending* operation = service.set_device_mute(flow, id, muted)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;
@@ -75,9 +82,9 @@ fn void? set_mute(registry::Request* request)
 <* `audio.set_default {flow, id}`: make a device the default output or input. *>
 fn void? set_default(registry::Request* request)
 {
-	audio::Audio* service = (audio::Audio*)request.handle;
-	audio::Flow flow = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
-	String id = request.params.string("id")!;
+	audio::Audio* service     = (audio::Audio*)request.handle;
+	audio::Flow flow          = registry::parse_enum{audio::Flow}(request.params.string("flow")!)!;
+	String id                 = request.params.string("id")!;
 	audio::Pending* operation = service.set_default(flow, id)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;
@@ -85,7 +92,11 @@ fn void? set_default(registry::Request* request)
 }
 
 const registry::Command[3] COMMANDS = {
-	{ .name = "audio.set_volume", .summary = "Set every channel of a device: {flow, id, volume}.", .run = &set_volume },
+	{
+		.name = "audio.set_volume",
+		.summary = "Set every channel of a device: {flow, id, volume}.",
+		.run = &set_volume
+	},
 	{ .name = "audio.set_mute", .summary = "Mute or unmute a device: {flow, id, muted}.", .run = &set_mute },
 	{ .name = "audio.set_default", .summary = "Make a device the default: {flow, id}.", .run = &set_default },
 };

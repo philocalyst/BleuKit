@@ -13,5 +13,10 @@ import bleu::error, bleuctl::options;
 *>
 fn int? run(options::Options opts)
 {
-	return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "talking to bleud needs Unix domain sockets; use --embedded")~;
+	return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"talking to bleud needs Unix domain sockets; use --embedded"
+	)~;
 }

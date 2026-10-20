@@ -21,8 +21,9 @@ const ulong TASK_MS    = 10000;
 const int EVENT_ROUNDS = 25;
 // The pairing deadline of the completion checks: short, so that an unanswered pairing ends quickly.
 const ulong PAIRING_MS = 2000;
-// How long a check waits for a task that must end by its deadline.
-const ulong FINISH_MS  = 6000;
+// How long a check waits for a task that must end by its deadline. Longer than the bus's own 25 s default,
+// so that a pairing which the code before the fix would complete with its stale success is still seen.
+const ulong FINISH_MS  = 30000;
 // Requests posted at once when a service is stopped, and how many times the stop is repeated.
 const int BURST        = 50;
 const int BURST_ROUNDS = 20;
@@ -486,9 +487,11 @@ fn void deadline_checks(String address, String root)
 	if (hang)
 	{
 		defer hang.release();
+		bool ended = ends_within(hang, FINISH_MS);
+		expect(ended, "an unanswered pairing ends at its deadline while the worker is idle");
 		expect(
-			ends_within(hang, FINISH_MS) && hang.failure == TIMEOUT,
-			"an unanswered pairing ends at its deadline while the worker is idle"
+			ended && hang.failure == TIMEOUT,
+			"a pairing that times out is a timeout, not a success left over from an earlier AlreadyExists"
 		);
 	}
 
@@ -499,10 +502,8 @@ fn void deadline_checks(String address, String root)
 		defer phone.release();
 		PromptSeen prompt = wait_for_prompt(events, bluetooth::PromptKind.PASSKEY_ENTRY, PHONE);
 		expect(prompt.found, "phone asks for a passkey");
-		expect(
-			ends_within(phone, FINISH_MS) && phone.failure == TIMEOUT,
-			"an unanswered pairing ends at its deadline"
-		);
+		bool ended = ends_within(phone, FINISH_MS);
+		expect(ended && phone.failure == TIMEOUT, "an unanswered pairing ends at its deadline");
 		expect(prompt_ended(events, prompt.id), "the prompt of an ended pairing is closed");
 		Task* late = bt.reply_pairing(prompt.id, true, "123456") ?? null;
 		if (late)

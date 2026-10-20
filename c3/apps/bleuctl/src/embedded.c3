@@ -28,7 +28,7 @@ fn int? run(options::Options opts)
 	{
 		usz dot = 0;
 		while (dot < service.len && service[dot] != '.') dot++;
-		service = service[0 : dot];
+		service = service[0:dot];
 	}
 	usz index = registry::index_of_service(service)!;
 	registry::Slot slot;
@@ -82,7 +82,7 @@ fn int? one_shot(registry::Slot* slot, options::Options opts) @private
 		}
 		else
 		{
-			Object* params = parse_params(opts.params)!;
+			Object* params                 = parse_params(opts.params)!;
 			bleu::json::read::Params given = { .object = params };
 			slot.call(opts.target, given, &out)!;
 		}

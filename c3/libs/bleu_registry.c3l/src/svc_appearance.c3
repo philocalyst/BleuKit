@@ -13,8 +13,8 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? set_color_scheme(registry::Request* request)
 {
 	appearance::Appearance* service = (appearance::Appearance*)request.handle;
-	appearance::ColorScheme scheme = registry::parse_enum{appearance::ColorScheme}(request.params.string("scheme")!)!;
-	Operation{bool}* operation = service.set_color_scheme(scheme)!;
+	appearance::ColorScheme scheme  = registry::parse_enum{appearance::ColorScheme}(request.params.string("scheme")!)!;
+	Operation{bool}* operation      = service.set_color_scheme(scheme)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
@@ -24,14 +24,18 @@ fn void? set_color_scheme(registry::Request* request)
 fn void? set_wallpaper(registry::Request* request)
 {
 	appearance::Appearance* service = (appearance::Appearance*)request.handle;
-	Operation{bool}* operation = service.set_wallpaper(request.params.string("path")!)!;
+	Operation{bool}* operation      = service.set_wallpaper(request.params.string("path")!)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
 const registry::Command[2] COMMANDS = {
-	{ .name = "appearance.set_color_scheme", .summary = "Dark, light or no preference: {scheme}.", .run = &set_color_scheme },
+	{
+		.name = "appearance.set_color_scheme",
+		.summary = "Dark, light or no preference: {scheme}.",
+		.run = &set_color_scheme
+	},
 	{ .name = "appearance.set_wallpaper", .summary = "Set the wallpaper: {path}.", .run = &set_wallpaper },
 };
 

@@ -359,7 +359,11 @@ fn void LoginctlModule.run_barrier(&self)
 		// A timeout is normal (poll the stop flag again); anything else means the stream is gone.
 		if (catch err = next)
 		{
-			if (err != TIMEOUT) return;
+			if (err != TIMEOUT)
+			{
+				contract::warn("loginctl: power events stopped; the sleep barrier is off");
+				return;
+			}
 		}
 	}
 }

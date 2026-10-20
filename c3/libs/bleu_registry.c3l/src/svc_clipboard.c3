@@ -5,7 +5,7 @@ import bleu::clipboard, bleu::registry, bleu::registry::live, bleu::json, bleu::
 <* Open the clipboard service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	clipboard::Options opened = {};
+	clipboard::Options opened     = { };
 	clipboard::Clipboard* service = clipboard::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -14,10 +14,10 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? set_text(registry::Request* request)
 {
 	clipboard::Clipboard* service = (clipboard::Clipboard*)request.handle;
-	String slot = registry::string_or(request.params, "slot", "clipboard")!;
-	clipboard::Slot target = registry::parse_enum{clipboard::Slot}(slot)!;
-	String text = request.params.string("text")!;
-	Operation{ulong}* operation = service.set_text(target, text)!;
+	String slot                   = registry::string_or(request.params, "slot", "clipboard")!;
+	clipboard::Slot target        = registry::parse_enum{clipboard::Slot}(slot)!;
+	String text                   = request.params.string("text")!;
+	Operation{ulong}* operation   = service.set_text(target, text)!;
 	defer operation.release();
 	ulong id = registry::await{ulong}(operation, request.timeout)!;
 	return registry::write_value(request.out, "id", id);
@@ -26,9 +26,9 @@ fn void? set_text(registry::Request* request)
 <* `clipboard.fetch {id, mime}`: the bytes of one history entry in one MIME type, as base64. *>
 fn void? fetch(registry::Request* request)
 {
-	clipboard::Clipboard* service = (clipboard::Clipboard*)request.handle;
-	clipboard::Entry entry = { .id = (ulong)request.params.integer("id")! };
-	String mime = request.params.string("mime")!;
+	clipboard::Clipboard* service          = (clipboard::Clipboard*)request.handle;
+	clipboard::Entry entry                 = { .id = (ulong)request.params.integer("id")! };
+	String mime                            = request.params.string("mime")!;
 	Operation{clipboard::Bytes}* operation = service.fetch(entry, mime)!;
 	defer operation.release();
 	clipboard::Bytes bytes = registry::await{clipboard::Bytes}(operation, request.timeout)!;

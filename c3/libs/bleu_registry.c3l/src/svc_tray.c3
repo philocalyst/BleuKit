@@ -21,9 +21,9 @@ fn void? finish(registry::Request* request, tray::CommandOp* operation) @private
 fn void? activate(registry::Request* request)
 {
 	tray::Tray* service = (tray::Tray*)request.handle;
-	String item = request.params.string("item")!;
-	int x = (int)request.params.int_or("x", 0)!;
-	int y = (int)request.params.int_or("y", 0)!;
+	String item         = request.params.string("item")!;
+	int x               = (int)request.params.int_or("x", 0)!;
+	int y               = (int)request.params.int_or("y", 0)!;
 	return finish(request, service.activate(item, x, y)!);
 }
 
@@ -31,9 +31,9 @@ fn void? activate(registry::Request* request)
 fn void? secondary_activate(registry::Request* request)
 {
 	tray::Tray* service = (tray::Tray*)request.handle;
-	String item = request.params.string("item")!;
-	int x = (int)request.params.int_or("x", 0)!;
-	int y = (int)request.params.int_or("y", 0)!;
+	String item         = request.params.string("item")!;
+	int x               = (int)request.params.int_or("x", 0)!;
+	int y               = (int)request.params.int_or("y", 0)!;
 	return finish(request, service.secondary_activate(item, x, y)!);
 }
 
@@ -41,9 +41,9 @@ fn void? secondary_activate(registry::Request* request)
 fn void? context_menu(registry::Request* request)
 {
 	tray::Tray* service = (tray::Tray*)request.handle;
-	String item = request.params.string("item")!;
-	int x = (int)request.params.int_or("x", 0)!;
-	int y = (int)request.params.int_or("y", 0)!;
+	String item         = request.params.string("item")!;
+	int x               = (int)request.params.int_or("x", 0)!;
+	int y               = (int)request.params.int_or("y", 0)!;
 	return finish(request, service.context_menu(item, x, y)!);
 }
 
@@ -51,15 +51,19 @@ fn void? context_menu(registry::Request* request)
 fn void? scroll(registry::Request* request)
 {
 	tray::Tray* service = (tray::Tray*)request.handle;
-	String item = request.params.string("item")!;
-	int delta = (int)request.params.integer("delta")!;
-	bool horizontal = request.params.boolean("horizontal") ?? false;
+	String item         = request.params.string("item")!;
+	int delta           = (int)request.params.integer("delta")!;
+	bool horizontal     = request.params.boolean("horizontal") ?? false;
 	return finish(request, service.scroll(item, delta, horizontal)!);
 }
 
 const registry::Command[4] COMMANDS = {
 	{ .name = "tray.activate", .summary = "Primary action of an item: {item, x?, y?}.", .run = &activate },
-	{ .name = "tray.secondary_activate", .summary = "Secondary action of an item: {item, x?, y?}.", .run = &secondary_activate },
+	{
+		.name = "tray.secondary_activate",
+		.summary = "Secondary action of an item: {item, x?, y?}.",
+		.run = &secondary_activate
+	},
 	{ .name = "tray.context_menu", .summary = "Open an item's menu: {item, x?, y?}.", .run = &context_menu },
 	{ .name = "tray.scroll", .summary = "Scroll over an item: {item, delta, horizontal?}.", .run = &scroll },
 };

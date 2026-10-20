@@ -16,6 +16,11 @@ const String SOCKET_NAME = "bleud.sock";
 fn String? default_socket_path(Allocator allocator)
 {
 	String runtime = env::tget_var("XDG_RUNTIME_DIR") ?? "";
-	if (runtime.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "XDG_RUNTIME_DIR is not set; pass --socket")~;
+	if (runtime.len == 0) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"XDG_RUNTIME_DIR is not set; pass --socket"
+	)~;
 	return string::tformat("%s/%s", runtime, SOCKET_NAME).copy(allocator);
 }

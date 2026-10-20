@@ -6,7 +6,7 @@ import bleu::apps, bleu::registry, bleu::registry::live, bleu::json, bleu::opera
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
 	apps::Options opened = { .root = options.root };
-	apps::Apps* service = apps::open(allocator, opened)!;
+	apps::Apps* service  = apps::open(allocator, opened)!;
 	return (void*)service;
 }
 
@@ -16,11 +16,10 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 *>
 fn void? launch(registry::Request* request)
 {
-	apps::Apps* service = (apps::Apps*)request.handle;
-	String app_id = request.params.string("app_id")!;
-	String action = registry::string_or(request.params, "action", "")!;
-	apps::LaunchOperation* operation = action.len == 0
-		? service.launch(app_id)!
+	apps::Apps* service              = (apps::Apps*)request.handle;
+	String app_id                    = request.params.string("app_id")!;
+	String action                    = registry::string_or(request.params, "action", "")!;
+	apps::LaunchOperation* operation = action.len == 0 ? service.launch(app_id)!
 		: service.launch_action(app_id, action)!;
 	defer operation.release();
 	apps::Launched launched = registry::await{apps::Launched}(operation, request.timeout)!;
@@ -39,12 +38,12 @@ fn int no_bonus(void* context, apps::App* app) @private
 *>
 fn void? search(registry::Request* request)
 {
-	apps::Apps* service = (apps::Apps*)request.handle;
-	String query = request.params.string("query")!;
+	apps::Apps* service   = (apps::Apps*)request.handle;
+	String query          = request.params.string("query")!;
 	apps::Ranking ranking = service.search(query, &no_bonus, null, mem)!;
 	defer ranking.release();
 	apps::State state = ranking.snapshot.value;
-	long limit = request.params.int_or("limit", (long)ranking.hits.len)!;
+	long limit        = request.params.int_or("limit", (long)ranking.hits.len)!;
 	request.out.begin_object()!;
 	request.out.key("ok")!;
 	request.out.put_bool(true)!;

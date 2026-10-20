@@ -16,7 +16,7 @@ Atomic{bool} stop_requested;
 alias SignalHandler = fn void(int signal_number);
 
 // POSIX signal numbers: SIGINT is 2 and SIGTERM is 15 on Linux and macOS (signal.h).
-const int SIGINT = 2;
+const int SIGINT  = 2;
 const int SIGTERM = 15;
 
 extern fn void* install_handler(int signal_number, SignalHandler handler) @cname("signal");
@@ -103,7 +103,10 @@ fn int count_open(Daemon* daemon) @private
 fn void? start(Daemon* daemon, String path)
 {
 	daemon.capabilities = { "services", "topics", "commands" };
-	daemon.server.init(mem, { .app_name = "bleud", .api_version = 1, .capabilities = daemon.capabilities[..], .socket_path = path })!;
+	daemon.server.init(
+		mem,
+		{ .app_name = "bleud", .api_version = 1, .capabilities = daemon.capabilities[..], .socket_path = path }
+	)!;
 	foreach (i, &slot : daemon.slots)
 	{
 		daemon.topics[i] = daemon.server.register_topic(slot.spec.name)!;
@@ -177,8 +180,8 @@ fn void? answer(Daemon* daemon, ipc::Call* call, json::JsonWriter* out) @private
 	if (call.method == "services") return write_services(daemon, out);
 	usz dot = 0;
 	while (dot < call.method.len && call.method[dot] != '.') dot++;
-	String service = call.method[0 : dot];
-	String verb = dot < call.method.len ? call.method[dot + 1 : call.method.len - dot - 1] : "";
+	String service       = call.method[0:dot];
+	String verb          = dot < call.method.len ? call.method[dot + 1:call.method.len - dot - 1] : "";
 	registry::Slot* slot = slot_named(daemon, service)!;
 	if (verb == "state") return slot.write_state(out);
 	if (verb == "capabilities") return slot.write_capabilities(out);

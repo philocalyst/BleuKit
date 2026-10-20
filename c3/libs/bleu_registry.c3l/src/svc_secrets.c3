@@ -10,7 +10,7 @@ import bleu::secrets, bleu::registry, bleu::registry::live, bleu::json, bleu::op
 <* Open the keyring service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
 {
-	secrets::Options opened = {};
+	secrets::Options opened   = { };
 	secrets::Keyring* service = secrets::open(allocator, opened)!;
 	return (void*)service;
 }
@@ -24,9 +24,9 @@ fn secrets::Entry? entry_of(registry::Request* request) @private
 <* `secrets.store {service, account, value}`: save a secret. The value is not echoed back. *>
 fn void? store(registry::Request* request)
 {
-	secrets::Keyring* service = (secrets::Keyring*)request.handle;
-	secrets::Entry entry = entry_of(request)!;
-	String value = request.params.string("value")!;
+	secrets::Keyring* service            = (secrets::Keyring*)request.handle;
+	secrets::Entry entry                 = entry_of(request)!;
+	String value                         = request.params.string("value")!;
 	Operation{secrets::Entry}* operation = service.store(entry, (char[])value)!;
 	defer operation.release();
 	registry::await{secrets::Entry}(operation, request.timeout)!;
@@ -36,8 +36,8 @@ fn void? store(registry::Request* request)
 <* `secrets.read {service, account}`: the stored value, as base64 in the reply. *>
 fn void? read(registry::Request* request)
 {
-	secrets::Keyring* service = (secrets::Keyring*)request.handle;
-	secrets::Entry entry = entry_of(request)!;
+	secrets::Keyring* service             = (secrets::Keyring*)request.handle;
+	secrets::Entry entry                  = entry_of(request)!;
 	Operation{secrets::Secret}* operation = service.read(entry)!;
 	defer operation.release();
 	secrets::Secret secret = registry::await{secrets::Secret}(operation, request.timeout)!;
@@ -47,8 +47,8 @@ fn void? read(registry::Request* request)
 <* `secrets.delete {service, account}`: remove a stored secret. *>
 fn void? delete(registry::Request* request)
 {
-	secrets::Keyring* service = (secrets::Keyring*)request.handle;
-	secrets::Entry entry = entry_of(request)!;
+	secrets::Keyring* service  = (secrets::Keyring*)request.handle;
+	secrets::Entry entry       = entry_of(request)!;
 	Operation{bool}* operation = service.delete(entry)!;
 	defer operation.release();
 	registry::await{bool}(operation, request.timeout)!;

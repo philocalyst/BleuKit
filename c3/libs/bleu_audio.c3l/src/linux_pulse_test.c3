@@ -36,9 +36,8 @@ fn void missing_explicit_cookie_fails_the_open() @test
 fn void pulse_server_must_name_a_unix_socket() @test
 {
 	assert(linux_pulse::unix_socket_of("unix:/run/bleu-a")!! == "/run/bleu-a", "a unix address is used");
-	assert(
-		linux_pulse::unix_socket_of("tcp:example.org:4713 unix:/run/bleu-b")!! == "/run/bleu-b",
-		"the first unix address of a list is used"
-	);
+	assert(linux_pulse::unix_socket_of(
+		"tcp:example.org:4713 unix:/run/bleu-b"
+	)!! == "/run/bleu-b", "the first unix address of a list is used");
 	test::@error(linux_pulse::unix_socket_of("tcp:example.org:4713"), error::UNSUPPORTED);
 }

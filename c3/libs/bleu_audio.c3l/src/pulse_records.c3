@@ -47,8 +47,8 @@ const uint FLAG_HW_VOLUME_CTRL = 0x0001;
 
 // The fewest bytes one list entry can occupy, for the count checks: two strings
 // ('N' is one byte) and a u32 with its tag (five bytes), plus the fields that follow.
-const sz PORT_MIN_BYTES    = 1 + 1 + 5;           // name, description, priority
-const sz PROFILE_MIN_BYTES = 1 + 1 + 5 + 5 + 5;   // name, description, sinks, sources, priority
+const sz PORT_MIN_BYTES    = 1 + 1 + 5;         // name, description, priority
+const sz PROFILE_MIN_BYTES = 1 + 1 + 5 + 5 + 5; // name, description, sinks, sources, priority
 
 <* What the server says about itself and its defaults. *>
 struct ServerInfo

@@ -72,11 +72,11 @@ fn bool endpoint_property(windows_com::IMMDevice* device, windows_com::PropertyK
 <*
  The friendly name of an endpoint, copied into `allocator`; the endpoint id when the name is missing.
 
- Ownership: the PROPVARIANT owns its VT_LPWSTR payload. `PropVariantClear` frees it
- with CoTaskMemFree (Microsoft Learn, PropVariantClear: "frees the contents" of a
- variant), and it runs once, when this function returns. The name is therefore
- copied with `text::from_wide`, not taken with `take_wide`, which would free the
- same pointer a second time.
+ Ownership: the PROPVARIANT owns its string payload. Microsoft Learn (PropVariantClear,
+ combaseapi.h) says the function "frees all elements that can be freed in a given
+ PROPVARIANT structure" and writes zeroes to it. That call runs once, when this
+ function returns, so the name is copied with `text::from_wide` and the payload is
+ not freed a second time by `take_wide`.
 *>
 fn String endpoint_name(Allocator allocator, windows_com::IMMDevice* device, String fallback) @local
 {
@@ -218,7 +218,9 @@ fn Device endpoint_device(
 		.volume_is_hardware = false,
 	};
 	made.level = volume::loudest(made.volume).nominal();
-	if (made.volume.len == 2) made.balance = maybe::value(volume::stereo_balance((float)made.volume[0], (float)made.volume[1]));
+	if (made.volume.len == 2) made.balance = maybe::value(
+		volume::stereo_balance((float)made.volume[0], (float)made.volume[1])
+	);
 	return made;
 }
 

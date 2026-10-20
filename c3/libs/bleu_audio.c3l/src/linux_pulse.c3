@@ -61,13 +61,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	{
 		free_owned(allocator, socket);
 		free_owned(allocator, cookie);
-		return error::raise(
-			NOT_FOUND,
-			error::Domain.INTERNAL,
-			0,
-			"cookie file %s does not exist",
-			cookie
-		)~;
+		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "cookie file %s does not exist", cookie)~;
 	}
 	return alloc::new(allocator, PulseBackend, { .socket_path = socket, .cookie_path = cookie });
 }

@@ -420,7 +420,17 @@ int main(int argc, char **argv)
         CHECK(bleu_battery_subscribe(battery, &reader) == BLEU_STATUS_OK);
         CHECK(bleu_battery_close(battery) == BLEU_STATUS_INVALID_STATE);  /* a reader is still open */
         bleu_reader_release(reader);
+
+        /* Closing with a listener still registered removes it, with no use after the close. */
+        watch_state left;
+        memset(&left, 0, sizeof left);
+        pthread_mutex_init(&left.mutex, NULL);
+        pthread_cond_init(&left.changed, NULL);
+        uint64_t left_id = 0;
+        CHECK(bleu_battery_watch(battery, on_battery, &left, &left_id) == BLEU_STATUS_OK);
         CHECK(bleu_battery_close(battery) == BLEU_STATUS_OK);
+        pthread_cond_destroy(&left.changed);
+        pthread_mutex_destroy(&left.mutex);
     }
 
     bleu_brightness_options_t brightness_options;

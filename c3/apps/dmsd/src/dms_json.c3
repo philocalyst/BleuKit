@@ -8,7 +8,7 @@
  Module-specific shapes live in the module file.
 *>
 module dmsd::wire;
-import bleu::json, bleu::error, bleu::ipc;
+import bleu::json, bleu::error, bleu::ipc, std::time;
 
 <*
  A JSON value being written into temporary memory. Declare it in place and call
@@ -69,6 +69,26 @@ fn void? key_strings(bleu::json::JsonWriter* writer, String key, String[] values
 	writer.begin_array()!;
 	foreach (value : values) writer.put_string(value)!;
 	writer.end_array()!;
+}
+
+<*
+ `"key": "<RFC 3339 UTC>"`: Go's `time.Time` as `encoding/json` writes it (for example
+ the clipboard timestamps and the wayland sun times). Used by the modules that carry times.
+*>
+fn void? key_time(bleu::json::JsonWriter* writer, String key, Time value)
+{
+	writer.key(key)!;
+	writer.put_time(value)!;
+}
+
+<*
+ `"key": "<base64>"`: Go's `[]byte` as `encoding/json` writes it (clipboard entry data).
+ Used by the modules that carry byte payloads.
+*>
+fn void? key_bytes(bleu::json::JsonWriter* writer, String key, char[] bytes)
+{
+	writer.key(key)!;
+	writer.put_bytes(bytes)!;
 }
 
 <*
