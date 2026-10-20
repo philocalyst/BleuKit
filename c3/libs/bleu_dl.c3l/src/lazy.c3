@@ -20,8 +20,8 @@ import std::thread, std::atomic, bleu::error, bleu::dl;
 <* The states of a lazy table, stored as an `int` in an `Atomic`. *>
 const int UNBOUND = 0;
 const int BINDING = 1;
-const int BOUND = 2;
-const int FAILED = 3;
+const int BOUND   = 2;
+const int FAILED  = 3;
 
 <*
  One table, bound at most once. Declare it as a global.
@@ -37,9 +37,9 @@ struct Lazy
 <*
  The bound table, binding it from `candidates` on the first call.
 
- @param [&inout] candidates : "Library names or paths, used only by the first call"
- @return? UNAVAILABLE : "The library could not be opened (the outcome is cached)"
- @return? UNSUPPORTED : "A required symbol is missing (the outcome is cached)"
+ @param candidates : "Library names or paths, used only by the first call"
+ @return? error::UNAVAILABLE : "The library could not be opened (the outcome is cached)"
+ @return? error::UNSUPPORTED : "A required symbol is missing (the outcome is cached)"
 *>
 fn Table*? Lazy.get(&self, String[] candidates)
 {
@@ -58,20 +58,19 @@ fn Table*? Lazy.get(&self, String[] candidates)
 // Called by the one thread that won the claim on `phase`.
 fn void Lazy.bind(&self, String[] candidates)
 {
-	Library? opened = dl::open(candidates);
-	if (catch opened)
+	if (try library = dl::open(candidates))
 	{
-		self.record_failure();
+		self.library = library;
+		if (catch dl::bind(&self.table, &self.library))
+		{
+			self.library.close();
+			self.record_failure();
+			return;
+		}
+		self.phase.store(BOUND);
 		return;
 	}
-	self.library = opened!!;
-	if (catch dl::bind(&self.table, &self.library))
-	{
-		self.library.close();
-		self.record_failure();
-		return;
-	}
-	self.phase.store(BOUND);
+	self.record_failure();
 }
 
 fn void Lazy.record_failure(&self)

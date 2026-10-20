@@ -20,11 +20,27 @@ import std::os, bleu::error, bleu::dl::native;
  `Library` is a value: keep it in the service that uses it, and close it only
  when nothing can call into it any more (see `close`).
 *>
+const sz LIBRARY_NAME_CAPACITY = 256;
+
 struct Library
 {
 	DylibHandle handle;
-	String name;          // The candidate that opened, copied at open time
-	bool is_program;      // The main program: never unloaded
+	char[LIBRARY_NAME_CAPACITY] label; // The candidate that opened; longer names are cut
+	sz label_len;
+	bool is_program; // The main program: never unloaded
+}
+
+<* The candidate that opened, or "the main program". *>
+fn String Library.name(&self) => (String)self.label[:self.label_len];
+
+// The library's name is stored inline, so a library owns no heap memory and a
+// lazily bound global never leaks.
+fn Library new_library(DylibHandle handle, String name, bool is_program) @inline
+{
+	Library library = { .handle = handle, .is_program = is_program };
+	library.label_len = min(name.len, LIBRARY_NAME_CAPACITY);
+	mem::copy(&library.label, name.ptr, library.label_len);
+	return library;
 }
 
 <*
@@ -58,12 +74,18 @@ fn Library? open(String[] candidates, DylibOpenOptions options = DEFAULT_OPTIONS
 		foreach (name : candidates)
 		{
 			DylibHandle handle = std::os::dlopen(name.zstr_tcopy(), options);
-			if (handle) return { .handle = handle, .name = name.copy(mem) };
+			if (handle) return new_library(handle, name, false);
 			failure = native::last_failure();
 		}
-		return error::raise(error::UNAVAILABLE, failure.domain, failure.code,
+		return error::raise(
+			error::UNAVAILABLE,
+			failure.domain,
+			failure.code,
 			"no library loadable from %d candidate(s), last '%s': %s",
-			candidates.len, candidates[^1], failure.text)~;
+			candidates.len,
+			candidates[^1],
+			failure.text
+		)~;
 	};
 }
 
@@ -88,16 +110,20 @@ fn Library? main_program()
 		if (!handle)
 		{
 			native::Failure failure = native::last_failure();
-			return error::raise(error::UNAVAILABLE, failure.domain, failure.code,
-				"cannot obtain the main program's handle: %s", failure.text)~;
+			return error::raise(
+				error::UNAVAILABLE,
+				failure.domain,
+				failure.code,
+				"cannot obtain the main program's handle: %s",
+				failure.text
+			)~;
 		}
-		return { .handle = handle, .name = "the main program".copy(mem), .is_program = true };
+		return new_library(handle, "the main program", true);
 	};
 }
 
 <*
- Unload the library, or for the main program only forget it, and free its
- name.
+ Unload the library, or for the main program only forget it.
 
  Unsafe: after `close`, every function pointer and address obtained from this
  library dangles. Close only when no code can still run from it, and only
@@ -108,8 +134,7 @@ fn void Library.close(&self)
 {
 	if (!self.handle) return;
 	if (!self.is_program) self.handle.close();
-	alloc::free(mem, self.name.ptr);
-	*self = {};
+	*self = { };
 }
 
 <*
@@ -152,8 +177,15 @@ fn void*? Library.symbol(&self, String name)
 		if (!address)
 		{
 			native::Failure failure = native::last_failure();
-			return error::raise(NOT_FOUND, failure.domain, failure.code,
-				"symbol '%s' not found in %s: %s", name, self.name, failure.text)~;
+			return error::raise(
+				NOT_FOUND,
+				failure.domain,
+				failure.code,
+				"symbol '%s' not found in %s: %s",
+				name,
+				self.name(),
+				failure.text
+			)~;
 		}
 	};
 	return address;
