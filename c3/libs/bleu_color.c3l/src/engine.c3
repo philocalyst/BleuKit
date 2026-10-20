@@ -11,7 +11,7 @@
  their new state: a refused display stays refused, and the others are not rolled back.
 *>
 module bleu::color::engine;
-import bleu::color, bleu::color::kelvin, bleu::color::ramp, bleu::color::schedule, bleu::error, bleu::operation, bleu::observe, bleu::rt::worker, bleu::unit, std::collections::maybe, std::time, std::time::datetime, std::math;
+import bleu::color, bleu::color::kelvin, bleu::color::ramp, bleu::color::schedule, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::unit, std::collections::maybe, std::time, std::time::datetime, std::math, std::core::mem;
 
 <*
  Writes a ramp to display `index`, acquiring the display's gamma control when it does not hold it.
@@ -398,4 +398,28 @@ fn void Engine.cancel_queued(&self, Host{Command}* host)
 			batch[i].operation.release();
 		}
 	}
+}
+
+<*
+ The worker loop of a backend with no descriptor to wait on (Windows, macOS): wait for a command
+ or the next tick, then run the commands, re-evaluate the schedule and publish. Returns when the
+ worker stops; commands still queued end CANCELLED.
+*>
+fn void serve_timed(Engine* engine, Host{Command}* host, Duration tick)
+{
+	Poller poller;
+	if (catch poller.init(mem, host.wakeup(), 0)) return;
+	defer poller.free();
+	engine.publish();
+	while (!host.stopping())
+	{
+		// TIMEOUT is the normal tick; a command wakes the wait early.
+		if (catch poller.wait(tick))
+		{
+		}
+		engine.drain(host);
+		engine.tick();
+		engine.publish();
+	}
+	engine.cancel_queued(host);
 }

@@ -50,12 +50,10 @@ const ushort CONFIG_HEAD_SET_SCALE = 4;
 const uint SERIAL = 7;
 const uint CONFIG_TIMEOUT_NANOS_AHEAD = 2_000_000_000;
 
-// The wl_output the read-only route binds, the xdg output made from it, and the wlr head and mode.
+// Globals of the scenarios, and the ids the compositor gives the head and mode it creates.
 const uint OUTPUT_GLOBAL = 1;
 const uint XDG_GLOBAL = 2;
 const uint MANAGER_GLOBAL = 5;
-const uint OUTPUT_OBJECT = 0xFF000001;
-const uint XDG_OBJECT = 0xFF000002;
 const uint HEAD_OBJECT = 0xFF000003;
 const uint MODE_OBJECT = 0xFF000004;
 
@@ -121,10 +119,11 @@ fn uint serve_registry(testing::MockServer* s, bool wlr)
 }
 
 // The wl_output and xdg-output events for the one output: 1920x1080 at 60 Hz, scale 1, named DP-1.
-fn void send_output(testing::MockServer* s)
+// `output` and `xdg` are the ids the client chose for them.
+fn void send_output(testing::MockServer* s, uint output, uint xdg)
 {
 	wire::Writer geometry;
-	geometry.begin(OUTPUT_OBJECT, WL_OUTPUT_GEOMETRY);
+	geometry.begin(output, WL_OUTPUT_GEOMETRY);
 	geometry.put_int(0)!!;
 	geometry.put_int(0)!!;
 	geometry.put_int(340)!!;
@@ -135,35 +134,35 @@ fn void send_output(testing::MockServer* s)
 	geometry.put_int(0)!!;
 	s.send(&geometry)!!;
 	wire::Writer mode;
-	mode.begin(OUTPUT_OBJECT, WL_OUTPUT_MODE);
+	mode.begin(output, WL_OUTPUT_MODE);
 	mode.put_uint(3)!!; // current | preferred
 	mode.put_int(1920)!!;
 	mode.put_int(1080)!!;
 	mode.put_int(60000)!!;
 	s.send(&mode)!!;
 	wire::Writer scale;
-	scale.begin(OUTPUT_OBJECT, WL_OUTPUT_SCALE);
+	scale.begin(output, WL_OUTPUT_SCALE);
 	scale.put_int(1)!!;
 	s.send(&scale)!!;
 	wire::Writer name;
-	name.begin(OUTPUT_OBJECT, WL_OUTPUT_NAME);
+	name.begin(output, WL_OUTPUT_NAME);
 	name.put_string("DP-1")!!;
 	s.send(&name)!!;
 	wire::Writer done;
-	done.begin(OUTPUT_OBJECT, WL_OUTPUT_DONE);
+	done.begin(output, WL_OUTPUT_DONE);
 	s.send(&done)!!;
 	wire::Writer position;
-	position.begin(XDG_OBJECT, XDG_OUTPUT_LOGICAL_POSITION);
+	position.begin(xdg, XDG_OUTPUT_LOGICAL_POSITION);
 	position.put_int(0)!!;
 	position.put_int(0)!!;
 	s.send(&position)!!;
 	wire::Writer size;
-	size.begin(XDG_OBJECT, XDG_OUTPUT_LOGICAL_SIZE);
+	size.begin(xdg, XDG_OUTPUT_LOGICAL_SIZE);
 	size.put_int(1920)!!;
 	size.put_int(1080)!!;
 	s.send(&size)!!;
 	wire::Writer xdg_done;
-	xdg_done.begin(XDG_OBJECT, XDG_OUTPUT_DONE);
+	xdg_done.begin(xdg, XDG_OUTPUT_DONE);
 	s.send(&xdg_done)!!;
 }
 
@@ -284,10 +283,10 @@ fn int read_route_scenario(void* arg)
 		uint output = expect_bind(s, registry, OUTPUT_GLOBAL, "wl_output", 4);
 		testing::Message get = expect_request(s, xdg_manager, XDG_MANAGER_GET_OUTPUT);
 		wire::Reader g = s.reader(get);
-		expect(g.get_new_id()!! == XDG_OBJECT, "xdg output id");
+		uint xdg = g.get_new_id()!!;
 		expect(g.get_object()!! == output, "xdg output for the wrong output");
 		testing::Message sync = expect_request(s, WL_DISPLAY, DISPLAY_SYNC);
-		send_output(s);
+		send_output(s, output, xdg);
 		answer_sync(s, s.reader(sync).get_new_id()!!);
 	};
 	return 0;

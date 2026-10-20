@@ -29,8 +29,8 @@ const usz READ_CHUNK_BYTES = 4096;
 *>
 fn usz? fill(unix::UnixSocket* socket, wire::Buffer* buffer)
 {
-	char[] room = buffer.tail()!;
-	Fd[] no_fds = {};
+	char[] room     = buffer.tail()!;
+	Fd[] no_fds     = { };
 	RecvResult? got = socket.recv(room, no_fds);
 	if (catch err = got)
 	{
@@ -53,7 +53,7 @@ fn String? read_to_end(unix::UnixSocket* socket)
 	DString text;
 	text.init(tmem);
 	char[READ_CHUNK_BYTES] chunk;
-	Fd[] no_fds = {};
+	Fd[] no_fds = { };
 	while (true)
 	{
 		RecvResult? got = socket.recv(chunk[..], no_fds);
@@ -64,9 +64,15 @@ fn String? read_to_end(unix::UnixSocket* socket)
 		}
 		if ((usz)text.len() + got.bytes > REPLY_BUFFER_BYTES)
 		{
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "reply exceeds %d bytes", REPLY_BUFFER_BYTES)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"reply exceeds %d bytes",
+				REPLY_BUFFER_BYTES
+			)~;
 		}
-		text.append_bytes(chunk[0 : (sz)got.bytes]);
+		text.append_bytes(chunk[0:(sz)got.bytes]);
 	}
 }
 

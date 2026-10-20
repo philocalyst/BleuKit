@@ -129,7 +129,7 @@ def shortcuts_method(bus, msg):
         session, options = msg.body[0], options_text(msg.body[1])
         req = request_path(sender, options["handle_token"])
         listed = state["remembered"].get(sender, [])
-        results = {"shortcuts": Variant("a(sa{sv})", [(sid, {"trigger_description": Variant("s", trig)}) for sid, trig in listed])}
+        results = {"shortcuts": Variant("a(sa{sv})", [[sid, {"trigger_description": Variant("s", trig)}] for sid, trig in listed])}
         respond_later(bus, req, 0, results)
         return Message.new_method_return(msg, "o", [req])
     if msg.member == "BindShortcuts":
@@ -158,7 +158,7 @@ def shortcuts_method(bus, msg):
             results = {
                 "shortcuts": Variant(
                     "a(sa{sv})",
-                    [(sid, {"description": Variant("s", ""), "trigger_description": Variant("s", trig)}) for sid, trig in accepted],
+                    [[sid, {"description": Variant("s", ""), "trigger_description": Variant("s", trig)}] for sid, trig in accepted],
                 )
             }
             respond_later(bus, req, 0, results)
@@ -215,7 +215,7 @@ def apply(bus, line):
                 interface=SHORTCUTS,
                 member="ShortcutsChanged",
                 signature="oa(sa{sv})",
-                body=[sess, [(args[0], {"trigger_description": Variant("s", args[1])})]],
+                body=[sess, [[args[0], {"trigger_description": Variant("s", args[1])}]]],
             )
         )
     else:

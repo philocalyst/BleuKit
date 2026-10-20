@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Live test of the Linux tray host (bleu_tray, backend "sni") on a private session bus.
 #
-#   libs/bleu_tray.c3l/tests/run.sh
+#   libs/bleu_tray.c3l/tests/run.sh          the host serves the watcher (mode "served")
+#   libs/bleu_tray.c3l/tests/run.sh remote   another watcher (fake_watcher.py) is running, the host follows it
 #
 # 1. starts a private dbus-daemon and points DBUS_SESSION_BUS_ADDRESS at it;
-# 2. compiles tray_probe.c3 and starts it: the probe serves the watcher and publishes its own icon;
+# 2. compiles tray_probe.c3 and starts it: in mode "served" the probe serves the watcher and
+#    publishes its own icon; in mode "remote" fake_watcher.py serves the watcher first;
 # 3. starts fake_item.py (a StatusNotifierItem with a dbusmenu, registered as bus/path) and
 #    host_check.py (a dbus-next host that reads and acts on our own icon);
 # 4. checks every observation the probe and the scripts print against the expected lines.
@@ -13,6 +15,12 @@
 # created in the work directory, which needs pypi access). Prints one line per check and exits
 # non-zero if any check fails. BLEU_TRAY_KEEP=1 keeps the outputs even when every check passes.
 set -u
+mode="${1:-served}"
+case "$mode" in
+  served) served=1 ;;
+  remote) served=0 ;;
+  *) echo "usage: run.sh [served|remote]"; exit 2 ;;
+esac
 here="$(cd "$(dirname "$0")" && pwd)"
 lib="$(cd "$here/.." && pwd)"
 repo="$(cd "$lib/../.." && pwd)"
@@ -70,11 +78,17 @@ ld="${BLEU_LIBDIR:-$("$repo/tools/libdir.sh")}"
 libs=(--lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus --lib bleu_objc --lib bleu_win --lib bleu_tray)
 (cd "$work" && c3c --libdir "$ld" "${libs[@]}" compile "$here/tray_probe.c3" -o "$work/probe") >"$work/build.log" 2>&1 || {
   say "the probe does not compile (see $work/build.log)"; cat "$work/build.log"; exit 2; }
+# In remote mode the foreign watcher runs before the probe, which must follow it.
+if [ "$mode" = remote ]; then
+  "$PYTHON" -I "$here/fake_watcher.py" >"$work/watcher.out" 2>&1 &
+  pids+=("$!")
+  for _ in $(seq 1 100); do grep -q '^WATCHER ready' "$work/watcher.out" 2>/dev/null && break; sleep 0.05; done
+fi
+
+# The fake item and the host client start once the probe is up.
 "$work/probe" >"$work/probe.out" 2>&1 &
 PROBE=$!
 pids+=("$PROBE")
-
-# The fake item and the host client start once the probe serves the watcher.
 for _ in $(seq 1 300); do grep -q '^BACKEND' "$work/probe.out" 2>/dev/null && break; sleep 0.1; done
 "$PYTHON" -I "$here/fake_item.py" >"$work/fake.out" 2>&1 &
 pids+=("$!")
@@ -96,7 +110,7 @@ expect() { # file, regex, description
 
 expect "$work/probe.out" '^BACKEND sni$'                                  "backend is the StatusNotifier backend"
 expect "$work/probe.out" '^OWN_PUBLISHED ok$'                             "own icon published on the bus"
-expect "$work/probe.out" 'served=1 host=1 own=1'                          "this process serves the watcher and is a registered host"
+expect "$work/probe.out" "served=$served host=1 own=1"                    "watcher served=$served, this process a registered host with its icon published"
 expect "$work/probe.out" '^ITEM id=org.test.FakeItem/StatusNotifierItem title=Probe Item status=1 category=0' "item from bus/path registration, Id/Title/Status/Category read"
 expect "$work/probe.out" '^ICON name=face-smile pixmaps=1 '               "IconName read, IconPixmap present"
 expect "$work/probe.out" '^PIXMAP 3x2 bytes=24 first=17,34,51,128$'      "ARGB32 network order converted to RGBA (3x2, non-square)"
@@ -122,6 +136,11 @@ expect "$work/fake.out"  '^FAKE scroll 1 vertical$'                       "fake 
 expect "$work/fake.out"  '^FAKE event clicked 6$'                         "fake menu received Event clicked on entry 6"
 expect "$work/fake.out"  '^FAKE abouttoshow 2$'                           "fake menu received AboutToShow for the submenu"
 expect "$work/host.out"  '^HOST host_registered True$'                    "a dbus-next host sees the watcher with a registered host"
+if [ "$mode" = remote ]; then
+  expect "$work/watcher.out" '^WATCHER host org.kde.StatusNotifierHost-'  "the foreign watcher got our host registration"
+  expect "$work/watcher.out" '^WATCHER item org.kde.StatusNotifierItem-.*/StatusNotifierItem' "the foreign watcher got our own icon's registration"
+  expect "$work/watcher.out" '^WATCHER item org.test.FakeItem/StatusNotifierItem' "the foreign watcher got the fake item's registration"
+fi
 expect "$work/host.out"  '^HOST own_title Bleu Probe$'                    "a dbus-next host reads our icon's Title"
 expect "$work/host.out"  '^HOST own_icon applications-internet$'          "a dbus-next host reads our icon's IconName"
 expect "$work/host.out"  '^HOST own_menu_entry 1 _Open$'                  "a dbus-next host reads our menu entry (raw label: the host shows mnemonics)"

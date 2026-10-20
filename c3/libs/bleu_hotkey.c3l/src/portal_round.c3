@@ -35,7 +35,7 @@ fn void start_round(Backend* b)
 {
 	b.dirty = false;
 	if (b.session.len > 0) send_close(b);
-	set_text(&b.session, "", b.allocator);
+	hotkey::text_set(&b.session, "", b.allocator);
 	if (b.bindings.len() == 0)
 	{
 		move_waiting(b);
@@ -56,7 +56,7 @@ fn void? start_step(Backend* b, Step step)
 	{
 		String token = portal_path::token(b.tokens, tmem);
 		String path  = portal_path::request_path(b.sender, token, tmem)!;
-		set_text(&b.request, path, b.allocator);
+		hotkey::text_set(&b.request, path, b.allocator);
 		subscribe_response(b, b.request)!;
 		Message* call = message::method_call(b.allocator, PORTAL_NAME, PORTAL_PATH, GLOBAL_SHORTCUTS_IFACE, method_name(step))!;
 		defer call.release();
@@ -118,15 +118,15 @@ fn void follow_reply_handle(Backend* b)
 {
 	if (b.reply_handle != b.request)
 	{
-		set_text(&b.request, b.reply_handle, b.allocator);
+		hotkey::text_set(&b.request, b.reply_handle, b.allocator);
 		if (catch err = subscribe_response(b, b.request))
 		{
-			set_text(&b.reply_handle, "", b.allocator);
+			hotkey::text_set(&b.reply_handle, "", b.allocator);
 			step_failed(b, err);
 			return;
 		}
 	}
-	set_text(&b.reply_handle, "", b.allocator);
+	hotkey::text_set(&b.reply_handle, "", b.allocator);
 }
 
 // A call of the step failed (the reply was an error): the Response will never come.
@@ -194,7 +194,7 @@ fn void end_step(Backend* b)
 	b.step = IDLE;
 	b.answered = false;
 	b.reply_failed = false;
-	set_text(&b.reply_handle, "", b.allocator);
+	hotkey::text_set(&b.reply_handle, "", b.allocator);
 	unsubscribe_response(b);
 }
 
@@ -211,7 +211,7 @@ fn void settle_bindings(Backend* b, BindingState state)
 			continue;
 		}
 		binding.state = state;
-		set_text(&binding.trigger, "", b.allocator);
+		hotkey::text_set(&binding.trigger, "", b.allocator);
 	}
 }
 
@@ -243,7 +243,7 @@ fn void complete_waiting(Backend* b, Waiting* waiting)
 			fail_waiting_op(op, NOT_FOUND, "The shortcut was removed before the portal bound it");
 		}
 	}
-	drop(waiting.id, b.allocator);
+	hotkey::text_free(waiting.id, b.allocator);
 	op.release();
 }
 
@@ -251,7 +251,7 @@ fn void complete_waiting(Backend* b, Waiting* waiting)
 fn void fail_waiting(Backend* b, Waiting* waiting, fault failure, String text)
 {
 	fail_waiting_op(waiting.operation, failure, text);
-	drop(waiting.id, b.allocator);
+	hotkey::text_free(waiting.id, b.allocator);
 	waiting.operation.release();
 }
 

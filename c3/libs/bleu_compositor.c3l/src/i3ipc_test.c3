@@ -1,4 +1,4 @@
-module bleu::compositor::i3ipc_test;
+module bleu::compositor::i3ipc_test @feat(POSIX);
 import bleu::compositor::i3ipc, bleu::compositor::wire, bleu::error, std::core::test;
 
 fn void frame_round_trips_in_native_order() @test
@@ -13,7 +13,7 @@ fn void frame_round_trips_in_native_order() @test
 	char[] payload = i3ipc::encode(mem, (uint)i3ipc::MessageType.RUN_COMMAND, "focus");
 	defer alloc::free(mem, payload.ptr);
 	test::eq((uint)5, i3ipc::decode_header((String)payload)!!.length);
-	test::@check((String)payload[14 : 5] == "focus", "the payload follows the header");
+	test::@check((String)payload[14:5] == "focus", "the payload follows the header");
 }
 
 fn void event_bit_is_split_from_the_event_type() @test
@@ -36,10 +36,10 @@ fn void frames_arrive_in_pieces_and_several_per_read() @test
 	buffer.init(mem, 256);
 	defer buffer.free();
 	// Ten bytes of the first frame: no header yet, so nothing can be taken.
-	buffer.feed(first[0 : 10])!!;
+	buffer.feed(first[0:10])!!;
 	test::@error(i3ipc::take_frame(&buffer), NOT_FOUND);
 	// The rest of the first frame and all of the second arrive together.
-	char[] rest = first[10 : first.len - 10];
+	char[] rest = first[10:first.len - 10];
 	buffer.feed(rest)!!;
 	buffer.feed(second)!!;
 	i3ipc::Frame one = i3ipc::take_frame(&buffer)!!;

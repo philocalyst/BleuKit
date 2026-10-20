@@ -6,11 +6,13 @@ through stdin/stdout (see server_main.c3); the D-Bus side is python-dbus-next ac
 as an application (Notify, CloseNotification, GetCapabilities, GetServerInformation)
 and as a listener of the server's signals.
 
-Usage: notify_server_test.py <server-binary>
+Usage: notify_server_test.py <server-binary> <sender-binary>
 Every check prints PASS or FAIL; the process exits 1 if any failed.
 """
 import asyncio
+import os
 import re
+import subprocess
 import sys
 from asyncio.subprocess import PIPE
 
@@ -18,6 +20,7 @@ from dbus_next import Message, MessageType, Variant
 from dbus_next.aio import MessageBus
 
 SERVER = sys.argv[1]
+SENDER = sys.argv[2]
 DEST = "org.freedesktop.Notifications"
 PATH = "/org/freedesktop/Notifications"
 IFACE = "org.freedesktop.Notifications"
@@ -44,6 +47,7 @@ class Centre:
         self.args = list(args)
         self.proc = None
         self.first_line = None
+        self.events = []
 
     async def start(self):
         self.proc = await asyncio.create_subprocess_exec(
@@ -63,7 +67,16 @@ class Centre:
             l = await self.line()
             if l == "END":
                 return lines
+            if l.startswith("EVENT "):
+                self.events.append(l)
+                continue
             lines.append(l)
+
+    async def events_so_far(self):
+        """Events printed up to now. The event thread may lag a reply, so wait a moment and sync."""
+        await asyncio.sleep(0.1)
+        await self.cmd("sync")
+        return list(self.events)
 
     async def state(self):
         return parse_state(await self.cmd("state"))
@@ -178,6 +191,21 @@ def image_payload(width, height, rowstride, alpha, bits, channels, data):
     return Variant("(iiibiiay)", [width, height, rowstride, alpha, bits, channels, bytes(data)])
 
 
+def run_sender(args):
+    """Run the C3 sender with `args`; returns its BACKEND, SENT id and exit status."""
+    done = subprocess.run([SENDER] + args, capture_output=True, text=True, timeout=30,
+                          env=os.environ.copy())
+    result = {"exit": done.returncode}
+    for line in done.stdout.splitlines():
+        if line.startswith("BACKEND "):
+            result["backend"] = line.split(" ", 1)[1]
+        elif line.startswith("SENT "):
+            result["id"] = int(line.split(" ", 1)[1])
+        elif line.startswith("SEND err="):
+            result["error"] = line
+    return result
+
+
 async def main():
     bus = await MessageBus().connect()
     listener = Listener(bus)
@@ -248,6 +276,9 @@ async def main():
     ok = await listener.wait_for(lambda: (c, 1) in listener.closed(c), 5)
     st = await centre.state()
     check("timeout closes with reason 1 (expired)", ok, str(listener.closed(c)))
+    events = await centre.events_so_far()
+    check("the subscription reports the expiry as CLOSED reason 1",
+          f"EVENT CLOSED id={c} replaced=0 reason=1 key=" in events, str(events))
     check("expired notification moves to history", in_history(st, c) and not in_active(st, c))
 
     # 4. Replacement by id keeps the id and sends no close for the old one.
@@ -257,6 +288,9 @@ async def main():
     check("replaces_id returns the same id", d2 == d, f"{d} {d2}")
     check("replacement shows the new text in place", find(st, d)["summary"] == "second")
     check("replacement sends no NotificationClosed for the old one", listener.closed(d) == [])
+    events = await centre.events_so_far()
+    check("the subscription reports the replacement as POSTED replaced=1",
+          f"EVENT POSTED id={d} replaced=1 reason=0 key=" in events, str(events))
 
     # 5. Stack tags: the second notification takes the first one's place.
     e = await notify(bus, "stack one", hints={"x-dunst-stack-tag": Variant("s", "grp")})
@@ -281,6 +315,10 @@ async def main():
     check("a non-resident notification closes after its action (reason 3)", ok and out == ["INVOKE ok"], str(out))
     order = [m for m, b in listener.signals if b and b[0] == h]
     check("ActionInvoked comes before NotificationClosed", order == ["ActionInvoked", "NotificationClosed"], str(order))
+    events = await centre.events_so_far()
+    check("the shell's subscription hears ACTION_INVOKED and the close",
+          f"EVENT ACTION_INVOKED id={h} replaced=0 reason=0 key=dismiss" in events
+          and f"EVENT CLOSED id={h} replaced=0 reason=3 key=" in events, str(events))
 
     r = await notify(bus, "resident", actions=["default", "Open"], hints={"resident": Variant("b", True)})
     out = await centre.cmd(f"invoke {r} default")
@@ -296,6 +334,9 @@ async def main():
     out = await centre.cmd(f"close {j} 2")
     ok = await listener.wait_for(lambda: (j, 2) in listener.closed(j))
     check("the shell's close emits the given reason (2, dismissed)", out == ["CLOSE ok"] and ok, str(out))
+    events = await centre.events_so_far()
+    check("the subscription reports the shell's close with reason 2",
+          f"EVENT CLOSED id={j} replaced=0 reason=2 key=" in events, str(events))
 
     # 9. Do-not-disturb: normal notifications are recorded, critical ones show.
     await centre.cmd("dnd 1")
@@ -333,6 +374,26 @@ async def main():
 
     # 13. No ActivationToken is ever sent: the capability is absent.
     check("no ActivationToken signal is emitted", all(m != "ActivationToken" for m, _ in listener.signals))
+
+    # 16. The C3 sender sends through the same interface: send, replace, expire.
+    sent = run_sender(["Sent by C3", "from the sender", "--action", "open", "Open"])
+    sid = sent.get("id")
+    st = await centre.state()
+    note = find(st, sid) if sid else None
+    check("the C3 sender posts through Notify and the centre shows it",
+          sent.get("backend") == "fdo" and note is not None and note["summary"] == "Sent by C3"
+          and note["app"] == "notify-send-test" and note["expires"] == 1
+          and [r["text"] for r in note["body"]] == ["from the sender"] and note["actions"] == [("open", "Open")],
+          str(sent) + " " + str(note))
+    again = run_sender(["Replaced by C3", "--replace", str(sid)])
+    st = await centre.state()
+    check("a replacing send returns the replaced id", again.get("id") == sid and find(st, sid)["summary"] == "Replaced by C3",
+          str(again))
+    short = run_sender(["Short by C3", "--expire", "250"])
+    ok = await listener.wait_for(lambda: (short.get("id"), 1) in listener.closed(short.get("id")), 5)
+    check("a sender's expiry closes with reason 1", ok, str(short))
+    bad = run_sender(["Bad urgency", "--replace", "not-a-number"])
+    check("the sender reports a bad option instead of sending", "error" in bad or bad.get("exit", 0) != 0, str(bad))
 
     # 14. Name ownership: a second daemon is refused and told who owns the name.
     second = Centre()

@@ -176,3 +176,78 @@ fn tray::Disposition disposition_from(String text)
 	if (text == "alert") return ALERT;
 	return NORMAL;
 }
+
+<* A copy of `text` in `allocator`; "" (no allocation) when empty. *>
+fn String copy_text(String text, Allocator allocator)
+{
+	if (text.len == 0) return "";
+	return text.copy(allocator);
+}
+
+<* Copy our own item, its menu entries included, into `allocator`. *>
+fn tray::OwnItem copy_own(tray::OwnItem own, Allocator allocator)
+{
+	tray::OwnMenuEntry[] menu = {};
+	if (own.menu.len > 0)
+	{
+		menu = alloc::new_array(allocator, tray::OwnMenuEntry, own.menu.len);
+		foreach (i, &entry : own.menu)
+		{
+			menu[i] = { .id = entry.id, .label = copy_text(entry.label, allocator), .is_separator = entry.is_separator, .enabled = entry.enabled };
+		}
+	}
+	return { .title = copy_text(own.title, allocator), .icon = copy_text(own.icon, allocator), .menu = menu };
+}
+
+<*
+ A menu label as Win32 shows it: a single "_" (DBusMenu's mnemonic marker) becomes "&", a literal
+ "_" written "__" stays "_", and a literal "&" is doubled so it is not a mnemonic. The result is in `allocator`.
+*>
+fn String win32_label(String raw, Allocator allocator)
+{
+	if (raw.len == 0) return "";
+	usz capacity = (usz)raw.len * 2;
+	char[] out = alloc::new_array(allocator, char, (sz)capacity);
+	usz n = 0;
+	usz i = 0;
+	while (i < raw.len)
+	{
+		char c = raw[i];
+		if (c == '_' && i + 1 < raw.len && raw[i + 1] == '_')
+		{
+			out[n++] = '_';
+			i += 2;
+			continue;
+		}
+		if (c == '_')
+		{
+			out[n++] = '&';
+		}
+		else if (c == '&')
+		{
+			out[n++] = '&';
+			out[n++] = '&';
+		}
+		else
+		{
+			out[n++] = c;
+		}
+		i++;
+	}
+	return (String)out[0:n];
+}
+
+<*
+ Free what `copy_own` allocated. Empty strings and the empty menu were never allocated (they are
+ literals or null), so they are not freed.
+*>
+fn void free_own(tray::OwnItem own, Allocator allocator)
+{
+	if (own.title.len > 0) alloc::free(allocator, own.title.ptr);
+	if (own.icon.len > 0) alloc::free(allocator, own.icon.ptr);
+	for (sz i = 0; i < own.menu.len; i++)
+	{
+		if (own.menu[i].label.len > 0) alloc::free(allocator, own.menu[i].label.ptr);
+	}
+	if (own.menu.len > 0) alloc::free(allocator, own.menu.ptr);
+}

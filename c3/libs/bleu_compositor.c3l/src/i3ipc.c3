@@ -7,28 +7,27 @@
  `to_ne_bytes`, swayipc 3.0.3 `common.rs` decodes with `from_ne_bytes`). An
  event is a message whose type has bit 31 set; the low bits are the event type.
 *>
-module bleu::compositor::i3ipc;
+module bleu::compositor::i3ipc @feat(POSIX);
 import bleu::error, bleu::compositor::wire;
 
 <* The magic that opens every message. *>
-const String MAGIC = "i3-ipc";
+const String MAGIC    = "i3-ipc";
 <* Bytes in the magic. *>
-const usz MAGIC_SIZE = 6;
+const usz MAGIC_SIZE  = 6;
 <* Bytes before the payload: magic, length, type. *>
 const usz HEADER_SIZE = 14;
 <* Bit 31 of the type marks an event. *>
-const uint EVENT_BIT = 0x80000000;
+const uint EVENT_BIT  = 0x80000000;
 
 <* Request types (i3 docs/ipc "Message types"). Values as in sway 1.x-2.x. *>
 constset MessageType : uint
 {
-	RUN_COMMAND = 0,
+	RUN_COMMAND    = 0,
 	GET_WORKSPACES = 1,
-	SUBSCRIBE = 2,
-	GET_OUTPUTS = 3,
-	GET_TREE = 4,
-	GET_VERSION = 7,
-	GET_INPUTS = 100,
+	SUBSCRIBE      = 2,
+	GET_OUTPUTS    = 3,
+	GET_TREE       = 4,
+	GET_INPUTS     = 100,
 }
 
 <*
@@ -37,16 +36,16 @@ constset MessageType : uint
 *>
 constset EventType : uint
 {
-	WORKSPACE = 0,
-	OUTPUT = 1,
-	MODE = 2,
-	WINDOW = 3,
+	WORKSPACE        = 0,
+	OUTPUT           = 1,
+	MODE             = 2,
+	WINDOW           = 3,
 	BARCONFIG_UPDATE = 4,
-	BINDING = 5,
-	SHUTDOWN = 6,
-	TICK = 7,
+	BINDING          = 5,
+	SHUTDOWN         = 6,
+	TICK             = 7,
 	BAR_STATE_UPDATE = 20,
-	INPUT = 21,
+	INPUT            = 21,
 }
 
 <* A decoded header. `length` is the payload size in bytes. *>
@@ -64,7 +63,7 @@ struct Header
 *>
 fn char[] encode(Allocator allocator, uint type, String payload)
 {
-	usz total = HEADER_SIZE + payload.len;
+	usz total    = HEADER_SIZE + payload.len;
 	char[] frame = alloc::new_array(allocator, char, (sz)total);
 	mem::copy(frame.ptr, MAGIC.ptr, (sz)MAGIC_SIZE);
 	uint length = (uint)payload.len;
@@ -83,7 +82,9 @@ fn char[] encode(Allocator allocator, uint type, String payload)
 *>
 fn Header? decode_header(String bytes)
 {
-	if (!bytes.starts_with(MAGIC)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "i3-ipc magic is missing")~;
+	if (!bytes.starts_with(
+		MAGIC
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "i3-ipc magic is missing")~;
 	uint length;
 	uint type;
 	mem::copy(&length, bytes.ptr + MAGIC_SIZE, 4);
@@ -136,12 +137,12 @@ struct Frame
 *>
 fn Frame? take_frame(wire::Buffer* buffer)
 {
-	String head = buffer.peek_exact(HEADER_SIZE)!;
+	String head   = buffer.peek_exact(HEADER_SIZE)!;
 	Header header = decode_header(head)!;
 	check_length(header, buffer.capacity)!;
 	String whole = buffer.peek_exact(HEADER_SIZE + header.length)!;
 	buffer.consume(HEADER_SIZE + header.length);
-	return { .header = header, .payload = whole[HEADER_SIZE : header.length] };
+	return { .header = header, .payload = whole[HEADER_SIZE:header.length] };
 }
 
 <*
@@ -154,6 +155,13 @@ fn void? check_length(Header header, usz capacity)
 {
 	if ((usz)header.length + HEADER_SIZE > capacity)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "i3-ipc message of %d bytes exceeds %d", header.length, capacity)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"i3-ipc message of %d bytes exceeds %d",
+			header.length,
+			capacity
+		)~;
 	}
 }

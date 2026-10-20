@@ -37,7 +37,7 @@ fn void push_pending(SniBackend* b, PendingKind kind, uint key, Prop prop, Strin
 		b.needs_resync = true;
 		return;
 	}
-	b.pending.push({ .kind = kind, .key = key, .prop = prop, .text = copy_text(text, b.allocator) });
+	b.pending.push({ .kind = kind, .key = key, .prop = prop, .text = convert::copy_text(text, b.allocator) });
 }
 
 // Frees every queued unit of work without running it.

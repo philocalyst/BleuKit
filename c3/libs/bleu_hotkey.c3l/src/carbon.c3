@@ -267,7 +267,7 @@ fn void emit_press(Backend* b, Press press) @local
 		Allocator arena = packet.allocator();
 		packet.value = {
 			.kind = press.pressed ? PRESSED : RELEASED,
-			.id = dup(entry.id, arena),
+			.id = hotkey::text_copy(entry.id, arena),
 			.at = clock::now(),
 			.platform_time = maybe::value(0UL),
 			.activation_token = "",
@@ -298,7 +298,7 @@ fn void accept_register(Backend* b, Command command)
 		refuse(command.operation, error::INVALID_STATE, "A shortcut with this id is already registered");
 		return;
 	}
-	if (try code = macos_keycode(command.chord.key))
+	if (try code = keymap_macos::macos_keycode(command.chord.key))
 	{
 		register_code(b, command, code);
 		return;
@@ -311,7 +311,7 @@ fn void register_code(Backend* b, Command command, uint code) @local
 	int native = b.next_native++;
 	ulong hotkey_id = (ulong)SIGNATURE | ((ulong)native << 32); // EventHotKeyID, by value, little-endian
 	void* reference = null;
-	uint modifiers = macos_modifiers(command.chord.mods);
+	uint modifiers = keymap_macos::macos_modifiers(command.chord.mods);
 	int status = b.api.register_hotkey(code, modifiers, hotkey_id, b.api.application_target(), HOT_KEY_EXCLUSIVE, &reference);
 	if (status != NO_ERROR)
 	{
@@ -319,8 +319,8 @@ fn void register_code(Backend* b, Command command, uint code) @local
 		return;
 	}
 	Entry entry = {
-		.id = dup(command.id, b.allocator),
-		.description = dup(command.description, b.allocator),
+		.id = hotkey::text_copy(command.id, b.allocator),
+		.description = hotkey::text_copy(command.description, b.allocator),
 		.chord = command.chord,
 		.native = native,
 		.reference = reference,
@@ -382,13 +382,13 @@ fn void publish(Backend* b) @local
 // A registration as the caller sees it: BOUND, since RegisterEventHotKey has no other answer.
 fn Binding binding_of(Entry entry, Allocator allocator) @local
 {
-	return { .id = dup(entry.id, allocator), .description = dup(entry.description, allocator), .chord = entry.chord, .state = BOUND, .trigger = "" };
+	return { .id = hotkey::text_copy(entry.id, allocator), .description = hotkey::text_copy(entry.description, allocator), .chord = entry.chord, .state = BOUND, .trigger = "" };
 }
 
 fn void free_entry(Allocator allocator, Entry* entry) @local
 {
-	drop(entry.id, allocator);
-	drop(entry.description, allocator);
+	hotkey::text_free(entry.id, allocator);
+	hotkey::text_free(entry.description, allocator);
 }
 
 fn void refuse(Task* op, fault failure, String text) @local

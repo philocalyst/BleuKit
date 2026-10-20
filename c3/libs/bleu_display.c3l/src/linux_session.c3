@@ -227,10 +227,10 @@ fn void remove_record(Session* s, OutputRecord* rec)
 	alloc::free(s.allocator, rec);
 }
 
-// Free a string the allocator handed out (an empty string owns nothing).
+// Free a string the allocator handed out. A copy of an empty string is still an allocation.
 fn void free_text(Allocator allocator, String text)
 {
-	if (text.len > 0) alloc::free(allocator, text.ptr);
+	if (text.ptr) alloc::free(allocator, text.ptr);
 }
 
 // Replace a record's string with a copy of `value`. Events give strings that are valid only during the call.
@@ -318,45 +318,10 @@ fn display::Output describe(OutputRecord* rec, Allocator allocator)
 	return out;
 }
 
-<*
- Publish the session's current state. Events describe the difference from the last published state:
- an output added, removed, or changed. Only a real difference is published.
-*>
+// The published state of the session: a snapshot built from the records, then published with its events.
 fn void publish(Session* s)
 {
-	display::DisplayHub* hub = s.hub;
-	Snapshot{display::State}* snapshot = hub.begin();
+	Snapshot{display::State}* snapshot = s.hub.begin();
 	snapshot.value = build_state(s, snapshot.allocator());
-	if (try old = hub.latest())
-	{
-		defer old.release();
-		emit_changes(hub, old.value, snapshot.value);
-	}
-	hub.publish_if_changed(snapshot);
-}
-
-// Emit one event per output that appeared, disappeared or changed between two states.
-fn void emit_changes(display::DisplayHub* hub, display::State before, display::State after)
-{
-	foreach (output : after.outputs) {
-		Maybe{sz} previous = display::index_of_output(before.outputs, output.id);
-		if (!previous.has_value) {
-			emit(hub, display::EventKind.OUTPUT_ADDED, output.id);
-		} else if (!equal::deep(before.outputs[previous.value], output)) {
-			emit(hub, display::EventKind.OUTPUT_CHANGED, output.id);
-		}
-	}
-	foreach (output : before.outputs) {
-		if (!display::index_of_output(after.outputs, output.id).has_value) {
-			emit(hub, display::EventKind.OUTPUT_REMOVED, output.id);
-		}
-	}
-}
-
-// Deliver one event with its own copy of the output id.
-fn void emit(display::DisplayHub* hub, display::EventKind kind, String output_id)
-{
-	Snapshot{display::Event}* packet = hub.emit_begin();
-	packet.value = { .kind = kind, .output_id = output_id.copy(packet.allocator()) };
-	hub.emit(packet);
+	display::publish_snapshot(s.hub, snapshot);
 }

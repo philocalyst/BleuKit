@@ -1,4 +1,4 @@
-module bleu::compositor::niri_test;
+module bleu::compositor::niri_test @feat(POSIX);
 import bleu::compositor, bleu::compositor::backend, bleu::compositor::niri, bleu::compositor::wire, bleu::error, std::collections::object, std::core::test;
 
 // The model of the fixture session, built from the captured replies.
@@ -72,24 +72,45 @@ fn void snapshot_reads_workspaces_windows_outputs_and_layouts() @test
 		compositor::Model model = fixture_model(&arena);
 		test::@check(model.kind == compositor::Kind.NIRI, "the kind is niri");
 		test::eq((sz)3, model.workspaces.len);
-		test::@check(model.workspaces[0].id == "1" && model.workspaces[0].name == "", "an unnamed workspace has an empty name");
+		test::@check(
+			model.workspaces[0].id == "1" && model.workspaces[0].name == "",
+			"an unnamed workspace has an empty name"
+		);
 		test::@check(model.workspaces[0].active && model.workspaces[0].focused, "workspace 1 is active and focused");
 		test::@check(model.workspaces[1].urgent.value, "urgency is reported");
 		test::eq((sz)2, model.windows.len);
-		test::@check(model.windows[0].focused && model.windows[0].pid.value == 4242, "the focused window carries its pid");
+		test::@check(
+			model.windows[0].focused && model.windows[0].pid.value == 4242,
+			"the focused window carries its pid"
+		);
 		test::@check(model.windows[0].output == "eDP-1", "a window's output is its workspace's output");
-		test::@check(model.windows[1].title == "" && !model.windows[1].pid.has_value, "null title and pid are empty and absent");
+		test::@check(
+			model.windows[1].title == "" && !model.windows[1].pid.has_value,
+			"null title and pid are empty and absent"
+		);
 		test::@check(model.windows[1].output == "HDMI-A-1", "a window on another output names it");
-		test::@check(!model.windows[0].geometry.has_value && !model.windows[0].fullscreen.has_value, "niri reports no geometry or fullscreen state");
+		test::@check(
+			!model.windows[0].geometry.has_value && !model.windows[0].fullscreen.has_value,
+			"niri reports no geometry or fullscreen state"
+		);
 		test::eq((sz)2, model.outputs.len);
 		// The outputs come from a JSON object, so their order is the object's own, not the order of the names.
 		compositor::Output* laptop = output_named(&model, "eDP-1");
-		compositor::Output* hdmi = output_named(&model, "HDMI-A-1");
+		compositor::Output* hdmi   = output_named(&model, "HDMI-A-1");
 		test::@check(laptop != null && hdmi != null, "both outputs are listed by name");
-		test::@check(laptop.geometry.has_value && laptop.geometry.value.width == 1920, "a logical output has a geometry");
+		test::@check(
+			laptop.geometry.has_value && laptop.geometry.value.width == 1920,
+			"a logical output has a geometry"
+		);
 		test::@check(!hdmi.geometry.has_value, "an output that is off has no geometry");
-		test::@check(laptop.active_workspace == "1" && laptop.focused, "the output names its active workspace and is focused");
-		test::@check(model.layouts.current_name == "English (US)" && model.layouts.current.value == 0, "the current layout is names[current_idx]");
+		test::@check(
+			laptop.active_workspace == "1" && laptop.focused,
+			"the output names its active workspace and is focused"
+		);
+		test::@check(
+			model.layouts.current_name == "English (US)" && model.layouts.current.value == 0,
+			"the current layout is names[current_idx]"
+		);
 		test::eq((sz)2, model.layouts.names.len);
 	};
 }
@@ -102,11 +123,11 @@ fn void events_update_the_retained_model() @test
 	@pool()
 	{
 		compositor::Model model = fixture_model(&arena);
-		Splitter lines = ((String)$embed("../tests/fixtures/niri/events.jsonl")).tokenize("\n");
+		Splitter lines          = ((String)$embed("../tests/fixtures/niri/events.jsonl")).tokenize("\n");
 		backend::Refresh[8] outcomes;
 		for (int i = 0; i < 8; i++)
 		{
-			String line = lines.next()!!;
+			String line             = lines.next()!!;
 			backend::RawEvent event = niri::parse_event(line)!!;
 			outcomes[i] = niri::apply(&model, &arena, event);
 		}
@@ -120,9 +141,15 @@ fn void events_update_the_retained_model() @test
 		// Window 9 kept the focus that WindowFocusChanged gave it; window 7 is gone, so 9 is now first.
 		test::@check(model.windows[0].id == "9" && model.windows[0].focused, "window 9 still holds the focus");
 		test::@check(!model.windows[1].focused, "the window opened later is not focused");
-		test::@check(model.windows[1].id == "11" && model.windows[1].title == "New, window", "the opened window keeps its id and its title with the comma");
+		test::@check(
+			model.windows[1].id == "11" && model.windows[1].title == "New, window",
+			"the opened window keeps its id and its title with the comma"
+		);
 		test::@check(model.windows[1].urgent.has_value && model.windows[1].urgent.value, "the opened window is urgent");
-		test::@check(outcomes[5] == backend::Refresh.UPDATED && model.layouts.current_name == "Russian", "KeyboardLayoutSwitched names the layout");
+		test::@check(
+			outcomes[5] == backend::Refresh.UPDATED && model.layouts.current_name == "Russian",
+			"KeyboardLayoutSwitched names the layout"
+		);
 		test::@check(outcomes[6] == backend::Refresh.NONE, "casts change nothing the model holds");
 		test::@check(outcomes[7] == backend::Refresh.NONE, "an overview change changes nothing");
 	};
@@ -143,10 +170,28 @@ fn void action_requests_have_the_documented_shape() @test
 	{
 		test::@check(niri::focus_window_request("7") == "{\"Action\":{\"FocusWindow\":{\"id\":7}}}", "FocusWindow");
 		test::@check(niri::close_window_request("7") == "{\"Action\":{\"CloseWindow\":{\"id\":7}}}", "CloseWindow");
-		test::@check(niri::switch_workspace_request("3") == "{\"Action\":{\"FocusWorkspace\":{\"reference\":{\"Id\":3}}}}", "FocusWorkspace");
-		test::@check(niri::move_window_request("7", "3") == "{\"Action\":{\"MoveWindowToWorkspace\":{\"window_id\":7,\"reference\":{\"Id\":3},\"focus\":false}}}", "MoveWindowToWorkspace");
-		test::@check(niri::set_layout_request(1) == "{\"Action\":{\"SwitchLayout\":{\"layout\":{\"Index\":1}}}}", "SwitchLayout");
-		test::@check(niri::toggle_floating_request("7") == "{\"Action\":{\"ToggleWindowFloating\":{\"id\":7}}}", "ToggleWindowFloating");
-		test::@check(niri::toggle_fullscreen_request("7") == "{\"Action\":{\"FullscreenWindow\":{\"id\":7}}}", "FullscreenWindow");
+		test::@check(
+			niri::switch_workspace_request("3") == "{\"Action\":{\"FocusWorkspace\":{\"reference\":{\"Id\":3}}}}",
+			"FocusWorkspace"
+		);
+		test::@check(
+			niri::move_window_request(
+				"7",
+				"3"
+			) == "{\"Action\":{\"MoveWindowToWorkspace\":{\"window_id\":7,\"reference\":{\"Id\":3},\"focus\":false}}}",
+			"MoveWindowToWorkspace"
+		);
+		test::@check(
+			niri::set_layout_request(1) == "{\"Action\":{\"SwitchLayout\":{\"layout\":{\"Index\":1}}}}",
+			"SwitchLayout"
+		);
+		test::@check(
+			niri::toggle_floating_request("7") == "{\"Action\":{\"ToggleWindowFloating\":{\"id\":7}}}",
+			"ToggleWindowFloating"
+		);
+		test::@check(
+			niri::toggle_fullscreen_request("7") == "{\"Action\":{\"FullscreenWindow\":{\"id\":7}}}",
+			"FullscreenWindow"
+		);
 	};
 }

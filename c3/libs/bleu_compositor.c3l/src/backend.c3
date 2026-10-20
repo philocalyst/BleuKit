@@ -6,23 +6,8 @@
  event socket is non-blocking, so a shell can wait on `event_handle` with a
  poller and then drain the events it reports.
 *>
-module bleu::compositor::backend;
+module bleu::compositor::backend @feat(POSIX);
 import bleu::error, bleu::rt, bleu::compositor;
-
-<*
- A request a shell can make of the compositor. Each one names an existing
- window or workspace by the ids of `compositor::Model`.
-*>
-enum Action : char
-{
-	FOCUS_WINDOW,
-	CLOSE_WINDOW,
-	SWITCH_WORKSPACE,
-	MOVE_WINDOW,
-	SET_LAYOUT,
-	TOGGLE_FLOATING,
-	TOGGLE_FULLSCREEN,
-}
 
 <*
  What applying events did to a model.

@@ -3,12 +3,12 @@
 // event socket with the poller, apply events, and send actions. Its output lines
 // are `key=value` so run_live.sh can check them.
 module live;
-import bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::rt::wakeup, bleu::rt::poller, bleu::error, std::io;
+import bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::rt::wakeup, bleu::rt::poller, bleu::error, std::io, std::time;
 
 // How long one wait for events may block, in microseconds.
 const Duration WAIT_SLICE = (Duration)200_000;
 // Waits after the snapshot; the fakes push their events within the first one.
-const int EVENT_ROUNDS = 8;
+const int EVENT_ROUNDS    = 8;
 
 fn String kind_name(compositor::Kind kind) @private
 {
@@ -40,19 +40,25 @@ fn String layout_name(compositor::Model* model) @private
 
 fn void summarize(String label, compositor::Model* model) @private
 {
-	io::printfn("%s windows=%d workspaces=%d outputs=%d focused=%s layout=%s", label, (int)model.windows.len, (int)model.workspaces.len, (int)model.outputs.len, focused_title(model), layout_name(model));
+	io::printfn(
+		"%s windows=%d workspaces=%d outputs=%d focused=%s layout=%s",
+		label,
+		(int)model.windows.len,
+		(int)model.workspaces.len,
+		(int)model.outputs.len,
+		focused_title(model),
+		layout_name(model)
+	);
 }
 
-fn void report(String action, void? result) @private
+fn void report_ok(String action) @private
 {
-	if (catch err = result)
-	{
-		io::printfn("%s=failed %s", action, error::last().message());
-	}
-	else
-	{
-		io::printfn("%s=ok", action);
-	}
+	io::printfn("%s=ok", action);
+}
+
+fn void report_failed(String action, fault failure) @private
+{
+	io::printfn("%s=failed %s (%s)", action, error::last().message(), failure);
 }
 
 fn int main(int argc, char** argv)
@@ -116,35 +122,196 @@ fn int main(int argc, char** argv)
 	switch (detection.kind)
 	{
 		case compositor::Kind.HYPRLAND:
-			report("focus_window", client.focus_window("0x55d1c0a4e2b0"));
-			report("switch_workspace", client.switch_workspace("2"));
-			report("move_window", client.move_window("0x55d1c0a4e2b0", "2"));
-			report("set_layout", client.set_layout(1));
-			report("toggle_floating", client.toggle_floating("0x55d1c0a4e2b0"));
-			report("toggle_fullscreen", client.toggle_fullscreen("0x55d1c0a4e2b0"));
-			report("close_window", client.close_window("0x55d1c0a4e2b0"));
+			if (catch err = client.focus_window("0x55d1c0a4e2b0"))
+			{
+				report_failed("focus_window", err);
+			}
+			else
+			{
+				report_ok("focus_window");
+			}
+			if (catch err = client.switch_workspace("2"))
+			{
+				report_failed("switch_workspace", err);
+			}
+			else
+			{
+				report_ok("switch_workspace");
+			}
+			if (catch err = client.move_window("0x55d1c0a4e2b0", "2"))
+			{
+				report_failed("move_window", err);
+			}
+			else
+			{
+				report_ok("move_window");
+			}
+			if (catch err = client.set_layout(1))
+			{
+				report_failed("set_layout", err);
+			}
+			else
+			{
+				report_ok("set_layout");
+			}
+			if (catch err = client.toggle_floating("0x55d1c0a4e2b0"))
+			{
+				report_failed("toggle_floating", err);
+			}
+			else
+			{
+				report_ok("toggle_floating");
+			}
+			if (catch err = client.toggle_fullscreen("0x55d1c0a4e2b0"))
+			{
+				report_failed("toggle_fullscreen", err);
+			}
+			else
+			{
+				report_ok("toggle_fullscreen");
+			}
+			if (catch err = client.close_window("0x55d1c0a4e2b0"))
+			{
+				report_failed("close_window", err);
+			}
+			else
+			{
+				report_ok("close_window");
+			}
 		case compositor::Kind.SWAY:
 		case compositor::Kind.I3:
-			report("focus_window", client.focus_window("11"));
-			report("switch_workspace", client.switch_workspace("2:web"));
-			report("move_window", client.move_window("11", "2:web"));
-			report("set_layout", client.set_layout(1));
-			report("toggle_floating", client.toggle_floating("11"));
-			report("toggle_fullscreen", client.toggle_fullscreen("11"));
-			report("close_window", client.close_window("11"));
+			if (catch err = client.focus_window("11"))
+			{
+				report_failed("focus_window", err);
+			}
+			else
+			{
+				report_ok("focus_window");
+			}
+			if (catch err = client.switch_workspace("2:web"))
+			{
+				report_failed("switch_workspace", err);
+			}
+			else
+			{
+				report_ok("switch_workspace");
+			}
+			if (catch err = client.move_window("11", "2:web"))
+			{
+				report_failed("move_window", err);
+			}
+			else
+			{
+				report_ok("move_window");
+			}
+			if (catch err = client.set_layout(1))
+			{
+				report_failed("set_layout", err);
+			}
+			else
+			{
+				report_ok("set_layout");
+			}
+			if (catch err = client.toggle_floating("11"))
+			{
+				report_failed("toggle_floating", err);
+			}
+			else
+			{
+				report_ok("toggle_floating");
+			}
+			if (catch err = client.toggle_fullscreen("11"))
+			{
+				report_failed("toggle_fullscreen", err);
+			}
+			else
+			{
+				report_ok("toggle_fullscreen");
+			}
+			if (catch err = client.close_window("11"))
+			{
+				report_failed("close_window", err);
+			}
+			else
+			{
+				report_ok("close_window");
+			}
 		case compositor::Kind.NIRI:
-			report("focus_window", client.focus_window("7"));
-			report("switch_workspace", client.switch_workspace("3"));
-			report("move_window", client.move_window("7", "3"));
-			report("set_layout", client.set_layout(1));
-			report("toggle_floating", client.toggle_floating("7"));
-			report("toggle_fullscreen", client.toggle_fullscreen("7"));
-			report("close_window", client.close_window("7"));
-			report("focus_window_refused", client.focus_window("99"));
+			if (catch err = client.focus_window("7"))
+			{
+				report_failed("focus_window", err);
+			}
+			else
+			{
+				report_ok("focus_window");
+			}
+			if (catch err = client.switch_workspace("3"))
+			{
+				report_failed("switch_workspace", err);
+			}
+			else
+			{
+				report_ok("switch_workspace");
+			}
+			if (catch err = client.move_window("7", "3"))
+			{
+				report_failed("move_window", err);
+			}
+			else
+			{
+				report_ok("move_window");
+			}
+			if (catch err = client.set_layout(1))
+			{
+				report_failed("set_layout", err);
+			}
+			else
+			{
+				report_ok("set_layout");
+			}
+			if (catch err = client.toggle_floating("7"))
+			{
+				report_failed("toggle_floating", err);
+			}
+			else
+			{
+				report_ok("toggle_floating");
+			}
+			if (catch err = client.toggle_fullscreen("7"))
+			{
+				report_failed("toggle_fullscreen", err);
+			}
+			else
+			{
+				report_ok("toggle_fullscreen");
+			}
+			if (catch err = client.close_window("7"))
+			{
+				report_failed("close_window", err);
+			}
+			else
+			{
+				report_ok("close_window");
+			}
+			if (catch err = client.focus_window("99"))
+			{
+				report_failed("focus_window_refused", err);
+			}
+			else
+			{
+				report_ok("focus_window_refused");
+			}
 		default:
 			io::printfn("actions=skipped");
 	}
-	report("focus_window_not_an_id", client.focus_window("not an id"));
+	if (catch err = client.focus_window("not an id"))
+	{
+		report_failed("focus_window_not_an_id", err);
+	}
+	else
+	{
+		report_ok("focus_window_not_an_id");
+	}
 	client.close();
 	io::printfn("closed");
 	return 0;

@@ -28,13 +28,13 @@ fn void accept_register(Backend* b, Command command)
 		return;
 	}
 	Binding binding = {
-		.id = dup(command.id, b.allocator),
-		.description = dup(command.description, b.allocator),
+		.id = hotkey::text_copy(command.id, b.allocator),
+		.description = hotkey::text_copy(command.description, b.allocator),
 		.chord = command.chord,
 		.state = PENDING,
 	};
 	b.bindings.push(binding);
-	b.waiting.push({ .operation = command.operation, .id = dup(command.id, b.allocator), .removal = false });
+	b.waiting.push({ .operation = command.operation, .id = hotkey::text_copy(command.id, b.allocator), .removal = false });
 	b.dirty = true;
 }
 
@@ -73,20 +73,20 @@ fn sz find_index(Backend* b, String id)
 fn Binding copy_binding(Binding binding, Allocator allocator)
 {
 	return {
-		.id = dup(binding.id, allocator),
-		.description = dup(binding.description, allocator),
+		.id = hotkey::text_copy(binding.id, allocator),
+		.description = hotkey::text_copy(binding.description, allocator),
 		.chord = binding.chord,
 		.state = binding.state,
-		.trigger = dup(binding.trigger, allocator),
+		.trigger = hotkey::text_copy(binding.trigger, allocator),
 	};
 }
 
 // Free the strings of a binding made by `copy_binding` or `accept_register`.
 fn void free_binding(Allocator allocator, Binding* binding)
 {
-	drop(binding.id, allocator);
-	drop(binding.description, allocator);
-	drop(binding.trigger, allocator);
+	hotkey::text_free(binding.id, allocator);
+	hotkey::text_free(binding.description, allocator);
+	hotkey::text_free(binding.trigger, allocator);
 	binding.id = "";
 	binding.description = "";
 	binding.trigger = "";

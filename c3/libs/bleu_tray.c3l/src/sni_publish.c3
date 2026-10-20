@@ -46,25 +46,25 @@ fn tray::Item[] copy_items(SniBackend* b, Allocator a)
 fn tray::Item copy_item(ItemRecord* r, Allocator a)
 {
 	tray::Item item = r.item;
-	item.id = copy_text(r.item.id, a);
-	item.bus_name = copy_text(r.item.bus_name, a);
-	item.object_path = copy_text(r.item.object_path, a);
-	item.item_id = copy_text(r.item.item_id, a);
-	item.title = copy_text(r.item.title, a);
-	item.icon_name = copy_text(r.item.icon_name, a);
-	item.icon_theme_path = copy_text(r.item.icon_theme_path, a);
+	item.id = convert::copy_text(r.item.id, a);
+	item.bus_name = convert::copy_text(r.item.bus_name, a);
+	item.object_path = convert::copy_text(r.item.object_path, a);
+	item.item_id = convert::copy_text(r.item.item_id, a);
+	item.title = convert::copy_text(r.item.title, a);
+	item.icon_name = convert::copy_text(r.item.icon_name, a);
+	item.icon_theme_path = convert::copy_text(r.item.icon_theme_path, a);
 	item.icon_pixmaps = copy_pixmaps(r.item.icon_pixmaps, a);
-	item.attention_icon_name = copy_text(r.item.attention_icon_name, a);
+	item.attention_icon_name = convert::copy_text(r.item.attention_icon_name, a);
 	item.attention_icon_pixmaps = copy_pixmaps(r.item.attention_icon_pixmaps, a);
-	item.overlay_icon_name = copy_text(r.item.overlay_icon_name, a);
+	item.overlay_icon_name = convert::copy_text(r.item.overlay_icon_name, a);
 	item.overlay_icon_pixmaps = copy_pixmaps(r.item.overlay_icon_pixmaps, a);
 	item.tooltip = {
-		.icon_name = copy_text(r.item.tooltip.icon_name, a),
+		.icon_name = convert::copy_text(r.item.tooltip.icon_name, a),
 		.icon_pixmaps = copy_pixmaps(r.item.tooltip.icon_pixmaps, a),
-		.title = copy_text(r.item.tooltip.title, a),
-		.description = copy_text(r.item.tooltip.description, a),
+		.title = convert::copy_text(r.item.tooltip.title, a),
+		.description = convert::copy_text(r.item.tooltip.description, a),
 	};
-	item.menu_path = copy_text(r.item.menu_path, a);
+	item.menu_path = convert::copy_text(r.item.menu_path, a);
 	item.menu = r.item.menu_path.len > 0 ? copy_menu(&r.menu, a) : {};
 	return item;
 }
@@ -75,7 +75,7 @@ fn tray::Pixmap[] copy_pixmaps(tray::Pixmap[] source, Allocator a)
 	tray::Pixmap[] pixmaps = alloc::new_array(a, tray::Pixmap, source.len);
 	for (sz i = 0; i < source.len; i++)
 	{
-		pixmaps[i] = { .width = source[i].width, .height = source[i].height, .pixels = copy_text(source[i].pixels, a) };
+		pixmaps[i] = { .width = source[i].width, .height = source[i].height, .pixels = convert::copy_text(source[i].pixels, a) };
 	}
 	return pixmaps;
 }
@@ -88,7 +88,7 @@ fn void flush_events(SniBackend* b, TrayHub* hub)
 		Snapshot{Event}* packet = hub.emit_begin();
 		packet.value = {
 			.kind = event.kind,
-			.item_id = copy_text(event.item_id, packet.allocator()),
+			.item_id = convert::copy_text(event.item_id, packet.allocator()),
 			.menu_id = event.menu_id,
 			.x = event.x,
 			.y = event.y,

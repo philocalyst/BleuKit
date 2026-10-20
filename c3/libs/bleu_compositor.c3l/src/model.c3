@@ -9,12 +9,12 @@
  * Hyprland: window addresses such as "0x55d1c0a4e2b0" and workspace ids "1", "-98".
  * niri: numeric ids as decimal text.
  * sway and i3: container ids as decimal text for windows, and the workspace
-   *name* for workspaces (sway addresses workspaces by name in commands).
+ *name* for workspaces (sway addresses workspaces by name in commands).
 
  Unknown is not zero. A value a compositor does not report is a `Maybe{T}` with
  `has_value` false, and a text field is "" when unknown.
 *>
-module bleu::compositor;
+module bleu::compositor @feat(POSIX);
 import std::collections::maybe;
 
 <*
@@ -45,11 +45,11 @@ struct Rect
 <* One workspace. *>
 struct Workspace
 {
-	String id;     // Hyprland and niri: numeric id. sway and i3: the workspace name.
-	String name;   // Display name, "" when the workspace is unnamed.
+	String id; // Hyprland and niri: numeric id. sway and i3: the workspace name.
+	String name; // Display name, "" when the workspace is unnamed.
 	String output; // Name of the output it is on, "" when unknown.
-	bool active;   // Currently shown on its output.
-	bool focused;  // Holds keyboard focus.
+	bool active; // Currently shown on its output.
+	bool focused; // Holds keyboard focus.
 	Maybe{bool} urgent; // A window on it asks for attention; absent when not reported.
 }
 
@@ -62,12 +62,12 @@ struct Workspace
 *>
 struct Window
 {
-	String id;             // Compositor id, see the module comment.
+	String id; // Compositor id, see the module comment.
 	String title;
-	String app_id;         // Wayland app id, Hyprland class, sway app_id or X11 class.
+	String app_id; // Wayland app id, Hyprland class, sway app_id or X11 class.
 	Maybe{int} pid;
-	String workspace_id;   // "" when unknown.
-	String output;         // "" when unknown.
+	String workspace_id; // "" when unknown.
+	String output; // "" when unknown.
 	bool focused;
 	bool floating;
 	Maybe{bool} fullscreen;

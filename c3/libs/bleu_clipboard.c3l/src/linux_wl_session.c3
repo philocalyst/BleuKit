@@ -182,6 +182,14 @@ fn void WlSession.disconnect(&self)
 	self.poller_ready = false;
 }
 
+<* Disconnect and free the session's lists. The session must not be used afterwards. *>
+fn void WlSession.free(&self)
+{
+	self.disconnect();
+	self.offers.free();
+	self.sources.free();
+}
+
 <* Whether the compositor retired the device, which ends the session. *>
 fn bool WlSession.is_finished(&self) => self.finished;
 

@@ -153,11 +153,11 @@ fn void press(Backend* b, int native, uint time) @local
 	foreach (entry : b.entries)
 	{
 		if (entry.native != native) continue;
-		Snapshot{Event}* packet = b.hub.emit_begin();
+		Snapshot{hotkey::Event}* packet = b.hub.emit_begin();
 		Allocator arena = packet.allocator();
 		packet.value = {
 			.kind = PRESSED,
-			.id = dup(entry.id, arena),
+			.id = hotkey::text_copy(entry.id, arena),
 			.at = clock::now(),
 			.platform_time = maybe::value((ulong)time),
 			.activation_token = "",
@@ -184,14 +184,14 @@ fn void accept_register(Backend* b, Command command)
 		return;
 	}
 	Entry entry = {
-		.id = dup(command.id, b.allocator),
-		.description = dup(command.description, b.allocator),
+		.id = hotkey::text_copy(command.id, b.allocator),
+		.description = hotkey::text_copy(command.description, b.allocator),
 		.chord = command.chord,
 		.state = BOUND,
 		.native = b.next_native++,
 	};
-	uint modifiers = windows_modifiers(command.chord.mods) | MOD_NOREPEAT;
-	if (registerHotKey(b.window, entry.native, modifiers, windows_virtual_key(command.chord.key)) == 0)
+	uint modifiers = keymap_windows::windows_modifiers(command.chord.mods) | MOD_NOREPEAT;
+	if (registerHotKey(b.window, entry.native, modifiers, keymap_windows::windows_virtual_key(command.chord.key)) == 0)
 	{
 		uint code = win32::getLastError();
 		if (code != ERROR_HOTKEY_ALREADY_REGISTERED)
@@ -274,11 +274,11 @@ fn void fail_native(Task* op, fault failure, uint code) @local
 
 fn Binding copy_binding(Entry entry, Allocator allocator) @local
 {
-	return { .id = dup(entry.id, allocator), .description = dup(entry.description, allocator), .chord = entry.chord, .state = entry.state, .trigger = "" };
+	return { .id = hotkey::text_copy(entry.id, allocator), .description = hotkey::text_copy(entry.description, allocator), .chord = entry.chord, .state = entry.state, .trigger = "" };
 }
 
 fn void free_entry(Allocator allocator, Entry* entry) @local
 {
-	drop(entry.id, allocator);
-	drop(entry.description, allocator);
+	hotkey::text_free(entry.id, allocator);
+	hotkey::text_free(entry.description, allocator);
 }

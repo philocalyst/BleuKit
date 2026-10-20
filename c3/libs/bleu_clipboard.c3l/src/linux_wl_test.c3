@@ -112,21 +112,28 @@ fn void offer_selection(testing::MockServer* s, uint device, uint offer, String[
 	s.send(&selection)!!;
 }
 
-// A copy by another application: text and an image. The text is read; the image is for a fetch.
+// A copy by another application: its text is read. Nothing else is requested.
 fn int copy_scenario(void* arg)
 {
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
 		Setup setup            = serve_device(s);
+		offer_selection(s, setup.device, SERVER_OFFER, { "text/plain;charset=utf-8" });
+		serve_text(s, "hello");
+	};
+	return 0;
+}
+
+// A copy by another application with an image as well: the text is read, and the image is for a fetch.
+fn int image_copy_scenario(void* arg)
+{
+	foreign::@foreign_entry()
+	{
+		testing::MockServer* s = (testing::MockServer*)arg;
+		Setup setup            = serve_device(s);
 		offer_selection(s, setup.device, SERVER_OFFER, { "text/plain;charset=utf-8", "image/png" });
-		testing::Message text = expect_request(s, SERVER_OFFER, 0);
-		wire::Reader r        = s.reader(text);
-		expect(r.get_string()!! == "text/plain;charset=utf-8", "the text was not requested first");
-		rt::Native fd = r.get_fd()!!;
-		char[] hello  = "hello";
-		expect(sys_write(fd, hello.ptr, (usz)hello.len) == 5, "could not write the copy");
-		display::native_close(fd);
+		serve_text(s, "hello");
 		testing::Message image = expect_request(s, SERVER_OFFER, 0);
 		wire::Reader ir        = s.reader(image);
 		expect(ir.get_string()!! == "image/png", "the image was not requested");
@@ -136,6 +143,17 @@ fn int copy_scenario(void* arg)
 		display::native_close(image_fd);
 	};
 	return 0;
+}
+
+// Answer the next receive, which must ask for the UTF-8 text, with `text`.
+fn void serve_text(testing::MockServer* s, String text)
+{
+	testing::Message receive = expect_request(s, SERVER_OFFER, 0);
+	wire::Reader r           = s.reader(receive);
+	expect(r.get_string()!! == "text/plain;charset=utf-8", "the text was not requested");
+	rt::Native fd = r.get_fd()!!;
+	expect(sys_write(fd, text.ptr, text.len) == text.len, "could not write the copy");
+	display::native_close(fd);
 }
 
 // A concealed copy: the compositor offers the KDE password hint, and nothing may be read.
@@ -247,7 +265,7 @@ fn void copy_from_another_application_is_kept_in_history() @test
 	Thread t;
 	t.create(&copy_scenario, &server)!!;
 	connect_pair(&server, &session);
-	defer { session.disconnect(); board.free(); server.close(); }
+	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	test::eq(board.items.len(), (sz)1);
 	test::eq(board.lane(Slot.CLIPBOARD).preview, "hello");
@@ -270,7 +288,7 @@ fn void concealed_copy_is_never_read() @test
 	Thread t;
 	t.create(&concealed_scenario, &server)!!;
 	connect_pair(&server, &session);
-	defer { session.disconnect(); board.free(); server.close(); }
+	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 10);
 	test::eq(board.lane(Slot.CLIPBOARD).privacy, Privacy.CONCEALED);
 	test::@check(!transfers_busy(&session));
@@ -292,7 +310,7 @@ fn void our_own_selection_serves_its_bytes_and_is_released() @test
 	Thread t;
 	t.create(&own_scenario, &server)!!;
 	connect_pair(&server, &session);
-	defer { session.disconnect(); board.free(); server.close(); }
+	defer { session.free(); board.free(); server.close(); }
 	Representation[1] offered = { { .mime = "text/plain;charset=utf-8", .bytes = (char[])"copied" } };
 	ulong seq = session.own(Slot.CLIPBOARD, offered[..])!!;
 	pump_ticks(&session, 25);
@@ -319,7 +337,7 @@ fn void a_capture_over_the_size_cap_is_dropped() @test
 	Thread t;
 	t.create(&oversize_scenario, &server)!!;
 	connect_pair(&server, &session);
-	defer { session.disconnect(); board.free(); server.close(); }
+	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	test::@check(!transfers_busy(&session));
 	test::eq(board.lane(Slot.CLIPBOARD).size, (usz)0);
@@ -339,9 +357,9 @@ fn void a_fetch_reads_the_chosen_type_of_the_live_offer() @test
 	defer wakeup.close();
 	session.wakeup = &wakeup;
 	Thread t;
-	t.create(&copy_scenario, &server)!!;
+	t.create(&image_copy_scenario, &server)!!;
 	connect_pair(&server, &session);
-	defer { session.disconnect(); board.free(); server.close(); }
+	defer { session.free(); board.free(); server.close(); }
 	pump_ticks(&session, 25);
 	Operation{Bytes}* op = operation::begin{Bytes}(mem);
 	defer op.release();

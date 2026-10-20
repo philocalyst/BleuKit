@@ -9,7 +9,7 @@
  the field count of each event, applied as `splitn`). Socket I/O is in
  `hyprland_io.c3`.
 *>
-module bleu::compositor::hyprland;
+module bleu::compositor::hyprland @feat(POSIX);
 import std::collections::object, std::collections::maybe, bleu::error, bleu::compositor, bleu::compositor::backend, bleu::compositor::wire;
 
 <*
@@ -17,17 +17,17 @@ import std::collections::object, std::collections::maybe, bleu::error, bleu::com
 *>
 struct Replies
 {
-	Object* clients;    // `j/clients`: array of window objects
-	Object* active;     // `j/activewindow`: one window object, or an empty object when nothing is focused
+	Object* clients; // `j/clients`: array of window objects
+	Object* active; // `j/activewindow`: one window object, or an empty object when nothing is focused
 	Object* workspaces; // `j/workspaces`: array of workspace objects
-	Object* monitors;   // `j/monitors`: array of monitor objects
-	Object* devices;    // `j/devices`: object with a `keyboards` array
+	Object* monitors; // `j/monitors`: array of monitor objects
+	Object* devices; // `j/devices`: object with a `keyboards` array
 }
 
 // Bits of a client's `fullscreen` member (hyprland-rs `FullscreenMode`): 1 is
 // maximized, 2 is fullscreen, 3 is both.
 const long FULLSCREEN_MAXIMIZED_BIT = 1;
-const long FULLSCREEN_BIT = 2;
+const long FULLSCREEN_BIT           = 2;
 
 <*
  Build the model from one set of replies.
@@ -53,21 +53,21 @@ fn compositor::Model? build(Allocator allocator, Replies replies)
 
 fn compositor::Workspace[] workspaces(Replies replies, Allocator allocator) @private
 {
-	sz count = wire::length(replies.workspaces);
+	sz count                    = wire::length(replies.workspaces);
 	compositor::Workspace[] out = alloc::new_array(allocator, compositor::Workspace, count);
 	for (sz i = 0; i < count; i++)
 	{
 		Object* workspace = wire::item(replies.workspaces, i);
-		long id = wire::integer_member(workspace, "id");
-		String output = wire::text_member(workspace, "monitor", allocator);
-		bool active = shows_on_monitor(replies.monitors, id);
+		long id           = wire::integer_member(workspace, "id");
+		String output     = wire::text_member(workspace, "monitor", allocator);
+		bool active       = shows_on_monitor(replies.monitors, id);
 		out[i] = {
 			.id = id_text(id, allocator),
 			.name = wire::text_member(workspace, "name", allocator),
 			.output = output,
 			.active = active,
 			.focused = active && monitor_focused(replies.monitors, output),
-			.urgent = {},
+			.urgent = { },
 		};
 	}
 	return out;
@@ -75,12 +75,12 @@ fn compositor::Workspace[] workspaces(Replies replies, Allocator allocator) @pri
 
 fn compositor::Window[] windows(Replies replies, String focused, Allocator allocator) @private
 {
-	sz count = wire::length(replies.clients);
+	sz count                 = wire::length(replies.clients);
 	compositor::Window[] out = alloc::new_array(allocator, compositor::Window, count);
 	for (sz i = 0; i < count; i++)
 	{
 		Object* client = wire::item(replies.clients, i);
-		long mode = wire::integer_member(client, "fullscreen");
+		long mode      = wire::integer_member(client, "fullscreen");
 		String address = wire::text_member(client, "address", allocator);
 		out[i] = {
 			.id = address,
@@ -102,7 +102,7 @@ fn compositor::Window[] windows(Replies replies, String focused, Allocator alloc
 
 fn compositor::Output[] outputs(Object* monitors, Allocator allocator) @private
 {
-	sz count = wire::length(monitors);
+	sz count                 = wire::length(monitors);
 	compositor::Output[] out = alloc::new_array(allocator, compositor::Output, count);
 	for (sz i = 0; i < count; i++)
 	{
@@ -123,8 +123,8 @@ fn compositor::Output[] outputs(Object* monitors, Allocator allocator) @private
 fn compositor::KeyboardLayouts layouts(Object* devices, Allocator allocator) @private
 {
 	Object*? keyboards = wire::member(devices, "keyboards");
-	if (catch err = keyboards) return {};
-	if (!keyboards.is_array()) return {};
+	if (catch err = keyboards) return { };
+	if (!keyboards.is_array()) return { };
 	Object* first = null;
 	for (sz i = 0; i < wire::length(keyboards); i++)
 	{
@@ -132,15 +132,15 @@ fn compositor::KeyboardLayouts layouts(Object* devices, Allocator allocator) @pr
 		if (wire::flag_member(keyboard, "main")) return keyboard_layouts(keyboard, allocator);
 		if (first == null) first = keyboard;
 	}
-	if (first == null) return {};
+	if (first == null) return { };
 	return keyboard_layouts(first, allocator);
 }
 
 fn compositor::KeyboardLayouts keyboard_layouts(Object* keyboard, Allocator allocator) @private
 {
 	return {
-		.names = {},
-		.current = {},
+		.names = { },
+		.current = { },
 		.current_name = wire::text_member(keyboard, "active_keymap", allocator),
 	};
 }
@@ -149,7 +149,7 @@ fn compositor::KeyboardLayouts keyboard_layouts(Object* keyboard, Allocator allo
 fn Maybe{int} pid_of(Object* client) @private
 {
 	Maybe{long} pid = wire::optional_integer(client, "pid");
-	if (!pid.has_value || pid.value <= 0) return {};
+	if (!pid.has_value || pid.value <= 0) return { };
 	return { .value = (int)pid.value, .has_value = true };
 }
 
@@ -164,7 +164,7 @@ fn String id_member_text(Object* obj, String key, Allocator allocator) @private
 fn Maybe{long} nested_id(Object* obj, String key) @private
 {
 	Object*? nested = wire::member(obj, key);
-	if (catch err = nested) return {};
+	if (catch err = nested) return { };
 	return wire::optional_integer(nested, "id");
 }
 
@@ -215,9 +215,9 @@ fn Maybe{Rect} monitor_geometry(Object* monitor) @private
 fn Maybe{Rect} client_geometry(Object* client) @private
 {
 	Object*? at = wire::member(client, "at");
-	if (catch err = at) return {};
+	if (catch err = at) return { };
 	Object*? size = wire::member(client, "size");
-	if (catch err = size) return {};
+	if (catch err = size) return { };
 	Rect rect = {
 		.x = (int)wire::integer_element(at, 0),
 		.y = (int)wire::integer_element(at, 1),
@@ -236,9 +236,14 @@ fn Maybe{Rect} client_geometry(Object* client) @private
 fn backend::RawEvent? parse_event(String line)
 {
 	sz? found = line.index_of(">>");
-	if (catch err = found) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "hyprland event has no '>>'")~;
+	if (catch err = found) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"hyprland event has no '>>'"
+	)~;
 	sz separator = found;
-	return { .name = line[0 : separator], .payload = line[separator + 2 : line.len - (separator + 2)] };
+	return { .name = line[0:separator], .payload = line[separator + 2:line.len - (separator + 2)] };
 }
 
 <*
@@ -271,12 +276,21 @@ fn backend::Refresh apply(compositor::Model* model, Allocator allocator, backend
 // Events whose effect spans workspaces, outputs or the configuration.
 fn bool is_model_wide(String name) @private
 {
-	return name == "workspace" || name == "workspacev2" || name == "createworkspace"
-		|| name == "createworkspacev2" || name == "destroyworkspace" || name == "destroyworkspacev2"
-		|| name == "moveworkspace" || name == "moveworkspacev2" || name == "renameworkspace"
-		|| name == "focusedmon" || name == "focusedmonv2" || name == "monitoradded"
-		|| name == "monitoraddedv2" || name == "monitorremoved" || name == "monitorremovedv2"
-		|| name == "activespecial" || name == "activespecialv2" || name == "configreloaded";
+	return name == "workspace" || name == "workspacev2" || name == "createworkspace" || name == "createworkspacev2"
+		|| name == "destroyworkspace"
+		|| name == "destroyworkspacev2"
+		|| name == "moveworkspace"
+		|| name == "moveworkspacev2"
+		|| name == "renameworkspace"
+		|| name == "focusedmon"
+		|| name == "focusedmonv2"
+		|| name == "monitoradded"
+		|| name == "monitoraddedv2"
+		|| name == "monitorremoved"
+		|| name == "monitorremovedv2"
+		|| name == "activespecial"
+		|| name == "activespecialv2"
+		|| name == "configreloaded";
 }
 
 // `ADDRESS` (empty when nothing is focused). Focus may move inside the focused
@@ -301,10 +315,10 @@ fn backend::Refresh focus_changed(compositor::Model* model, String address) @pri
 // until the next snapshot.
 fn backend::Refresh window_opened(compositor::Model* model, Allocator allocator, String payload) @private
 {
-	String address = wire::nth_field(payload, 0, 4) ?? "";
+	String address        = wire::nth_field(payload, 0, 4) ?? "";
 	String workspace_name = wire::nth_field(payload, 1, 4) ?? "";
-	String app_class = wire::nth_field(payload, 2, 4) ?? "";
-	String title = wire::nth_field(payload, 3, 4) ?? "";
+	String app_class      = wire::nth_field(payload, 2, 4) ?? "";
+	String title          = wire::nth_field(payload, 3, 4) ?? "";
 	if (address.len == 0 || workspace_name.len == 0) return REFRESH_NEEDED;
 	sz workspace = workspace_index_by_name(model, workspace_name);
 	if (workspace < 0 || window_index(model, address) >= 0) return REFRESH_NEEDED;
@@ -315,7 +329,7 @@ fn backend::Refresh window_opened(compositor::Model* model, Allocator allocator,
 		.workspace_id = model.workspaces[workspace].id,
 		.output = model.workspaces[workspace].output,
 	};
-	sz count = model.windows.len;
+	sz count                     = model.windows.len;
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, count + 1);
 	for (sz i = 0; i < count; i++) windows[i] = model.windows[i];
 	windows[count] = opened;
@@ -327,11 +341,11 @@ fn backend::Refresh window_opened(compositor::Model* model, Allocator allocator,
 fn backend::Refresh window_closed(compositor::Model* model, Allocator allocator, String payload) @private
 {
 	String address = wire::nth_field(payload, 0, 1) ?? "";
-	sz target = window_index(model, address);
+	sz target      = window_index(model, address);
 	if (target < 0) return NONE;
-	sz count = model.windows.len;
+	sz count                     = model.windows.len;
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, count - 1);
-	sz out = 0;
+	sz out                       = 0;
 	for (sz i = 0; i < count; i++)
 	{
 		if (i == target) continue;
@@ -345,8 +359,8 @@ fn backend::Refresh window_closed(compositor::Model* model, Allocator allocator,
 fn backend::Refresh window_titled(compositor::Model* model, Allocator allocator, String payload) @private
 {
 	String address = wire::nth_field(payload, 0, 2) ?? "";
-	String title = wire::nth_field(payload, 1, 2) ?? "";
-	sz target = window_index(model, address);
+	String title   = wire::nth_field(payload, 1, 2) ?? "";
+	sz target      = window_index(model, address);
 	if (target < 0) return REFRESH_NEEDED;
 	model.windows[target].title = title.copy(allocator);
 	return UPDATED;
@@ -364,9 +378,9 @@ fn backend::Refresh fullscreen_changed(compositor::Model* model, String payload)
 // `ADDRESS,FLOATING` where FLOATING is `0` or `1`.
 fn backend::Refresh floating_changed(compositor::Model* model, String payload) @private
 {
-	String address = wire::nth_field(payload, 0, 2) ?? "";
+	String address  = wire::nth_field(payload, 0, 2) ?? "";
 	String floating = wire::nth_field(payload, 1, 2) ?? "";
-	sz target = window_index(model, address);
+	sz target       = window_index(model, address);
 	if (target < 0) return REFRESH_NEEDED;
 	model.windows[target].floating = floating == "1";
 	return UPDATED;
@@ -376,7 +390,7 @@ fn backend::Refresh floating_changed(compositor::Model* model, String payload) @
 fn backend::Refresh urgent_set(compositor::Model* model, String payload) @private
 {
 	String address = wire::nth_field(payload, 0, 1) ?? "";
-	sz target = window_index(model, address);
+	sz target      = window_index(model, address);
 	if (target < 0) return REFRESH_NEEDED;
 	model.windows[target].urgent = { .value = true, .has_value = true };
 	return UPDATED;
@@ -385,10 +399,10 @@ fn backend::Refresh urgent_set(compositor::Model* model, String payload) @privat
 // `ADDRESS,WORKSPACEID,WORKSPACENAME`.
 fn backend::Refresh window_moved(compositor::Model* model, String payload) @private
 {
-	String address = wire::nth_field(payload, 0, 3) ?? "";
+	String address      = wire::nth_field(payload, 0, 3) ?? "";
 	String workspace_id = wire::nth_field(payload, 1, 3) ?? "";
-	sz target = window_index(model, address);
-	sz workspace = workspace_index(model, workspace_id);
+	sz target           = window_index(model, address);
+	sz workspace        = workspace_index(model, workspace_id);
 	if (target < 0 || workspace < 0) return REFRESH_NEEDED;
 	model.windows[target].workspace_id = model.workspaces[workspace].id;
 	model.windows[target].output = model.workspaces[workspace].output;

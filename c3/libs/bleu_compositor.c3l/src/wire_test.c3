@@ -1,4 +1,4 @@
-module bleu::compositor::wire_test;
+module bleu::compositor::wire_test @feat(POSIX);
 import bleu::compositor::wire, bleu::error, std::core::test, std::collections::object;
 
 fn void lines_are_taken_across_partial_feeds() @test
@@ -45,7 +45,10 @@ fn void comma_fields_keep_commas_in_the_last_field() @test
 	test::@check(wire::nth_field(payload, 0, 4)!! == "0x55", "field 0");
 	test::@check(wire::nth_field(payload, 2, 4)!! == "kitty", "field 2");
 	test::@check(wire::nth_field(payload, 3, 4)!! == "Log: a, b", "the last field keeps its commas");
-	test::@check(wire::nth_field(payload, 1, 2)!! == "3,kitty,Log: a, b", "a field count of 2 leaves the rest in field 1");
+	test::@check(
+		wire::nth_field(payload, 1, 2)!! == "3,kitty,Log: a, b",
+		"a field count of 2 leaves the rest in field 1"
+	);
 	test::@check(wire::nth_field(payload, 0, 1)!! == payload, "a count of 1 is the whole payload");
 	test::@error(wire::nth_field("only", 1, 2), NOT_FOUND);
 }

@@ -3,24 +3,24 @@
  partial reads and yields complete lines or exact-length messages, the comma
  field rule of Hyprland events, and checks on ids that go into commands.
 *>
-module bleu::compositor::wire;
+module bleu::compositor::wire @feat(POSIX);
 import bleu::error;
 
 <*
  A bounded accumulator for stream input. `feed` takes what fits, `take_line`
- and `take_exact` hand out complete units. A unit larger than `capacity` can
+ and `peek_exact` hand out complete units. A unit larger than `capacity` can
  never be taken, so a peer that sends one is a PROTOCOL error, not a growing
  buffer.
 
- Views returned by `take_line` and `take_exact` stay valid until the next `feed`.
+ Views returned by `take_line` and `peek_exact` stay valid until the next `feed`, `tail` or `consume`.
 *>
 struct Buffer
 {
 	Allocator allocator;
 	char[] data;
 	usz capacity;
-	usz start;   // First unread byte.
-	usz filled;  // One past the last byte received.
+	usz start; // First unread byte.
+	usz filled; // One past the last byte received.
 }
 
 <*
@@ -42,7 +42,7 @@ fn void Buffer.init(&self, Allocator allocator, usz capacity)
 fn void Buffer.free(&self)
 {
 	alloc::free(self.allocator, self.data.ptr);
-	self.data = {};
+	self.data = { };
 }
 
 <* Bytes received but not yet taken. *>
@@ -57,7 +57,7 @@ fn usz Buffer.pending(&self) @inline => self.filled - self.start;
 fn usz? Buffer.feed(&self, char[] bytes)
 {
 	char[] room = self.tail()!;
-	usz taken = min((usz)room.len, (usz)bytes.len);
+	usz taken   = min((usz)room.len, (usz)bytes.len);
 	if (taken > 0) mem::copy(room.ptr, bytes.ptr, (sz)taken);
 	self.commit(taken);
 	return taken;
@@ -75,7 +75,7 @@ fn String? Buffer.take_line(&self)
 	for (usz i = self.start; i < self.filled; i++)
 	{
 		if (self.data[i] != '\n') continue;
-		String line = (String)self.data[self.start : i - self.start];
+		String line = (String)self.data[self.start:i - self.start];
 		self.start = i + 1;
 		return line;
 	}
@@ -91,7 +91,7 @@ fn String? Buffer.take_line(&self)
 fn String? Buffer.peek_exact(&self, usz count)
 {
 	if (self.pending() < count) return NOT_FOUND~;
-	return (String)self.data[self.start : count];
+	return (String)self.data[self.start:count];
 }
 
 <* Drop `count` unread bytes. They must have been peeked. *>
@@ -113,7 +113,7 @@ fn char[]? Buffer.tail(&self)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message exceeds %d bytes", self.capacity)~;
 	}
-	return self.data[self.filled : self.capacity - self.filled];
+	return self.data[self.filled:self.capacity - self.filled];
 }
 
 <* Record that `count` bytes were written into the `tail` slice. *>
@@ -148,11 +148,11 @@ fn String? nth_field(String data, usz index, usz count)
 	for (usz i = 0; i < data.len && field < count - 1; i++)
 	{
 		if (data[i] != ',') continue;
-		if (field == index) return data[start : i - start];
+		if (field == index) return data[start:i - start];
 		field++;
 		start = i + 1;
 	}
-	if (field == index) return data[start : data.len - start];
+	if (field == index) return data[start:data.len - start];
 	return NOT_FOUND~;
 }
 

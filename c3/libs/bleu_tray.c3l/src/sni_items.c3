@@ -50,9 +50,9 @@ fn void new_record(SniBackend* b, convert::Registration reg, String text)
 	r.key = b.next_key;
 	init_arenas(b, r);
 	Allocator identity = &r.identity;
-	r.item.bus_name = copy_text(reg.bus_name, identity);
-	r.item.object_path = copy_text(reg.object_path, identity);
-	r.item.id = copy_text(text, identity);
+	r.item.bus_name = convert::copy_text(reg.bus_name, identity);
+	r.item.object_path = convert::copy_text(reg.object_path, identity);
+	r.item.id = convert::copy_text(text, identity);
 	if (catch subscribe_record(b, r))
 	{
 		free_record_memory(b, r);

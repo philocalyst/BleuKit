@@ -80,3 +80,11 @@ fn void enumerated_text_is_read_with_defaults() @test
 	assert(convert::toggle_state_from(1) == ON);
 	assert(convert::disposition_from("alert") == ALERT);
 }
+
+fn void win32_labels_use_ampersands() @test
+{
+	assert(convert::win32_label("_Open", tmem) == "&Open");
+	assert(convert::win32_label("Item __one", tmem) == "Item _one");
+	assert(convert::win32_label("A&B", tmem) == "A&&B");
+	assert(convert::win32_label("", tmem) == "");
+}

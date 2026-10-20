@@ -154,7 +154,7 @@ fn void? apply_menu_property(MenuNode* node, String key, String contents, Reader
 		}
 		if (key == "icon-name")
 		{
-			node.icon_name = copy_text(rd.read_string()!, a);
+			node.icon_name = convert::copy_text(rd.read_string()!, a);
 			return;
 		}
 		if (key == "type")
@@ -289,11 +289,11 @@ fn tray::MenuItem menu_entry(MenuNode* node, Allocator a, usz first_child)
 	return {
 		.id = node.id,
 		.is_separator = node.is_separator,
-		.label = copy_text(node.label, a),
+		.label = convert::copy_text(node.label, a),
 		.enabled = node.enabled,
 		.visible = node.visible,
-		.icon_name = copy_text(node.icon_name, a),
-		.shortcut = copy_text(node.shortcut, a),
+		.icon_name = convert::copy_text(node.icon_name, a),
+		.shortcut = convert::copy_text(node.shortcut, a),
 		.toggle = node.toggle,
 		.toggle_state = node.toggle_state,
 		.has_submenu = node.has_submenu,

@@ -6,11 +6,14 @@
 //   dnd <0|1>                  do-not-disturb off or on
 //   clear                      drop the history
 //   state                      print the published state
+//   sync                       print SYNC (a round trip, for the test)
 //   quit                       stop and exit
+//
+// Events (EVENT POSTED|CLOSED|ACTION_INVOKED lines) are printed by a second thread as they happen.
 //
 // stdout: READY on success, OPEN_FAILED with the reason otherwise, then one line per answer.
 module notify_test_server;
-import std::io, std::time, bleu::error, bleu::notify, bleu::operation;
+import std::io, std::thread, std::time, bleu::error, bleu::notify, bleu::operation, bleu::rt::foreign, bleu::stream;
 
 fn int main(String[] args)
 {
@@ -23,6 +26,11 @@ fn int main(String[] args)
 		return 2;
 	}
 	notify::Notify* centre = opened;
+	// Events are printed by a second thread, which only reads its subscription.
+	stream::Reader{notify::Event}*? events = centre.subscribe();
+	if (catch err = events) return 2;
+	Thread printer;
+	printer.create(&print_events, events)!!;
 	io::printfn("READY %s", centre.backend_name());
 	bool running = true;
 	while (running)
@@ -42,6 +50,31 @@ fn int main(String[] args)
 		}
 	}
 	centre.close();
+	printer.join()!!;
+	events.release();
+	return 0;
+}
+
+// Print each event as it arrives, until the subscription closes with the centre.
+fn int print_events(void* context)
+{
+	foreign::@foreign_entry()
+	{
+		stream::Reader{notify::Event}* events = (stream::Reader{notify::Event}*)context;
+		while (try packet = events.next())
+		{
+			notify::Event event = packet.value;
+			io::printfn(
+				"EVENT %s id=%d replaced=%d reason=%d key=%s",
+				event.kind == notify::EventKind.POSTED ? "POSTED" : (event.kind == notify::EventKind.CLOSED ? "CLOSED" : "ACTION_INVOKED"),
+				event.id,
+				event.replaced ? 1 : 0,
+				(uint)event.reason,
+				event.action_key
+			);
+			packet.release();
+		}
+	};
 	return 0;
 }
 
@@ -88,6 +121,10 @@ fn bool handle(notify::Notify* centre, String line)
 	else if (verb == "state")
 	{
 		print_state(centre);
+	}
+	else if (verb == "sync")
+	{
+		io::printfn("SYNC");
 	}
 	else if (verb == "quit")
 	{

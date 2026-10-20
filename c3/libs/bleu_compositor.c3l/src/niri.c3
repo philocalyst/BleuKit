@@ -12,7 +12,7 @@
  events and the `Casts` response, which this library ignores. Socket I/O is in
  `niri_io.c3`.
 *>
-module bleu::compositor::niri;
+module bleu::compositor::niri @feat(POSIX);
 import std::collections::object, std::collections::maybe, bleu::error, bleu::compositor, bleu::compositor::backend, bleu::compositor::wire;
 
 <*
@@ -21,9 +21,9 @@ import std::collections::object, std::collections::maybe, bleu::error, bleu::com
 struct Replies
 {
 	Object* workspaces; // `Workspaces`: array
-	Object* windows;    // `Windows`: array
-	Object* outputs;    // `Outputs`: object keyed by output name
-	Object* layouts;    // `KeyboardLayouts`: object with `names` and `current_idx`
+	Object* windows; // `Windows`: array
+	Object* outputs; // `Outputs`: object keyed by output name
+	Object* layouts; // `KeyboardLayouts`: object with `names` and `current_idx`
 }
 
 <*
@@ -39,7 +39,16 @@ fn Object*? unwrap(Object* reply, String what)
 	Object*? ok = wire::member(reply, "Ok");
 	if (catch err = ok)
 	{
-		if (!wire::present(reply, "Err")) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "niri reply for %s has neither Ok nor Err", what)~;
+		if (!wire::present(
+			reply,
+			"Err"
+		)) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"niri reply for %s has neither Ok nor Err",
+			what
+		)~;
 		String message = wire::peek(reply, "Err", "no message");
 		return error::raise(error::BACKEND_FAILURE, error::Domain.COMPOSITOR, 0, "niri refused %s: %s", what, message)~;
 	}
@@ -54,7 +63,8 @@ fn Object*? unwrap(Object* reply, String what)
 *>
 fn compositor::Model? build(Allocator allocator, Replies replies)
 {
-	if (!replies.workspaces.is_array() || !replies.windows.is_array() || !replies.outputs.is_map() || !replies.layouts.is_map())
+	if (!replies.workspaces.is_array() || !replies.windows.is_array() || !replies.outputs.is_map()
+		|| !replies.layouts.is_map())
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "niri: a reply has the wrong shape")~;
 	}
@@ -70,7 +80,7 @@ fn compositor::Model? build(Allocator allocator, Replies replies)
 
 fn compositor::Workspace[] build_workspaces(Object* list, Allocator allocator) @private
 {
-	sz count = wire::length(list);
+	sz count                    = wire::length(list);
 	compositor::Workspace[] out = alloc::new_array(allocator, compositor::Workspace, count);
 	for (sz i = 0; i < count; i++) out[i] = workspace_of(wire::item(list, i), allocator);
 	return out;
@@ -90,7 +100,7 @@ fn compositor::Workspace workspace_of(Object* workspace, Allocator allocator) @p
 
 fn compositor::Window[] build_windows(Object* list, compositor::Workspace[] workspaces, Allocator allocator) @private
 {
-	sz count = wire::length(list);
+	sz count                 = wire::length(list);
 	compositor::Window[] out = alloc::new_array(allocator, compositor::Window, count);
 	for (sz i = 0; i < count; i++) out[i] = window_of(wire::item(list, i), workspaces, allocator);
 	return out;
@@ -101,7 +111,7 @@ fn compositor::Window[] build_windows(Object* list, compositor::Workspace[] work
 fn compositor::Window window_of(Object* window, compositor::Workspace[] workspaces, Allocator allocator) @private
 {
 	Maybe{long} workspace = wire::optional_integer(window, "workspace_id");
-	String workspace_id = workspace.has_value ? id_text(workspace.value, allocator) : "";
+	String workspace_id   = workspace.has_value ? id_text(workspace.value, allocator) : "";
 	return {
 		.id = id_text(wire::integer_member(window, "id"), allocator),
 		.title = wire::text_member(window, "title", allocator),
@@ -111,17 +121,17 @@ fn compositor::Window window_of(Object* window, compositor::Workspace[] workspac
 		.output = output_of_workspace(workspaces, workspace_id, allocator),
 		.focused = wire::flag_member(window, "is_focused"),
 		.floating = wire::flag_member(window, "is_floating"),
-		.fullscreen = {},
-		.maximized = {},
+		.fullscreen = { },
+		.maximized = { },
 		.urgent = { .value = wire::flag_member(window, "is_urgent"), .has_value = true },
-		.geometry = {},
+		.geometry = { },
 	};
 }
 
 fn Maybe{int} pid_of(Object* window) @private
 {
 	Maybe{long} pid = wire::optional_integer(window, "pid");
-	if (!pid.has_value) return {};
+	if (!pid.has_value) return { };
 	return { .value = (int)pid.value, .has_value = true };
 }
 
@@ -138,14 +148,14 @@ fn String output_of_workspace(compositor::Workspace[] workspaces, String id, All
 // output is off) with the position and scale of the output.
 fn compositor::Output[] build_outputs(Object* outputs, compositor::Workspace[] workspaces, Allocator allocator) @private
 {
-	String[] names = outputs.map.tkeys();
+	String[] names           = outputs.map.tkeys();
 	compositor::Output[] out = alloc::new_array(allocator, compositor::Output, names.len);
 	for (sz i = 0; i < names.len; i++)
 	{
-		Object* output = wire::member(outputs, names[i]) ?? null;
-		String name = names[i];
+		Object* output          = wire::member(outputs, names[i]) ?? null;
+		String name             = names[i];
 		String active_workspace = "";
-		bool focused = false;
+		bool focused            = false;
 		for (sz j = 0; j < workspaces.len; j++)
 		{
 			if (workspaces[j].output != name) continue;
@@ -166,8 +176,8 @@ fn compositor::Output[] build_outputs(Object* outputs, compositor::Workspace[] w
 fn Maybe{Rect} logical_geometry(Object* output) @private
 {
 	Object*? logical = wire::member(output, "logical");
-	if (catch err = logical) return {};
-	if (!logical.is_map()) return {};
+	if (catch err = logical) return { };
+	if (!logical.is_map()) return { };
 	Rect rect = {
 		.x = (int)wire::integer_member(logical, "x"),
 		.y = (int)wire::integer_member(logical, "y"),
@@ -180,15 +190,15 @@ fn Maybe{Rect} logical_geometry(Object* output) @private
 fn Maybe{double} logical_scale(Object* output) @private
 {
 	Object*? logical = wire::member(output, "logical");
-	if (catch err = logical) return {};
+	if (catch err = logical) return { };
 	return wire::number_member(logical, "scale");
 }
 
 fn compositor::KeyboardLayouts build_layouts(Object* layouts, Allocator allocator) @private
 {
 	Object*? list = wire::member(layouts, "names");
-	if (catch err = list) return {};
-	sz count = wire::length(list);
+	if (catch err = list) return { };
+	sz count       = wire::length(list);
 	String[] names = alloc::new_array(allocator, String, count);
 	for (sz i = 0; i < count; i++) names[i] = wire::text_element(list, i, allocator);
 	Maybe{long} current = wire::optional_integer(layouts, "current_idx");
@@ -196,7 +206,7 @@ fn compositor::KeyboardLayouts build_layouts(Object* layouts, Allocator allocato
 	if (current.has_value && current.value >= 0 && current.value < (long)count) current_name = names[current.value];
 	return {
 		.names = names,
-		.current = current.has_value ? { .value = (int)current.value, .has_value = true } : {},
+		.current = current.has_value ? { .value = (int)current.value, .has_value = true } : { },
 		.current_name = current_name.copy(allocator),
 	};
 }
@@ -211,7 +221,12 @@ fn backend::RawEvent? parse_event(String line)
 {
 	Object*? root = wire::parse_document(line, "niri event");
 	if (catch err = root) return err~;
-	if (!root.is_map() || root.map.len() != 1) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "niri event is not a single variant")~;
+	if (!root.is_map() || root.map.len() != 1) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"niri event is not a single variant"
+	)~;
 	String[] names = root.map.tkeys();
 	return { .name = names[0].copy(tmem), .payload = line };
 }
@@ -281,7 +296,7 @@ fn backend::Refresh workspace_activated(compositor::Model* model, Object* body) 
 	String id = id_member(body, "id");
 	sz target = workspace_index(model, id);
 	if (target < 0) return REFRESH_NEEDED;
-	bool focused = wire::flag_member(body, "focused");
+	bool focused  = wire::flag_member(body, "focused");
 	String output = model.workspaces[target].output;
 	for (sz i = 0; i < model.workspaces.len; i++)
 	{
@@ -305,13 +320,13 @@ fn backend::Refresh window_opened(compositor::Model* model, Allocator allocator,
 	Object*? window = wire::object_member(body, "window");
 	if (catch err = window) return REFRESH_NEEDED;
 	compositor::Window fresh = window_of(window, model.workspaces, allocator);
-	sz target = window_index(model, fresh.id);
+	sz target                = window_index(model, fresh.id);
 	if (target >= 0)
 	{
 		model.windows[target] = fresh;
 		return UPDATED;
 	}
-	sz count = model.windows.len;
+	sz count                     = model.windows.len;
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, count + 1);
 	for (sz i = 0; i < count; i++) windows[i] = model.windows[i];
 	windows[count] = fresh;
@@ -323,9 +338,9 @@ fn backend::Refresh window_closed(compositor::Model* model, Allocator allocator,
 {
 	sz target = window_index(model, id_member(body, "id"));
 	if (target < 0) return NONE;
-	sz count = model.windows.len;
+	sz count                     = model.windows.len;
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, count - 1);
-	sz out = 0;
+	sz out                       = 0;
 	for (sz i = 0; i < count; i++)
 	{
 		if (i == target) continue;
@@ -409,13 +424,13 @@ fn void clear_focus(compositor::Model* model) @private
 // Requests, one JSON line each. The ids are numbers, checked by the caller.
 
 <* The `EventStream` request: after its `Ok` reply the connection carries events. *>
-const String REQUEST_EVENT_STREAM = "\"EventStream\"";
+const String REQUEST_EVENT_STREAM     = "\"EventStream\"";
 <* The `Workspaces` request. *>
-const String REQUEST_WORKSPACES = "\"Workspaces\"";
+const String REQUEST_WORKSPACES       = "\"Workspaces\"";
 <* The `Windows` request. *>
-const String REQUEST_WINDOWS = "\"Windows\"";
+const String REQUEST_WINDOWS          = "\"Windows\"";
 <* The `Outputs` request. *>
-const String REQUEST_OUTPUTS = "\"Outputs\"";
+const String REQUEST_OUTPUTS          = "\"Outputs\"";
 <* The `KeyboardLayouts` request. *>
 const String REQUEST_KEYBOARD_LAYOUTS = "\"KeyboardLayouts\"";
 
@@ -424,12 +439,27 @@ fn String focus_window_request(String id) => string::tformat("{\"Action\":{\"Foc
 <* `Action::CloseWindow`. *>
 fn String close_window_request(String id) => string::tformat("{\"Action\":{\"CloseWindow\":{\"id\":%s}}}", id);
 <* `Action::FocusWorkspace` with a numeric id reference. *>
-fn String switch_workspace_request(String id) => string::tformat("{\"Action\":{\"FocusWorkspace\":{\"reference\":{\"Id\":%s}}}}", id);
+fn String switch_workspace_request(
+	String id
+) => string::tformat("{\"Action\":{\"FocusWorkspace\":{\"reference\":{\"Id\":%s}}}}", id);
 <* `Action::MoveWindowToWorkspace`; focus stays where it was. *>
-fn String move_window_request(String window_id, String workspace_id) => string::tformat("{\"Action\":{\"MoveWindowToWorkspace\":{\"window_id\":%s,\"reference\":{\"Id\":%s},\"focus\":false}}}", window_id, workspace_id);
+fn String move_window_request(
+	String window_id,
+	String workspace_id
+) => string::tformat(
+	"{\"Action\":{\"MoveWindowToWorkspace\":{\"window_id\":%s,\"reference\":{\"Id\":%s},\"focus\":false}}}",
+	window_id,
+	workspace_id
+);
 <* `Action::SwitchLayout` with `LayoutSwitchTarget::Index`. *>
-fn String set_layout_request(uint index) => string::tformat("{\"Action\":{\"SwitchLayout\":{\"layout\":{\"Index\":%d}}}}", index);
+fn String set_layout_request(
+	uint index
+) => string::tformat("{\"Action\":{\"SwitchLayout\":{\"layout\":{\"Index\":%d}}}}", index);
 <* `Action::ToggleWindowFloating`. *>
-fn String toggle_floating_request(String id) => string::tformat("{\"Action\":{\"ToggleWindowFloating\":{\"id\":%s}}}", id);
+fn String toggle_floating_request(
+	String id
+) => string::tformat("{\"Action\":{\"ToggleWindowFloating\":{\"id\":%s}}}", id);
 <* `Action::FullscreenWindow`, which toggles. *>
-fn String toggle_fullscreen_request(String id) => string::tformat("{\"Action\":{\"FullscreenWindow\":{\"id\":%s}}}", id);
+fn String toggle_fullscreen_request(
+	String id
+) => string::tformat("{\"Action\":{\"FullscreenWindow\":{\"id\":%s}}}", id);

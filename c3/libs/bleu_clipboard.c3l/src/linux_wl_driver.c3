@@ -67,6 +67,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 fn void destroy(Allocator allocator, void* state)
 {
 	WlBackend* backend = (WlBackend*)state;
+	backend.session.free();
 	backend.board.free();
 	alloc::free(allocator, backend);
 }

@@ -30,7 +30,13 @@ struct HyprlandBackend (backend::Backend)
 *>
 fn backend::Backend? open(Allocator allocator, compositor::Detection detection)
 {
-	if (detection.event_socket.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "hyprland: %s", detection.reason)~;
+	if (detection.event_socket.len == 0) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"hyprland: %s",
+		detection.reason
+	)~;
 	unix::UnixSocket events = unix::connect(detection.event_socket, unix::SocketKind.STREAM)!;
 	if (catch err = events.fd.set_nonblocking(true))
 	{
@@ -68,7 +74,14 @@ fn void? run(String path, String request) @private
 	@pool()
 	{
 		String reply = command(path, request)!;
-		if (reply.trim() != "ok") return error::raise(error::BACKEND_FAILURE, error::Domain.COMPOSITOR, 0, "hyprland refused '%s': %s", request, reply)~;
+		if (reply.trim() != "ok") return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.COMPOSITOR,
+			0,
+			"hyprland refused '%s': %s",
+			request,
+			reply
+		)~;
 	};
 }
 
@@ -114,47 +127,90 @@ fn backend::Refresh? HyprlandBackend.read_events(&self, compositor::Model* model
 	return result;
 }
 
-fn backend::Refresh HyprlandBackend.apply_event(&self, compositor::Model* model, Allocator allocator, backend::RawEvent event) @dynamic
+fn backend::Refresh HyprlandBackend.apply_event(
+	&self,
+	compositor::Model* model,
+	Allocator allocator,
+	backend::RawEvent event
+) @dynamic
 {
 	return hyprland::apply(model, allocator, event);
 }
 
 fn void? HyprlandBackend.focus_window(&self, String window_id) @dynamic
 {
-	if (!wire::is_token(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a window address: '%s'", window_id)~;
+	if (!wire::is_token(
+		window_id
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a window address: '%s'",
+		window_id
+	)~;
 	return run(self.command_path, string::tformat("j/dispatch focuswindow address:%s", window_id));
 }
 
 fn void? HyprlandBackend.close_window(&self, String window_id) @dynamic
 {
-	if (!wire::is_token(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a window address: '%s'", window_id)~;
+	if (!wire::is_token(
+		window_id
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a window address: '%s'",
+		window_id
+	)~;
 	return run(self.command_path, string::tformat("j/dispatch closewindow address:%s", window_id));
 }
 
 fn void? HyprlandBackend.switch_workspace(&self, String id) @dynamic
 {
-	if (!wire::is_token(id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a workspace id: '%s'", id)~;
+	if (!wire::is_token(
+		id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a workspace id: '%s'", id)~;
 	return run(self.command_path, string::tformat("j/dispatch workspace %s", id));
 }
 
 // `movetoworkspace <workspace>,address:<window>`, the form hyprland-rs writes.
 fn void? HyprlandBackend.move_window(&self, String window_id, String workspace_id) @dynamic
 {
-	if (!wire::is_token(window_id) || !wire::is_token(workspace_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "bad window or workspace id")~;
+	if (!wire::is_token(
+		window_id
+	) || !wire::is_token(
+		workspace_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "bad window or workspace id")~;
 	return run(self.command_path, string::tformat("j/dispatch movetoworkspace %s,address:%s", workspace_id, window_id));
 }
 
 // `fullscreen` acts on the focused window only, so the window is focused first.
 fn void? HyprlandBackend.toggle_fullscreen(&self, String window_id) @dynamic
 {
-	if (!wire::is_token(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a window address: '%s'", window_id)~;
+	if (!wire::is_token(
+		window_id
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a window address: '%s'",
+		window_id
+	)~;
 	run(self.command_path, string::tformat("j/dispatch focuswindow address:%s", window_id))!;
 	return run(self.command_path, "j/dispatch fullscreen 0");
 }
 
 fn void? HyprlandBackend.toggle_floating(&self, String window_id) @dynamic
 {
-	if (!wire::is_token(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a window address: '%s'", window_id)~;
+	if (!wire::is_token(
+		window_id
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"not a window address: '%s'",
+		window_id
+	)~;
 	return run(self.command_path, string::tformat("j/dispatch togglefloating address:%s", window_id));
 }
 
@@ -165,8 +221,21 @@ fn void? HyprlandBackend.set_layout(&self, uint index) @dynamic
 	{
 		Object* devices = query(self.command_path, "j/devices")!;
 		String keyboard = hyprland::main_keyboard_name(devices, tmem);
-		if (keyboard.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "hyprland reports no keyboard")~;
-		if (!wire::is_token(keyboard)) return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "keyboard name '%s' has spaces: Hyprland cannot address it", keyboard)~;
+		if (keyboard.len == 0) return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"hyprland reports no keyboard"
+		)~;
+		if (!wire::is_token(
+			keyboard
+		)) return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"keyboard name '%s' has spaces: Hyprland cannot address it",
+			keyboard
+		)~;
 		run(self.command_path, string::tformat("switchxkblayout %s %d", keyboard, index))!;
 	};
 }

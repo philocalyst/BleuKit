@@ -8,21 +8,21 @@
  river, dwl). Nothing here touches the filesystem: a stale variable is reported
  by `open`, which then fails with the socket it could not reach.
 *>
-module bleu::compositor;
+module bleu::compositor @feat(POSIX);
 import std::os::env;
 
 <* Variable naming the running Hyprland instance (its runtime directory name). *>
 const String ENV_HYPRLAND_SIGNATURE = "HYPRLAND_INSTANCE_SIGNATURE";
 <* Per-user runtime directory; Hyprland's sockets live below it. *>
-const String ENV_RUNTIME_DIR = "XDG_RUNTIME_DIR";
+const String ENV_RUNTIME_DIR        = "XDG_RUNTIME_DIR";
 <* Absolute path of sway's IPC socket. *>
-const String ENV_SWAYSOCK = "SWAYSOCK";
+const String ENV_SWAYSOCK           = "SWAYSOCK";
 <* Absolute path of i3's IPC socket. *>
-const String ENV_I3SOCK = "I3SOCK";
+const String ENV_I3SOCK             = "I3SOCK";
 <* Absolute path of niri's IPC socket. *>
-const String ENV_NIRI_SOCKET = "NIRI_SOCKET";
+const String ENV_NIRI_SOCKET        = "NIRI_SOCKET";
 <* Colon-separated desktop names, set by the session. *>
-const String ENV_DESKTOP = "XDG_CURRENT_DESKTOP";
+const String ENV_DESKTOP            = "XDG_CURRENT_DESKTOP";
 
 <* The variables `detect` reads. An empty string means the variable is unset. *>
 struct Environment
@@ -107,25 +107,46 @@ fn Detection hyprland_detection(Environment environment, Allocator allocator) @p
 	{
 		return { .kind = HYPRLAND, .reason = "HYPRLAND_INSTANCE_SIGNATURE is set but XDG_RUNTIME_DIR is not" };
 	}
-	String base = string::tformat("%s/hypr/%s", environment.runtime_dir, environment.hyprland_signature).copy(allocator);
+	String base = string::tformat("%s/hypr/%s", environment.runtime_dir, environment.hyprland_signature)
+		.copy(allocator);
 	return {
 		.kind = HYPRLAND,
-		.socket = string::tformat("%s/.socket.sock", base).copy(allocator),
-		.event_socket = string::tformat("%s/.socket2.sock", base).copy(allocator),
-		.reason = "HYPRLAND_INSTANCE_SIGNATURE is set",
-	};
+		.socket = string::tformat("%s/.socket.sock", base)
+		.copy(allocator), .event_socket = string::tformat("%s/.socket2.sock", base)
+			.copy(allocator), .reason = "HYPRLAND_INSTANCE_SIGNATURE is set", };
 }
 
 // Desktop hints. A hint names the compositor but gives no socket, so `socket`
 // stays empty and `open` will refuse it with the reason.
 fn Detection desktop_detection(String desktop) @private
 {
-	if (desktop_names(desktop, "sway")) return { .kind = SWAY, .reason = "XDG_CURRENT_DESKTOP names sway but SWAYSOCK is unset" };
-	if (desktop_names(desktop, "i3")) return { .kind = I3, .reason = "XDG_CURRENT_DESKTOP names i3 but I3SOCK is unset" };
-	if (desktop_names(desktop, "niri")) return { .kind = NIRI, .reason = "XDG_CURRENT_DESKTOP names niri but NIRI_SOCKET is unset" };
-	if (desktop_names(desktop, "Hyprland")) return { .kind = HYPRLAND, .reason = "XDG_CURRENT_DESKTOP names Hyprland but HYPRLAND_INSTANCE_SIGNATURE is unset" };
-	if (desktop_names(desktop, "river")) return { .kind = RIVER, .reason = "XDG_CURRENT_DESKTOP names river; river has no IPC client here" };
-	if (desktop_names(desktop, "dwl")) return { .kind = DWL, .reason = "XDG_CURRENT_DESKTOP names dwl; dwl has no IPC client here" };
+	if (desktop_names(
+		desktop,
+		"sway"
+	)) return { .kind = SWAY, .reason = "XDG_CURRENT_DESKTOP names sway but SWAYSOCK is unset" };
+	if (desktop_names(
+		desktop,
+		"i3"
+	)) return { .kind = I3, .reason = "XDG_CURRENT_DESKTOP names i3 but I3SOCK is unset" };
+	if (desktop_names(
+		desktop,
+		"niri"
+	)) return { .kind = NIRI, .reason = "XDG_CURRENT_DESKTOP names niri but NIRI_SOCKET is unset" };
+	if (desktop_names(
+		desktop,
+		"Hyprland"
+	)) return {
+		.kind = HYPRLAND,
+		.reason = "XDG_CURRENT_DESKTOP names Hyprland but HYPRLAND_INSTANCE_SIGNATURE is unset"
+	};
+	if (desktop_names(
+		desktop,
+		"river"
+	)) return { .kind = RIVER, .reason = "XDG_CURRENT_DESKTOP names river; river has no IPC client here" };
+	if (desktop_names(
+		desktop,
+		"dwl"
+	)) return { .kind = DWL, .reason = "XDG_CURRENT_DESKTOP names dwl; dwl has no IPC client here" };
 	return { .kind = NONE, .reason = "no compositor variable is set" };
 }
 

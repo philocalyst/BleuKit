@@ -23,7 +23,7 @@ fn void on_reply(void* context, Message* reply, error::Status status)
 	{
 		if (try handle = reader.read_object_path())
 		{
-			set_text(&b.reply_handle, handle, b.allocator);
+			hotkey::text_set(&b.reply_handle, handle, b.allocator);
 			return;
 		}
 	}
@@ -70,7 +70,7 @@ fn void? apply_results(Backend* b, Value results) @local
 	if (b.step == CREATING)
 	{
 		Value handle = results.dict_get("session_handle")!;
-		set_text(&b.session, handle.as_string()!, b.allocator);
+		hotkey::text_set(&b.session, handle.as_string()!, b.allocator);
 		return;
 	}
 	Value empty;
@@ -88,6 +88,8 @@ fn void apply_shortcuts(Backend* b, Value list, bool binding) @local
 	for (sz i = 0; i < b.bindings.len(); i++)
 	{
 		Binding* entry = b.bindings.get_ref(i);
+		// A registration accepted after this round's BindShortcuts was sent was not part of the answer's question.
+		if (binding && accepted_after_payload(b, entry.id)) continue;
 		bool found = false;
 		String wanted = "";
 		for (usz j = 0; j < list.count() && !found; j++)
@@ -103,13 +105,23 @@ fn void apply_shortcuts(Backend* b, Value list, bool binding) @local
 				}
 			}
 		}
-		if (found) set_text(&entry.trigger, wanted, b.allocator);
+		if (found) hotkey::text_set(&entry.trigger, wanted, b.allocator);
 		if (binding)
 		{
 			entry.state = found ? BOUND : REFUSED;
-			if (!found) set_text(&entry.trigger, "", b.allocator);
+			if (!found) hotkey::text_set(&entry.trigger, "", b.allocator);
 		}
 	}
+}
+
+// Whether registration `id` is waiting for the next round: accepted after this round's payload was built.
+fn bool accepted_after_payload(Backend* b, String id) @local
+{
+	foreach (waiting : b.waiting)
+	{
+		if (!waiting.removal && waiting.id == id) return true;
+	}
+	return false;
 }
 
 // The id and trigger text of one `(sa{sv})` entry. False when the entry does not have that shape.
@@ -200,10 +212,10 @@ fn void? read_press(Backend* b, Message* signal, EventKind kind) @local
 	Allocator arena = packet.allocator();
 	packet.value = {
 		.kind = kind,
-		.id = dup(id, arena),
+		.id = hotkey::text_copy(id, arena),
 		.at = clock::now(),
 		.platform_time = maybe::value(timestamp),
-		.activation_token = dup(token, arena),
+		.activation_token = hotkey::text_copy(token, arena),
 	};
 	b.hub.emit(packet);
 }

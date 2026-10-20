@@ -178,7 +178,7 @@ fn void register_own(SniBackend* b)
 fn bool add_registration(SniBackend* b, String item)
 {
 	if (contains(&b.registry, item)) return false;
-	b.registry.push(copy_text(item, b.allocator));
+	b.registry.push(convert::copy_text(item, b.allocator));
 	emit_watcher_signal(b, REGISTERED_SIGNAL, item);
 	return true;
 }

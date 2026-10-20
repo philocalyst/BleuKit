@@ -5,7 +5,7 @@
  reply of the wrong shape gives a fallback or a PROTOCOL error, never a read of
  the wrong union member.
 *>
-module bleu::compositor::wire;
+module bleu::compositor::wire @feat(POSIX);
 import std::encoding::json, std::collections::object, std::collections::maybe, bleu::error;
 
 <*
@@ -18,7 +18,13 @@ import std::encoding::json, std::collections::object, std::collections::maybe, b
 fn Object*? parse_document(String text, String what)
 {
 	Object*? parsed = json::tparse(text);
-	if (catch err = parsed) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%s is not valid JSON", what)~;
+	if (catch err = parsed) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"%s is not valid JSON",
+		what
+	)~;
 	return parsed;
 }
 
@@ -71,9 +77,9 @@ fn long integer_member(Object* obj, String key, long fallback = 0)
 <* An integer member that may be absent: present when the member is an integer. *>
 fn Maybe{long} optional_integer(Object* obj, String key)
 {
-	if (!obj.is_map()) return {};
+	if (!obj.is_map()) return { };
 	if (try value = obj.get_long(key)) return { .value = value, .has_value = true };
-	return {};
+	return { };
 }
 
 <*
@@ -81,10 +87,10 @@ fn Maybe{long} optional_integer(Object* obj, String key)
 *>
 fn Maybe{double} number_member(Object* obj, String key)
 {
-	if (!obj.is_map()) return {};
+	if (!obj.is_map()) return { };
 	if (try value = obj.get_float(key)) return { .value = value, .has_value = true };
 	if (try whole = obj.get_long(key)) return { .value = (double)whole, .has_value = true };
-	return {};
+	return { };
 }
 
 <* A boolean member. A missing member, a null or a non-boolean gives `fallback`. *>
@@ -97,9 +103,9 @@ fn bool flag_member(Object* obj, String key, bool fallback = false)
 <* A boolean member that may be absent: present when the member is a boolean. *>
 fn Maybe{bool} optional_flag(Object* obj, String key)
 {
-	if (!obj.is_map()) return {};
+	if (!obj.is_map()) return { };
 	if (try value = obj.get_bool(key)) return { .value = value, .has_value = true };
-	return {};
+	return { };
 }
 
 <*
@@ -111,8 +117,20 @@ fn Maybe{bool} optional_flag(Object* obj, String key)
 fn Object*? array_member(Object* obj, String key)
 {
 	Object*? value = member(obj, key);
-	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "member '%s' is missing", key)~;
-	if (!value.is_array()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "member '%s' is not an array", key)~;
+	if (catch err = value) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' is missing",
+		key
+	)~;
+	if (!value.is_array()) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' is not an array",
+		key
+	)~;
 	return value;
 }
 
@@ -124,8 +142,20 @@ fn Object*? array_member(Object* obj, String key)
 fn Object*? object_member(Object* obj, String key)
 {
 	Object*? value = member(obj, key);
-	if (catch err = value) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "member '%s' is missing", key)~;
-	if (!value.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "member '%s' is not an object", key)~;
+	if (catch err = value) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' is missing",
+		key
+	)~;
+	if (!value.is_map()) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' is not an object",
+		key
+	)~;
 	return value;
 }
 

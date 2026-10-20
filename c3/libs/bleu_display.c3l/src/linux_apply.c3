@@ -234,7 +234,7 @@ fn void finish_applied(Pending* p, Clock now, bool live)
 {
 	Session* s = p.session;
 	if (p.is_revert) {
-		emit(s.hub, display::EventKind.REVERTED, "");
+		display::emit(s.hub, display::EventKind.REVERTED, "");
 		p.op.succeed({ .mode = APPLY, .live = true, .revert_armed = false });
 	} else if (p.mode == APPLY_WITH_REVERT && live) {
 		if (s.guard_op) s.guard_op.release();

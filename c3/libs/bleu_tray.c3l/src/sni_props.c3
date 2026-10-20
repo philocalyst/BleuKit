@@ -72,21 +72,21 @@ fn void? parse_prop(Reader* rd, Prop prop, ItemRecord* r, Allocator a)
 {
 	switch (prop)
 	{
-		case ID: r.item.item_id = copy_text(rd.read_string()!, a);
+		case ID: r.item.item_id = convert::copy_text(rd.read_string()!, a);
 		case CATEGORY: r.item.category = convert::category_from(rd.read_string()!);
-		case TITLE: r.item.title = copy_text(rd.read_string()!, a);
+		case TITLE: r.item.title = convert::copy_text(rd.read_string()!, a);
 		case STATUS: r.item.status = convert::status_from(rd.read_string()!);
-		case ICON_NAME: r.item.icon_name = copy_text(rd.read_string()!, a);
+		case ICON_NAME: r.item.icon_name = convert::copy_text(rd.read_string()!, a);
 		case ICON_PIXMAP: r.item.icon_pixmaps = read_pixmaps(rd, a)!;
-		case ATTENTION_NAME: r.item.attention_icon_name = copy_text(rd.read_string()!, a);
+		case ATTENTION_NAME: r.item.attention_icon_name = convert::copy_text(rd.read_string()!, a);
 		case ATTENTION_PIXMAP: r.item.attention_icon_pixmaps = read_pixmaps(rd, a)!;
-		case OVERLAY_NAME: r.item.overlay_icon_name = copy_text(rd.read_string()!, a);
+		case OVERLAY_NAME: r.item.overlay_icon_name = convert::copy_text(rd.read_string()!, a);
 		case OVERLAY_PIXMAP: r.item.overlay_icon_pixmaps = read_pixmaps(rd, a)!;
 		case TOOLTIP:
 			r.item.tooltip = read_tooltip(rd, a)!;
 			r.item.has_tooltip = true;
-		case THEME_PATH: r.item.icon_theme_path = copy_text(rd.read_string()!, a);
-		case MENU_PATH: r.item.menu_path = copy_text(rd.read_object_path()!, a);
+		case THEME_PATH: r.item.icon_theme_path = convert::copy_text(rd.read_string()!, a);
+		case MENU_PATH: r.item.menu_path = convert::copy_text(rd.read_object_path()!, a);
 		case ITEM_IS_MENU: r.item.item_is_menu = rd.read_bool()!;
 	}
 }
@@ -143,10 +143,10 @@ fn tray::Pixmap? read_pixmap_bytes(Reader* rd, int width, int height, Allocator 
 fn tray::Tooltip? read_tooltip(Reader* rd, Allocator a)
 {
 	rd.begin_struct()!;
-	String icon_name = copy_text(rd.read_string()!, a);
+	String icon_name = convert::copy_text(rd.read_string()!, a);
 	tray::Pixmap[] icons = read_pixmaps(rd, a)!;
-	String title = copy_text(rd.read_string()!, a);
-	String description = copy_text(rd.read_string()!, a);
+	String title = convert::copy_text(rd.read_string()!, a);
+	String description = convert::copy_text(rd.read_string()!, a);
 	rd.end_struct()!;
 	return { .icon_name = icon_name, .icon_pixmaps = icons, .title = title, .description = description };
 }

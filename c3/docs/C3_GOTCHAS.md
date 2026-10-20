@@ -158,3 +158,7 @@
 * `c3c --sources "dir/*.c3"` does not expand the glob → pass the files through shell expansion (`$(ls dir/*.c3)`).
 * A PulseAudio proplist value includes its terminating NUL inside the blob → strip a trailing `\0` before comparing (`pulse_wire.c3`).
 * A `Duration` constant from an int literal (`const Duration T = 5_000_000;`) → cast: `(Duration)5_000_000`.
+* `Object*? x = f()!;` keeps x optional (passing x on fails): declare `Object* x = f()!;`. `Object.get` on the wrong JSON type reads the wrong union member: check `is_map`/`is_array` first.
+* `if (catch e = x)` scopes e to the if: bind the optional first, then unwrap. `foreach (k : {"a","b"})` needs a `const String[N]` global.
+* A constset value passed where `uint` is expected needs `(uint)`; switch on `(EventType)x`. An interface-impl struct field named `kind` clashes with a `kind()` method.
+* `$embed` paths are relative to the source file; cast with `(String)$embed(...)`. `test::eq` needs identical types.

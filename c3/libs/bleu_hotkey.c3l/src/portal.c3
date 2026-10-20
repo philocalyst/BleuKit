@@ -161,10 +161,10 @@ fn void destroy(Allocator allocator, void* state)
 	b.bindings.free();
 	b.waiting.free();
 	b.in_round.free();
-	set_text(&b.sender, "", b.allocator);
-	set_text(&b.session, "", b.allocator);
-	set_text(&b.request, "", b.allocator);
-	set_text(&b.reply_handle, "", b.allocator);
+	hotkey::text_set(&b.sender, "", b.allocator);
+	hotkey::text_set(&b.session, "", b.allocator);
+	hotkey::text_set(&b.request, "", b.allocator);
+	hotkey::text_set(&b.reply_handle, "", b.allocator);
 	alloc::free(allocator, b);
 }
 
@@ -244,7 +244,7 @@ fn void? connect(Backend* b, Poller* poller)
 		return err~;
 	}
 	b.connected = true;
-	set_text(&b.sender, b.connection.name_on_bus(), b.allocator);
+	hotkey::text_set(&b.sender, b.connection.name_on_bus(), b.allocator);
 	read_version(b);
 	// A connection that comes back re-binds whatever is still registered.
 	if (b.bindings.len() > 0) b.dirty = true;
@@ -285,7 +285,7 @@ fn void disconnect(Backend* b, Poller* poller)
 	b.connection.close();
 	b.connection.free();
 	b.response_subscribed = false;
-	set_text(&b.session, "", b.allocator);
+	hotkey::text_set(&b.session, "", b.allocator);
 	abort_round(b, error::DISCONNECTED, "The connection to the portal went away", PENDING);
 	b.registration = availability::no(
 		availability::Reason.BACKEND_STOPPED,
@@ -310,26 +310,6 @@ fn void? subscribe_signal(Backend* b, String member, SignalHandler handler) @pri
 	rule.with_interface(GLOBAL_SHORTCUTS_IFACE)!!;
 	rule.with_member(member)!!;
 	b.connection.subscribe(rule, handler, b)!;
-}
-
-// Copy `text` into `*field` with `allocator`, freeing the text it replaces. "" owns nothing.
-fn void set_text(String* field, String text, Allocator allocator)
-{
-	if (field.len > 0) alloc::free(allocator, field.ptr);
-	*field = dup(text, allocator);
-}
-
-// A copy of `text` in `allocator`; the empty string needs no storage.
-fn String dup(String text, Allocator allocator)
-{
-	if (text.len == 0) return "";
-	return text.copy(allocator);
-}
-
-// Free a string made by `dup`.
-fn void drop(String text, Allocator allocator)
-{
-	if (text.len > 0) alloc::free(allocator, text.ptr);
 }
 
 // Publish the registrations and the registration state, if they changed since the last publication.

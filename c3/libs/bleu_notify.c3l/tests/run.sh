@@ -3,7 +3,8 @@
 #
 #   libs/bleu_notify.c3l/tests/run.sh
 #
-# 1. builds tests/server_main.c3 (the notification centre as a process) with c3c;
+# 1. builds tests/server_main.c3 (the notification centre as a process) and
+#    tests/notify_send.c3 (the sender as a command) with c3c;
 # 2. starts a private dbus-daemon and exports DBUS_SESSION_BUS_ADDRESS to it;
 # 3. runs notify_server_test.py, which drives the server and checks the bus behaviour.
 #
@@ -66,7 +67,13 @@ if ! c3c --libdir "$("$repo/tools/libdir.sh")" --lib bleu_core --lib bleu_rt --l
      compile "$lib/tests/server_main.c3" -o "$work/notify_test_server" >"$work/build.log" 2>&1; then
   say "build of the test server failed:"; cat "$work/build.log"; exit 2
 fi
+if ! c3c --libdir "$("$repo/tools/libdir.sh")" --lib bleu_core --lib bleu_rt --lib bleu_dbus \
+     --lib bleu_service --lib bleu_objc --lib bleu_notify \
+     compile "$lib/tests/notify_send.c3" -o "$work/notify_send" >"$work/build_send.log" 2>&1; then
+  say "build of the sender client failed:"; cat "$work/build_send.log"; exit 2
+fi
 server="$work/notify_test_server"
-"$PYTHON" -I "$lib/tests/notify_server_test.py" "$server"
+sender="$work/notify_send"
+"$PYTHON" -I "$lib/tests/notify_server_test.py" "$server" "$sender"
 status=$?
 exit $status

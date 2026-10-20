@@ -14,7 +14,7 @@
  field types (`Node`, `Workspace`, `Output`, `Input`, `WindowChange`,
  `WorkspaceChange`, `InputChange`).
 *>
-module bleu::compositor::sway;
+module bleu::compositor::sway @feat(POSIX);
 import std::collections::object, std::collections::maybe, bleu::error, bleu::compositor, bleu::compositor::backend, bleu::compositor::wire;
 
 <*
@@ -24,9 +24,9 @@ import std::collections::object, std::collections::maybe, bleu::error, bleu::com
 struct Replies
 {
 	Object* workspaces; // GET_WORKSPACES: array
-	Object* outputs;    // GET_OUTPUTS: array
-	Object* tree;       // GET_TREE: the root node object
-	Object* inputs;     // GET_INPUTS: array, or null
+	Object* outputs; // GET_OUTPUTS: array
+	Object* tree; // GET_TREE: the root node object
+	Object* inputs; // GET_INPUTS: array, or null
 }
 
 // Deepest container nesting accepted. Sway's own trees are a few levels deep.
@@ -35,13 +35,11 @@ const usz MAX_TREE_DEPTH = 64;
 // The two member names under which a node holds its children.
 const String[2] CHILD_KEYS = { "nodes", "floating_nodes" };
 
-// The focus path reduced to what the model needs.
+// The focused window at the end of the focus path, if the path ends at one.
 struct Focus
 {
 	bool has_window;
 	long window_id;
-	bool has_workspace;
-	String workspace;
 }
 
 <*
@@ -57,38 +55,34 @@ fn compositor::Model? build(Allocator allocator, compositor::Kind kind, Replies 
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "sway: a reply has the wrong shape")~;
 	}
-	Focus focus = focus_path(replies.tree);
-	sz window_count = count_windows(replies.tree, 0);
+	Focus focus                  = focus_path(replies.tree);
+	sz window_count              = count_windows(replies.tree, 0);
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, window_count);
-	sz filled = 0;
+	sz filled                    = 0;
 	collect_windows(replies.tree, "", "", &focus, windows, &filled, allocator, 0)!;
 	return {
 		.kind = kind,
 		.workspaces = workspaces(replies.workspaces, allocator),
-		.windows = windows[0 : filled],
+		.windows = windows[0:filled],
 		.outputs = outputs(replies.outputs, allocator),
 		.layouts = layouts(replies.inputs, allocator),
 	};
 }
 
-// Follow `focus[0]` from the root. Every workspace and window on that path is noted.
+// Follow `focus[0]` from the root through each node. The path ends at the focused leaf;
+// when that leaf is a window, it is the focused window.
 fn Focus focus_path(Object* root) @private
 {
-	Focus focus = {};
+	Focus focus  = { };
 	Object* node = root;
 	for (usz depth = 0; depth < MAX_TREE_DEPTH; depth++)
 	{
 		Object*? focus_list = wire::member(node, "focus");
 		if (catch err = focus_list) return focus;
 		if (!focus_list.is_array() || wire::length(focus_list) == 0) return focus;
-		long next = wire::integer_element(focus_list, 0, -1);
+		long next     = wire::integer_element(focus_list, 0, -1);
 		Object* child = child_with_id(node, next);
 		if (child == null) return focus;
-		if (is_workspace(child))
-		{
-			focus.has_workspace = true;
-			focus.workspace = wire::peek(child, "name");
-		}
 		if (is_window(child))
 		{
 			focus.has_window = true;
@@ -115,8 +109,6 @@ fn Object* child_with_id(Object* node, long id) @private
 	}
 	return null;
 }
-
-fn bool is_workspace(Object* node) @private => (wire::peek(node, "type")) == "workspace";
 
 // A leaf container that holds a view. Containers with children are never windows.
 fn bool is_window(Object* node) @private
@@ -155,12 +147,27 @@ fn sz count_windows(Object* node, usz depth) @private
 
 // Fill `windows[*filled..]` with the windows under `node`. `workspace` and `output`
 // are the names of the enclosing workspace and output.
-fn void? collect_windows(Object* node, String workspace, String output, Focus* focus, compositor::Window[] windows, sz* filled, Allocator allocator, usz depth) @private
+fn void? collect_windows(
+	Object* node,
+	String workspace,
+	String output,
+	Focus* focus,
+	compositor::Window[] windows,
+	sz* filled,
+	Allocator allocator,
+	usz depth
+) @private
 {
-	if (depth > MAX_TREE_DEPTH) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "sway tree is nested deeper than %d", MAX_TREE_DEPTH)~;
-	String type = wire::peek(node, "type");
+	if (depth > MAX_TREE_DEPTH) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"sway tree is nested deeper than %d",
+		MAX_TREE_DEPTH
+	)~;
+	String type           = wire::peek(node, "type");
 	String node_workspace = workspace;
-	String node_output = output;
+	String node_output    = output;
 	if (type == "output") node_output = wire::peek(node, "name");
 	if (type == "workspace") node_workspace = wire::peek(node, "name");
 	if (is_window(node))
@@ -176,16 +183,31 @@ fn void? collect_windows(Object* node, String workspace, String output, Focus* f
 		if (!children.is_array()) continue;
 		for (sz i = 0; i < wire::length(children); i++)
 		{
-			collect_windows(wire::item(children, i), node_workspace, node_output, focus, windows, filled, allocator, depth + 1)!;
+			collect_windows(
+				wire::item(children, i),
+				node_workspace,
+				node_output,
+				focus,
+				windows,
+				filled,
+				allocator,
+				depth + 1
+			)!;
 		}
 	}
 }
 
-fn compositor::Window window_of(Object* node, String workspace, String output, Focus* focus, Allocator allocator) @private
+fn compositor::Window window_of(
+	Object* node,
+	String workspace,
+	String output,
+	Focus* focus,
+	Allocator allocator
+) @private
 {
 	String app_id = wire::text_member(node, "app_id", allocator);
 	if (app_id.len == 0) app_id = window_class(node, allocator);
-	long id = wire::integer_member(node, "id");
+	long id     = wire::integer_member(node, "id");
 	String type = wire::peek(node, "type");
 	return {
 		.id = id_text(id, allocator),
@@ -197,7 +219,7 @@ fn compositor::Window window_of(Object* node, String workspace, String output, F
 		.focused = focus.has_window && focus.window_id == id,
 		.floating = type == "floating_con" || wire::present(node, "floating"),
 		.fullscreen = { .value = wire::integer_member(node, "fullscreen_mode") > 0, .has_value = true },
-		.maximized = {},
+		.maximized = { },
 		.urgent = wire::optional_flag(node, "urgent"),
 		.geometry = rect_member(node, "rect"),
 	};
@@ -214,7 +236,7 @@ fn String window_class(Object* node, Allocator allocator) @private
 fn Maybe{int} pid_of(Object* node) @private
 {
 	Maybe{long} pid = wire::optional_integer(node, "pid");
-	if (!pid.has_value || pid.value <= 0) return {};
+	if (!pid.has_value || pid.value <= 0) return { };
 	return { .value = (int)pid.value, .has_value = true };
 }
 
@@ -224,7 +246,7 @@ fn String id_text(long id, Allocator allocator) @private => string::tformat("%d"
 fn Maybe{Rect} rect_member(Object* obj, String key) @private
 {
 	Object*? rect = wire::member(obj, key);
-	if (catch err = rect) return {};
+	if (catch err = rect) return { };
 	Rect value = {
 		.x = (int)wire::integer_member(rect, "x"),
 		.y = (int)wire::integer_member(rect, "y"),
@@ -236,7 +258,7 @@ fn Maybe{Rect} rect_member(Object* obj, String key) @private
 
 fn compositor::Workspace[] workspaces(Object* list, Allocator allocator) @private
 {
-	sz count = wire::length(list);
+	sz count                    = wire::length(list);
 	compositor::Workspace[] out = alloc::new_array(allocator, compositor::Workspace, count);
 	for (sz i = 0; i < count; i++)
 	{
@@ -259,7 +281,7 @@ fn compositor::Output[] outputs(Object* list, Allocator allocator) @private
 	sz count = 0;
 	for (sz i = 0; i < wire::length(list); i++) count += wire::flag_member(wire::item(list, i), "active") ? 1 : 0;
 	compositor::Output[] out = alloc::new_array(allocator, compositor::Output, count);
-	sz filled = 0;
+	sz filled                = 0;
 	for (sz i = 0; i < wire::length(list); i++)
 	{
 		Object* output = wire::item(list, i);
@@ -278,7 +300,7 @@ fn compositor::Output[] outputs(Object* list, Allocator allocator) @private
 // The first keyboard that has layouts. i3 passes null and gets no layouts.
 fn compositor::KeyboardLayouts layouts(Object* inputs, Allocator allocator) @private
 {
-	if (inputs == null || !inputs.is_array()) return {};
+	if (inputs == null || !inputs.is_array()) return { };
 	for (sz i = 0; i < wire::length(inputs); i++)
 	{
 		Object* input = wire::item(inputs, i);
@@ -288,13 +310,13 @@ fn compositor::KeyboardLayouts layouts(Object* inputs, Allocator allocator) @pri
 		if (!names.is_array() || wire::length(names) == 0) continue;
 		return keyboard_layouts(input, names, allocator);
 	}
-	return {};
+	return { };
 }
 
 fn Maybe{int} optional_index(Object* input) @private
 {
 	Maybe{long} index = wire::optional_integer(input, "xkb_active_layout_index");
-	if (!index.has_value) return {};
+	if (!index.has_value) return { };
 	return { .value = (int)index.value, .has_value = true };
 }
 
@@ -336,7 +358,7 @@ fn backend::Refresh apply(compositor::Model* model, Allocator allocator, backend
 
 fn backend::Refresh window_event(compositor::Model* model, Allocator allocator, Object* root) @private
 {
-	String change = wire::peek(root, "change");
+	String change      = wire::peek(root, "change");
 	Object*? container = wire::member(root, "container");
 	if (catch err = container) return REFRESH_NEEDED;
 	String id = id_text(wire::integer_member(container, "id"), allocator);
@@ -366,7 +388,10 @@ fn backend::Refresh window_event(compositor::Model* model, Allocator allocator, 
 			return UPDATED;
 		case change == "fullscreen_mode":
 			if (target < 0) return REFRESH_NEEDED;
-			model.windows[target].fullscreen = { .value = wire::integer_member(container, "fullscreen_mode") > 0, .has_value = true };
+			model.windows[target].fullscreen = {
+				.value = wire::integer_member(container, "fullscreen_mode") > 0,
+				.has_value = true
+			};
 			return UPDATED;
 		case change == "new" || change == "move":
 			return REFRESH_NEEDED;
@@ -377,11 +402,11 @@ fn backend::Refresh window_event(compositor::Model* model, Allocator allocator, 
 
 fn backend::Refresh workspace_event(compositor::Model* model, Allocator allocator, Object* root) @private
 {
-	String change = wire::peek(root, "change");
+	String change    = wire::peek(root, "change");
 	Object*? current = wire::member(root, "current");
 	if (catch err = current) return REFRESH_NEEDED;
 	String name = wire::text_member(current, "name", allocator);
-	sz target = workspace_index(model, name);
+	sz target   = workspace_index(model, name);
 	switch
 	{
 		case change == "focus":
@@ -409,7 +434,7 @@ fn backend::Refresh workspace_event(compositor::Model* model, Allocator allocato
 // a layout change on any keyboard updates it, so the last one to change wins.
 fn backend::Refresh input_event(compositor::Model* model, Allocator allocator, Object* root) @private
 {
-	String change = wire::peek(root, "change");
+	String change  = wire::peek(root, "change");
 	Object*? input = wire::member(root, "input");
 	if (catch err = input) return REFRESH_NEEDED;
 	if (change == "xkb_layout")
@@ -447,9 +472,9 @@ fn void clear_focus(compositor::Model* model) @private
 
 fn void remove_window(compositor::Model* model, Allocator allocator, sz target) @private
 {
-	sz count = model.windows.len;
+	sz count                     = model.windows.len;
 	compositor::Window[] windows = alloc::new_array(allocator, compositor::Window, count - 1);
-	sz out = 0;
+	sz out                       = 0;
 	for (sz i = 0; i < count; i++)
 	{
 		if (i == target) continue;

@@ -1,7 +1,7 @@
 // Live tests of the portal backend against mock_portal.py. run.sh starts the private session bus and
 // the mock, and sets BLEU_HOTKEY_CONTROL to the control file that `command` appends to.
 module bleu::hotkey::portal_live_test @feat(LINUX);
-import std::os::env, std::time, std::io, bleu::availability, bleu::error, bleu::hotkey, bleu::hotkey::keys, bleu::observe, bleu::rt::fs, bleu::stream;
+import std::os::env, std::time, std::io, std::thread, bleu::availability, bleu::error, bleu::hotkey, bleu::hotkey::keys, bleu::observe, bleu::rt::fs, bleu::stream;
 
 // Every control line written so far; the mock applies them in order.
 String[32] script;
@@ -20,6 +20,8 @@ fn void command(String line) @local
 		text.append_char('\n');
 	}
 	fs::write_text(env::tget_var("BLEU_HOTKEY_CONTROL")!!, text.str_view())!!;
+	// The mock polls the control file every 50 ms: give it time to apply the line before the next call.
+	thread::sleep(time::ms(200))!!;
 }
 
 // The state of the binding `id`, or NOT_FOUND.

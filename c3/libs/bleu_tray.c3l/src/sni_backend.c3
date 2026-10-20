@@ -169,7 +169,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		capabilities.set(Cap.OWN_MENU, availability::no(availability::Reason.DISABLED_BY_POLICY, "publish_own is false"));
 	}
 	SniBackend* backend = alloc::new(allocator, SniBackend, { .allocator = allocator, .publish_own = options.publish_own });
-	backend.own = copy_own(options.own, allocator);
+	backend.own = convert::copy_own(options.own, allocator);
 	backend.registry.init(allocator);
 	backend.items.init(allocator);
 	backend.pending.init(allocator);
@@ -184,22 +184,8 @@ fn void destroy(Allocator allocator, void* state)
 	backend.items.free();
 	backend.pending.free();
 	backend.events.free();
+	convert::free_own(backend.own, allocator);
 	alloc::free(allocator, backend);
-}
-
-<* Copy our own item, its menu entries included, into `allocator`. *>
-fn tray::OwnItem copy_own(tray::OwnItem own, Allocator allocator)
-{
-	tray::OwnMenuEntry[] menu = {};
-	if (own.menu.len > 0)
-	{
-		menu = alloc::new_array(allocator, tray::OwnMenuEntry, own.menu.len);
-		foreach (i, &entry : own.menu)
-		{
-			menu[i] = { .id = entry.id, .label = copy_text(entry.label, allocator), .is_separator = entry.is_separator, .enabled = entry.enabled };
-		}
-	}
-	return { .title = copy_text(own.title, allocator), .icon = copy_text(own.icon, allocator), .menu = menu };
 }
 
 <* The worker's loop. Returns when the host stops. *>
@@ -443,14 +429,7 @@ fn void fail_queued(Host{tray::Command}* host)
 // Stores an event for the next `publish`, which delivers it after the state it describes.
 fn void queue_event(SniBackend* backend, tray::EventKind kind, String item_id, int menu_id, int x, int y)
 {
-	tray::Event event = { .kind = kind, .item_id = copy_text(item_id, backend.allocator), .menu_id = menu_id, .x = x, .y = y };
+	tray::Event event = { .kind = kind, .item_id = convert::copy_text(item_id, backend.allocator), .menu_id = menu_id, .x = x, .y = y };
 	backend.events.push(event);
 	backend.dirty = true;
-}
-
-<* A copy of `text` in `allocator`; "" (no allocation) when empty. *>
-fn String copy_text(String text, Allocator allocator)
-{
-	if (text.len == 0) return "";
-	return text.copy(allocator);
 }

@@ -9,6 +9,7 @@
 # checks the output lines and the request log. Nothing is installed; the fakes
 # answer from tests/fixtures.
 set -u
+export PYTHONDONTWRITEBYTECODE=1
 here="$(cd "$(dirname "$0")" && pwd)"
 lib="$(cd "$here/.." && pwd)"
 repo="$(cd "$lib/../.." && pwd)"
@@ -42,13 +43,13 @@ mkdir -p "$work/run"
 
 # --- Hyprland -------------------------------------------------------------
 echo "== hyprland"
-python3 "$here/fake_hyprland.py" "$work/run/hypr/fake" "$fixtures/hyprland" "$work/hypr.log" "$lib/tests/live/hyprland_events.txt" &
+python3 "$here/fake_hyprland.py" "$work/run/hypr/fake" "$fixtures/hyprland" "$work/hypr.log" "$lib/tests/live/hyprland_events.txt" > "$work/hypr.fake" 2>&1 &
 pids+=($!)
 wait_for "$work/run/hypr/fake/.socket.sock"; wait_for "$work/run/hypr/fake/.socket2.sock"
 "${env_base[@]}" HYPRLAND_INSTANCE_SIGNATURE=fake "$live" > "$work/hypr.out" 2>&1; rc=$?
 cat "$work/hypr.out"
 check hypr-detect "$work/hypr.out" "detect kind=HYPRLAND reason=HYPRLAND_INSTANCE_SIGNATURE is set"
-check hypr-snapshot "$work/hypr.out" "snapshot windows=2 workspaces=2 outputs=2 focused=foot layout=German"
+check hypr-snapshot "$work/hypr.out" "snapshot windows=2 workspaces=2 outputs=2 focused=~/src layout=German"
 check hypr-events "$work/hypr.out" "after windows=2 workspaces=2 outputs=2 focused=none layout=English (US)"
 check hypr-clone "$work/hypr.out" "clone windows=2"
 check hypr-focus "$work/hypr.out" "focus_window=ok"
@@ -66,7 +67,7 @@ rm -rf "$work/run/hypr"
 
 # --- Hyprland with a malformed event line -----------------------------------
 echo "== hyprland, malformed event"
-python3 "$here/fake_hyprland.py" "$work/run/hypr/fake" "$fixtures/hyprland" "$work/hypr2.log" "$lib/tests/live/hyprland_events.txt" bad &
+python3 "$here/fake_hyprland.py" "$work/run/hypr/fake" "$fixtures/hyprland" "$work/hypr2.log" "$lib/tests/live/hyprland_events.txt" bad > "$work/hypr2.fake" 2>&1 &
 pids+=($!)
 wait_for "$work/run/hypr/fake/.socket2.sock"
 "${env_base[@]}" HYPRLAND_INSTANCE_SIGNATURE=fake "$live" > "$work/hypr2.out" 2>&1; rc=$?
@@ -77,7 +78,7 @@ rm -rf "$work/run/hypr"
 
 # --- sway -----------------------------------------------------------------
 echo "== sway"
-python3 "$here/fake_sway.py" "$work/run/sway.sock" "$fixtures/sway" "$work/sway.log" "$lib/tests/live/sway_events.tsv" &
+python3 "$here/fake_sway.py" "$work/run/sway.sock" "$fixtures/sway" "$work/sway.log" "$lib/tests/live/sway_events.tsv" > "$work/sway.fake" 2>&1 &
 pids+=($!)
 wait_for "$work/run/sway.sock"
 "${env_base[@]}" SWAYSOCK="$work/run/sway.sock" "$live" > "$work/sway.out" 2>&1; rc=$?
@@ -100,7 +101,7 @@ rm -f "$work/run/sway.sock"
 
 # --- i3 (no input events, no layouts) -------------------------------------
 echo "== i3"
-python3 "$here/fake_sway.py" "$work/run/i3.sock" "$fixtures/sway" "$work/i3.log" "$lib/tests/live/sway_events.tsv" i3 &
+python3 "$here/fake_sway.py" "$work/run/i3.sock" "$fixtures/sway" "$work/i3.log" "$lib/tests/live/sway_events.tsv" i3 > "$work/i3.fake" 2>&1 &
 pids+=($!)
 wait_for "$work/run/i3.sock"
 "${env_base[@]}" I3SOCK="$work/run/i3.sock" "$live" > "$work/i3.out" 2>&1; rc=$?
@@ -115,7 +116,7 @@ rm -f "$work/run/i3.sock"
 
 # --- niri -----------------------------------------------------------------
 echo "== niri"
-python3 "$here/fake_niri.py" "$work/run/niri.sock" "$fixtures/niri" "$work/niri.log" "$fixtures/niri/events.jsonl" &
+python3 "$here/fake_niri.py" "$work/run/niri.sock" "$fixtures/niri" "$work/niri.log" "$fixtures/niri/events.jsonl" > "$work/niri.fake" 2>&1 &
 pids+=($!)
 wait_for "$work/run/niri.sock"
 "${env_base[@]}" NIRI_SOCKET="$work/run/niri.sock" "$live" > "$work/niri.out" 2>&1; rc=$?

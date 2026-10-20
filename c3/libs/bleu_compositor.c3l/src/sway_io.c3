@@ -13,7 +13,7 @@ import bleu::rt::unix, bleu::error, bleu::compositor, bleu::compositor::backend,
 
 // Event types sway sends on a subscription. i3 has no `input` events.
 const String SUBSCRIBE_SWAY = "[\"workspace\",\"window\",\"output\",\"input\"]";
-const String SUBSCRIBE_I3 = "[\"workspace\",\"window\",\"output\"]";
+const String SUBSCRIBE_I3   = "[\"workspace\",\"window\",\"output\"]";
 
 <* The state of one sway or i3 connection. The subscription socket is owned here. *>
 struct SwayBackend (backend::Backend)
@@ -35,7 +35,14 @@ struct SwayBackend (backend::Backend)
 *>
 fn backend::Backend? open(Allocator allocator, compositor::Detection detection, compositor::Kind kind)
 {
-	if (detection.event_socket.len == 0) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "%s: %s", kind == compositor::Kind.I3 ? "i3" : "sway", detection.reason)~;
+	if (detection.event_socket.len == 0) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"%s: %s",
+		kind == compositor::Kind.I3 ? "i3" : "sway",
+		detection.reason
+	)~;
 	unix::UnixSocket events = unix::connect(detection.event_socket, unix::SocketKind.STREAM)!;
 	wire::Buffer frames;
 	frames.init(allocator, io::EVENT_BUFFER_BYTES);
@@ -67,8 +74,11 @@ fn void? subscribe(unix::UnixSocket* socket, wire::Buffer* frames, String types)
 	{
 		socket.send_all(i3ipc::encode(tmem, (uint)i3ipc::MessageType.SUBSCRIBE, types))!;
 		i3ipc::Frame reply = io::await_frame(socket, frames)!;
-		Object* outcome = wire::parse_document(reply.payload, "sway subscribe reply")!;
-		if (!wire::flag_member(outcome, "success")) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "subscription was refused")~;
+		Object* outcome    = wire::parse_document(reply.payload, "sway subscribe reply")!;
+		if (!wire::flag_member(
+			outcome,
+			"success"
+		)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "subscription was refused")~;
 	};
 }
 
@@ -102,7 +112,14 @@ fn void? run_command(String path, String command) @private
 		{
 			Object* outcome = wire::item(outcomes, i);
 			if (wire::flag_member(outcome, "success")) continue;
-			return error::raise(error::BACKEND_FAILURE, error::Domain.COMPOSITOR, 0, "sway refused '%s': %s", command, wire::peek(outcome, "error", "no message"))~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.COMPOSITOR,
+				0,
+				"sway refused '%s': %s",
+				command,
+				wire::peek(outcome, "error", "no message")
+			)~;
 		}
 	};
 }
@@ -116,7 +133,11 @@ fn compositor::Model? SwayBackend.snapshot(&self, Allocator allocator) @dynamic
 	@pool()
 	{
 		Object* inputs = null;
-		if (self.flavor == compositor::Kind.SWAY) inputs = json_request(self.socket_path, (uint)i3ipc::MessageType.GET_INPUTS, "")!;
+		if (self.flavor == compositor::Kind.SWAY) inputs = json_request(
+			self.socket_path,
+			(uint)i3ipc::MessageType.GET_INPUTS,
+			""
+		)!;
 		sway::Replies replies = {
 			.workspaces = json_request(self.socket_path, (uint)i3ipc::MessageType.GET_WORKSPACES, "")!,
 			.outputs = json_request(self.socket_path, (uint)i3ipc::MessageType.GET_OUTPUTS, "")!,
@@ -143,7 +164,10 @@ fn backend::Refresh? SwayBackend.read_events(&self, compositor::Model* model, Al
 					break;
 				}
 				if (!frame.header.is_event()) continue;
-				backend::RawEvent event = { .name = i3ipc::event_name(frame.header.event_type()), .payload = frame.payload };
+				backend::RawEvent event = {
+					.name = i3ipc::event_name(frame.header.event_type()),
+					.payload = frame.payload
+				};
 				result = backend::combine(result, self.apply_event(model, allocator, event));
 			}
 		}
@@ -151,50 +175,83 @@ fn backend::Refresh? SwayBackend.read_events(&self, compositor::Model* model, Al
 	return result;
 }
 
-fn backend::Refresh SwayBackend.apply_event(&self, compositor::Model* model, Allocator allocator, backend::RawEvent event) @dynamic
+fn backend::Refresh SwayBackend.apply_event(
+	&self,
+	compositor::Model* model,
+	Allocator allocator,
+	backend::RawEvent event
+) @dynamic
 {
 	return sway::apply(model, allocator, event);
 }
 
 fn void? SwayBackend.focus_window(&self, String window_id) @dynamic
 {
-	if (!wire::is_decimal(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
+	if (!wire::is_decimal(
+		window_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
 	return run_command(self.socket_path, string::tformat("[con_id=%s] focus", window_id));
 }
 
 fn void? SwayBackend.close_window(&self, String window_id) @dynamic
 {
-	if (!wire::is_decimal(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
+	if (!wire::is_decimal(
+		window_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
 	return run_command(self.socket_path, string::tformat("[con_id=%s] kill", window_id));
 }
 
 fn void? SwayBackend.switch_workspace(&self, String id) @dynamic
 {
-	if (!wire::is_quotable(id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "workspace name cannot be quoted: '%s'", id)~;
+	if (!wire::is_quotable(
+		id
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"workspace name cannot be quoted: '%s'",
+		id
+	)~;
 	return run_command(self.socket_path, string::tformat("workspace \"%s\"", id));
 }
 
 fn void? SwayBackend.move_window(&self, String window_id, String workspace_id) @dynamic
 {
-	if (!wire::is_decimal(window_id) || !wire::is_quotable(workspace_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "bad container or workspace")~;
-	return run_command(self.socket_path, string::tformat("[con_id=%s] move container to workspace \"%s\"", window_id, workspace_id));
+	if (!wire::is_decimal(
+		window_id
+	) || !wire::is_quotable(
+		workspace_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "bad container or workspace")~;
+	return run_command(
+		self.socket_path,
+		string::tformat("[con_id=%s] move container to workspace \"%s\"", window_id, workspace_id)
+	);
 }
 
 fn void? SwayBackend.set_layout(&self, uint index) @dynamic
 {
-	if (self.flavor == compositor::Kind.I3) return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "i3 has no keyboard layout command here")~;
+	if (self.flavor == compositor::Kind.I3) return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"i3 has no keyboard layout command here"
+	)~;
 	return run_command(self.socket_path, string::tformat("input type:keyboard xkb_switch_layout %d", index));
 }
 
 fn void? SwayBackend.toggle_floating(&self, String window_id) @dynamic
 {
-	if (!wire::is_decimal(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
+	if (!wire::is_decimal(
+		window_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
 	return run_command(self.socket_path, string::tformat("[con_id=%s] floating toggle", window_id));
 }
 
 fn void? SwayBackend.toggle_fullscreen(&self, String window_id) @dynamic
 {
-	if (!wire::is_decimal(window_id)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
+	if (!wire::is_decimal(
+		window_id
+	)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a container id: '%s'", window_id)~;
 	return run_command(self.socket_path, string::tformat("[con_id=%s] fullscreen toggle", window_id));
 }
 
