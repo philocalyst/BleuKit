@@ -3,3 +3,6 @@ out/
 build/
 *.o
 *.obj
+__pycache__/
+*.pyc
+*.deb
