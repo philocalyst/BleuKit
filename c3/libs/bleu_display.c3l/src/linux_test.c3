@@ -271,6 +271,8 @@ fn void pump(linux_wayland::Session* session)
 		session.client.dispatch()!!;
 		linux_wayland::advance(session, clock::now());
 	}
+	// The last answer may have queued requests (the destroy of its configuration object) that nothing else sends.
+	session.client.flush()!!;
 }
 
 fn int read_route_scenario(void* arg)

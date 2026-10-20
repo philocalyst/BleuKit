@@ -7,16 +7,19 @@ module bleu::clipboard;
 import std::collections::maybe;
 
 <* Most types kept from one offer. Extra types are dropped, not refused. *>
-const usz MAX_MIME_TYPES = 32;
+const usz MAX_MIME_TYPES  = 32;
 <* Longest type name kept. Longer names are dropped. *>
 const usz MAX_MIME_LENGTH = 255;
+
+<* The MIME name of UTF-8 text. Each platform maps its own text identifier to this name. *>
+const String MIME_UTF8_TEXT = "text/plain;charset=utf-8";
 
 <*
  Text types in the order Bleu prefers them. UTF-8 first, then the X11 names that
  toolkits still offer alone. `TEXT` and `STRING` are the legacy ICCCM targets.
 *>
 const String[5] TEXT_TYPES_BY_PREFERENCE = {
-	"text/plain;charset=utf-8",
+	MIME_UTF8_TEXT,
 	"UTF8_STRING",
 	"text/plain",
 	"STRING",
@@ -81,7 +84,7 @@ fn String[] sanitise_offer(Allocator allocator, String[] offered)
 {
 	if (offered.len == 0) return { };
 	String[] kept = alloc::alloc_array(allocator, String, (sz)min((usz)offered.len, MAX_MIME_TYPES));
-	usz count = 0;
+	usz count     = 0;
 	foreach (mime : offered)
 	{
 		if (count == MAX_MIME_TYPES) break;

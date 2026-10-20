@@ -162,3 +162,20 @@
 * `if (catch e = x)` scopes e to the if: bind the optional first, then unwrap. `foreach (k : {"a","b"})` needs a `const String[N]` global.
 * A constset value passed where `uint` is expected needs `(uint)`; switch on `(EventType)x`. An interface-impl struct field named `kind` clashes with a `kind()` method.
 * `$embed` paths are relative to the source file; cast with `(String)$embed(...)`. `test::eq` needs identical types.
+* `uchar` and `ubyte` are not types → use `char` (unsigned byte) and cast the other side.
+* `uint.max` does not exist → write the literal (`0xFFFF_FFFF`), or use a helper.
+* `var x = f();` is only allowed in macros or with `@safeinfer` → give the type (`Snapshot{Event}* p = ...`).
+* `switch` on a `String` is not supported → use an `if` chain.
+* `Writer.begin_array` takes the full array type (`"a{sv}"`, `"as"`), not the element type.
+* `alloc::clone_slice` rejects a `String` argument ("only arrays and slices") → copy into `char[]` with `alloc::new_array` and a loop.
+* `alloc::new_array(allocator, T, n)` needs `sz`: cast a `usz` count.
+* A local variable named `bus` hides the module `bleu::dbus::bus`, so `bus::NAME_...` fails → name the connection `conn`.
+* `Mutex.init()` returns `void?`, so a bare call fails with "must be handled" → write `init()!!` (or handle the error).
+* `objc::id_block` and `objc::bool_error_block` need the `objc::` prefix; an `ObjId` is compared by truthiness (`if (id)`), not with `null`.
+* A bleu_dbus `OwnedName` on a queued request reports success with `held == false` → always pass `NAME_DO_NOT_QUEUE`.
+* A helper a `$switch` in an ungated file calls must live in the same module (`bleu::notify::sender`) in a gated file that imports the backend, as `battery`'s `linux.c3` does.
+* `DETAIL_TEXT_CAPACITY` (240 bytes) truncates the message of `error::raise` silently → keep user-facing reasons under 240 bytes.
+* A child process's stdout is block-buffered when piped → call `io::stdout().flush()!!` after each answer, or the parent reads nothing.
+* A `std::thread` created by a C3 program needs `foreign::@foreign_entry()` for temporary memory and must return `int` (`ThreadFn`).
+* `Store.post`-style helpers that copy into an arena per notification avoid copying on the wire path: give each entry its own `DynamicArenaAllocator` and free the arena with the entry.
+* `foreach (x : arr)` copies; mutate through `foreach (&x : arr)` (x is then a pointer). A `@return?` contract on a void function is accepted but meaningless.

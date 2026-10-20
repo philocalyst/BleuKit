@@ -14,11 +14,11 @@ import std::collections::list, std::collections::maybe, std::time;
 <* Text copies kept when the caller asks for no particular number. *>
 const uint DEFAULT_HISTORY_ITEMS = 50;
 <* Total bytes of text kept in the history when the caller asks for no particular size: 4 MiB. *>
-const usz DEFAULT_HISTORY_BYTES = 4 * 1024 * 1024;
+const usz DEFAULT_HISTORY_BYTES  = 4 * 1024 * 1024;
 <* Largest payload read or kept: 1 MiB. Larger offers are described, not read. *>
-const usz DEFAULT_PAYLOAD_LIMIT = 1024 * 1024;
+const usz DEFAULT_PAYLOAD_LIMIT  = 1024 * 1024;
 <* Page size of the arenas that hold selections and history items. *>
-const usz ARENA_PAGE = 1024;
+const usz ARENA_PAGE             = 1024;
 
 <* One selection. Its arena holds every string it refers to. *>
 struct Lane
@@ -150,7 +150,8 @@ fn void Board.remember(&self, Lane* lane, String mime, char[] bytes)
 		Item* earlier = self.items.get(i);
 		if (earlier.mime == mime && (String)earlier.bytes == text) self.drop_item(i);
 	}
-	while (!self.items.is_empty() && (self.items.len() >= (sz)self.items_max || self.total_bytes + size > self.bytes_max))
+	while (!self.items.is_empty()
+		&& (self.items.len() >= (sz)self.items_max || self.total_bytes + size > self.bytes_max))
 	{
 		self.drop_item(0);
 	}

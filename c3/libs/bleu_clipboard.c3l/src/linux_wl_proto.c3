@@ -14,8 +14,8 @@ import bleu::clipboard, bleu::rt, bleu::wl::display, bleu::wl::proto::wayland, b
 <* Which data-control protocol a session bound. *>
 enum DataControl : char
 {
-	EXT,  // ext-data-control-v1
-	WLR,  // wlr-data-control-unstable-v1
+	EXT, // ext-data-control-v1
+	WLR, // wlr-data-control-unstable-v1
 }
 
 <* Interface names, as the registry advertises them. *>
@@ -71,12 +71,12 @@ fn void? proto_set_selection(DataControl kind, display::Proxy* device, display::
 	display::Proxy* offered = source;
 	if (kind == EXT)
 	{
-		ext_data_control::ExtDataControlDeviceV1* typed = (ext_data_control::ExtDataControlDeviceV1*)device;
+		ext_data_control::ExtDataControlDeviceV1* typed        = (ext_data_control::ExtDataControlDeviceV1*)device;
 		ext_data_control::ExtDataControlSourceV1* typed_source = (ext_data_control::ExtDataControlSourceV1*)offered;
 		if (slot == Slot.PRIMARY) return typed.set_primary_selection(typed_source);
 		return typed.set_selection(typed_source);
 	}
-	wlr_data_control::ZwlrDataControlDeviceV1* typed = (wlr_data_control::ZwlrDataControlDeviceV1*)device;
+	wlr_data_control::ZwlrDataControlDeviceV1* typed        = (wlr_data_control::ZwlrDataControlDeviceV1*)device;
 	wlr_data_control::ZwlrDataControlSourceV1* typed_source = (wlr_data_control::ZwlrDataControlSourceV1*)offered;
 	if (slot == Slot.PRIMARY) return typed.set_primary_selection(typed_source);
 	return typed.set_selection(typed_source);
@@ -118,17 +118,29 @@ fn void? proto_destroy_device(DataControl kind, display::Proxy* device)
 
 // Device forwarders ----------------------------------------------------------------
 
-fn void ext_data_offer(void* context, ext_data_control::ExtDataControlDeviceV1* target, ext_data_control::ExtDataControlOfferV1* id)
+fn void ext_data_offer(
+	void* context,
+	ext_data_control::ExtDataControlDeviceV1* target,
+	ext_data_control::ExtDataControlOfferV1* id
+)
 {
 	device_data_offer((WlSession*)context, (display::Proxy*)id);
 }
 
-fn void ext_selection(void* context, ext_data_control::ExtDataControlDeviceV1* target, ext_data_control::ExtDataControlOfferV1* id)
+fn void ext_selection(
+	void* context,
+	ext_data_control::ExtDataControlDeviceV1* target,
+	ext_data_control::ExtDataControlOfferV1* id
+)
 {
 	device_selection((WlSession*)context, Slot.CLIPBOARD, (display::Proxy*)id);
 }
 
-fn void ext_primary_selection(void* context, ext_data_control::ExtDataControlDeviceV1* target, ext_data_control::ExtDataControlOfferV1* id)
+fn void ext_primary_selection(
+	void* context,
+	ext_data_control::ExtDataControlDeviceV1* target,
+	ext_data_control::ExtDataControlOfferV1* id
+)
 {
 	device_selection((WlSession*)context, Slot.PRIMARY, (display::Proxy*)id);
 }
@@ -138,17 +150,29 @@ fn void ext_finished(void* context, ext_data_control::ExtDataControlDeviceV1* ta
 	device_finished((WlSession*)context);
 }
 
-fn void wlr_data_offer(void* context, wlr_data_control::ZwlrDataControlDeviceV1* target, wlr_data_control::ZwlrDataControlOfferV1* id)
+fn void wlr_data_offer(
+	void* context,
+	wlr_data_control::ZwlrDataControlDeviceV1* target,
+	wlr_data_control::ZwlrDataControlOfferV1* id
+)
 {
 	device_data_offer((WlSession*)context, (display::Proxy*)id);
 }
 
-fn void wlr_selection(void* context, wlr_data_control::ZwlrDataControlDeviceV1* target, wlr_data_control::ZwlrDataControlOfferV1* id)
+fn void wlr_selection(
+	void* context,
+	wlr_data_control::ZwlrDataControlDeviceV1* target,
+	wlr_data_control::ZwlrDataControlOfferV1* id
+)
 {
 	device_selection((WlSession*)context, Slot.CLIPBOARD, (display::Proxy*)id);
 }
 
-fn void wlr_primary_selection(void* context, wlr_data_control::ZwlrDataControlDeviceV1* target, wlr_data_control::ZwlrDataControlOfferV1* id)
+fn void wlr_primary_selection(
+	void* context,
+	wlr_data_control::ZwlrDataControlDeviceV1* target,
+	wlr_data_control::ZwlrDataControlOfferV1* id
+)
 {
 	device_selection((WlSession*)context, Slot.PRIMARY, (display::Proxy*)id);
 }
@@ -170,7 +194,12 @@ fn void wlr_offer_mime(void* context, wlr_data_control::ZwlrDataControlOfferV1* 
 	offer_mime((WlOffer*)context, mime_type);
 }
 
-fn void ext_source_send(void* context, ext_data_control::ExtDataControlSourceV1* target, String mime_type, rt::Native fd)
+fn void ext_source_send(
+	void* context,
+	ext_data_control::ExtDataControlSourceV1* target,
+	String mime_type,
+	rt::Native fd
+)
 {
 	source_send((WlSource*)context, mime_type, fd);
 }
@@ -180,7 +209,12 @@ fn void ext_source_cancelled(void* context, ext_data_control::ExtDataControlSour
 	source_cancelled((WlSource*)context);
 }
 
-fn void wlr_source_send(void* context, wlr_data_control::ZwlrDataControlSourceV1* target, String mime_type, rt::Native fd)
+fn void wlr_source_send(
+	void* context,
+	wlr_data_control::ZwlrDataControlSourceV1* target,
+	String mime_type,
+	rt::Native fd
+)
 {
 	source_send((WlSource*)context, mime_type, fd);
 }
@@ -204,28 +238,43 @@ const wlr_data_control::ZwlrDataControlDeviceV1Listener WLR_DEVICE_LISTENER = {
 	.primary_selection = &wlr_primary_selection,
 };
 
-const ext_data_control::ExtDataControlOfferV1Listener EXT_OFFER_LISTENER = { .offer = &ext_offer_mime };
-const wlr_data_control::ZwlrDataControlOfferV1Listener WLR_OFFER_LISTENER = { .offer = &wlr_offer_mime };
-const ext_data_control::ExtDataControlSourceV1Listener EXT_SOURCE_LISTENER = { .send = &ext_source_send, .cancelled = &ext_source_cancelled };
-const wlr_data_control::ZwlrDataControlSourceV1Listener WLR_SOURCE_LISTENER = { .send = &wlr_source_send, .cancelled = &wlr_source_cancelled };
+const ext_data_control::ExtDataControlOfferV1Listener EXT_OFFER_LISTENER    = { .offer = &ext_offer_mime };
+const wlr_data_control::ZwlrDataControlOfferV1Listener WLR_OFFER_LISTENER   = { .offer = &wlr_offer_mime };
+const ext_data_control::ExtDataControlSourceV1Listener EXT_SOURCE_LISTENER  = {
+	.send = &ext_source_send,
+	.cancelled = &ext_source_cancelled
+};
+const wlr_data_control::ZwlrDataControlSourceV1Listener WLR_SOURCE_LISTENER = {
+	.send = &wlr_source_send,
+	.cancelled = &wlr_source_cancelled
+};
 
 <* Attach the device listener of `kind` to `device`, with `context` as the session. *>
 fn void proto_listen_device(DataControl kind, display::Proxy* device, void* context)
 {
-	if (kind == EXT) return ((ext_data_control::ExtDataControlDeviceV1*)device).set_listener(&EXT_DEVICE_LISTENER, context);
+	if (kind == EXT) return ((ext_data_control::ExtDataControlDeviceV1*)device).set_listener(
+		&EXT_DEVICE_LISTENER,
+		context
+	);
 	((wlr_data_control::ZwlrDataControlDeviceV1*)device).set_listener(&WLR_DEVICE_LISTENER, context);
 }
 
 <* Attach the offer listener of `kind` to `offer`. *>
 fn void proto_listen_offer(DataControl kind, display::Proxy* offer, void* context)
 {
-	if (kind == EXT) return ((ext_data_control::ExtDataControlOfferV1*)offer).set_listener(&EXT_OFFER_LISTENER, context);
+	if (kind == EXT) return ((ext_data_control::ExtDataControlOfferV1*)offer).set_listener(
+		&EXT_OFFER_LISTENER,
+		context
+	);
 	((wlr_data_control::ZwlrDataControlOfferV1*)offer).set_listener(&WLR_OFFER_LISTENER, context);
 }
 
 <* Attach the source listener of `kind` to `source`. *>
 fn void proto_listen_source(DataControl kind, display::Proxy* source, void* context)
 {
-	if (kind == EXT) return ((ext_data_control::ExtDataControlSourceV1*)source).set_listener(&EXT_SOURCE_LISTENER, context);
+	if (kind == EXT) return ((ext_data_control::ExtDataControlSourceV1*)source).set_listener(
+		&EXT_SOURCE_LISTENER,
+		context
+	);
 	((wlr_data_control::ZwlrDataControlSourceV1*)source).set_listener(&WLR_SOURCE_LISTENER, context);
 }

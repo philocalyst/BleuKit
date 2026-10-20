@@ -208,26 +208,36 @@ fn void on_item_owner(void* context, Message* signal)
 	if (new_owner.len == 0) push_pending(r.backend, OWNER_GONE, 0, ID, r.item.bus_name);
 }
 
-// Read every property of the item, then its menu. The interface is the one that answers.
+// Read every property of the item, then its menu. The interface is the one that answers. An item
+// that answers neither interface (it hung, or it went away) is left empty: the bus call timeout
+// bounds what a single unresponsive item can cost the worker to two calls.
 fn void read_everything(SniBackend* b, ItemRecord* r)
 {
-	r.interface_name = pick_interface(b, r);
-	for (usz i = 0; i < PROP_COUNT; i++) read_prop(b, r, (Prop)(char)i);
-	if (catch reload_menu(b, r, -1))
+	if (try interface_name = pick_interface(b, r))
 	{
+		r.interface_name = interface_name;
+		for (usz i = 0; i < PROP_COUNT; i++) read_prop(b, r, (Prop)(char)i);
+		if (catch reload_menu(b, r, -1))
+		{
+		}
 	}
 	b.dirty = true;
 }
 
-// The KDE interface when the item serves it, otherwise the freedesktop one.
-fn String pick_interface(SniBackend* b, ItemRecord* r)
+// The KDE interface when the item serves it, otherwise the freedesktop one. Neither: UNAVAILABLE.
+fn String? pick_interface(SniBackend* b, ItemRecord* r)
 {
 	if (try reply = get_property(b, r.item.bus_name, r.item.object_path, ITEM_INTERFACE, "Id"))
 	{
 		reply.release();
 		return ITEM_INTERFACE;
 	}
-	return ITEM_INTERFACE_FDO;
+	if (try reply = get_property(b, r.item.bus_name, r.item.object_path, ITEM_INTERFACE_FDO, "Id"))
+	{
+		reply.release();
+		return ITEM_INTERFACE_FDO;
+	}
+	return error::UNAVAILABLE~;
 }
 
 <*

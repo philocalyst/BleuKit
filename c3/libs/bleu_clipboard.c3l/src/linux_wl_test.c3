@@ -14,8 +14,8 @@ extern fn CInt sys_pipe(CInt* fds) @cname("pipe");
 // Object ids the compositor gives its own objects (wayland.xml: server ids start at 0xff000000).
 const uint SERVER_OFFER = 0xFF000001;
 const uint SERVER_ECHO  = 0xFF000002;
-const Duration TICK = (Duration)20_000;
-const usz TEST_PAYLOAD = 1024;
+const Duration TICK     = (Duration)20_000;
+const usz TEST_PAYLOAD  = 1024;
 
 // Fails the scenario thread with a message when a scenario sees something unexpected.
 fn void expect(bool ok, String what)
@@ -83,8 +83,8 @@ fn Setup serve_device(testing::MockServer* s)
 	testing::Message sync = expect_request(s, display::DISPLAY_ID, 0);
 	answer_sync(s, s.reader(sync).get_new_id()!!);
 	// The session binds the manager first (ext-data-control is preferred), then the seat.
-	uint manager = expect_bind(s, registry, 6, "ext_data_control_manager_v1", 1);
-	uint seat    = expect_bind(s, registry, 4, "wl_seat", 7);
+	uint manager            = expect_bind(s, registry, 6, "ext_data_control_manager_v1", 1);
+	uint seat               = expect_bind(s, registry, 4, "wl_seat", 7);
 	testing::Message device = expect_request(s, manager, 1);
 	wire::Reader r          = s.reader(device);
 	uint id                 = r.get_new_id()!!;
@@ -173,8 +173,8 @@ fn int own_scenario(void* arg)
 {
 	foreign::@foreign_entry()
 	{
-		testing::MockServer* s = (testing::MockServer*)arg;
-		Setup setup            = serve_device(s);
+		testing::MockServer* s  = (testing::MockServer*)arg;
+		Setup setup             = serve_device(s);
 		testing::Message create = expect_request(s, setup.manager, 0);
 		uint source             = s.reader(create).get_new_id()!!;
 		testing::Message offer  = expect_request(s, source, 0);
@@ -268,7 +268,12 @@ fn void copy_from_another_application_is_kept_in_history() @test
 	Thread t;
 	t.create(&copy_scenario, &server)!!;
 	session.connect_fd(client_fd)!!;
-	defer { session.free(); board.free(); server.close(); }
+	defer
+	{
+		session.free();
+		board.free();
+		server.close();
+	}
 	pump_ticks(&session, 25);
 	test::eq(board.items.len(), (sz)1);
 	test::eq(board.lane(Slot.CLIPBOARD).preview, "hello");
@@ -292,7 +297,12 @@ fn void concealed_copy_is_never_read() @test
 	Thread t;
 	t.create(&concealed_scenario, &server)!!;
 	session.connect_fd(client_fd)!!;
-	defer { session.free(); board.free(); server.close(); }
+	defer
+	{
+		session.free();
+		board.free();
+		server.close();
+	}
 	pump_ticks(&session, 10);
 	test::eq(board.lane(Slot.CLIPBOARD).privacy, Privacy.CONCEALED);
 	test::@check(!transfers_busy(&session));
@@ -315,14 +325,19 @@ fn void our_own_selection_serves_its_bytes_and_is_released() @test
 	Thread t;
 	t.create(&own_scenario, &server)!!;
 	session.connect_fd(client_fd)!!;
-	defer { session.free(); board.free(); server.close(); }
+	defer
+	{
+		session.free();
+		board.free();
+		server.close();
+	}
 	Representation[1] offered = { { .mime = "text/plain;charset=utf-8", .bytes = (char[])"copied" } };
-	ulong seq = session.own(Slot.CLIPBOARD, offered[..])!!;
+	ulong seq                 = session.own(Slot.CLIPBOARD, offered[..])!!;
 	pump_ticks(&session, 25);
 	test::@check(board.lane(Slot.CLIPBOARD).owned);
 	test::eq(board.lane(Slot.CLIPBOARD).seq, seq);
 	test::eq(board.items.len(), (sz)1);
-	test::@check(session.clear(Slot.CLIPBOARD));
+	test::@check(session.clear(Slot.CLIPBOARD)!!);
 	pump_ticks(&session, 25);
 	test::eq(session.sources.len(), (sz)0);
 	t.join()!!;
@@ -343,7 +358,12 @@ fn void a_capture_over_the_size_cap_is_dropped() @test
 	Thread t;
 	t.create(&oversize_scenario, &server)!!;
 	session.connect_fd(client_fd)!!;
-	defer { session.free(); board.free(); server.close(); }
+	defer
+	{
+		session.free();
+		board.free();
+		server.close();
+	}
 	pump_ticks(&session, 25);
 	test::@check(!transfers_busy(&session));
 	test::eq(board.lane(Slot.CLIPBOARD).size, (usz)0);
@@ -366,7 +386,12 @@ fn void a_fetch_reads_the_chosen_type_of_the_live_offer() @test
 	Thread t;
 	t.create(&image_copy_scenario, &server)!!;
 	session.connect_fd(client_fd)!!;
-	defer { session.free(); board.free(); server.close(); }
+	defer
+	{
+		session.free();
+		board.free();
+		server.close();
+	}
 	pump_ticks(&session, 25);
 	Operation{Bytes}* op = operation::begin{Bytes}(mem);
 	defer op.release();

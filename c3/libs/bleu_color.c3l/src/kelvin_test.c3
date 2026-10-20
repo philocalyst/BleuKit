@@ -3,7 +3,7 @@ import bleu::unit, bleu::color::kelvin, std::math;
 
 // Two independent computations of the same white point, as wlsunset's color.c computes them
 // (its Planckian locus and daylight locus, with the sRGB-style 1/2.2 gamma of xyz_to_rgb) and
-// as the table above interpolates them. Values from docs/research/color_impl.md, section 3.
+// as the table above interpolates them. Values from docs/research/color_impl.md, section 4.
 fn bool near(float a, float b, float tolerance) @inline => math::abs(a - b) <= tolerance;
 
 fn void neutral_is_the_identity() @test

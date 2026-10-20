@@ -84,6 +84,15 @@ fn tray::Pixmap[] copy_pixmaps(tray::Pixmap[] source, Allocator a)
 	return pixmaps;
 }
 
+// Drop the queued events without delivering them: the service is closing.
+fn void clear_events(SniBackend* b)
+{
+	while (try event = b.events.pop_first())
+	{
+		if (event.item_id.len > 0) alloc::free(b.allocator, event.item_id.ptr);
+	}
+}
+
 // Deliver the queued events, each with its own copy of the item identifier.
 fn void flush_events(SniBackend* b, TrayHub* hub)
 {

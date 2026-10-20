@@ -20,6 +20,19 @@ verification record: `docs/research/color_impl.md`.
 - Pure helpers: `bleu::color::kelvin::rgb(Kelvin)`, `bleu::color::ramp::fill(...)`, `bleu::color::schedule::temperature_at(...)`, `schedule::validate(...)`.
 - `backend_name()`, `capability(Cap)`, `close()`.
 
+## Caller-side usage
+
+    Color* color = color::open(mem)!;
+    defer color.close();
+    ApplyOperation* warm = color.set_temperature(color::ALL_OUTPUTS, (Kelvin)3500)!;
+    defer warm.release();
+    Applied applied = warm.wait(time::sec(5))!;            // applied.outputs, applied.temperature
+    if (try snapshot = color.latest())                     // the state, once the worker has published
+    {
+        defer snapshot.release();
+        // snapshot.value.outputs[i].control.refused, .active, .temperature ...
+    }
+
 ## Coverage (capability x OS -> status)
 
 Run = executed here: pure tests on Linux x86-64; the Linux protocol path against the in-process
@@ -48,7 +61,8 @@ Not done = not built.
 `bleu::brightness` has a `GAMMA` mechanism with no backend (its README lists it under "Not done").
 Its backend would take a dim provider of this shape, which `bleu::color` already satisfies:
 
-    // ColorService.dim_provider: set a software dim on one output (or ALL_OUTPUTS), via bleu::color.
+    // The ColorService.dim_provider shape (this library's service type is `Color`): set a software dim
+    // on one output, or on every output with `color::ALL_OUTPUTS`. The caller releases the operation.
     fn ApplyOperation*? (Color* color, String output_id, Level level)
     {
         return color.set_dim(output_id, level);
@@ -79,7 +93,7 @@ Semantics a caller of this must know:
 
 ## Verified how
 
-- `c3c compile-test` (Linux x86-64, c3 0.8.5): 24 `@test` functions in `bleu::color` pass
+- `c3c compile-test` (Linux x86-64, c3 0.8.5): 23 `@test` functions in `bleu::color` pass
   (`--test-filter bleu::color`), repeated 40 times with no failure. The full suite includes
   `bleu_wl`'s tests, which are not stable (see `docs/research/color_impl.md`, section 6).
 - Mock compositor: `src/linux_wlr_test.c3` drives the full exchange (acquire, write, dim, reset, reacquire,

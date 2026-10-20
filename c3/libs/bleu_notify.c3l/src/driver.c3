@@ -39,11 +39,13 @@ alias NotifyRunFn = fn void(void* state, NotifyHub* hub, Host{Command}* host);
 *>
 fn Driver*? select_driver(Options options)
 {
-	foreach (driver : platform_drivers())
+	Driver*[] drivers = platform_drivers();
+	foreach (driver : drivers)
 	{
 		if (options.backend != AUTO && options.backend != driver.id) continue;
 		if (driver.probe(&options)) return driver;
 	}
-	if (options.backend != AUTO) return error::UNSUPPORTED~;
+	// A platform with no centre at all, or a backend that does not exist here, is UNSUPPORTED.
+	if (options.backend != AUTO || drivers.len == 0) return error::UNSUPPORTED~;
 	return error::UNAVAILABLE~;
 }

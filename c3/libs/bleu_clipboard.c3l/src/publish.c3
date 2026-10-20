@@ -3,7 +3,7 @@
  when it changed, and emit the transients. Platform-neutral.
 *>
 module bleu::clipboard;
-import bleu::observe, bleu::stream, bleu::service;
+import bleu::observe, bleu::operation, bleu::stream, bleu::service, bleu::rt::worker;
 
 <* Publish the board's current view as a new snapshot, unless it equals the latest one. *>
 fn void publish_board(ClipboardHub* hub, Board* board)
@@ -19,4 +19,38 @@ fn void emit_event(ClipboardHub* hub, EventKind kind, Slot slot)
 	Packet{Event}* packet = hub.emit_begin();
 	packet.value = { .kind = kind, .slot = slot };
 	hub.emit(packet);
+}
+<*
+ Complete a command that will never run with `failure`, and drop the worker's reference to its
+ operation. Used when a worker stops, so that no caller waits for it.
+*>
+fn void fail_command(Command* command, fault failure)
+{
+	switch (command.kind)
+	{
+		case CommandKind.SET: fail_operation{ulong}(command, failure);
+		case CommandKind.CLEAR: fail_operation{bool}(command, failure);
+		case CommandKind.FETCH: fail_operation{Bytes}(command, failure);
+		case CommandKind.DELETE: fail_operation{bool}(command, failure);
+	}
+}
+
+// Fail the operation of `command` with `failure`, and release the worker's reference.
+fn void fail_operation{Value}(Command* command, fault failure)
+{
+	Operation{Value}* op = (Operation{Value}*)command.operation;
+	op.fail(failure);
+	op.release();
+}
+
+<* Fail every command still queued for the worker. Call on the worker's way out. *>
+fn void fail_pending(Host{Command}* host, fault failure)
+{
+	Command[8] queued;
+	usz count = host.mailbox().take_all(queued[..]);
+	while (count > 0)
+	{
+		for (usz i = 0; i < count; i++) fail_command(&queued[i], failure);
+		count = host.mailbox().take_all(queued[..]);
+	}
 }

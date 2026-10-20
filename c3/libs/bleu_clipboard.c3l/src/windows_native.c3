@@ -21,12 +21,12 @@ extern fn Win32_SIZE_T globalSize(Win32_HGLOBAL memory) @cname("GlobalSize");
 const uint CF_UNICODETEXT = 13;
 const uint CF_HDROP       = 15;
 // GlobalAlloc flag GMEM_MOVEABLE = 0x0002 (the GlobalAlloc page; also the value in the gfx code of the C3 standard library).
-const uint GMEM_MOVEABLE = 0x0002;
+const uint GMEM_MOVEABLE  = 0x0002;
 
 // The longest a name of a registered format is read: 256 UTF-16 units.
-const int FORMAT_NAME_CAPACITY = 256;
+const int FORMAT_NAME_CAPACITY  = 256;
 // Attempts to open the clipboard, and the first pause between them (doubled after each).
-const usz OPEN_ATTEMPTS = 8;
+const usz OPEN_ATTEMPTS         = 8;
 const Duration OPEN_FIRST_PAUSE = (Duration)5_000;
 
 <*

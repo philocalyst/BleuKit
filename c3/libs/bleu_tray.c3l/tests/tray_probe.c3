@@ -36,7 +36,14 @@ fn void print_item(tray::Item* item)
 		item.menu_path,
 		item.menu.len
 	);
-	io::printfn("ICON name=%s pixmaps=%d attention=%s overlay=%s tooltip=%s", item.icon_name, item.icon_pixmaps.len, item.attention_icon_name, item.overlay_icon_name, item.tooltip.title);
+	io::printfn(
+		"ICON name=%s pixmaps=%d attention=%s overlay=%s tooltip=%s",
+		item.icon_name,
+		item.icon_pixmaps.len,
+		item.attention_icon_name,
+		item.overlay_icon_name,
+		item.tooltip.title
+	);
 	for (usz p = 0; p < item.icon_pixmaps.len; p++)
 	{
 		tray::Pixmap* pm = &item.icon_pixmaps[p];
@@ -115,8 +122,13 @@ fn bool has_item(tray::State* state) => state.items.len > 0;
 fn bool no_items(tray::State* state) => state.items.len == 0;
 fn bool renamed(tray::State* state) => state.items.len > 0 && state.items[0].title == "Renamed Item";
 fn bool icon_changed(tray::State* state) => state.items.len > 0 && state.items[0].icon_name == "face-wink";
-fn bool status_changed(tray::State* state) => state.items.len > 0 && state.items[0].status == NEEDS_ATTENTION && state.items[0].overlay_icon_name == "emblem-new";
-fn bool menu_renamed(tray::State* state) => state.items.len > 0 && state.items[0].menu.len > 2 && state.items[0].menu[2].label == "Recents";
+fn bool status_changed(
+	tray::State* state
+) => state.items.len > 0 && state.items[0].status == NEEDS_ATTENTION
+	&& state.items[0].overlay_icon_name == "emblem-new";
+fn bool menu_renamed(
+	tray::State* state
+) => state.items.len > 0 && state.items[0].menu.len > 2 && state.items[0].menu[2].label == "Recents";
 
 fn void report(String what, bool ok)
 {

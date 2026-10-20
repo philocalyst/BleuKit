@@ -1,0 +1,21 @@
+{
+  "provides": "bleu_windows",
+  "sources": ["src/**"],
+  "dependencies": [
+    "bleu_core",
+    "bleu_rt",
+    "bleu_service",
+    "bleu_compositor",
+    "bleu_win",
+    "bleu_objc",
+    "bleu_dl"
+  ],
+  "targets": {
+    "linux-x64": {},
+    "linux-aarch64": {},
+    "macos-x64": {},
+    "macos-aarch64": {},
+    "windows-x64": {},
+    "windows-aarch64": {}
+  }
+}

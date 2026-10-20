@@ -160,7 +160,7 @@ fn void expect_ramp(testing::MockServer* s, uint control, ushort[6] expected)
 	expect(words[0] == 0 && words[256] == 0 && words[512] == 0, "a ramp starts at zero");
 }
 
-// 2700 K, brightness 1: the words the table gives (see docs/research/color_impl.md, section 3).
+// 2700 K, brightness 1: the words the table gives (see docs/research/color_impl.md, section 4).
 const ushort[6] RAMP_2700_FULL = { 65535, 44332, 22798, 32896, 22253, 11443 };
 
 // 2700 K, brightness 0.5: the same ramp, halved.

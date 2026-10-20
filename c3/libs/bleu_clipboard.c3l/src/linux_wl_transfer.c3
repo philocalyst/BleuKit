@@ -31,9 +31,9 @@ struct PollFd
 const CInt O_CLOEXEC  = 0x80000;
 const CInt O_NONBLOCK = 0x800;
 // poll.h POLLOUT.
-const short POLLOUT = 0x0004;
+const short POLLOUT   = 0x0004;
 // Bytes read per `read` call.
-const usz READ_CHUNK = 4096;
+const usz READ_CHUNK  = 4096;
 
 <*
  One pipe being read. `operation` is a retained `Operation{Bytes}*` for a FETCH, and null for a
@@ -132,11 +132,11 @@ fn void WlSession.service_transfer(&self, usz index)
 fn void WlSession.complete_transfer(&self, usz index)
 {
 	WlTransfer* transfer = &self.transfers[index];
-	char[] bytes = (char[])transfer.data.str_view();
+	char[] bytes         = (char[])transfer.data.str_view();
 	if (transfer.operation != null)
 	{
 		Operation{Bytes}* op = (Operation{Bytes}*)transfer.operation;
-		Bytes copy = bytes.len == 0 ? { } : alloc::clone_slice(op.allocator(), bytes);
+		Bytes copy           = bytes.len == 0 ? { } : alloc::clone_slice(op.allocator(), bytes);
 		op.succeed(copy);
 		op.release();
 	}
@@ -195,7 +195,9 @@ fn void source_send(WlSource* source, String mime, rt::Native fd)
 	{
 		if (representation.mime != mime) continue;
 		// The requester only sees what was written; a failure ends the stream early.
-		if (catch err = write_payload(fd, representation.bytes, source.session.timeout)) {}
+		if (catch err = write_payload(fd, representation.bytes, source.session.timeout))
+		{
+		}
 		return;
 	}
 }
@@ -211,7 +213,7 @@ fn void? write_payload(rt::Native fd, char[] bytes, Duration timeout)
 	unix::Fd sink = { .value = fd };
 	sink.set_nonblocking(true)!;
 	Deadline deadline = deadline::after(timeout);
-	usz written = 0;
+	usz written       = 0;
 	while (written < (usz)bytes.len)
 	{
 		sz sent = sys_write(fd, (void*)&bytes[written], (usz)bytes.len - written);
@@ -222,7 +224,12 @@ fn void? write_payload(rt::Native fd, char[] bytes, Duration timeout)
 		}
 		if (sent < 0 && libc::errno() != (CInt)libc::Errno.EAGAIN)
 		{
-			return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "write to a requester failed")~;
+			return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.ERRNO,
+				libc::errno(),
+				"write to a requester failed"
+			)~;
 		}
 		if (deadline.expired()) return TIMEOUT~;
 		wait_writable(fd, deadline.remaining())!;
@@ -233,7 +240,7 @@ fn void? write_payload(rt::Native fd, char[] bytes, Duration timeout)
 fn void? wait_writable(rt::Native fd, Duration timeout)
 {
 	PollFd watch = { .fd = fd, .events = POLLOUT, .revents = 0 };
-	long ms = (long)timeout / 1000;
+	long ms      = (long)timeout / 1000;
 	if (ms < 1) ms = 1;
 	CInt ready = sys_poll(&watch, 1, (CInt)ms);
 	if (ready < 0) return error::raise(error::BACKEND_FAILURE, error::Domain.ERRNO, libc::errno(), "poll failed")~;

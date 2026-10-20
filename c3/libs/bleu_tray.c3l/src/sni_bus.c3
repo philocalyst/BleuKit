@@ -70,7 +70,7 @@ fn void drop_registry(SniBackend* b)
 		}
 		b.registry_subs_set = false;
 	}
-	b.registry.clear();
+	clear_registry(b);
 	if (b.watcher_name)
 	{
 		if (catch b.watcher_name.release())
@@ -78,6 +78,16 @@ fn void drop_registry(SniBackend* b)
 		}
 		b.watcher_name = null;
 	}
+}
+
+// Forget every registration we serve, freeing the copies the registry held.
+fn void clear_registry(SniBackend* b)
+{
+	for (sz i = 0; i < b.registry.len(); i++)
+	{
+		alloc::free(b.allocator, b.registry[i].ptr);
+	}
+	b.registry.clear();
 }
 
 // Take the watcher name without queueing. True when we serve the watcher from now on.

@@ -1,7 +1,7 @@
 <*
  The displays the desktop shows: `EnumDisplayDevicesW`, used to list the attached display devices
  of the session. Declarations from the Windows SDK, as the Microsoft Learn pages for
- EnumDisplayDevicesW and DISPLAY_DEVICEW state them (docs/research/color_impl.md, section 4).
+ EnumDisplayDevicesW and DISPLAY_DEVICEW state them (docs/research/color_impl.md, section 3).
 
  COMPILED ONLY: type-checked for Windows, never run.
 *>

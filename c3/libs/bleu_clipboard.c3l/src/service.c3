@@ -25,10 +25,10 @@ const Duration DEFAULT_TRANSFER_TIMEOUT = (Duration)2_000_000;
 *>
 struct Options
 {
-	Backend backend;           // AUTO tries every backend of the platform in priority order
-	uint history_items;        // text copies kept; default 50
-	usz history_bytes;         // bytes of text kept in the history; default 4 MiB
-	usz payload_limit;         // largest payload read or stored; default 1 MiB
+	Backend backend; // AUTO tries every backend of the platform in priority order
+	uint history_items; // text copies kept; default 50
+	usz history_bytes; // bytes of text kept in the history; default 4 MiB
+	usz payload_limit; // largest payload read or stored; default 1 MiB
 	Duration transfer_timeout; // one transfer or one served write; default 2 s
 }
 
@@ -113,7 +113,11 @@ fn Snapshot{State}*? Clipboard.wait_after(&self, ulong seen, Duration timeout = 
 }
 
 <* Call `listener` on the worker thread for the current and every later state. Quick and non-blocking only. *>
-fn WatchId{State} Clipboard.watch(&self, Listener{State} listener, void* context) => self.hub.state.watch(listener, context);
+fn WatchId{State} Clipboard.watch(
+	&self,
+	Listener{State} listener,
+	void* context
+) => self.hub.state.watch(listener, context);
 
 <* Remove a listener; when this returns it is not running. Not from inside a listener. *>
 fn void Clipboard.unwatch(&self, WatchId{State} id) => self.hub.state.unwatch(id);
@@ -174,7 +178,7 @@ fn Operation{ulong}*? Clipboard.set(&self, Slot slot, Representation[] represent
 fn Operation{bool}*? Clipboard.clear(&self, Slot slot)
 {
 	Operation{bool}* op = operation::begin{bool}(self.allocator);
-	Command command = { .kind = CommandKind.CLEAR, .slot = slot };
+	Command command     = { .kind = CommandKind.CLEAR, .slot = slot };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -198,7 +202,7 @@ fn Operation{Bytes}*? Clipboard.fetch(&self, Entry entry, String mime)
 {
 	if (!is_valid_mime(mime)) return error::INVALID_ARGUMENT~;
 	Operation{Bytes}* op = operation::begin{Bytes}(self.allocator);
-	Command command = { .kind = CommandKind.FETCH, .id = entry.id, .mime = mime.copy(op.allocator()) };
+	Command command      = { .kind = CommandKind.FETCH, .id = entry.id, .mime = mime.copy(op.allocator()) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -217,7 +221,7 @@ fn Operation{Bytes}*? Clipboard.fetch(&self, Entry entry, String mime)
 fn Operation{bool}*? Clipboard.delete(&self, Entry entry)
 {
 	Operation{bool}* op = operation::begin{bool}(self.allocator);
-	Command command = { .kind = CommandKind.DELETE, .id = entry.id };
+	Command command     = { .kind = CommandKind.DELETE, .id = entry.id };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -249,7 +253,10 @@ fn Representation[] copy_representations(Allocator allocator, Representation[] r
 	Representation[] copies = alloc::alloc_array(allocator, Representation, representations.len);
 	foreach (i, representation : representations)
 	{
-		copies[i] = { .mime = representation.mime.copy(allocator), .bytes = alloc::clone_slice(allocator, representation.bytes) };
+		copies[i] = {
+			.mime = representation.mime.copy(allocator),
+			.bytes = alloc::clone_slice(allocator, representation.bytes)
+		};
 	}
 	return copies;
 }

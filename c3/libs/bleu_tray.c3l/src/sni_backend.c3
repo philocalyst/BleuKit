@@ -190,9 +190,12 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 fn void destroy(Allocator allocator, void* state)
 {
 	SniBackend* backend = (SniBackend*)state;
+	clear_registry(backend);
 	backend.registry.free();
 	backend.items.free();
+	clear_pending(backend);
 	backend.pending.free();
+	clear_events(backend);
 	backend.events.free();
 	convert::free_own(backend.own, allocator);
 	alloc::free(allocator, backend);
@@ -316,7 +319,7 @@ fn void disconnect(SniBackend* backend, Poller* poller)
 	if (!backend.connection_up) return;
 	disconnect_connection(backend, poller);
 	forget_records(backend);
-	backend.registry.clear();
+	clear_registry(backend);
 	backend.registry_subs_set = false;
 	backend.watcher_watch_set = false;
 	backend.watcher_present = false;

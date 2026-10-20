@@ -86,9 +86,9 @@ fn bool is_space_like(uint code) @inline
 fn String make_preview(Allocator allocator, char[] text)
 {
 	char[PREVIEW_LIMIT] out;
-	usz len        = 0;
-	bool pending   = false; // a space is owed before the next visible character
-	usz at         = 0;
+	usz len      = 0;
+	bool pending = false; // a space is owed before the next visible character
+	usz at       = 0;
 	while (at < (usz)text.len)
 	{
 		Decoded decoded = decode_at(text, at);

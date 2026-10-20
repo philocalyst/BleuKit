@@ -13,15 +13,15 @@ module bleu::clipboard::linux_wl @feat(LINUX);
 import bleu::clipboard, bleu::error, bleu::rt, bleu::rt::poller, bleu::rt::wakeup, bleu::wl, bleu::wl::display, bleu::wl::proto::wayland, bleu::wl::proto::ext_data_control, bleu::wl::proto::wlr_data_control, std::collections::list, std::collections::maybe, std::time, std::core::mem;
 
 <* Most transfers in flight at once. A further fetch is refused as BUSY. *>
-const usz MAX_TRANSFERS = 8;
+const usz MAX_TRANSFERS   = 8;
 <* Poller tag of the display socket. *>
-const usz CLIENT_TAG = 0;
+const usz CLIENT_TAG      = 0;
 <* Poller tag of transfer `i` is `TRANSFER_TAG + i`. *>
-const usz TRANSFER_TAG = 1;
+const usz TRANSFER_TAG    = 1;
 <* Poller sources: the socket and every transfer. The wake-up is added by the poller itself. *>
 const usz POLLER_CAPACITY = 1 + MAX_TRANSFERS;
 <* How long `pump` waits when nothing is due: 1 s. Commands and socket traffic end the wait sooner. *>
-const Duration IDLE_WAIT = (Duration)1_000_000;
+const Duration IDLE_WAIT  = (Duration)1_000_000;
 
 <* An offer from another application: its MIME types, and the object that can be asked for them. *>
 struct WlOffer
@@ -117,7 +117,7 @@ fn void? WlSession.bind_all(&self)
 fn void? WlSession.try_bind_all(&self)
 {
 	self.client.roundtrip()!;
-	Global[] globals = self.client.globals_view();
+	Global[] globals   = self.client.globals_view();
 	Maybe{Global} seat = find_global(globals, wayland::WL_SEAT.name);
 	if (!seat.has_value) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no wl_seat global")~;
 	Maybe{Global} ext = find_global(globals, ext_data_control::EXT_DATA_CONTROL_MANAGER_V1.name);
@@ -209,7 +209,9 @@ fn void device_data_offer(WlSession* session, display::Proxy* object)
 <* One MIME type of an offer. Invalid and surplus types are dropped here, as the board drops them. *>
 fn void offer_mime(WlOffer* offer, String mime)
 {
-	if (offer.mimes.len() < (sz)clipboard::MAX_MIME_TYPES && clipboard::is_valid_mime(mime)) offer.mimes.push(mime.copy(&offer.arena));
+	if (offer.mimes.len() < (sz)clipboard::MAX_MIME_TYPES && clipboard::is_valid_mime(
+		mime
+	)) offer.mimes.push(mime.copy(&offer.arena));
 }
 
 <*
@@ -218,7 +220,7 @@ fn void offer_mime(WlOffer* offer, String mime)
 *>
 fn void device_selection(WlSession* session, Slot slot, display::Proxy* object)
 {
-	WlOffer* offer = object == null ? null : (WlOffer*)object.context;
+	WlOffer* offer    = object == null ? null : (WlOffer*)object.context;
 	WlOffer* previous = session.lane_offers[slot.ordinal];
 	session.lane_offers[slot.ordinal] = offer;
 	if (previous != null && previous != offer) session.destroy_offer(previous);
@@ -235,12 +237,14 @@ fn void device_selection(WlSession* session, Slot slot, display::Proxy* object)
 		session.destroy_offer(offer);
 		return;
 	}
-	ulong seq = session.board.replace(slot, offer.mimes.array_view(), false);
+	ulong seq          = session.board.replace(slot, offer.mimes.array_view(), false);
 	Maybe{String} text = session.board.text_to_read(slot);
 	// A copy whose text cannot be read is still shown, just without a preview.
 	if (text.has_value)
 	{
-		if (catch err = session.start_receive(offer, slot, seq, text.value, null)) {}
+		if (catch err = session.start_receive(offer, slot, seq, text.value, null))
+		{
+		}
 	}
 }
 
@@ -278,9 +282,12 @@ fn void WlSession.destroy_offer(&self, WlOffer* offer)
 {
 	if (!self.finished)
 	{
-		if (catch err = proto_destroy_offer(self.kind, offer.object)) {}
+		if (catch err = proto_destroy_offer(self.kind, offer.object))
+		{
+		}
 	}
-	self.offers.remove_at(index_of_offer(&self.offers, offer));
+	sz index = index_of_offer(&self.offers, offer);
+	if (index >= 0) self.offers.remove_at(index);
 	offer.arena.free();
 	alloc::free(self.allocator, offer);
 }
@@ -306,6 +313,7 @@ fn sz index_of_offer(List{WlOffer*}* offers, WlOffer* wanted)
 *>
 fn ulong? WlSession.own(&self, Slot slot, Representation[] representations)
 {
+	if (slot == Slot.PRIMARY && !self.primary_supported) return error::UNSUPPORTED~;
 	WlSource* source = alloc::new(self.allocator, WlSource);
 	source.arena.init(self.allocator, clipboard::ARENA_PAGE);
 	source.session = self;
@@ -314,7 +322,10 @@ fn ulong? WlSession.own(&self, Slot slot, Representation[] representations)
 	String[] mimes = alloc::alloc_array(&source.arena, String, representations.len);
 	foreach (i, representation : representations)
 	{
-		source.representations[i] = { .mime = representation.mime.copy(&source.arena), .bytes = alloc::clone_slice(&source.arena, representation.bytes) };
+		source.representations[i] = {
+			.mime = representation.mime.copy(&source.arena),
+			.bytes = alloc::clone_slice(&source.arena, representation.bytes)
+		};
 		mimes[i] = source.representations[i].mime;
 	}
 	source.mimes = clipboard::sanitise_offer(&source.arena, mimes);
@@ -332,7 +343,7 @@ fn ulong? WlSession.own(&self, Slot slot, Representation[] representations)
 // Record in the board that `slot` is now our `source`, and keep its text in the history.
 fn ulong WlSession.record_own(&self, Slot slot, WlSource* source)
 {
-	ulong seq = self.board.replace(slot, source.mimes, true);
+	ulong seq       = self.board.replace(slot, source.mimes, true);
 	Privacy privacy = clipboard::privacy_of(source.mimes);
 	foreach (representation : source.representations)
 	{
@@ -350,15 +361,13 @@ fn ulong WlSession.record_own(&self, Slot slot, WlSource* source)
 fn bool is_text_mime(String mime) => clipboard::choose_text_type({ mime }).has_value;
 
 <* Release `slot`: nothing is selected, and our source (if any) is told it was replaced. *>
-fn bool WlSession.clear(&self, Slot slot)
+fn bool? WlSession.clear(&self, Slot slot)
 {
+	if (slot == Slot.PRIMARY && !self.primary_supported) return error::UNSUPPORTED~;
 	WlSource* own = self.current_source(slot);
-	bool held = own != null || self.board.lane(slot).present;
+	bool held     = own != null || self.board.lane(slot).present;
 	if (own != null) own.current = false;
-	if (slot == Slot.CLIPBOARD || self.primary_supported)
-	{
-		if (catch err = proto_set_selection(self.kind, self.device, null, slot)) {}
-	}
+	proto_set_selection(self.kind, self.device, null, slot)!;
 	self.board.clear(slot);
 	self.selection_changed[slot.ordinal] = true;
 	return held;
@@ -380,10 +389,13 @@ fn void source_cancelled(WlSource* source)
 	WlSession* session = source.session;
 	if (source.current) session.ownership_lost[source.slot.ordinal] = true;
 	source.current = false;
-	session.sources.remove_at(index_of_source(&session.sources, source));
+	sz index = index_of_source(&session.sources, source);
+	if (index >= 0) session.sources.remove_at(index);
 	if (!session.finished)
 	{
-		if (catch err = proto_destroy_source(session.kind, source.object)) {}
+		if (catch err = proto_destroy_source(session.kind, source.object))
+		{
+		}
 	}
 	source.arena.free();
 	alloc::free(session.allocator, source);
@@ -444,7 +456,9 @@ fn void? WlSession.pump(&self, Duration timeout)
 			if (event.events.writable) self.client.flush()!;
 			if (event.events.readable || event.events.hangup || event.events.failed)
 			{
-				while (self.client.dispatch()! > 0) {}
+				while (self.client.dispatch()! > 0)
+				{
+				}
 			}
 		}
 		else if (event.tag >= TRANSFER_TAG && event.tag < TRANSFER_TAG + MAX_TRANSFERS)
@@ -473,14 +487,18 @@ fn void? WlSession.ensure_poller(&self)
 // Rebuild the poller's source list: the socket, every active transfer, with the current interest.
 fn void? WlSession.register_sources(&self)
 {
-	if (catch self.poller.remove(CLIENT_TAG)) {}
+	if (catch self.poller.remove(CLIENT_TAG))
+	{
+	}
 	poller::Interest socket;
 	socket.readable = true;
 	socket.writable = self.client.wants_write();
 	self.poller.add({ .handle = self.client.native(), .interest = socket, .tag = CLIENT_TAG })!;
 	for (usz i = 0; i < MAX_TRANSFERS; i++)
 	{
-		if (catch self.poller.remove(TRANSFER_TAG + i)) {}
+		if (catch self.poller.remove(TRANSFER_TAG + i))
+		{
+		}
 		if (!self.transfers[i].active) continue;
 		poller::Interest reading;
 		reading.readable = true;

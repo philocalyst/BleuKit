@@ -22,9 +22,7 @@ import std::os::darwin::objc, std::collections::maybe, std::time, bleu::clipboar
 // Linking: NSPasteboard lives in AppKit. `bleu::objc::notify` carries the `AppKit.framework` link.
 
 <* The pasteboard identifier for UTF-8 text (NSPasteboardTypeString's documented value, public.utf8-plain-text). *>
-const String UTI_TEXT = "public.utf8-plain-text";
-<* The MIME name the board reads as text, shared with the other platforms. *>
-const String MIME_TEXT = "text/plain;charset=utf-8";
+const String UTI_TEXT        = "public.utf8-plain-text";
 <* How often the change count is read: 500 ms, as the research note's poll interval for polling backends. *>
 const Duration POLL_INTERVAL = (Duration)500_000;
 
@@ -73,6 +71,7 @@ fn void destroy(Allocator allocator, void* state)
 <* The worker: poll the change count, serve commands, publish what changed. *>
 fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 {
+	defer fail_pending(host, error::UNAVAILABLE);
 	PasteboardBackend* backend = (PasteboardBackend*)state;
 	clipboard::publish_board(hub, &backend.board);
 	Poller poller;
@@ -82,7 +81,9 @@ fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 	backend.change_count = general_change_count();
 	while (!host.stopping())
 	{
-		if (catch poller.wait(POLL_INTERVAL)) {}
+		if (catch poller.wait(POLL_INTERVAL))
+		{
+		}
 		usz count = host.mailbox().take_all(commands[..]);
 		for (usz i = 0; i < count; i++) execute(backend, hub, &commands[i]);
 		poll_changes(backend, hub);
@@ -114,8 +115,8 @@ fn void poll_changes(PasteboardBackend* backend, ClipboardHub* hub) @private
 	{
 		Obj pasteboard = general_pasteboard();
 		defer pasteboard.close();
-		String[] types = read_types(tmem, pasteboard);
-		ulong seq = backend.board.replace(Slot.CLIPBOARD, types, false);
+		String[] types     = read_types(tmem, pasteboard);
+		ulong seq          = backend.board.replace(Slot.CLIPBOARD, types, false);
 		Maybe{String} text = backend.board.text_to_read(Slot.CLIPBOARD);
 		if (text.has_value)
 		{
@@ -132,13 +133,13 @@ fn void poll_changes(PasteboardBackend* backend, ClipboardHub* hub) @private
 // The types on the pasteboard, translated to the names the board uses, in a copy in `allocator`.
 fn String[] read_types(Allocator allocator, Obj pasteboard) @private
 {
-	ObjId array = pasteboard.send_id("types");
-	usz count   = foundation::array_count(array);
+	ObjId array    = pasteboard.send_id("types");
+	usz count      = foundation::array_count(array);
 	String[] types = alloc::alloc_array(allocator, String, (sz)count);
 	for (usz i = 0; i < count; i++)
 	{
 		String name = foundation::to_string(foundation::array_at(array, i), allocator) ?? "";
-		types[i] = name == UTI_TEXT ? MIME_TEXT : name;
+		types[i] = name == UTI_TEXT ? clipboard::MIME_UTF8_TEXT : name;
 	}
 	return types;
 }
@@ -190,7 +191,9 @@ fn void run_set(PasteboardBackend* backend, ClipboardHub* hub, Command* command)
 		seq = backend.board.replace(Slot.CLIPBOARD, mimes, true);
 		foreach (representation : command.representations)
 		{
-			if (is_text_type(representation.mime)) backend.board.captured(Slot.CLIPBOARD, seq, representation.mime, representation.bytes);
+			if (is_text_type(
+				representation.mime
+			)) backend.board.captured(Slot.CLIPBOARD, seq, representation.mime, representation.bytes);
 		}
 	};
 	backend.change_count = general_change_count();
@@ -231,7 +234,7 @@ fn void run_clear(PasteboardBackend* backend, ClipboardHub* hub, Command* comman
 		op.fail(error::UNSUPPORTED);
 		return;
 	}
-	bool held = backend.board.lane(Slot.CLIPBOARD).present;
+	bool held      = backend.board.lane(Slot.CLIPBOARD).present;
 	Obj pasteboard = general_pasteboard();
 	defer pasteboard.close();
 	pasteboard.send_long("clearContents");

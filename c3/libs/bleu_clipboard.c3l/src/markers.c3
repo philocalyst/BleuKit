@@ -27,7 +27,7 @@ const String MARKER_NSPASTEBOARD_TRANSIENT = "org.nspasteboard.TransientType";
  item from history when its DWORD is 0; the Windows backend lists it only in that case.
 *>
 const String MARKER_WINDOWS_EXCLUDE_ALL = "ExcludeClipboardContentFromMonitorProcessing";
-const String MARKER_WINDOWS_NO_HISTORY = "CanIncludeInClipboardHistory";
+const String MARKER_WINDOWS_NO_HISTORY  = "CanIncludeInClipboardHistory";
 
 <*
  The privacy of a selection from the types its owner offered. CONCEALED wins over

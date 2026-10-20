@@ -50,7 +50,7 @@ fn void preview_stops_before_a_character_that_would_overflow() @test
 		char[] text = alloc::alloc_array(tmem, char, PREVIEW_LIMIT - 1);
 		for (usz i = 0; i < text.len; i++) text[i] = 'a';
 		// 511 ASCII bytes then a two-byte character: the character would end at 513 bytes.
-		char[] tail = { 0xC3, 0xA9 };
+		char[] tail   = { 0xC3, 0xA9 };
 		char[] joined = alloc::alloc_array(tmem, char, text.len + 2);
 		mem::copy(&joined[0], &text[0], (sz)text.len);
 		mem::copy(&joined[text.len], &tail[0], 2);

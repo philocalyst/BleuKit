@@ -33,13 +33,13 @@ enum Privacy : char
 <* One selection as it is now. `seq` changes every time the selection changes. *>
 struct Selection
 {
-	bool present;        // false when nothing is selected
-	bool owned;          // true when this service is the source (set by `Clipboard.set`)
-	ulong seq;           // the selection's sequence number; the id of its history entry
+	bool present; // false when nothing is selected
+	bool owned; // true when this service is the source (set by `Clipboard.set`)
+	ulong seq; // the selection's sequence number; the id of its history entry
 	String[] mime_types; // the types offered, in the order the owner offered them
-	Privacy privacy;     // marker state; when not OPEN no bytes were read
-	String preview;      // bounded, sanitised text of the captured text type; "" when none was read
-	usz size;            // bytes of the captured text type; 0 when none was read
+	Privacy privacy; // marker state; when not OPEN no bytes were read
+	String preview; // bounded, sanitised text of the captured text type; "" when none was read
+	usz size; // bytes of the captured text type; 0 when none was read
 }
 
 <*
@@ -49,10 +49,10 @@ struct Selection
 struct Entry
 {
 	ulong id;
-	Time time;           // wall-clock time when the copy was captured
+	Time time; // wall-clock time when the copy was captured
 	String[] mime_types; // every type the owner offered with it
-	String preview;      // bounded, sanitised text
-	usz size;            // bytes of the stored text
+	String preview; // bounded, sanitised text
+	usz size; // bytes of the stored text
 }
 
 <* The whole picture: both selections and the history, newest entry first. *>

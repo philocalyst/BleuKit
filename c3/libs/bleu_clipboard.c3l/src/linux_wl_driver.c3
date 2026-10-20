@@ -77,6 +77,7 @@ fn void run(void* state, ClipboardHub* hub, Host{Command}* host)
 {
 	WlBackend* backend = (WlBackend*)state;
 	WlSession* session = &backend.session;
+	defer fail_pending(host, error::UNAVAILABLE);
 	session.wakeup = host.wakeup();
 	clipboard::publish_board(hub, &backend.board);
 	if (catch session.connect_env()) return;
@@ -137,7 +138,13 @@ fn void run_clear(WlSession* session, Command* command) @private
 {
 	Operation{bool}* op = (Operation{bool}*)command.operation;
 	defer op.release();
-	op.succeed(session.clear(command.slot));
+	bool? held = session.clear(command.slot);
+	if (catch err = held)
+	{
+		op.fail(err);
+		return;
+	}
+	op.succeed(held);
 }
 
 fn void run_delete(WlSession* session, Command* command) @private
@@ -154,7 +161,7 @@ fn void run_delete(WlSession* session, Command* command) @private
 fn void run_fetch(WlSession* session, Command* command) @private
 {
 	Operation{Bytes}* op = (Operation{Bytes}*)command.operation;
-	Item* item = session.board.find(command.id);
+	Item* item           = session.board.find(command.id);
 	if (item != null && item.mime == command.mime)
 	{
 		complete_bytes(op, item.bytes);
