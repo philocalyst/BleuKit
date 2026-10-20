@@ -278,3 +278,6 @@
 * `import m as alias` and `Type.sizeof` do not exist; `std::encoding::json` and `bleu::json` both answer to `json::`: import both and spell the std side `std::encoding::json::tparse`; its `Object` is in `std::collections::object`.
 * A `switch` case with an empty body that falls into the next label is rejected even for enum-free labels: use an `if` chain for characters and for `String`.
 * Two `@feat`-gated files may share a module name (`bleud::daemon` for POSIX and WIN32): the excluded one is not parsed, so the same function name serves both platforms.
+* `Hub.start(..., service::DEFAULT_QUEUE, &abandon)` → "'DEFAULT_QUEUE' is a generic constant" → write `service::DEFAULT_QUEUE{State, Command, Event}` (the service's own types).
+* A `Reader` released after its owner called `Hub.free()` (or `close()` on a service) aborts with "Mutex was not initialized" in `Reader.release` → release subscriptions and join their threads before closing; a reader thread polls `next(time::ms(50))` and checks a flag.
+* A loop counter `int k` compared with a `const usz` (e.g. `MAX_HINTS`) → "Implicitly casting" or a signed/unsigned mismatch → use `usz` counters for `MAX_*` constants and cast `List.size` (`sz`) to `usz` before assigning it to a `usz`.

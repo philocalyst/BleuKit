@@ -78,7 +78,10 @@ fn Maybe{Level} volume_of(double volume)
 	return maybe::value(unit::level((float)volume));
 }
 
-<* A rate as the model stores it: NaN and infinities become normal speed, and a magnitude beyond `MAX_RATE` is clamped. Zero is kept; `Player.position_now` treats it as paused. *>
+<*
+ A rate as the model stores it: NaN and infinities become normal speed, and a magnitude beyond `MAX_RATE` is clamped.
+ Zero is kept; `Player.position_now` treats it as paused.
+*>
 fn PlaybackRate rate_of(double rate) => media::sane_rate((PlaybackRate)rate);
 
 <*

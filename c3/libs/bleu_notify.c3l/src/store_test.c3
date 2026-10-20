@@ -208,6 +208,22 @@ fn void do_not_disturb_holds_back_normal_notifications() @test
 	assert(!quiet.timeout.has_value);
 }
 
+// Regression (N-12): a sender at its cap gives up its own oldest notification; another sender needs no room.
+fn void a_sender_cannot_fill_the_centre() @test
+{
+	notify::Policy policy = notify::DEFAULT_POLICY;
+	policy.max_per_sender = 2;
+	store::Store s;
+	s.init(mem, policy);
+	defer s.free();
+	store::Posted first = s.post(make_entry(&s, "a1", notify::Urgency.NORMAL, -1, "a"), (Time)1000);
+	s.post(make_entry(&s, "a2", notify::Urgency.NORMAL, -1, "a"), (Time)1000);
+	store::Posted third = s.post(make_entry(&s, "a3", notify::Urgency.NORMAL, -1, "a"), (Time)1000);
+	assert(third.evicted && third.evicted_id == first.id, "the sender's oldest makes room");
+	store::Posted other = s.post(make_entry(&s, "b1", notify::Urgency.NORMAL, -1, "b"), (Time)1000);
+	assert(!other.evicted && s.active.len() == 3, "another sender needs no room");
+}
+
 fn void the_oldest_normal_notification_makes_room() @test
 {
 	notify::Policy policy = notify::DEFAULT_POLICY;

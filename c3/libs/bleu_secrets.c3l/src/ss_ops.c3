@@ -136,7 +136,17 @@ fn String? unlocked_item(SsBackend* b, Entry entry, Atomic{bool}* cancel)
 	return unlocked.array_view()[0];
 }
 
-<* Store a value under `entry`, replacing the item with the same service and account. *>
+<*
+ The identity of an entry: its service and account. Read, delete and store find items by it, as the
+ other platforms do; the caller's other attributes describe the item and do not select it.
+*>
+fn Entry identity(Entry entry) @inline => { .service = entry.service, .account = entry.account };
+
+<*
+ Store a value under `entry`, replacing the entry with the same service and account. The new item is
+ created first; the other items of that identity are removed only after it exists, so a store that fails
+ or is dismissed leaves the previous entry in place.
+*>
 fn Entry? store(SsBackend* b, Entry entry, Secret value, Atomic{bool}* cancel)
 {
 	ensure_session(b)!;
@@ -152,8 +162,54 @@ fn Entry? store(SsBackend* b, Entry entry, Secret value, Atomic{bool}* cancel)
 	Value[] reply = invoke(b, call, tmem)!;
 	String prompt = reply[1].as_object_path()!;
 	if (prompt != NO_OBJECT) run_prompt(b, prompt, cancel, entry.service, entry.account)!;
+	remove_superseded(b, entry, cancel)!;
 	emit(b, STORED, entry.service, entry.account);
 	return entry;
+}
+
+<*
+ Delete every item of the identity of `entry` whose attributes are not exactly `entry`'s. The item just
+ stored has exactly those attributes, so it stays. The Secret Service replaces only an item with the same
+ attributes, so without this an older item with other attributes would be found, and read, after the store.
+*>
+fn void? remove_superseded(SsBackend* b, Entry entry, Atomic{bool}* cancel)
+{
+	List{String} unlocked;
+	unlocked.init(tmem);
+	List{String} locked;
+	locked.init(tmem);
+	find_items(b, identity(entry), &unlocked, &locked)!;
+	foreach (path : unlocked.array_view())
+	{
+		if (!has_attributes(b, path, entry)!) delete_item(b, path, cancel, entry)!;
+	}
+	foreach (path : locked.array_view())
+	{
+		if (!has_attributes(b, path, entry)!) delete_item(b, path, cancel, entry)!;
+	}
+}
+
+// True when the item at `path` has exactly the caller attributes of `entry`. The owner marker and the
+// service and account are not counted: `item_entry` leaves them out of its attributes.
+fn bool? has_attributes(SsBackend* b, String path, Entry entry)
+{
+	Entry current = item_entry(b, path, tmem)!;
+	if (current.attributes.len != entry.attributes.len) return false;
+	foreach (wanted : entry.attributes)
+	{
+		if (!has_pair(current.attributes, wanted)) return false;
+	}
+	return true;
+}
+
+// True when `attributes` holds the key and value of `wanted`.
+fn bool has_pair(Attribute[] attributes, Attribute wanted) @private
+{
+	foreach (attribute : attributes)
+	{
+		if (attribute.key == wanted.key && attribute.value == wanted.value) return true;
+	}
+	return false;
 }
 
 <* The value of the entry matching `entry`, copied into `allocator`. *>
@@ -161,7 +217,7 @@ fn Secret? read_value(SsBackend* b, Entry entry, Atomic{bool}* cancel, Allocator
 {
 	ensure_session(b)!;
 	ensure_collection(b, cancel, entry.service, entry.account)!;
-	String item   = unlocked_item(b, entry, cancel)!;
+	String item   = unlocked_item(b, identity(entry), cancel)!;
 	Message* call = call_message(tmem, item, ITEM_INTERFACE, "GetSecret")!;
 	Writer* w     = call.body_writer("o")!;
 	w.append_object_path(b.session)!;
@@ -184,7 +240,7 @@ fn bool? delete_entry(SsBackend* b, Entry entry, Atomic{bool}* cancel)
 	unlocked.init(tmem);
 	List{String} locked;
 	locked.init(tmem);
-	find_items(b, entry, &unlocked, &locked)!;
+	find_items(b, identity(entry), &unlocked, &locked)!;
 	if (unlocked.array_view().len == 0 && locked.array_view().len == 0) return false;
 	if (locked.array_view().len > 0) unlock_collection(b, cancel, entry.service, entry.account)!;
 	foreach (path : unlocked.array_view()) delete_item(b, path, cancel, entry)!;

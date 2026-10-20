@@ -94,7 +94,7 @@ fn void over_aligned_blocks_are_refused() @test
 // released, and the arena is freed only then. Run under valgrind, a use after the close would show.
 fn void operation_outlives_arena_close() @test
 {
-	OperationArena* arena = open_arena(mem);
+	wipe::OperationArena* arena = wipe::open_arena(mem);
 	Operation{bool}* op = operation::begin{bool}(arena);
 	Allocator op_arena = op.allocator();
 	String text = "a secret that lives in the operation".copy(op_arena);
@@ -107,6 +107,6 @@ fn void operation_outlives_arena_close() @test
 // A closed arena with nothing outstanding is freed at once; it must not be used after that.
 fn void idle_arena_frees_on_close() @test
 {
-	OperationArena* arena = open_arena(mem);
+	wipe::OperationArena* arena = wipe::open_arena(mem);
 	arena.close();
 }

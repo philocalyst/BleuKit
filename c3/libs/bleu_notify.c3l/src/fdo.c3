@@ -163,14 +163,14 @@ fn void? serve(Backend* backend, notify::NotifyHub* hub, Host{Command}* host)
 			usz taken = host.mailbox().take_all(commands[..]);
 			if (taken == 0) break;
 			for (usz k = 0; k < taken; k++)
+			{
+				if (catch err = execute(&session, &commands[k]))
 				{
-					if (catch err = execute(&session, &commands[k]))
-					{
-						// The bus failed: refuse the commands taken but not yet run, so no operation stays pending.
-						for (usz rest = k + 1; rest < taken; rest++) refuse(&commands[rest]);
-						return err~;
-					}
+					// The bus failed: refuse the commands taken but not yet run, so no operation stays pending.
+					for (usz rest = k + 1; rest < taken; rest++) refuse(&commands[rest]);
+					return err~;
 				}
+			}
 		}
 		conn.process()!;
 		if (conn.has_pending_output() != writable)

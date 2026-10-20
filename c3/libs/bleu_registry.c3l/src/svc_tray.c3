@@ -53,7 +53,7 @@ fn void? scroll(registry::Request* request)
 	tray::Tray* service = (tray::Tray*)request.handle;
 	String item         = request.params.string("item")!;
 	int delta           = (int)request.params.integer("delta")!;
-	bool horizontal     = request.params.boolean("horizontal") ?? false;
+	bool horizontal     = registry::bool_or(request.params, "horizontal", false)!;
 	return finish(request, service.scroll(item, delta, horizontal)!);
 }
 

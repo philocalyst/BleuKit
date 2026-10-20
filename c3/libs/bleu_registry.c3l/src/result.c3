@@ -88,3 +88,14 @@ fn String? string_or(json::read::Params params, String key, String fallback)
 	Maybe{String} given = params.optional_string(key)!;
 	return given.has_value ? given.value : fallback;
 }
+<*
+ The boolean member `key`, or `fallback` when the request leaves it out. A member
+ that is present with the wrong type is still an error.
+
+ @return? error::INVALID_ARGUMENT : "The member is present but not a boolean"
+*>
+fn bool? bool_or(json::read::Params params, String key, bool fallback)
+{
+	if (catch json::read::present(params.object, key)) return fallback;
+	return json::read::get_bool(params.object, key);
+}

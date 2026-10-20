@@ -37,7 +37,7 @@ struct Notify
 
  @param allocator : "Allocator for the centre and its snapshots"
  @return? error::UNSUPPORTED : "This platform has no notification centre, or the requested backend does not exist here"
- @return? error::UNAVAILABLE : "No session bus, or another daemon owns org.freedesktop.Notifications; the message names the owner. Options.replace takes the name over"
+ @return? error::UNAVAILABLE : "No session bus, or another daemon owns org.freedesktop.Notifications; the message names the owner. Options.replace takes the name over only from a daemon that allows it"
  @return? error::PERMISSION_DENIED : "The bus refused the name"
 *>
 fn Notify*? open(Allocator allocator, Options options = { })

@@ -89,7 +89,11 @@ fn bool probe(Options* options) => true;
 
 <* Activate the session manager once on this thread, so `open` fails when SMTC is absent. *>
 // Nothing touches COM here: `open` may run on any thread. The session manager is probed by the worker (see `run`).
-fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
+fn void*? create(
+	Allocator allocator,
+	Options options,
+	Capabilities* capabilities
+)
 {
 	fill_capabilities(capabilities);
 	return alloc::new(allocator, Backend, { .allocator = allocator, .refresh = options.refresh });
@@ -506,26 +510,28 @@ fn State Smtc.adopt(&self, Entry[] entries, String[] failed, Allocator allocator
 	foreach (&old : self.known.array_view())
 	{
 		if (contains_id(entries, old.id) || !contains_text(failed, old.id)) continue;
-		next.push({
-			.id = media::copy_text(old.id, self.allocator),
-			.title = media::copy_text(old.title, self.allocator),
-			.artist = media::copy_text(old.artist, self.allocator),
-			.album = media::copy_text(old.album, self.allocator),
-			.handle = old.handle,
-			.status = old.status,
-			.status_since = old.status_since,
-			.position_ticks = old.position_ticks,
-			.updated_ticks = old.updated_ticks,
-			.position = old.position,
-			.controls = old.controls,
-			.rate = old.rate,
-			.shuffle = old.shuffle,
-			.loop = old.loop,
-			.has_length = old.has_length,
-			.length = old.length,
-		});
+		next.push(
+			{
+				.id = media::copy_text(old.id, self.allocator),
+				.title = media::copy_text(old.title, self.allocator),
+				.artist = media::copy_text(old.artist, self.allocator),
+				.album = media::copy_text(old.album, self.allocator),
+				.handle = old.handle,
+				.status = old.status,
+				.status_since = old.status_since,
+				.position_ticks = old.position_ticks,
+				.updated_ticks = old.updated_ticks,
+				.position = old.position,
+				.controls = old.controls,
+				.rate = old.rate,
+				.shuffle = old.shuffle,
+				.loop = old.loop,
+				.has_length = old.has_length,
+				.length = old.length,
+			}
+		);
 	}
-	usz count = next.size;
+	usz count = (usz)next.size;
 	if (count == 0)
 	{
 		self.forget();

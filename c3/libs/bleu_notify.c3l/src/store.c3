@@ -99,16 +99,20 @@ fn Posted Store.post(&self, Entry* e, Time now)
 	if (e.incoming.replaces_id != 0) index = self.find_owned(e.incoming.replaces_id, e.sender);
 	if (index < 0 && e.incoming.hints.stack_tag.len > 0) index = self.find_stack(e.incoming.hints.stack_tag, e.sender);
 	Entry* old = index >= 0 ? self.active.get((sz)index) : null;
-	if (old != null && old.note.urgency == notify::Urgency.CRITICAL) e.incoming.hints.urgency = notify::Urgency.CRITICAL;
+	if (old != null
+		&& old.note.urgency == notify::Urgency.CRITICAL) e.incoming.hints.urgency = notify::Urgency.CRITICAL;
 	notify::Urgency urgency = e.incoming.hints.urgency;
 	notify::NoteId id       = old != null ? old.note.id : self.allocate_id();
 	bool shown              = index >= 0 || !rules::held_by_dnd(self.dnd, urgency);
-	if (shown && index < 0 && (usz)self.active.len() >= self.policy.max_open)
+	if (shown && index < 0)
 	{
-		Entry* victim = self.take_eviction_victim();
-		result.evicted = true;
-		result.evicted_id = victim.note.id;
-		self.retire(victim);
+		Entry* victim = self.take_victim(e.sender);
+		if (victim != null)
+		{
+			result.evicted = true;
+			result.evicted_id = victim.note.id;
+			self.retire(victim);
+		}
 	}
 	Maybe{Duration} timeout = shown ? rules::timeout_for(urgency, e.incoming.expire_ms, &self.policy) : { };
 	fill_note(e, id, now, timeout);
@@ -274,6 +278,44 @@ fn notify::NoteId Store.allocate_id(&self)
 		self.last_id = rules::next_id(self.last_id);
 		if (self.find_active(self.last_id) < 0 && !self.in_history(self.last_id)) return self.last_id;
 	}
+}
+
+<*
+ The open notification to close so that a new one from `sender` fits, or null when
+ there is room. A sender at its cap gives up its own oldest notification (its
+ oldest non-critical one first), so that no sender can fill the centre; otherwise
+ the open limit closes the oldest non-critical notification of any sender.
+*>
+fn Entry* Store.take_victim(&self, String sender)
+{
+	if (self.policy.max_per_sender > 0 && self.open_count(sender) >= self.policy.max_per_sender)
+	{
+		return self.take_sender_victim(sender);
+	}
+	if ((usz)self.active.len() >= self.policy.max_open) return self.take_eviction_victim();
+	return null;
+}
+
+// How many open notifications `sender` holds.
+fn usz Store.open_count(&self, String sender)
+{
+	usz count = 0;
+	foreach (e : self.active) if (e.sender == sender) count++;
+	return count;
+}
+
+// The oldest open notification of `sender` (its oldest non-critical one when it has one). The sender must hold one.
+fn Entry* Store.take_sender_victim(&self, String sender)
+{
+	sz found = -1;
+	for (sz i = self.active.len() - 1; i >= 0; i--)
+	{
+		Entry* e = self.active.get(i);
+		if (e.sender != sender) continue;
+		if (e.note.urgency != notify::Urgency.CRITICAL) return self.take_at(i);
+		found = i;
+	}
+	return self.take_at(found);
 }
 
 // Remove and return the oldest open non-critical notification, or the oldest of all when every one is critical.

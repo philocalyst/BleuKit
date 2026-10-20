@@ -203,6 +203,7 @@ const int MAX_IMAGE_DIMENSION = 4096;
 const int MAX_EXPIRE_MS       = 86_400_000; // one day
 
 const usz DEFAULT_MAX_OPEN            = 20;
+const usz DEFAULT_MAX_PER_SENDER      = 10;
 const usz DEFAULT_HISTORY_LIMIT       = 50;
 const Duration DEFAULT_LOW_TIMEOUT    = (Duration)5_000_000;  // 5 s, microseconds
 const Duration DEFAULT_NORMAL_TIMEOUT = (Duration)10_000_000; // 10 s
@@ -216,6 +217,7 @@ const Duration DEFAULT_NORMAL_TIMEOUT = (Duration)10_000_000; // 10 s
 struct Policy
 {
 	usz max_open;
+	usz max_per_sender; // open notifications one sender may hold; 0 means no per-sender cap
 	usz history_limit;
 	Duration low_timeout;
 	Duration normal_timeout;
@@ -223,6 +225,7 @@ struct Policy
 
 const Policy DEFAULT_POLICY = {
 	.max_open = DEFAULT_MAX_OPEN,
+	.max_per_sender = DEFAULT_MAX_PER_SENDER,
 	.history_limit = DEFAULT_HISTORY_LIMIT,
 	.low_timeout = DEFAULT_LOW_TIMEOUT,
 	.normal_timeout = DEFAULT_NORMAL_TIMEOUT,

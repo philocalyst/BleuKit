@@ -295,8 +295,8 @@ fn void? Session.read(&self, Record* r)
 {
 	@pool()
 	{
-		Value root             = r.root.get_all_properties(tmem, CALL_TIMEOUT)!;
-		Value player           = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
+		Value root   = r.root.get_all_properties(tmem, CALL_TIMEOUT)!;
+		Value player = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
 		if (try anchor = self.read_position(r)) r.position = maybe::value(anchor);
 		Duration now = media::monotonic_now();
 		r.arena.reset();
@@ -365,10 +365,16 @@ fn void Session.tick(&self)
 	{
 		if (r.status != Playback.PLAYING || r.dirty) continue;
 		if (try anchor = self.read_position(r))
-			{
-				// Replace the anchor only when the reading disagrees with it: a steady player keeps its state unchanged.
-				if (media::needs_reanchor(r.position, anchor, r.status, r.rate, r.track.length)) r.position = maybe::value(anchor);
-			}
+		{
+			// Replace the anchor only when the reading disagrees with it: a steady player keeps its state unchanged.
+			if (media::needs_reanchor(
+				r.position,
+				anchor,
+				r.status,
+				r.rate,
+				r.track.length
+			)) r.position = maybe::value(anchor);
+		}
 	}
 }
 

@@ -4,7 +4,7 @@
  `battery_api.c3` line for line where the two services are alike.
 *>
 module bleu::capi::brightness_api;
-import std::thread, std::time, bleu::brightness, bleu::error, bleu::json, bleu::observe, bleu::operation, bleu::stream, bleu::unit, bleu::capi;
+import std::thread, std::time, bleu::brightness, bleu::error, bleu::json, bleu::observe, bleu::operation, bleu::stream, bleu::unit, bleu::capi, bleu::rt::foreign;
 
 <*
  Options for `bleu_brightness_open`. Zero every member you do not set. `bus_address`
@@ -416,7 +416,7 @@ fn brightness::State* bleu_brightness_snapshot_state(
 	capi::CSnapshot* snapshot
 ) @export("bleu_brightness_snapshot_state")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!snapshot || snapshot.service != capi::Service.BRIGHTNESS) return null;
 		Snapshot{brightness::State}* state = (Snapshot{brightness::State}*)snapshot.native;
@@ -519,7 +519,7 @@ fn capi::CStatus bleu_brightness_subscribe(
 <* The event carried by a packet from `bleu_brightness_subscribe`. Borrowed until the packet is released. *>
 fn brightness::Event* bleu_brightness_packet_event(capi::CPacket* packet) @export("bleu_brightness_packet_event")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!packet || packet.ops.service != capi::Service.BRIGHTNESS) return null;
 		Snapshot{brightness::Event}* event = (Snapshot{brightness::Event}*)packet.native;
@@ -565,7 +565,7 @@ fn capi::CStatus bleu_brightness_set_level(
 *>
 fn brightness::Applied* bleu_brightness_set_result(capi::COperation* operation) @export("bleu_brightness_set_result")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!operation || operation.ops.service != capi::Service.BRIGHTNESS) return null;
 		if (operation.ops.phase(operation.native) != capi::OperationPhase.SUCCEEDED) return null;
@@ -582,7 +582,7 @@ fn brightness::Device* bleu_brightness_device_at(
 	usz index
 ) @export("bleu_brightness_device_at")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!state || index >= state.devices.len) return null;
 		return &state.devices[index];
@@ -598,7 +598,7 @@ fn brightness::Control* bleu_brightness_control_at(
 	usz index
 ) @export("bleu_brightness_control_at")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!device || index >= device.controls.len) return null;
 		return &device.controls[index];

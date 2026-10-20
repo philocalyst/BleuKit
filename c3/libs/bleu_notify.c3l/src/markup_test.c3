@@ -165,8 +165,10 @@ fn void only_web_and_mail_links_survive() @test
 {
 	@pool()
 	{
-		assert(render(tmem, "<a href=\"javascript:alert(1)\">x</a><a href=\"https://ok.example\">y</a>") ==
-			"x||;y||https://ok.example;", "javascript: is dropped, https: kept");
+		assert(render(
+			tmem,
+			"<a href=\"javascript:alert(1)\">x</a><a href=\"https://ok.example\">y</a>"
+		) == "x||;y||https://ok.example;", "javascript: is dropped, https: kept");
 		assert(render(tmem, "<a href=\"FILE:///etc/passwd\">p</a>") == "p||;", "file: is dropped, any case");
 		assert(render(tmem, "<a href=\"mailto:a@b.example\">m</a>") == "m||mailto:a@b.example;", "mailto: is kept");
 	};

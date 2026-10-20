@@ -19,7 +19,7 @@ module bleu::notify::hints;
 import std::collections::maybe, bleu::error, bleu::unit, bleu::dbus::marshal, bleu::notify, bleu::notify::text;
 
 // Most `a{sv}` entries one Notify call may carry; further entries are skipped.
-const usz MAX_HINTS = 64;
+const usz MAX_HINTS      = 64;
 // Most image bytes one notification may copy, including superseded copies: room for one image and one replaced one.
 const usz MAX_HINT_BYTES = 2 * notify::MAX_IMAGE_BYTES;
 

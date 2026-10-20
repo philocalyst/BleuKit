@@ -13,7 +13,7 @@
 // 
 // stdout: READY on success, OPEN_FAILED with the reason otherwise, then one line per answer.
 module notify_test_server;
-import std::io, std::thread, std::time, bleu::error, bleu::notify, bleu::operation, bleu::rt::foreign, bleu::stream;
+import std::atomic, std::io, std::thread, std::time, bleu::error, bleu::notify, bleu::operation, bleu::rt::foreign, bleu::stream;
 
 fn int main(String[] args)
 {
@@ -29,8 +29,9 @@ fn int main(String[] args)
 	// Events are printed by a second thread, which only reads its subscription.
 	stream::Reader{notify::Event}*? events = centre.subscribe();
 	if (catch err = events) return 2;
+	Printing printing = { .events = events };
 	Thread printer;
-	printer.create(&print_events, events)!!;
+	printer.create(&print_events, &printing)!!;
 	io::printfn("READY %s", centre.backend_name());
 	bool running = true;
 	while (running)
@@ -49,10 +50,19 @@ fn int main(String[] args)
 			running = false;
 		}
 	}
-	centre.close();
+	// The printer stops first, then the subscription is released, and only then the centre (which frees its streams).
+	printing.done.store(true);
 	printer.join()!!;
 	events.release();
+	centre.close();
 	return 0;
+}
+
+// What the printer thread reads: its subscription, and the flag main raises once the printer must stop.
+struct Printing
+{
+	stream::Reader{notify::Event}* events;
+	Atomic{bool} done;
 }
 
 // Print each event as it arrives, until the subscription closes with the centre.
@@ -60,20 +70,24 @@ fn int print_events(void* context)
 {
 	foreign::@foreign_entry()
 	{
-		stream::Reader{notify::Event}* events = (stream::Reader{notify::Event}*)context;
-		while (try packet = events.next())
+		Printing* printing = (Printing*)context;
+		while (!printing.done.load())
 		{
-			notify::Event event = packet.value;
-			io::printfn(
-				"EVENT %s id=%d replaced=%d reason=%d key=%s",
-				event.kind == notify::EventKind.POSTED ? "POSTED"
-					: (event.kind == notify::EventKind.CLOSED ? "CLOSED" : "ACTION_INVOKED"),
-				event.id,
-				event.replaced ? 1 : 0,
-				(uint)event.reason,
-				event.action_key
-			);
-			packet.release();
+			// A timed read, so the flag is seen; a timeout or a closed stream just loops back to the flag.
+			if (try packet = printing.events.next(time::ms(50)))
+			{
+				notify::Event event = packet.value;
+				io::printfn(
+					"EVENT %s id=%d replaced=%d reason=%d key=%s",
+					event.kind == notify::EventKind.POSTED ? "POSTED"
+						: (event.kind == notify::EventKind.CLOSED ? "CLOSED" : "ACTION_INVOKED"),
+					event.id,
+					event.replaced ? 1 : 0,
+					(uint)event.reason,
+					event.action_key
+				);
+				packet.release();
+			}
 		}
 	};
 	return 0;

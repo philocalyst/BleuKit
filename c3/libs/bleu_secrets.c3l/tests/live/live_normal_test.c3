@@ -91,3 +91,56 @@ fn void unknown_entries_read_as_not_found() @test
 	defer read.release();
 	assert(@catch(read.wait(time::sec(10))) == NOT_FOUND);
 }
+// Entries are identified by service and account (as on Windows and macOS). A store with other caller
+// attributes replaces the entry, so one remains, and a read or delete by service and account finds it.
+fn void new_attributes_replace_the_entry_of_the_same_account() @test
+{
+	Keyring* keyring = open_keyring();
+	defer keyring.close();
+	Entry first      = { .service = "bleu.s2", .account = "home", .attributes = { { .key = "profile", .value = "one" } } };
+	Entry second     = { .service = "bleu.s2", .account = "home", .attributes = { { .key = "profile", .value = "two" } } };
+	Entry identity   = { .service = "bleu.s2", .account = "home" };
+
+	Operation{Entry}* stored_first = keyring.store(first, (char[])"first-value")!!;
+	defer stored_first.release();
+	stored_first.wait(time::sec(10))!!;
+	Operation{Entry}* stored_second = keyring.store(second, (char[])"second-value")!!;
+	defer stored_second.release();
+	stored_second.wait(time::sec(10))!!;
+
+	Operation{Entry[]}* found = keyring.search(identity)!!;
+	defer found.release();
+	Entry[] hits = found.wait(time::sec(10))!!;
+	assert(hits.len == 1, "the store left one entry for the service and account");
+
+	Operation{Secret}* read = keyring.read(identity)!!;
+	defer read.release();
+	Secret secret = read.wait(time::sec(10))!!;
+	assert((String)secret.bytes == "second-value", "a read by service and account returns the value stored last");
+	secret.wipe();
+
+	Operation{bool}* removed = keyring.delete(identity)!!;
+	defer removed.release();
+	assert(removed.wait(time::sec(10))!!, "the entry is deleted by service and account");
+	Operation{bool}* again = keyring.delete(identity)!!;
+	defer again.release();
+	assert(!again.wait(time::sec(10))!!, "no entry is left");
+}
+
+// An operation may be held after its keyring is closed: its value stays readable, and releasing it last
+// frees its memory. Under valgrind, a release that touched the closed keyring's memory would be reported.
+fn void operation_outlives_keyring_close() @test
+{
+	Keyring* keyring = open_keyring();
+	Entry key        = { .service = "bleu.close", .account = "held" };
+	Operation{Entry}* stored = keyring.store(key, (char[])"held-value")!!;
+	defer stored.release();
+	stored.wait(time::sec(10))!!;
+	Operation{Secret}* read = keyring.read(key)!!;
+	defer read.release();
+	read.wait(time::sec(10))!!;
+	keyring.close();
+	Secret secret = read.wait(time::sec(10))!!;
+	assert((String)secret.bytes == "held-value", "the value is still readable after the keyring closed");
+	secret.wipe();
+}

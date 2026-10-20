@@ -31,7 +31,7 @@ fn void? connect(registry::Request* request)
 	network::ConnectRequest connect = {
 		.ssid = (char[])ssid,
 		.passphrase = registry::string_or(request.params, "passphrase", "")!,
-		.autoconnect = request.params.boolean("autoconnect") ?? true,
+		.autoconnect = registry::bool_or(request.params, "autoconnect", true)!,
 	};
 	network::ConnectOp* operation = service.connect(connect)!;
 	defer operation.release();

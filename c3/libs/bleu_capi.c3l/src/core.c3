@@ -3,13 +3,13 @@
  header is generated from this library by `tools/capi/genheader.py`; the
  conventions are in `docs/CAPI.md`.
 
- Every exported function runs its body through `@capi_entry` or `@capi_scope` (any
+ Every exported function runs its body through `@capi_entry` or `foreign::@foreign_entry` (any
  thread may call it), returns a `bleu_status_t` unless it is one of the documented accessors, and
  gives results through out-parameters that are set to NULL on failure. C3 faults,
  optionals and slices never cross the boundary.
 *>
 module bleu::capi;
-import bleu::error, bleu::availability;
+import bleu::error, bleu::availability, bleu::rt::foreign;
 
 <*
  Version of this C ABI. Compare it with BLEU_ABI_VERSION from the header you
@@ -120,7 +120,7 @@ fn OperationPhase phase_from_ordinal(usz ordinal) => (OperationPhase)(char)ordin
 *>
 fn uint bleu_abi_version() @export("bleu_abi_version")
 {
-	@capi_scope()
+	foreign::@foreign_entry()
 	{
 		return ABI_VERSION;
 	};
@@ -132,7 +132,7 @@ fn uint bleu_abi_version() @export("bleu_abi_version")
 *>
 fn ZString bleu_status_name(int status) @export("bleu_status_name")
 {
-	@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (status < 0 || status > (int)CStatus.UNKNOWN.ordinal) return "INVALID";
 		switch ((CStatus)status)
@@ -166,7 +166,7 @@ fn ZString bleu_status_name(int status) @export("bleu_status_name")
 *>
 fn CStatus bleu_last_error(ErrorDetail* out) @export("bleu_last_error")
 {
-	@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!out) return CStatus.INVALID_ARGUMENT;
 		fill_detail(out, error::last());
@@ -180,7 +180,7 @@ fn CStatus bleu_last_error(ErrorDetail* out) @export("bleu_last_error")
 *>
 fn void bleu_free(void* memory) @export("bleu_free")
 {
-	@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (memory) alloc::free(mem, memory);
 	};

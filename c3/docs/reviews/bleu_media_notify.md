@@ -97,3 +97,42 @@ Totals: HIGH N-01, N-02, N-03, N-04, N-10 (5). MEDIUM M-01 to M-09, N-05 to N-09
   * `media_probe.c3`: pure functions (scripting split, `age_of`, `position_at`).
 * Not run: any Windows or macOS code. M-01, M-06 to M-09, N-10 and L-02 to L-03 are proven by code path only.
 * Candidate dropped: `mem::copy` with a zero-length copy from a null `String` (`service.c3:161`). It did not trap in `compile-run`, so it is not reported.
+
+## Resolution
+
+Status of every finding after the fix pass. "Before" means the regression test was run against the
+library as it stood at 2cce640 (the commit the pass started from); a row marked "by construction"
+has a test that passes after the fix but was not run before it.
+
+| ID | Status | Fix | Regression test (before/after) |
+| --- | --- | --- | --- |
+| N-01 | FIXED | `store.c3`: `replaces_id` only matches the sender's open notification; otherwise `allocate_id` (skips open and history ids) | store_test `an_unknown_replaces_id_gets_a_fresh_id`, `a_fresh_id_skips_ids_in_history`; live "a replaces_id naming no open notification gets a fresh id" (FAIL before, PASS after) |
+| N-02 | FIXED | `Entry.sender` (D-Bus unique name); owner-only replace, stack match and CloseNotification (`close_owned`); a replacement keeps CRITICAL; trust model in README | store_test `a_replacement_from_another_sender...`, `a_stack_tag_is_matched_within_one_sender`, `a_replacement_cannot_downgrade...`, `only_the_owner_closes_by_bus_call`; live "another connection's replaces_id..." and "another connection cannot close it" (FAIL before, PASS after) |
+| N-03 | FIXED | `fdo_name.c3`: no `NAME_ALLOW_REPLACEMENT`; `Options.replace` only takes a name from a daemon that allows it | live "--replace does not take the name..." (FAIL before: READY), "another client cannot take the name with REPLACE_EXISTING" (PASS after) |
+| N-04 | FIXED | `hints.c3`: `MAX_HINTS` = 64 entries; text copied once after the array (last wins); images charged to `MAX_HINT_BYTES` (two images) | hints_test `the_hint_count_is_capped`, `a_flood_of_text_keeps_one_copy` (3000 x 1 KB), `image_copies_are_budgeted` (40 x 512 KiB = 20 MiB), `a_repeated_text_key_keeps_the_last_value` (by construction: the flood tests do not run the server) |
+| N-10 | FIXED (code path) | `sender_un.c3`: each request has its own refcounted `Answer`; the completion block holds a reference | Compiled for macOS targets only; not run |
+| M-01 | FIXED | `abandon` passed by both services (`abandon_command`) | media_test `a_command_left_queued_at_stop_fails` (the hook; the service wiring is not covered by a test) |
+| M-02 | FIXED | `needs_reanchor`: a reading that agrees with the anchor keeps it (`DRIFT_TOLERANCE` 500 ms) | live "a steady playing player publishes nothing for two seconds" (FAIL before, PASS after); media_test `a_steady_reading_keeps_the_anchor` |
+| M-03 | FIXED | `scripting_convert.c3`: text fields last; the title keeps its tabs | media_test `a_title_with_tabs_is_kept_whole` (by construction) |
+| M-04 | FIXED | `smtc_convert.c3`: a stamp before 1970, in the future, or older than one day counts as no age | media_test `an_unset_stamp_is_no_age` (by construction) |
+| M-05 | FIXED | `sane_rate` (NaN and infinities to 1.0, clamp to `MAX_RATE`), saturating `position_at`, `set_rate` refused out of range, `set_volume` clamped | media_test `a_peer_rate_is_made_safe` (by construction) |
+| M-06 | FIXED (Windows, compile-only) | `smtc_backend.c3`: a session whose read fails keeps its last values (`Known` holds the strings) | not run |
+| M-07 | FIXED (Windows, compile-only) | `BACKEND_FAILED` event: COM, open, the wake-up, and three failed polls in a row (`POLL_FAILURE_LIMIT`) | not run |
+| M-08 | FIXED (Windows, compile-only) | `create` no longer enters COM or calls the session manager; the worker probes it | not run |
+| M-09 | WONTFIX | Needs an AppleScript timeout in `bleu_objc` (not owned here) or a reader thread per app with async publication; macOS is not available to test either | Documented in README "Not done"; follow-up suggested |
+| N-05 | FIXED | `markup.c3`: `next_close` caches the first `>` so the search is linear | markup_test `a_run_of_bare_angle_brackets_is_text` (behaviour; the quadratic time was not measured in a unit test) |
+| N-06 | FIXED | `drop_from_history` removed: a replacement never touches history | store_test `a_foreign_replacement_leaves_history_alone` |
+| N-07 | FIXED | `allowed_scheme`: only http, https, mailto link hrefs | markup_test `only_web_and_mail_links_survive`; the existing link test now uses https |
+| N-08 | FIXED | `markup::escape` in `sender_fdo.c3`: the body is sent escaped | markup_test `escaped_text_is_read_back_as_written`; live "a plain-text body with markup characters arrives as written" (FAIL before, PASS after) |
+| N-09 | FIXED | `announce_*` return errors; `serve` stops, refusing the rest of the batch | Code path; not reproduced (needs a failing bus) |
+| N-11 | FIXED | `sender_fdo.c3`: Notify call timeout 25 s to 5 s | Constant change |
+| N-12 | FIXED | `Policy.max_per_sender` (10): a sender at its cap gives up its own oldest notification | store_test `a_sender_cannot_fill_the_centre` |
+| L-01 | FIXED | `mpris_session.c3`: a failed Position read keeps the last anchor, on both paths | Code path (same path as M-02's live test) |
+| L-02 | FIXED (Windows, compile-only) | `open_session` releases each session object on every path | Not run |
+| L-03 | FIXED | `target_of` returns UNAVAILABLE without an anchor | Compiled (Windows); not run |
+| L-04 | FIXED | `art_url_text`: https and file only; `copy_text` caps peer text at 4 KiB | media_test `only_https_and_file_art_urls_are_kept`, `long_peer_text_is_cut` |
+| L-05 | WONTFIX | The API carries only the track id; a trackless seek cannot compare title or length without an API change. Documented in README "Not done" | n/a |
+
+Test counts after the pass: media unit 28 `@test` (was 21), notify unit 68 (was 54); live: media 37 (was 36),
+notify 49 (was 44). Six-target type check clean for `bleu_core bleu_rt bleu_service bleu_dbus bleu_objc bleu_win bleu_dl bleu_media bleu_notify`.
+

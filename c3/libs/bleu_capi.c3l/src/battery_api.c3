@@ -4,7 +4,7 @@
  change the names; `docs/CAPI.md` lists the steps.
 *>
 module bleu::capi::battery_api;
-import std::thread, std::time, bleu::battery, bleu::error, bleu::json, bleu::observe, bleu::stream, bleu::capi;
+import std::thread, std::time, bleu::battery, bleu::error, bleu::json, bleu::observe, bleu::stream, bleu::capi, bleu::rt::foreign;
 
 <*
  Options for `bleu_battery_open`. Zero every member you do not set: zero means
@@ -340,7 +340,7 @@ fn capi::CStatus bleu_battery_wait(
 *>
 fn battery::State* bleu_battery_snapshot_state(capi::CSnapshot* snapshot) @export("bleu_battery_snapshot_state")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!snapshot || snapshot.service != capi::Service.BATTERY) return null;
 		Snapshot{battery::State}* state = (Snapshot{battery::State}*)snapshot.native;
@@ -432,7 +432,7 @@ fn capi::CStatus bleu_battery_subscribe(BatteryHandle* handle, capi::CReader** o
 <* The event carried by a packet from `bleu_battery_subscribe`. Borrowed until the packet is released. *>
 fn battery::Event* bleu_battery_packet_event(capi::CPacket* packet) @export("bleu_battery_packet_event")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!packet || packet.ops.service != capi::Service.BATTERY) return null;
 		Snapshot{battery::Event}* event = (Snapshot{battery::Event}*)packet.native;
@@ -446,7 +446,7 @@ fn battery::Event* bleu_battery_packet_event(capi::CPacket* packet) @export("ble
 *>
 fn battery::Source* bleu_battery_source_at(battery::State* state, usz index) @export("bleu_battery_source_at")
 {
-	capi::@capi_scope()
+	foreign::@foreign_entry()
 	{
 		if (!state || index >= state.sources.len) return null;
 		return &state.sources[index];

@@ -1,0 +1,184 @@
+{
+ "source": "AvengeMedia/DankMaterialShell core/internal/server/network (types.go, fetched from raw.githubusercontent.com)",
+ "revision": "8be08999",
+ "structs": {
+  "NetworkState": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    114,
+    160
+   ],
+   "fields": [
+    "backend",
+    "networkStatus",
+    "preference",
+    "ethernetIP",
+    "ethernetDevice",
+    "ethernetConnected",
+    "ethernetConnectionUuid",
+    "ethernetDevices",
+    "cellularIP",
+    "cellularDevice",
+    "cellularConnected",
+    "cellularEnabled",
+    "cellularHardwareEnabled",
+    "cellularConnectionUuid",
+    "cellularDevices",
+    "cellularConnections",
+    "wifiIP",
+    "wifiDevice",
+    "wifiConnected",
+    "wifiEnabled",
+    "wifiSSID",
+    "wifiBSSID",
+    "wifiSignal",
+    "wifiNetworks",
+    "savedWifiNetworks",
+    "wifiDevices",
+    "hotspotSupported",
+    "hotspotAvailable",
+    "hotspotConfigured",
+    "hotspotEnabled",
+    "hotspotActivating",
+    "hotspotSecured",
+    "hotspotSSID",
+    "hotspotDevice",
+    "hotspotBand",
+    "hotspotLastError",
+    "wiredConnections",
+    "vpnProfiles",
+    "vpnActive",
+    "isConnecting",
+    "connectingSSID",
+    "connectingDevice",
+    "lastError",
+    "vpnError",
+    "vpnErrorUuid"
+   ],
+   "omitempty": [
+    "connectingDevice"
+   ]
+  },
+  "WiFiNetwork": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    29,
+    45
+   ],
+   "fields": [
+    "ssid",
+    "bssid",
+    "signal",
+    "secured",
+    "enterprise",
+    "connected",
+    "saved",
+    "autoconnect",
+    "hidden",
+    "outOfRange",
+    "frequency",
+    "mode",
+    "rate",
+    "channel",
+    "device"
+   ],
+   "omitempty": [
+    "device"
+   ]
+  },
+  "WiFiDevice": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    47,
+    58
+   ],
+   "fields": [
+    "name",
+    "hwAddress",
+    "state",
+    "connected",
+    "apCapable",
+    "ssid",
+    "bssid",
+    "signal",
+    "ip",
+    "networks"
+   ],
+   "omitempty": [
+    "ssid",
+    "bssid",
+    "signal",
+    "ip"
+   ]
+  },
+  "EthernetDevice": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    60,
+    68
+   ],
+   "fields": [
+    "name",
+    "hwAddress",
+    "state",
+    "connected",
+    "ip",
+    "speed",
+    "driver"
+   ],
+   "omitempty": [
+    "ip",
+    "speed",
+    "driver"
+   ]
+  },
+  "NetworkInfoResponse": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    269,
+    272
+   ],
+   "fields": [
+    "ssid",
+    "bands"
+   ],
+   "omitempty": []
+  },
+  "CredentialPrompt": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    254,
+    267
+   ],
+   "fields": [
+    "token",
+    "name",
+    "ssid",
+    "connType",
+    "vpnService",
+    "setting",
+    "fields",
+    "fieldsInfo",
+    "hints",
+    "reason",
+    "connectionId",
+    "connectionUuid"
+   ],
+   "omitempty": []
+  },
+  "FieldInfo": {
+   "file": "core/internal/server/network/types.go",
+   "lines": [
+    248,
+    252
+   ],
+   "fields": [
+    "name",
+    "label",
+    "isSecret"
+   ],
+   "omitempty": []
+  }
+ },
+ "fetched_from": "https://raw.githubusercontent.com/AvengeMedia/DankMaterialShell/8be08999/core/internal/server/network/types.go"
+}

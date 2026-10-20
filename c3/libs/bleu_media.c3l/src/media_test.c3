@@ -259,7 +259,15 @@ fn void scripting_rejects_malformed_lines() @test
 fn void a_command_left_queued_at_stop_fails() @test
 {
 	MediaHub hub;
-	hub.start(mem, "media-test", "test", &wait_until_stopped, null, service::DEFAULT_QUEUE{State, Command, Event}, &abandon_command)!!;
+	hub.start(
+		mem,
+		"media-test",
+		"test",
+		&wait_until_stopped,
+		null,
+		service::DEFAULT_QUEUE{State, Command, Event},
+		&abandon_command
+	)!!;
 	CommandOp* op = operation::begin(mem);
 	Command c     = command(PLAY, 1);
 	c.op = op.retain();
@@ -286,8 +294,8 @@ fn void wait_until_stopped(void* backend, MediaHub* hub, Host{Command}* host) @p
 // Regression (M-02): a reading that agrees with the anchor keeps it, so an unchanged player does not republish.
 fn void a_steady_reading_keeps_the_anchor() @test
 {
-	Maybe{Duration} none = { };
-	Anchor known         = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Duration} none  = { };
+	Anchor known          = { .position = secs(10), .taken_at = secs(100) };
 	Maybe{Anchor} current = maybe::value(known);
 	Anchor same           = { .position = secs(12), .taken_at = secs(102) };
 	assert(!needs_reanchor(current, same, PLAYING, 1.0, none), "a reading that agrees changes nothing");
@@ -315,15 +323,21 @@ fn void an_unset_stamp_is_no_age() @test
 // Regression (M-05): a peer's rate is made safe: NaN is normal speed, a huge rate is clamped to MAX_RATE.
 fn void a_peer_rate_is_made_safe() @test
 {
-	Anchor a               = { .position = secs(10), .taken_at = secs(100) };
-	Maybe{Duration} none   = { };
-	PlaybackRate huge      = (PlaybackRate)1.0e15;
-	PlaybackRate nan       = bitcast((ulong)0x7FF8000000000000, double);
-	PlaybackRate infinity  = bitcast((ulong)0x7FF0000000000000, double);
+	Anchor a              = { .position = secs(10), .taken_at = secs(100) };
+	Maybe{Duration} none  = { };
+	PlaybackRate huge     = (PlaybackRate)1.0e15;
+	PlaybackRate nan      = bitcast((ulong)0x7FF8000000000000, double);
+	PlaybackRate infinity = bitcast((ulong)0x7FF0000000000000, double);
 	assert(position_at(a, PLAYING, huge, none, secs(102)) == secs(42), "clamped to MAX_RATE: 10 + 2 * 16");
 	assert(position_at(a, PLAYING, nan, none, secs(102)) == secs(12), "NaN is normal speed");
 	assert(sane_rate(infinity) == 1.0, "an infinity is normal speed");
-	assert(position_at(a, PLAYING, (PlaybackRate)-huge, none, secs(102)) == time::DURATION_ZERO, "a huge rewind stops at zero");
+	assert(position_at(
+		a,
+		PLAYING,
+		(PlaybackRate)-huge,
+		none,
+		secs(102)
+	) == time::DURATION_ZERO, "a huge rewind stops at zero");
 }
 
 // Regression (L-04): only https and file art URLs are kept.

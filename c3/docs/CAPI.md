@@ -147,9 +147,11 @@ A request that takes time (`bleu_brightness_set_level`) returns a `bleu_operatio
 ## 8. Threads
 
 * Every exported function may be called from any thread, including threads the C3 runtime did not
-  start (a `pthread`, a GUI thread). Each exported call runs in a temporary allocator; a nested
-  call (from a listener) reuses it. Mechanism: `capi::@capi_scope` in `entry.c3`, which uses
-  `rt::foreign::@foreign_entry` for the outermost call on a thread that has no temporary allocator.
+  start (a `pthread`, a GUI thread). Each exported call runs in a temporary allocator: a call on a
+  thread that has none gets one from `rt::foreign::@foreign_entry`, and a nested call (from a
+  listener) runs in the allocator it is already in, because `@foreign_entry` reuses an existing one.
+  Status-reporting functions use `capi::@capi_entry` (`entry.c3`), which clears the last error and
+  then runs the same entry; accessors and destructors use `foreign::@foreign_entry` directly.
 * Handles may be shared between threads. The only rule is the one in section 3: do not close a
   handle while another thread is using it.
 
@@ -221,7 +223,7 @@ not need to know the C names. Steps:
    options (`struct_size` first, `@export("bleu_<service>_options_t")`), the opaque handle
    (`// capi:opaque`, `@export("bleu_<service>_t")`), the listener alias, the watch node, the
    `*Ops` tables, then the exported functions in the same order.
-2. Every exported function starts with `capi::@capi_entry()` (or `capi::@capi_scope()` for
+2. Every exported function starts with `capi::@capi_entry()` (or `foreign::@foreign_entry()` for
    accessors and destructors), and checks each pointer argument.
 3. Put a `<* ... *>` doc block above every exported declaration: it becomes the C comment.
 4. Add the name to `SERVICES` in `tools/capi/genheader.py`, the library to `libs` in

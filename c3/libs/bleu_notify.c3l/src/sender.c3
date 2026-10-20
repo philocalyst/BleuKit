@@ -120,8 +120,9 @@ fn String Sender.backend_name(&self) => self.driver.info.name;
 fn Availability Sender.capability(&self, Feature feature) => self.features.values[feature.ordinal];
 
 <*
- Show `request`, and return its id (never zero). A replacement returns the id it
- replaced.
+ Show `request`, and return its id (never zero). A replacement (`replaces_id`) names a
+ notification this sender posted earlier, and returns that id; a notification
+ posted by another connection is never replaced (the centre gives a new id).
 
  @return? error::UNSUPPORTED : "The request uses a feature this backend does not send"
  @return? error::UNAVAILABLE : "The notification centre is not running"
