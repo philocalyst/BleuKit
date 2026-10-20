@@ -12,7 +12,7 @@ that every backend is thin.
 ```
                      apps/dmsd  apps/bleud  apps/bleuctl            (applications)
                                   │
-                      libs/bleu_capi   libs/bleu_json                (outward faces)
+              libs/bleu_ipc   libs/bleu_registry   libs/bleu_capi   libs/bleu_json   (outward faces)
                                   │
  battery power network bluetooth audio brightness display color      (services)
  media notify tray session apps sysinfo clipboard windows secrets
@@ -147,5 +147,9 @@ compiled. Do not claim more.
 | `bleu_xdg` | `bleu::xdg` | XDG dirs, desktop entries, icon lookup, mime associations |
 | `bleu_plist` | `bleu::plist` | Apple property lists (XML + binary) |
 | services | `bleu::<service>` | see contract above |
-| `bleu_capi` | `bleu_*` C symbols | the C ABI and generated header |
+| `bleu_service` | `bleu::service` | the worker-thread hub every service runs on: commands, operations, publication |
+| `bleu_ipc` | `bleu::ipc` | DMS line-JSON server and client over a Unix socket, with topic subscriptions (POSIX); the wire `dmsd` and `bleud` serve |
+| `bleu_registry` | `bleu::registry` | the table of every service by name: one `Spec` per service (open, state, capabilities, commands), a `Slot` per opened service, `SERVICES` |
+| `bleu_capi` | `bleu_*` C symbols | the C ABI and the generated header (`include/bleu`, `docs/CAPI.md`) |
 | `bleu_json` | `bleu::json` | state → JSON, JSON-RPC envelope, used by the daemons |
+| apps | `bleud`, `bleuctl`, `dmsd` | `bleud`: the daemon serving the registry over `bleu_ipc`; `bleuctl`: its command-line client (also `--embedded`); `dmsd`: DankMaterialShell's `core` server rebuilt on Bleu (POSIX only, see `apps/dmsd/README.md`) |

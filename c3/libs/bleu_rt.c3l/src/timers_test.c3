@@ -6,11 +6,14 @@ fn void timers_fire_in_due_order() @test
 	timers::TimerQueue queue;
 	queue.init(mem);
 	defer queue.free();
-	queue.schedule(1, time::ms(3))!!;
-	queue.schedule(2, time::ms(1))!!;
-	queue.schedule(3, time::ms(2))!!;
-	test::@check(queue.next_timeout() <= time::ms(3), "the earliest timer is at most 3ms away");
-	thread::sleep(time::ms(10))!!;
+	// The due times are taken when each timer is scheduled, so the gaps must exceed the time
+	// between two schedule calls (much more than 1ms under valgrind): 2 is due at 10ms, 3 at
+	// 60ms and 1 at 110ms, and the test sleeps past all of them.
+	queue.schedule(1, time::ms(110))!!;
+	queue.schedule(2, time::ms(10))!!;
+	queue.schedule(3, time::ms(60))!!;
+	test::@check(queue.next_timeout() <= time::ms(10), "the earliest timer is at most 10ms away");
+	thread::sleep(time::ms(200))!!;
 	usz[4] fired;
 	usz n = queue.pop_expired(fired[..]);
 	test::eq((usz)3, n);

@@ -18,7 +18,8 @@
 #   live:<name>    libs/*/tests/run.sh; the other live entry points listed in EXTRA_LIVE;
 #                  apps/*/tests/run.sh; and the C ABI (tools/capi: check, build, tests/run.sh).
 #   check:libs     tools/check.sh: every library on all six targets, type-check only.
-#   check:<app>    tools/check-apps.sh <app>: the application on all six targets.
+#   check:<app>    the application on all six targets: tools/check-apps.sh <app> when the app has
+#                  project.json (dmsd), tools/check-app.sh <app> when it has manifest.json (bleud, bleuctl).
 #
 # Status: PASS (exit 0), FAIL (nonzero exit), TIMEOUT (killed by `timeout`),
 # NO-TESTS (a library whose build succeeded but that has no @test in its sources; not a failure).
@@ -135,8 +136,12 @@ unit_item() {
   local deps d largs=() srcs=() f
   deps="$(python3 -I -c "$CLOSURE_PY" "$here/libs" "$lib")" || { record FAIL "$name" "closure of manifest failed" "$log"; return; }
   for d in $deps; do largs+=(--lib "$d"); done
-  srcs=("$dir"/src/*.c3)
-  if [ -d "$dir/tests/unit" ]; then srcs+=("$dir"/tests/unit/*.c3); fi
+  # The manifests say "src/**": sources in subdirectories (bleu_wl's src/proto) count too.
+  mapfile -t srcs < <(find "$dir/src" -name '*.c3' | sort)
+  if [ -d "$dir/tests/unit" ]; then
+    mapfile -t extra < <(find "$dir/tests/unit" -name '*.c3' | sort)
+    srcs+=("${extra[@]}")
+  fi
   mkdir -p "$work/run-$lib"
   run_item "$TEST_TIMEOUT" "$work/run-$lib" "$log" \
     c3c --libdir "$libdir" "${largs[@]}" compile-test "${srcs[@]}" -o "$work/bin-$lib"
@@ -155,7 +160,7 @@ unit_item() {
 PY=""
 if [ "$group" = all ] || [ "$group" = live ]; then
   if python3 -m venv "$work/venv" >"$work/venv.log" 2>&1 \
-     && "$work/venv/bin/pip" install -q dbus-next >>"$work/venv.log" 2>&1; then
+     && "$work/venv/bin/pip" install -q dbus-next cryptography >>"$work/venv.log" 2>&1; then
     PY="$work/venv/bin/python"
   fi
 fi
@@ -201,8 +206,10 @@ check_libs() {
 }
 
 check_app() {
-  local app="$1" log="$work/check-app-$1.log"
-  run_item "$CHECK_TIMEOUT" "$here" "$log" tools/check-apps.sh "$app"
+  # check-apps.sh reads apps/<app>/project.json (dmsd); check-app.sh reads manifest.json (bleud, bleuctl).
+  local app="$1" log="$work/check-app-$1.log" tool="tools/check-apps.sh"
+  [ -f "$here/apps/$app/project.json" ] || tool="tools/check-app.sh"
+  run_item "$CHECK_TIMEOUT" "$here" "$log" "$tool" "$app"
   record "$(status_of "$RC")" "check:$app" "exit $RC; $(count_targets "$log") targets" "$log"
 }
 
