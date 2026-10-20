@@ -1,3 +1,8 @@
+// Publishing a picture, and copying the parts of an earlier one.
+//
+// A read that fails for one part keeps that part's value from the previous
+// picture (`Stale`), so the copies here must be deep: the previous snapshot is
+// released as soon as the new one is built.
 module bleu::network;
 import bleu::equal, bleu::observe;
 
@@ -55,16 +60,74 @@ fn void emit_event(NetworkHub* hub, Event event)
 	hub.emit(packet);
 }
 
-<* The security the last published scan saw for this SSID; UNKNOWN when the network has not been seen. *>
-fn Security security_on_air(NetworkHub* hub, char[] ssid)
+<*
+ A copy of `text` in `out`; the empty string is never allocated.
+
+ @param out : "Allocator for the copy"
+*>
+fn String copy_text(Allocator out, String text)
 {
-	if (try snapshot = hub.latest())
+	return text.len == 0 ? "" : text.copy(out);
+}
+
+<*
+ A copy of `source` in `out`. Its bytes are copied and its label derived again,
+ which gives the same label the original had.
+*>
+fn Ssid clone_ssid(Allocator out, Ssid source)
+{
+	return make_ssid(out, source.bytes);
+}
+
+<* A deep copy of every access point, in `out`. *>
+fn AccessPoint[] clone_access_points(Allocator out, AccessPoint[] source)
+{
+	if (source.len == 0) return { };
+	AccessPoint[] found = alloc::new_array(out, AccessPoint, source.len);
+	foreach (i, entry : source)
 	{
-		defer snapshot.release();
-		foreach (network : snapshot.value.wifi.networks)
-		{
-			if (same_ssid(network.ssid.bytes, ssid)) return network.security;
-		}
+		found[i]       = entry;
+		found[i].ssid  = clone_ssid(out, entry.ssid);
+		found[i].bssid = copy_text(out, entry.bssid);
 	}
-	return UNKNOWN;
+	return found;
+}
+
+<* A deep copy of every interface, in `out`. *>
+fn Interface[] clone_interfaces(Allocator out, Interface[] source)
+{
+	if (source.len == 0) return { };
+	Interface[] found = alloc::new_array(out, Interface, source.len);
+	foreach (i, iface : source)
+	{
+		found[i]      = iface;
+		found[i].name = copy_text(out, iface.name);
+	}
+	return found;
+}
+
+<* A deep copy of the Wi-Fi block, in `out`. *>
+fn Wifi clone_wifi(Allocator out, Wifi* source)
+{
+	Wifi copy = *source;
+	copy.interface_name = copy_text(out, source.interface_name);
+	copy.connected_ssid = clone_ssid(out, source.connected_ssid);
+	copy.networks       = clone_access_points(out, source.networks);
+	return copy;
+}
+
+<*
+ The picture a read that could not run at all falls back to: every part of
+ `previous`, copied into `out` and flagged stale.
+*>
+fn State stale_picture(Allocator out, State* previous)
+{
+	return {
+		.connectivity = previous.connectivity,
+		.location = previous.location,
+		.primary_interface = copy_text(out, previous.primary_interface),
+		.wifi = clone_wifi(out, &previous.wifi),
+		.interfaces = clone_interfaces(out, previous.interfaces),
+		.stale = { .connectivity = true, .interfaces = true, .wifi = true },
+	};
 }

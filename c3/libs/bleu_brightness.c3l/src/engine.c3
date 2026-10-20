@@ -7,7 +7,7 @@
  about requests, policies, transitions and publication is here, once.
 *>
 module bleu::brightness;
-import std::time, std::time::clock, bleu::equal, bleu::error, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::unit;
+import std::thread, std::time, std::time::clock, bleu::equal, bleu::error, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::unit;
 
 <* Most smooth transitions in progress at once; one per device in practice. *>
 const usz MAX_RAMPS = 8;
@@ -54,9 +54,10 @@ fn void serve(BrightnessHub* hub, Host{Command}* host, Platform* platform, Durat
 	{
 		// Sleeps until the next poll, the next transition step, or a command.
 		Duration wait = engine.transitions_active() ? step : poll;
-		if (catch poller.wait(wait))
+		if (catch err = poller.wait(wait))
 		{
-			// TIMEOUT is the normal tick.
+			// TIMEOUT is the normal tick. Any other failure would spin this loop, so pause a tick instead.
+			if (err != TIMEOUT) thread::sleep(wait);
 		}
 		usz taken;
 		while ((taken = host.mailbox().take_all(batch[..])) > 0)
@@ -73,23 +74,27 @@ fn void serve(BrightnessHub* hub, Host{Command}* host, Platform* platform, Durat
 fn Duration since(Clock then) @inline => (Duration)((long)clock::now().nano_diff(then) / 1000);
 
 <*
- Read the platform and publish the state if it differs from the last one. Each
- change is announced as an event first.
+ Read the platform and publish the state if it differs from the last one. The state is
+ published first and its transients are announced after it, so a listener woken by an event
+ reads the state that event describes.
+
+ A failed read keeps the last published state: an empty state would announce every device
+ as removed. Until the first successful read there is no state at all.
 *>
 fn void Engine.publish(&self)
 {
 	Snapshot{State}* snapshot = self.hub.begin();
 	State? state              = self.platform.read(self.platform.context, snapshot.allocator());
+	self.published            = clock::now();
 	if (catch err = state)
 	{
-		// An unreadable platform is an empty one: nothing can be controlled.
-		snapshot.value = { };
+		snapshot.release();
+		return;
 	}
 	else
 	{
 		snapshot.value = state;
 	}
-	self.published = clock::now();
 	if (try previous = self.hub.latest())
 	{
 		defer previous.release();
@@ -98,7 +103,13 @@ fn void Engine.publish(&self)
 			snapshot.release();
 			return;
 		}
-		self.announce(&previous.value, &snapshot.value);
+		self.hub.publish(snapshot);
+		if (try current = self.hub.latest())
+		{
+			defer current.release();
+			self.announce(&previous.value, &current.value);
+		}
+		return;
 	}
 	self.hub.publish(snapshot);
 }
@@ -176,7 +187,22 @@ fn void Engine.handle(&self, Command* command)
 		);
 		return;
 	}
-	Level from = self.current_level(device_id) ?? command.level;
+	Level? from = self.current_level(device_id);
+	if (catch err = from)
+	{
+		// A ramp needs a level to start from; without one it would jump, so the request is refused.
+		finish_op(
+			command.operation,
+			error::raise(
+				error::UNAVAILABLE,
+				error::Domain.INTERNAL,
+				0,
+				"'%s' has no readable level to ramp from",
+				device_id
+			)
+		);
+		return;
+	}
 	*ramp = { .command = *command, .from = from, .started = clock::now(), .active = true };
 }
 
@@ -263,6 +289,15 @@ fn void finish_op(SetOperation* operation, fault failure)
 {
 	operation.fail(failure);
 	operation.release();
+}
+
+<*
+ Called by the Hub for every request still queued when `run` returns, including an early return on
+ an error. Such a request can never run, so its operation fails DISCONNECTED.
+*>
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.kind == SET_LEVEL) finish_op(command.operation, error::DISCONNECTED);
 }
 
 // The device this command names.

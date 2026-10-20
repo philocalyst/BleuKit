@@ -82,7 +82,7 @@ fn Network*? open(Allocator allocator, Options options = { })
 			driver.info.name,
 			driver.run,
 			self.driver_state,
-			DEFAULT_QUEUE,
+			service::DEFAULT_QUEUE,
 			&abandon_command
 		))
 		{
@@ -285,6 +285,13 @@ fn SettleOp*? Network.set_autoconnect(&self, char[] ssid, bool enabled)
 	return self.submit_settle(command)!;
 }
 
+// Wait for the backend's first publication and release it: the backend publishes once its setup is done.
+fn void? Network.await_first_state(&self)
+{
+	Snapshot{State}* first = self.hub.state.wait_after(0, OPEN_TIMEOUT)!;
+	first.release();
+}
+
 // Fails with the capability's own reason when this backend lacks `cap`.
 fn void? Network.require(&self, Cap cap)
 {
@@ -339,17 +346,16 @@ fn void wipe_command_secret(Command* command)
 *>
 fn void abandon_command(void* backend, Command* command) @local
 {
-	switch (command.kind)
+	if (command.kind == CONNECT)
 	{
-		case CONNECT:
-			command.connect.fail(error::DISCONNECTED);
-			command.connect.release();
-		case REFRESH:
-		case SCAN_FINISHED:
-			// Nothing waits on these.
-		default:
-			command.settle.fail(error::DISCONNECTED);
-			command.settle.release();
+		command.connect.fail(error::DISCONNECTED);
+		command.connect.release();
+	}
+	else if (command.settle != null)
+	{
+		// REFRESH and SCAN_FINISHED carry no operation: nothing waits on them.
+		command.settle.fail(error::DISCONNECTED);
+		command.settle.release();
 	}
 	wipe_command_secret(command);
 }

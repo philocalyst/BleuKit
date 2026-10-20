@@ -13,7 +13,7 @@
  `src/generated/AE/AppleEvents.rs`.
 *>
 module bleu::objc::applescript @feat(DARWIN) @link("Foundation.framework");
-import std::os::darwin::objc, bleu::objc, bleu::objc::foundation, bleu::error;
+import std::os::darwin::objc, bleu::objc, bleu::objc::codes, bleu::objc::foundation, bleu::error;
 
 <* Key of the error dictionary holding the human-readable message (`NSString`). *>
 extern const ObjId NS_APPLE_SCRIPT_ERROR_MESSAGE @cname("NSAppleScriptErrorMessage");
@@ -26,6 +26,11 @@ extern const ObjId NS_APPLE_SCRIPT_ERROR_NUMBER @cname("NSAppleScriptErrorNumber
  A script that returns no text (for example one whose last value is a number
  or a record) returns an empty string. A script that fails returns the
  classified error, with the AppleScript message and error number in the detail.
+
+ The result is allocated from `allocator`. This function opens no temporary-memory
+ pool, so a caller may pass `tmem`; the result then lives until the caller's
+ enclosing `@pool()` closes. The Objective-C autorelease pool is drained on return,
+ after the result has been copied.
 
  Blocking: the call waits for the target application to answer, which can take
  seconds. Run it on a service worker, never on a callback or the main thread.
@@ -40,29 +45,26 @@ fn String? run_script(String source, Allocator allocator)
 {
 	objc::@autorelease_pool()
 	{
-		@pool()
-		{
-			objc::Obj source_text = foundation::from_string(source);
-			defer source_text.close();
-			ObjId initialized = objc::class_named("NSAppleScript").alloc()
-				.send(ObjId, "initWithSource:", source_text.ptr);
-			objc::Obj script = objc::adopt(initialized);
-			defer script.close();
-			if (script.is_nil()) return error::raise(
-				error::BACKEND_FAILURE,
-				error::Domain.NS_ERROR,
-				0,
-				"NSAppleScript could not be created"
-			)~;
+		objc::Obj source_text = foundation::from_string(source);
+		defer source_text.close();
+		ObjId initialized = objc::class_named("NSAppleScript").alloc()
+			.send(ObjId, "initWithSource:", source_text.ptr);
+		objc::Obj script = objc::adopt(initialized);
+		defer script.close();
+		if (script.is_nil()) return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.NS_ERROR,
+			0,
+			"NSAppleScript could not be created"
+		)~;
 
-			ObjId error_info = null;
-			ObjId result     = script.ptr.send(ObjId, "executeAndReturnError:", &error_info);
-			if (!result)
-			{
-				return script_failure(error_info)~;
-			}
-			return foundation::to_string(result.send(ObjId, "stringValue"), allocator) ?? "";
-		};
+		ObjId error_info = null;
+		ObjId result     = script.ptr.send(ObjId, "executeAndReturnError:", &error_info);
+		if (!result)
+		{
+			return script_failure(error_info)~;
+		}
+		return foundation::to_string(result.send(ObjId, "stringValue"), allocator) ?? "";
 	};
 }
 
@@ -72,19 +74,24 @@ fn String? run_script(String source, Allocator allocator)
 *>
 fn fault script_failure(ObjId error_info) @local
 {
-	foundation::NSInteger number = 0;
-	String message               = "no error details";
-	if (error_info)
+	// The message is copied into temporary memory, so the pool scopes it. The fault
+	// returned is a value; error::raise copies the text into the thread's detail.
+	@pool()
 	{
-		objc::Obj number_object = objc::borrow(foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_NUMBER));
-		defer number_object.close();
-		number = foundation::number_as_long(number_object);
-		message = foundation::to_string(
-			foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_MESSAGE),
-			tmem
-		) ?? message;
-	}
-	fault f = number == foundation::OS_STATUS_AE_EVENT_NOT_PERMITTED ? error::PERMISSION_DENIED
-		: error::BACKEND_FAILURE;
-	return error::raise(f, error::Domain.NS_ERROR, (int)number, "AppleScript: %s", message);
+		foundation::NSInteger number = 0;
+		String message               = "no error details";
+		if (error_info)
+		{
+			objc::Obj number_object = objc::borrow(foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_NUMBER));
+			defer number_object.close();
+			number = foundation::number_as_long(number_object);
+			message = foundation::to_string(
+				foundation::dictionary_value(error_info, NS_APPLE_SCRIPT_ERROR_MESSAGE),
+				tmem
+			) ?? message;
+		}
+		fault f = number == codes::OS_STATUS_AE_EVENT_NOT_PERMITTED ? error::PERMISSION_DENIED
+			: error::BACKEND_FAILURE;
+		return error::raise(f, error::Domain.NS_ERROR, (int)number, "AppleScript: %s", message);
+	};
 }

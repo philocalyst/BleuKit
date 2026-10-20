@@ -10,7 +10,7 @@
  Every method may be called from any thread.
 *>
 module bleu::brightness;
-import std::collections::enummap, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit;
+import std::collections::enummap, std::math, std::time, bleu::error, bleu::availability, bleu::observe, bleu::stream, bleu::service, bleu::operation, bleu::unit;
 
 alias BrightnessHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};
@@ -55,7 +55,15 @@ fn Brightness*? open(Allocator allocator, Options options = { })
 	self.allocator = allocator;
 	self.driver = driver;
 	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "brightness", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"brightness",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		service::DEFAULT_QUEUE,
+		&abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -122,7 +130,7 @@ fn Reader{Event}*? Brightness.subscribe(&self) => self.hub.events.subscribe();
 
  @param device : "The device id from `State`, for example a connector name or a backlight name"
  @param policy : "Which mechanisms the request may use; see `PolicyKind`"
- @return? error::INVALID_ARGUMENT : "The device id is empty or too long, or the transition is negative"
+ @return? error::INVALID_ARGUMENT : "The device id is empty or too long, the level is NaN, or the transition is negative"
  @return? error::BUSY : "The worker's queue is full"
  @return? error::UNAVAILABLE : "The service is closed"
 *>
@@ -143,6 +151,11 @@ fn SetOperation*? Brightness.set_level(
 			"device id must be 1 to %d bytes",
 			DEVICE_ID_CAPACITY
 		)~;
+	}
+	// NaN is not a level: refusing it keeps `unit::level`'s silent mapping of NaN to 0 out of requests.
+	if (math::is_nan((float)level))
+	{
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "level is not a number")~;
 	}
 	if (transition < time::DURATION_ZERO)
 	{

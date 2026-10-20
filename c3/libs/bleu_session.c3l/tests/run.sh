@@ -7,7 +7,8 @@
 # 2. starts mock_logind.py (python-dbus-next), which owns org.freedesktop.login1 there;
 # 3. runs logind_live.c3 (the backend reads, locks, unlocks, sleeps and follows the mock);
 # 4. checks the calls the mock logged;
-# 5. stops the mock and runs logind_absent.c3 (the backend must refuse without the name).
+# 5. runs logind_late.c3 against a mock whose session appears two seconds late (the session is found later);
+# 6. stops the mock and runs logind_absent.c3 (the backend must refuse without the name).
 #
 # Needs dbus-daemon, c3c, python3. Set BLEU_SESSION_PYTHON to a python that has dbus-next;
 # otherwise a virtual environment is created in the work directory (needs pypi access).
@@ -84,6 +85,19 @@ logged="$(cat "$work/calls.log")"
 say "calls: passed"
 set +e
 kill "$MOCK_PID" 2>/dev/null; wait "$MOCK_PID" 2>/dev/null
+set -e
+
+# This process is in no session for the first two seconds: the backend must find its session when it appears.
+BLEU_LOGIND_LATE_SESSION_SECONDS=2 BLEU_LOGIND_LOG= "$PYTHON" -I "$here/mock_logind.py" >"$work/late.out" 2>"$work/late.err" &
+LATE_PID=$!
+pids+=("$LATE_PID")
+for _ in $(seq 1 200); do grep -q READY "$work/late.out" 2>/dev/null && break; sleep 0.05; done
+grep -q READY "$work/late.out" || { say "the late mock did not start:"; cat "$work/late.err"; exit 2; }
+set -e
+(cd "$work" && c3c --libdir "$ld" "${libs[@]}" compile-test "$here/logind_late.c3" --sources "${sources[@]}")
+say "late session: passed"
+set +e
+kill "$LATE_PID" 2>/dev/null; wait "$LATE_PID" 2>/dev/null
 set -e
 (cd "$work" && c3c --libdir "$ld" "${libs[@]}" compile-test "$here/logind_absent.c3" --sources "${sources[@]}")
 say "absent: passed"

@@ -44,3 +44,18 @@ fn Maybe{Bytes} counter_from_sysfs(long value)
 	if (value < 0) return maybe::EMPTY{Bytes};
 	return maybe::value((Bytes)value);
 }
+
+<*
+ Whether `name` may be an interface name used as one path element under
+ `/sys/class/net`: not empty, no `/`, and not `.` or `..`. Kernel names never have
+ these, so a name that does is refused rather than read through a traversal.
+*>
+fn bool valid_interface_name(String name)
+{
+	if (name.len == 0 || name == "." || name == "..") return false;
+	foreach (c : name)
+	{
+		if (c == '/') return false;
+	}
+	return true;
+}

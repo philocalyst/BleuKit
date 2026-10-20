@@ -11,10 +11,14 @@ module bleu::ddc::session;
 import std::time, bleu::error, bleu::ddc::packet, bleu::ddc::vcp, bleu::ddc::capabilities, bleu::ddc::transport;
 import std::collections::list;
 
-<* Bytes of a Get VCP Feature Reply: destination, length, 8 payload bytes, checksum. *>
-const usz GET_VCP_FRAME_BYTES  = 11;
-<* Bytes read for a capabilities fragment: the largest reply frame. *>
-const usz FRAGMENT_FRAME_BYTES = packet::MAX_REPLY_PAYLOAD + 3;
+<*
+ Bytes read for a Get VCP reply: the 11-byte frame (destination, length, 8 payload
+ bytes, checksum) plus room for the duplicated leading 0x6E that `packet::parse_reply`
+ skips. Without that byte the checksum falls off the end of the read.
+*>
+const usz GET_VCP_FRAME_BYTES  = 11 + packet::LEADING_DUPLICATE_BYTES;
+<* Bytes read for a capabilities fragment: the largest reply frame, plus the leading duplicate. *>
+const usz FRAGMENT_FRAME_BYTES = packet::MAX_REPLY_PAYLOAD + 3 + packet::LEADING_DUPLICATE_BYTES;
 <* Bytes of the largest request frame this module sends. *>
 const usz REQUEST_WIRE_BYTES   = packet::MAX_PAYLOAD + 3;
 
@@ -26,6 +30,7 @@ struct Options
 {
 	// Physical attempts per operation (the first try included). MonitorControl
 	// `Arm64DDC.swift` retries 4 times, so 5 attempts; Lunar `DDC.c` uses 10.
+	// Zero is refused with INVALID_ARGUMENT, because no attempt would be made.
 	uint max_tries;
 	// Null replies tolerated before the operation is refused as UNSUPPORTED.
 	// ddcutil `ddc_packet_io.c` (`ddcrc_null_response_max = 3`). ddcutil notes that
@@ -133,7 +138,11 @@ struct Session
 	Statistics stats;
 }
 
-<* A session over `transport`, with `options` and the given way of waiting. *>
+<*
+ A session over `transport`, with `options` and the given way of waiting. An
+ operation on a session whose `options.max_tries` is zero is refused with
+ INVALID_ARGUMENT, as the attempts it would make are the policy.
+*>
 fn Session open(Transport transport, Sleeper sleeper, Options options)
 {
 	return { .transport = transport, .sleeper = sleeper, .options = options };
@@ -236,7 +245,7 @@ fn Capabilities? Session.read_capabilities(&self, Allocator allocator)
 }
 
 // Read fragments from offset 0 until the monitor sends an empty one.
-fn void? Session.read_fragments(&self, List{char}* text) @private
+fn void? Session.read_fragments(&self, List{char}* text)
 {
 	usz offset   = 0;
 	uint repeats = 0;
@@ -300,8 +309,9 @@ fn void? Session.read_fragments(&self, List{char}* text) @private
  is refused as UNSUPPORTED. A malformed reply and a transport failure are retried.
  An UNSUPPORTED reply from the monitor is final and is not retried.
 *>
-fn Reply? Session.exchange(&self, Request request, packet::ReplyKind expected, VcpCode code, char[] buffer) @private
+fn Reply? Session.exchange(&self, Request request, packet::ReplyKind expected, VcpCode code, char[] buffer)
 {
+	require_attempts(self.options.max_tries)!;
 	char[REQUEST_WIRE_BYTES] wire;
 	usz n      = request.encode_i2c(wire[..])!!;
 	fault last = error::BACKEND_FAILURE;
@@ -349,8 +359,9 @@ fn Reply? Session.exchange(&self, Request request, packet::ReplyKind expected, V
 }
 
 // Send a request without expecting a reply, retrying a refused write.
-fn void? Session.send(&self, char[] wire) @private
+fn void? Session.send(&self, char[] wire)
 {
+	require_attempts(self.options.max_tries)!;
 	fault last = error::BACKEND_FAILURE;
 	for (uint attempt = 1; attempt <= self.options.max_tries; attempt++)
 	{
@@ -369,7 +380,7 @@ fn void? Session.send(&self, char[] wire) @private
 }
 
 // One write, the wait for the reply, one read, and a check of what came back.
-fn Reply? Session.attempt(&self, char[] wire, packet::ReplyKind expected, VcpCode code, char[] buffer) @private
+fn Reply? Session.attempt(&self, char[] wire, packet::ReplyKind expected, VcpCode code, char[] buffer)
 {
 	self.transport.write(wire)!;
 	self.pause(self.read_wait());
@@ -404,27 +415,38 @@ fn Reply? Session.attempt(&self, char[] wire, packet::ReplyKind expected, VcpCod
 
 // The wait between a write and its reply: the policy, or the transport's own
 // minimum if that is longer.
-fn Duration Session.read_wait(&self) @private
+fn Duration Session.read_wait(&self)
 {
 	Duration transport_minimum = self.transport.min_interval_after_write();
 	return transport_minimum > self.options.write_to_read ? transport_minimum : self.options.write_to_read;
 }
 
+// A policy with no attempts is a caller error, refused before any byte is written.
+fn void? require_attempts(uint max_tries) @local
+{
+	if (max_tries == 0) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"max_tries is zero, so no attempt can be made"
+	)~;
+}
+
 // The wait before a retry, counted as a retry.
-fn void Session.retry(&self) @private
+fn void Session.retry(&self)
 {
 	self.stats.retries++;
 	self.pause(self.options.retry_delay);
 }
 
 // A public operation finished: count it, then honour the gap that follows it.
-fn void Session.complete(&self, Duration gap) @private
+fn void Session.complete(&self, Duration gap)
 {
 	self.stats.operations++;
 	self.pause(gap);
 }
 
-fn void Session.pause(&self, Duration duration) @private
+fn void Session.pause(&self, Duration duration)
 {
 	if (duration > time::DURATION_ZERO) self.sleeper.sleep(self.sleeper.context, duration);
 }

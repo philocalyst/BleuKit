@@ -352,6 +352,8 @@ fn void refresh(Logind* b, SessionHub* hub)
 	if (try state = read_state(b, snapshot.allocator()))
 	{
 		snapshot.value = state;
+		// The lock state is committed with the snapshot that shows it: a failed read leaves the last one.
+		b.locked = state.locked;
 	}
 	else
 	{

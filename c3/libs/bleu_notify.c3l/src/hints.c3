@@ -7,10 +7,21 @@
  counted in `Hints.ignored`; the notification is still shown. An `image-data`
  that is not a valid image (wrong bits per sample, a size or stride that does
  not fit, too little data, larger than `MAX_IMAGE_BYTES`) is dropped the same way.
- Strings and pixels are copied into the allocator given, so the message can go.
+
+ Bounds: at most `MAX_HINTS` entries are read; the rest are skipped and counted.
+ A repeated key is last-wins. Text is copied once, after the whole array has
+ been read, so a repeated text key costs nothing extra. Images are copied as
+ they are read, and every copy is charged to `MAX_HINT_BYTES`, the most image
+ bytes one notification may hold (a superseded image still counts). Strings and
+ pixels are copied into the allocator given, so the message can go.
 *>
 module bleu::notify::hints;
 import std::collections::maybe, bleu::error, bleu::unit, bleu::dbus::marshal, bleu::notify, bleu::notify::text;
+
+// Most `a{sv}` entries one Notify call may carry; further entries are skipped.
+const usz MAX_HINTS = 64;
+// Most image bytes one notification may copy, including superseded copies: room for one image and one replaced one.
+const usz MAX_HINT_BYTES = 2 * notify::MAX_IMAGE_BYTES;
 
 const String IMAGE_TYPE         = "(iiibiiay)";
 const int IMAGE_BITS_PER_SAMPLE = 8;
@@ -32,8 +43,9 @@ struct Hints
 	bool suppress_sound;
 	String sound_name;
 	String sound_file;
-	uint ignored; // hints skipped because their name was known but their type was not
-	// Precedence of the alternatives: a higher rank replaces a lower one, whatever the order on the wire.
+	uint ignored; // hints skipped: unknown count, wrong type, invalid image, or over a bound
+	usz copied; // image bytes copied so far, charged against MAX_HINT_BYTES
+	// Precedence of the alternatives: a higher rank replaces a lower one, and an equal rank is last-wins.
 	int image_rank;
 	int path_rank;
 	int tag_rank;
@@ -41,7 +53,8 @@ struct Hints
 
 <*
  Read the hints of one Notify call into `out`. Always leaves the reader after the
- hints, so the caller can read the arguments that follow.
+ hints, so the caller can read the arguments that follow. On error `out` is not
+ usable.
 
  @param allocator : "Allocator for the copied strings and pixels"
  @param [&inout] out : "Overwritten"
@@ -51,46 +64,61 @@ fn void? decode(Reader* r, Allocator allocator, Hints* out)
 {
 	*out = { .urgency = notify::Urgency.NORMAL };
 	r.begin_array()!;
+	usz entries = 0;
 	while (r.has_more())
 	{
 		r.begin_dict_entry()!;
 		String key  = r.read_string()!;
 		String type = r.begin_variant()!;
-		apply(out, allocator, r, key, type)!;
+		if (entries < MAX_HINTS)
+		{
+			apply(out, allocator, r, key, type)!;
+		}
+		else
+		{
+			out.ignored++;
+			r.skip_value()!;
+		}
+		entries++;
 		r.end_variant()!;
 		r.end_dict_entry()!;
 	}
 	r.end_array()!;
+	finish(out, allocator);
 }
 
 // Read one hint's value (exactly one value, always) and keep it if it is a hint this centre acts on.
 fn void? apply(Hints* out, Allocator allocator, Reader* r, String key, String type)
 {
 	if (key == "urgency") return take_urgency(out, r, type);
-	if (key == "category") return take_text(out, &out.category, r, type, notify::MAX_CATEGORY, allocator);
-	if (key == "desktop-entry") return take_text(
-		out,
-		&out.desktop_entry,
-		r,
-		type,
-		notify::MAX_DESKTOP_ENTRY,
-		allocator
-	);
-	if (key == "sound-file") return take_text(out, &out.sound_file, r, type, notify::MAX_SOUND, allocator);
-	if (key == "sound-name") return take_text(out, &out.sound_name, r, type, notify::MAX_SOUND, allocator);
+	if (key == "category") return take_text(out, &out.category, r, type);
+	if (key == "desktop-entry") return take_text(out, &out.desktop_entry, r, type);
+	if (key == "sound-file") return take_text(out, &out.sound_file, r, type);
+	if (key == "sound-name") return take_text(out, &out.sound_name, r, type);
 	if (key == "resident") return take_flag(out, r, type, &out.resident);
 	if (key == "transient") return take_flag(out, r, type, &out.transient);
 	if (key == "suppress-sound") return take_flag(out, r, type, &out.suppress_sound);
 	if (key == "value") return take_progress(out, r, type);
-	if (key == "image-path") return take_path(out, r, type, allocator, 2);
-	if (key == "image_path") return take_path(out, r, type, allocator, 1);
+	if (key == "image-path") return take_path(out, r, type, 2);
+	if (key == "image_path") return take_path(out, r, type, 1);
 	if (key == "image-data") return take_image(out, r, type, allocator, 3);
 	if (key == "image_data") return take_image(out, r, type, allocator, 2);
 	if (key == "icon_data") return take_image(out, r, type, allocator, 1);
 	int rank = tag_rank(key);
-	if (rank > 0) return take_tag(out, r, type, allocator, rank);
+	if (rank > 0) return take_tag(out, r, type, rank);
 	// Not a hint of this centre: the specification says to ignore it.
 	return r.skip_value();
+}
+
+// Copy every kept text value out of the message, capped to its limit. Runs once, after the array was read.
+fn void finish(Hints* out, Allocator allocator)
+{
+	out.category = text::truncate(out.category, notify::MAX_CATEGORY).copy(allocator);
+	out.desktop_entry = text::truncate(out.desktop_entry, notify::MAX_DESKTOP_ENTRY).copy(allocator);
+	out.sound_file = text::truncate(out.sound_file, notify::MAX_SOUND).copy(allocator);
+	out.sound_name = text::truncate(out.sound_name, notify::MAX_SOUND).copy(allocator);
+	out.image_path = text::truncate(out.image_path, notify::MAX_IMAGE_PATH).copy(allocator);
+	out.stack_tag = text::truncate(out.stack_tag, notify::MAX_STACK_TAG).copy(allocator);
 }
 
 // Skip a value whose type is wrong for the hint it names.
@@ -114,20 +142,20 @@ fn void? take_flag(Hints* out, Reader* r, String type, bool* slot)
 	*slot = r.read_bool()!;
 }
 
-fn void? take_text(Hints* out, String* slot, Reader* r, String type, usz max, Allocator allocator)
+// A text hint: the view into the message is kept, and `finish` copies it.
+fn void? take_text(Hints* out, String* slot, Reader* r, String type)
 {
 	if (type != "s") return mismatch(out, r);
-	String v = r.read_string()!;
-	*slot = text::truncate(v, max).copy(allocator);
+	*slot = r.read_string()!;
 }
 
-fn void? take_path(Hints* out, Reader* r, String type, Allocator allocator, int rank)
+fn void? take_path(Hints* out, Reader* r, String type, int rank)
 {
 	if (type != "s") return mismatch(out, r);
 	String v = r.read_string()!;
-	if (rank <= out.path_rank) return;
+	if (rank < out.path_rank) return;
 	out.path_rank = rank;
-	out.image_path = text::truncate(v, notify::MAX_IMAGE_PATH).copy(allocator);
+	out.image_path = v;
 }
 
 // `value` is an INT32 (the common form) or a UINT32 (dunst reads both); percent, clamped to a level.
@@ -159,16 +187,16 @@ fn int tag_rank(String key)
 	return 0;
 }
 
-fn void? take_tag(Hints* out, Reader* r, String type, Allocator allocator, int rank)
+fn void? take_tag(Hints* out, Reader* r, String type, int rank)
 {
 	if (type != "s") return mismatch(out, r);
 	String v = r.read_string()!;
-	if (rank <= out.tag_rank) return;
+	if (rank < out.tag_rank) return;
 	out.tag_rank = rank;
-	out.stack_tag = text::truncate(v, notify::MAX_STACK_TAG).copy(allocator);
+	out.stack_tag = v;
 }
 
-// The image in `(iiibiiay)`. A valid image replaces a lower-ranked one; the rest is read and dropped.
+// The image in `(iiibiiay)`. A valid image replaces a lower-ranked one (and an equal one: last wins); the rest is read and dropped.
 fn void? take_image(Hints* out, Reader* r, String type, Allocator allocator, int rank)
 {
 	if (type != IMAGE_TYPE) return mismatch(out, r);
@@ -180,11 +208,11 @@ fn void? take_image(Hints* out, Reader* r, String type, Allocator allocator, int
 	int bits       = r.read_i32()!;
 	int channels   = r.read_i32()!;
 	usz needed     = image_bytes(width, height, rowstride, has_alpha, bits, channels);
-	if (needed == 0 || rank <= out.image_rank)
+	if (needed == 0 || rank < out.image_rank || out.copied + needed > MAX_HINT_BYTES)
 	{
 		r.skip_value()!;
 		r.end_struct()!;
-		if (needed == 0) out.ignored++;
+		if (needed == 0 || rank >= out.image_rank) out.ignored++;
 		return;
 	}
 	char[] pixels = alloc::new_array(allocator, char, (sz)needed);
@@ -213,6 +241,7 @@ fn void? take_image(Hints* out, Reader* r, String type, Allocator allocator, int
 	};
 	out.has_image = true;
 	out.image_rank = rank;
+	out.copied += needed;
 }
 
 <*

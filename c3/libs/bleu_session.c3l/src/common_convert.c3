@@ -3,6 +3,7 @@
  every host runs the tests in `common_test.c3`.
 *>
 module bleu::session;
+import std::time;
 
 <*
  The session type named by logind (`Type` of org.freedesktop.login1.Session: "tty", "x11",

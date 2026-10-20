@@ -26,6 +26,8 @@ fn Interface read_interface(Allocator allocator, String root, String name, Inter
 			.kind = kind,
 			.link = UNKNOWN,
 		};
+		// A name that is not one path element is never read (it could leave the class directory).
+		if (!sysfs_convert::valid_interface_name(name)) return found;
 		char[ATTRIBUTE_CAPACITY] operstate;
 		if (try text = fs::read_trimmed(string::tformat("%s/operstate", dir), operstate[..]))
 		{

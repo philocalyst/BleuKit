@@ -50,7 +50,10 @@ const ZString DISTRIBUTED_APPEARANCE_CHANGED = "AppleInterfaceThemeChangedNotifi
 const ZString DISTRIBUTED_SCREEN_LOCKED = "com.apple.screenIsLocked";
 
 <*
- The notification center of `kind`, borrowed.
+ The notification center of `kind`, borrowed. The `defaultCenter` and
+ `sharedWorkspace` results are autoreleased, so call this inside a pool
+ (`objc::@autorelease_pool()` or `objc::@objc_entry()`), as the appearance
+ callbacks do on worker threads.
 
  @return "the center; nil only if the framework is not loaded"
 *>

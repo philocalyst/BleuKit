@@ -85,3 +85,13 @@ fn void polled_records_each_change_once() @test
 	assert(polled.pending.len() == 1 && polled.pending.get(0)
 		.kind == EventKind.DID_WAKE, "an unchanged lock is not recorded");
 }
+
+fn void retry_delay_doubles_up_to_thirty_seconds() @test
+{
+	assert(session::retry_delay(0) == (Duration)1_000_000, "the first retry waits one second");
+	assert(session::retry_delay(1) == (Duration)1_000_000);
+	assert(session::retry_delay(2) == (Duration)2_000_000);
+	assert(session::retry_delay(5) == (Duration)16_000_000);
+	assert(session::retry_delay(6) == (Duration)30_000_000, "the wait is capped at 30 seconds");
+	assert(session::retry_delay(1000) == (Duration)30_000_000);
+}

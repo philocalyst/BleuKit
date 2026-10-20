@@ -8,7 +8,7 @@
  the Bleu object that owns the instance (the same pattern as gfx_macos.c3's
  `gfx_window` ivar).
  3. `method` registers each C3 function as a selector implementation
- (`class_addMethod`), with a type encoding from `signature`.
+ (`class_addMethod`), with a type encoding from `encoding::signature`.
  4. `adopt_protocol` adds formal protocols (`class_addProtocol`).
  5. `finish` registers the class (`objc_registerClassPair`). It cannot change afterwards.
 

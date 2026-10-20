@@ -128,11 +128,11 @@ fn Timer? repeating_timer(SerialQueue queue, Duration interval, WorkFn handler, 
 
 <*
  Activate the timer: the first tick comes one interval from now. Starting an
- active timer does nothing.
+ active timer, or a closed one, does nothing.
 *>
 fn void Timer.start(&self)
 {
-	if (self.activated) return;
+	if (self.activated || !self.source) return;
 	ulong period = (ulong)self.interval.to_nano();
 	ulong first  = dispatch_time(DISPATCH_TIME_NOW_VALUE, (long)period);
 	dispatch_source_set_timer(self.source, first, period, period / 10);
@@ -140,8 +140,15 @@ fn void Timer.start(&self)
 	self.activated = true;
 }
 
-<* Cancel the timer. No further ticks are delivered after this returns. *>
-fn void Timer.stop(&self) => dispatch_source_cancel(self.source);
+<*
+ Cancel the timer. No further ticks are delivered after this returns. Does nothing
+ after `close`, when the source is gone.
+*>
+fn void Timer.stop(&self)
+{
+	if (!self.source) return;
+	dispatch_source_cancel(self.source);
+}
 
 <*
  Cancel and release the timer. Idempotent. A timer that was never started is

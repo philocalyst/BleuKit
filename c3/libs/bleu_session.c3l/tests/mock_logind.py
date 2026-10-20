@@ -21,6 +21,10 @@ Every session method call is appended to the file named by BLEU_LOGIND_LOG, one
 "Method argument" line each, before it is checked, so the test script can see the refused
 calls too.
 
+BLEU_LOGIND_LATE_SESSION_SECONDS (optional): this process is in no session at first. The first
+GetSessionByPID is refused with NoSessionForPID; that many seconds later the mock announces
+SessionNew for session 32, and from then on answers the lookup.
+
 Prints READY on stdout once the name is owned. Needs python-dbus-next (0.2.x).
 """
 import asyncio
@@ -37,6 +41,10 @@ MANAGER_IFACE = 'org.freedesktop.login1.Manager'
 SESSION_IFACE = 'org.freedesktop.login1.Session'
 LOG = os.environ.get('BLEU_LOGIND_LOG', '')
 SUSPEND_GAP_SECONDS = 0.2
+LATE_SESSION_SECONDS = float(os.environ.get('BLEU_LOGIND_LATE_SESSION_SECONDS', '0') or 0)
+# The late session: scheduled at the first refused lookup, announced once, then visible.
+late_state = {'scheduled': False, 'announced': False}
+MANAGER = None
 
 SESSIONS = {
     '32': {
@@ -140,6 +148,11 @@ class Manager(ServiceInterface):
     @method()
     def GetSessionByPID(self, pid: 'u') -> 'o':
         # The test process is session 32; any other pid is treated the same way.
+        if LATE_SESSION_SECONDS > 0 and not late_state['announced']:
+            if not late_state['scheduled']:
+                late_state['scheduled'] = True
+                asyncio.get_running_loop().call_later(LATE_SESSION_SECONDS, announce_late_session)
+            raise DBusError('org.freedesktop.login1.NoSessionForPID', 'No session for PID %d' % pid)
         return SESSIONS['32']['path']
 
     @method()
@@ -191,10 +204,17 @@ class Manager(ServiceInterface):
         return [session_id, path]
 
 
+def announce_late_session():
+    late_state['announced'] = True
+    MANAGER.SessionNew('32', SESSIONS['32']['path'])
+
+
 async def main():
+    global MANAGER
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
     sessions = {key: Session(key) for key in SESSIONS}
     manager = Manager(sessions)
+    MANAGER = manager
     bus.export(MANAGER_PATH, manager)
     for key, obj in sessions.items():
         bus.export(SESSIONS[key]['path'], obj)

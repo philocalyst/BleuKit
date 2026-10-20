@@ -67,6 +67,12 @@ const usz MAX_PAYLOAD       = 4;
 const usz MAX_REPLY_PAYLOAD = 35;
 <* Bytes of capabilities or table data carried by one fragment reply. *>
 const usz MAX_FRAGMENT      = 32;
+<*
+ Bytes a reply may carry ahead of its frame: one extra leading 0x6E. Some monitors
+ send the destination byte twice (ddcutil `ddc_packet_io.c`, "Quirk: response packet
+ starts with double 0x6e"), and `parse_reply` skips it, so every read buffer needs room for it.
+*>
+const usz LEADING_DUPLICATE_BYTES = 1;
 
 <*
  Opcodes of the DDC/CI and MCCS messages.

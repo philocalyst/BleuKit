@@ -9,11 +9,16 @@
 module bleu::notify::store;
 import std::collections::list, std::collections::maybe, std::time, bleu::notify, bleu::notify::markup, bleu::notify::rules, bleu::notify::wire;
 
-<* A notification the centre holds. Its text lives in `arena`, which is freed with it. *>
+<*
+ A notification the centre holds. Its text lives in `arena`, which is freed with it.
+ `sender` is the D-Bus unique name that sent it: only that sender may replace or
+ close it through the bus (see the trust model in the README).
+*>
 struct Entry
 {
 	Allocator parent;
 	DynamicArenaAllocator arena;
+	String sender;
 	wire::Incoming incoming;
 	notify::Notification note;
 }
@@ -58,12 +63,13 @@ fn void Store.free(&self)
 	self.history.free();
 }
 
-<* A new entry with an empty arena, for `wire::read_notify` to fill. *>
-fn Entry* Store.new_entry(&self)
+<* A new entry with an empty arena, for `wire::read_notify` to fill, owned by `sender`. *>
+fn Entry* Store.new_entry(&self, String sender = "")
 {
 	Entry* e = alloc::new(self.allocator, Entry);
 	e.parent = self.allocator;
 	e.arena.init(self.allocator, 1024);
+	e.sender = sender.copy((Allocator)&e.arena);
 	return e;
 }
 
@@ -76,36 +82,27 @@ fn void release_entry(Entry* e)
 }
 
 <*
- Take a decoded Notify call into the store. A replacement (by `replaces_id`, or
- by a stack tag that matches an open notification) keeps the old id and its
- place on screen; anything else gets the next id. Do-not-disturb holds back a
- new non-critical notification into history. When the open limit is reached,
- the oldest non-critical open notification is closed to make room.
+ Take a decoded Notify call into the store. A replacement keeps the id and the
+ place of an open notification that the same sender posted: it is named by
+ `replaces_id`, or by a stack tag, and a replacement never makes a critical
+ notification less urgent. Anything else, including a `replaces_id` that names
+ no such notification, gets a fresh id (`allocate_id`). Do-not-disturb holds
+ back a new non-critical notification into history. When the open limit is
+ reached, the oldest non-critical open notification is closed to make room.
 
  Takes ownership of `e`: it is in the store afterwards, or released.
 *>
 fn Posted Store.post(&self, Entry* e, Time now)
 {
 	Posted result;
+	int index = -1;
+	if (e.incoming.replaces_id != 0) index = self.find_owned(e.incoming.replaces_id, e.sender);
+	if (index < 0 && e.incoming.hints.stack_tag.len > 0) index = self.find_stack(e.incoming.hints.stack_tag, e.sender);
+	Entry* old = index >= 0 ? self.active.get((sz)index) : null;
+	if (old != null && old.note.urgency == notify::Urgency.CRITICAL) e.incoming.hints.urgency = notify::Urgency.CRITICAL;
 	notify::Urgency urgency = e.incoming.hints.urgency;
-	int index               = self.find_active(e.incoming.replaces_id);
-	if (e.incoming.replaces_id != 0) self.drop_from_history(e.incoming.replaces_id);
-	if (index < 0 && e.incoming.hints.stack_tag.len > 0) index = self.find_stack(e.incoming.hints.stack_tag);
-	notify::NoteId id;
-	if (index >= 0)
-	{
-		id = self.active.get((sz)index).note.id;
-	}
-	else if (e.incoming.replaces_id != 0)
-	{
-		id = e.incoming.replaces_id;
-	}
-	else
-	{
-		id = rules::next_id(self.last_id);
-		self.last_id = id;
-	}
-	bool shown = index >= 0 || !rules::held_by_dnd(self.dnd, urgency);
+	notify::NoteId id       = old != null ? old.note.id : self.allocate_id();
+	bool shown              = index >= 0 || !rules::held_by_dnd(self.dnd, urgency);
 	if (shown && index < 0 && (usz)self.active.len() >= self.policy.max_open)
 	{
 		Entry* victim = self.take_eviction_victim();
@@ -117,7 +114,6 @@ fn Posted Store.post(&self, Entry* e, Time now)
 	fill_note(e, id, now, timeout);
 	if (index >= 0)
 	{
-		Entry* old = self.active.get((sz)index);
 		self.active.set_at((sz)index, e);
 		release_entry(old);
 	}
@@ -171,15 +167,34 @@ fn void fill_note(Entry* e, notify::NoteId id, Time now, Maybe{Duration} timeout
 <*
  Take the open notification `id` out of the centre and into history (or drop it,
  when it is transient). Returns false when no open notification has this id.
+ Used by the shell and by expiry; the bus goes through `close_owned`.
 *>
 fn bool Store.close(&self, notify::NoteId id)
 {
 	int index = self.find_active(id);
 	if (index < 0) return false;
+	self.close_at(index);
+	return true;
+}
+
+<*
+ As `close`, but only when `sender` posted the notification. A CloseNotification from
+ any other sender finds nothing, exactly as an unknown id.
+*>
+fn bool Store.close_owned(&self, notify::NoteId id, String sender)
+{
+	int index = self.find_owned(id, sender);
+	if (index < 0) return false;
+	self.close_at(index);
+	return true;
+}
+
+// Move the open notification at `index` to history (or drop it).
+fn void Store.close_at(&self, int index)
+{
 	Entry* e = self.active.get((sz)index);
 	self.active.remove_at((sz)index);
 	self.retire(e);
-	return true;
 }
 
 <* The open notification with `id`, or null. It stays in the store. *>
@@ -223,25 +238,41 @@ fn int Store.find_active(&self, notify::NoteId id)
 	return -1;
 }
 
-// Index of the open notification with stack tag `tag`, or -1.
-fn int Store.find_stack(&self, String tag)
+// Index of the open notification with `id` that `sender` posted, or -1. Other senders' notifications never match.
+fn int Store.find_owned(&self, notify::NoteId id, String sender)
+{
+	int index = self.find_active(id);
+	if (index < 0 || self.active.get((sz)index).sender != sender) return -1;
+	return index;
+}
+
+// Index of the open notification with stack tag `tag` that `sender` posted, or -1.
+fn int Store.find_stack(&self, String tag, String sender)
 {
 	foreach (i, e : self.active)
 	{
-		if (e.note.stack_tag == tag) return (int)i;
+		if (e.note.stack_tag == tag && e.sender == sender) return (int)i;
 	}
 	return -1;
 }
 
-// Forget a history entry that a replacement now takes over.
-fn void Store.drop_from_history(&self, notify::NoteId id)
+// Whether a notification with `id` is in history.
+fn bool Store.in_history(&self, notify::NoteId id)
 {
-	foreach (i, e : self.history)
+	foreach (e : self.history)
 	{
-		if (e.note.id != id) continue;
-		self.history.remove_at(i);
-		release_entry(e);
-		return;
+		if (e.note.id == id) return true;
+	}
+	return false;
+}
+
+// The next id that is neither open nor in history. Never zero; ids are not reused while they are in use.
+fn notify::NoteId Store.allocate_id(&self)
+{
+	while (true)
+	{
+		self.last_id = rules::next_id(self.last_id);
+		if (self.find_active(self.last_id) < 0 && !self.in_history(self.last_id)) return self.last_id;
 	}
 }
 
