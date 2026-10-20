@@ -299,7 +299,7 @@ fn tray::MenuItem menu_entry(MenuNode* node, Allocator a, usz first_child)
 		.has_submenu = node.has_submenu,
 		.submenu_loaded = !node.has_submenu || node.children.len > 0,
 		.disposition = node.disposition,
-		.first_child = (uint)first_child,
+		.first_child = node.children.len > 0 ? (uint)first_child : 0,
 		.child_count = (uint)node.children.len,
 	};
 }

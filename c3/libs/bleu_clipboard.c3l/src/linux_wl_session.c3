@@ -10,7 +10,7 @@
  Threading: one thread owns the session. Listeners run inside `pump`, on that thread.
 *>
 module bleu::clipboard::linux_wl @feat(LINUX);
-import bleu::clipboard, bleu::error, bleu::rt, bleu::rt::poller, bleu::wl, bleu::wl::display, bleu::wl::proto::wayland, bleu::wl::proto::ext_data_control, bleu::wl::proto::wlr_data_control, std::collections::list, std::collections::maybe, std::time, std::core::mem;
+import bleu::clipboard, bleu::error, bleu::rt, bleu::rt::poller, bleu::rt::wakeup, bleu::wl, bleu::wl::display, bleu::wl::proto::wayland, bleu::wl::proto::ext_data_control, bleu::wl::proto::wlr_data_control, std::collections::list, std::collections::maybe, std::time, std::core::mem;
 
 <* Most transfers in flight at once. A further fetch is refused as BUSY. *>
 const usz MAX_TRANSFERS = 8;
@@ -52,7 +52,7 @@ struct WlSession
 	Allocator allocator;
 	Board* board;
 	Duration timeout;
-	Wakeup* wakeup;
+	wakeup::Wakeup* wakeup;
 	wl::Client client;
 	bool connected;
 	DataControl kind;

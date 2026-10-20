@@ -124,7 +124,7 @@ expect "$work/fake.out"  '^FAKE abouttoshow 2$'                           "fake 
 expect "$work/host.out"  '^HOST host_registered True$'                    "a dbus-next host sees the watcher with a registered host"
 expect "$work/host.out"  '^HOST own_title Bleu Probe$'                    "a dbus-next host reads our icon's Title"
 expect "$work/host.out"  '^HOST own_icon applications-internet$'          "a dbus-next host reads our icon's IconName"
-expect "$work/host.out"  '^HOST own_menu_entry 1 Open$'                   "a dbus-next host reads our menu entry"
+expect "$work/host.out"  '^HOST own_menu_entry 1 _Open$'                  "a dbus-next host reads our menu entry (raw label: the host shows mnemonics)"
 expect "$work/host.out"  '^HOST activated own icon$'                      "a dbus-next host activates our icon"
 expect "$work/host.out"  '^HOST clicked own menu$'                        "a dbus-next host clicks our menu"
 

@@ -1,0 +1,4 @@
+openwindow>>0x55d1c0a53000,1,kitty,Log: a, b, c
+windowtitlev2>>0x55d1c0a53000,Docs, part 3
+closewindow>>0x55d1c0a4e2b0
+activelayout>>main-keyboard,English (US)

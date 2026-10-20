@@ -98,7 +98,7 @@ struct MenuItem
 	bool has_submenu;
 	bool submenu_loaded;
 	Disposition disposition;
-	uint first_child;
+	uint first_child; // index of the first child; 0 when there are none
 	uint child_count;
 }
 

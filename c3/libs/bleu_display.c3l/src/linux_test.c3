@@ -5,7 +5,7 @@
  expecting each request in order and answering it.
 *>
 module bleu::display::linux_test @feat(LINUX);
-import bleu::display, bleu::display::linux_wayland, bleu::wl, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::xdg_output, bleu::wl::proto::wlr_output_management, bleu::rt::unix, bleu::rt::foreign, bleu::operation, bleu::error, bleu::observe, std::core::test, std::thread, std::time::clock;
+import bleu::display, bleu::display::linux_wayland, bleu::wl, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::xdg_output, bleu::wl::proto::wlr_output_management, bleu::rt::unix, bleu::rt::foreign, bleu::operation, bleu::error, bleu::observe, bleu::availability, std::core::test, std::thread, std::time::clock;
 
 // wl_display's id, and the events and requests the scenarios use (opcodes from the protocol XML).
 const uint WL_DISPLAY = 1;
@@ -340,14 +340,6 @@ fn int wlr_test_scenario(void* arg)
 	return 0;
 }
 
-fn display::Config one_change(ApplyOp* op, bool enabled, Transform transform)
-{
-	display::OutputChange[1] changes = {
-		{ .output_id = "DP-1", .enabled = enabled, .mode = { .width = 1920, .height = 1080, .refresh = 60000 }, .transform = transform },
-	};
-	return { .outputs = changes[..] };
-}
-
 // A copy of the configuration in the operation's arena, as the public `apply` makes it.
 fn display::Config owned(ApplyOp* op, display::Config config)
 {
@@ -366,8 +358,9 @@ fn void test_only_reports_the_outcome_and_changes_nothing() @test
 	assert(session.wlr && session.serial == SERIAL);
 	ApplyOp* op = operation::begin(mem);
 	op.retain();
-	display::Config config = owned(op, one_change(op, true, display::Transform.NORMAL));
-	linux_wayland::begin_apply(session, { .kind = APPLY, .op = op, .config = config, .mode = TEST_ONLY }, clock::now());
+	display::OutputChange[1] changes = { { .output_id = "DP-1", .enabled = true, .mode = { .width = 1920, .height = 1080, .refresh = 60000 } } };
+	display::Config config = owned(op, { .outputs = changes[..] });
+	linux_wayland::begin_apply(session, { .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.TEST_ONLY }, clock::now());
 	pump(session);
 	display::ApplyResult result = op.wait()!!;
 	assert(!result.live && !result.revert_armed);
@@ -416,8 +409,11 @@ fn void unconfirmed_change_is_rolled_back() @test
 	defer session.close();
 	ApplyOp* op = operation::begin(mem);
 	op.retain();
-	display::Config config = owned(op, one_change(op, true, display::Transform.R90));
-	linux_wayland::begin_apply(session, { .kind = APPLY, .op = op, .config = config, .mode = APPLY_WITH_REVERT, .revert_after = (Duration)1_000_000 }, clock::now());
+	display::OutputChange[1] changes = {
+		{ .output_id = "DP-1", .enabled = true, .mode = { .width = 1920, .height = 1080, .refresh = 60000 }, .transform = display::Transform.R90 },
+	};
+	display::Config config = owned(op, { .outputs = changes[..] });
+	linux_wayland::begin_apply(session, { .kind = display::CommandKind.APPLY, .op = op, .config = config, .mode = display::ApplyMode.APPLY_WITH_REVERT, .revert_after = (Duration)1_000_000 }, clock::now());
 	pump(session);
 	display::ApplyResult result = op.wait()!!;
 	assert(result.live && result.revert_armed);

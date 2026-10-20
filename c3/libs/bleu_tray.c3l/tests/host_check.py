@@ -42,8 +42,7 @@ async def main():
     print('HOST own_title', props['Title'].value, flush=True)
     print('HOST own_icon', props['IconName'].value, flush=True)
     print('HOST own_menu', props['Menu'].value, flush=True)
-    (layout,) = await call(bus, bus_name, '/MenuBar', 'com.canonical.dbusmenu', 'GetLayout', 'iias', [0, -1, []])
-    revision, root = layout
+    revision, root = await call(bus, bus_name, '/MenuBar', 'com.canonical.dbusmenu', 'GetLayout', 'iias', [0, -1, []])
     for child in root[2]:
         node = child.value
         print('HOST own_menu_entry', node[0], node[1].get('label', Variant('s', '')).value, flush=True)

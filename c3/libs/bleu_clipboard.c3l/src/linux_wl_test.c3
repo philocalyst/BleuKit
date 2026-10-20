@@ -6,7 +6,7 @@
  capture, and a fetch of a live offer through an operation.
 *>
 module bleu::clipboard::linux_wl @feat(LINUX);
-import bleu::clipboard, bleu::operation, bleu::rt, bleu::rt::foreign, bleu::rt::unix, bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_data_control, std::core::test, std::core::mem, std::thread, std::time;
+import bleu::clipboard, bleu::operation, bleu::rt, bleu::rt::foreign, bleu::rt::unix, bleu::rt::wakeup, bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_data_control, std::core::test, std::core::mem, std::thread, std::time;
 
 // pipe(2): the scenarios make the pipes the compositor writes into.
 extern fn CInt sys_pipe(CInt* fds) @cname("pipe");
@@ -82,8 +82,9 @@ fn Setup serve_device(testing::MockServer* s)
 	send_global(s, registry, 6, "ext_data_control_manager_v1", 1);
 	testing::Message sync = expect_request(s, display::DISPLAY_ID, 0);
 	answer_sync(s, s.reader(sync).get_new_id()!!);
-	uint seat    = expect_bind(s, registry, 4, "wl_seat", 7);
+	// The session binds the manager first (ext-data-control is preferred), then the seat.
 	uint manager = expect_bind(s, registry, 6, "ext_data_control_manager_v1", 1);
+	uint seat    = expect_bind(s, registry, 4, "wl_seat", 7);
 	testing::Message device = expect_request(s, manager, 1);
 	wire::Reader r          = s.reader(device);
 	uint id                 = r.get_new_id()!!;
@@ -236,10 +237,10 @@ fn void copy_from_another_application_is_kept_in_history() @test
 {
 	testing::MockServer server;
 	Board board;
-	board.init(mem, DEFAULT_HISTORY_ITEMS, DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
+	board.init(mem, clipboard::DEFAULT_HISTORY_ITEMS, clipboard::DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
 	WlSession session;
-	session.init(mem, &board, DEFAULT_TRANSFER_TIMEOUT);
-	rt::Wakeup wakeup;
+	session.init(mem, &board, clipboard::DEFAULT_TRANSFER_TIMEOUT);
+	wakeup::Wakeup wakeup;
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
@@ -259,10 +260,10 @@ fn void concealed_copy_is_never_read() @test
 {
 	testing::MockServer server;
 	Board board;
-	board.init(mem, DEFAULT_HISTORY_ITEMS, DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
+	board.init(mem, clipboard::DEFAULT_HISTORY_ITEMS, clipboard::DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
 	WlSession session;
-	session.init(mem, &board, DEFAULT_TRANSFER_TIMEOUT);
-	rt::Wakeup wakeup;
+	session.init(mem, &board, clipboard::DEFAULT_TRANSFER_TIMEOUT);
+	wakeup::Wakeup wakeup;
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
@@ -281,10 +282,10 @@ fn void our_own_selection_serves_its_bytes_and_is_released() @test
 {
 	testing::MockServer server;
 	Board board;
-	board.init(mem, DEFAULT_HISTORY_ITEMS, DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
+	board.init(mem, clipboard::DEFAULT_HISTORY_ITEMS, clipboard::DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
 	WlSession session;
-	session.init(mem, &board, DEFAULT_TRANSFER_TIMEOUT);
-	rt::Wakeup wakeup;
+	session.init(mem, &board, clipboard::DEFAULT_TRANSFER_TIMEOUT);
+	wakeup::Wakeup wakeup;
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
@@ -308,10 +309,10 @@ fn void a_capture_over_the_size_cap_is_dropped() @test
 {
 	testing::MockServer server;
 	Board board;
-	board.init(mem, DEFAULT_HISTORY_ITEMS, DEFAULT_HISTORY_BYTES, 8);
+	board.init(mem, clipboard::DEFAULT_HISTORY_ITEMS, clipboard::DEFAULT_HISTORY_BYTES, 8);
 	WlSession session;
-	session.init(mem, &board, DEFAULT_TRANSFER_TIMEOUT);
-	rt::Wakeup wakeup;
+	session.init(mem, &board, clipboard::DEFAULT_TRANSFER_TIMEOUT);
+	wakeup::Wakeup wakeup;
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
@@ -330,10 +331,10 @@ fn void a_fetch_reads_the_chosen_type_of_the_live_offer() @test
 {
 	testing::MockServer server;
 	Board board;
-	board.init(mem, DEFAULT_HISTORY_ITEMS, DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
+	board.init(mem, clipboard::DEFAULT_HISTORY_ITEMS, clipboard::DEFAULT_HISTORY_BYTES, TEST_PAYLOAD);
 	WlSession session;
-	session.init(mem, &board, DEFAULT_TRANSFER_TIMEOUT);
-	rt::Wakeup wakeup;
+	session.init(mem, &board, clipboard::DEFAULT_TRANSFER_TIMEOUT);
+	wakeup::Wakeup wakeup;
 	wakeup.init()!!;
 	defer wakeup.close();
 	session.wakeup = &wakeup;
@@ -347,8 +348,7 @@ fn void a_fetch_reads_the_chosen_type_of_the_live_offer() @test
 	ulong seq = board.lane(Slot.CLIPBOARD).seq;
 	session.start_receive(session.lane_offers[Slot.CLIPBOARD.ordinal], Slot.CLIPBOARD, seq, "image/png", op.retain())!!;
 	pump_ticks(&session, 25);
-	test::eq(op.phase(), Phase.SUCCEEDED);
-	Bytes image = op.wait()!!;
+	Bytes image = op.wait((Duration)1_000_000)!!;
 	test::eq((String)image, "PNG");
 	t.join()!!;
 }

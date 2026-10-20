@@ -46,9 +46,16 @@ fn void print_state(tray::State* state, ulong generation)
 	io::printfn("STATE gen=%d items=%d watcher=%d served=%d host=%d own=%d", generation, state.items.len, state.watcher_present ? 1 : 0, state.watcher_served ? 1 : 0, state.host_registered ? 1 : 0, state.own_published ? 1 : 0);
 }
 
-// Wait for a state that satisfies `check`, printing each new state. The caller releases the result.
+// Wait for a state that satisfies `check`: the current one first, then each new state, printed.
+// The caller releases the result.
 fn Snapshot{tray::State}*? until(tray::Tray* host, ulong* seen, Check check, String what)
 {
+	if (try current = host.latest())
+	{
+		*seen = current.generation;
+		if (check(&current.value)) return current;
+		current.release();
+	}
 	for (int i = 0; i < ROUNDS; i++)
 	{
 		if (try snap = host.wait_after(*seen, STEP))
