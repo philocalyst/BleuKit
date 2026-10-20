@@ -274,26 +274,42 @@ static void brightness_set_and_read_back(bleu_brightness_t *brightness)
     CHECK(strcmp(value, "24000") == 0);
 }
 
+/* A ramp ends CANCELLED when a newer request for the same device replaces it (the brightness contract). */
 static void brightness_cancel_a_ramp(bleu_brightness_t *brightness)
 {
-    bleu_brightness_set_request_t request;
-    memset(&request, 0, sizeof request);
-    request.struct_size = (uint32_t)sizeof request;
-    request.device = "intel_backlight";
-    request.level = 1.0f;
-    request.transition_ms = 5000;
+    bleu_brightness_set_request_t ramp;
+    memset(&ramp, 0, sizeof ramp);
+    ramp.struct_size = (uint32_t)sizeof ramp;
+    ramp.device = "intel_backlight";
+    ramp.level = 1.0f;
+    ramp.transition_ms = 5000;
 
-    bleu_operation_t *operation = NULL;
-    CHECK(bleu_brightness_set_level(brightness, &request, &operation) == BLEU_STATUS_OK);
+    bleu_operation_t *slow = NULL;
+    CHECK(bleu_brightness_set_level(brightness, &ramp, &slow) == BLEU_STATUS_OK);
     struct timespec pause = { 0, 150 * 1000 * 1000 };
     nanosleep(&pause, NULL);
-    CHECK(bleu_operation_cancel(operation) == BLEU_STATUS_OK);
-    CHECK(bleu_operation_wait(operation, 5000) == BLEU_STATUS_CANCELLED);
+
+    bleu_brightness_set_request_t replace;
+    memset(&replace, 0, sizeof replace);
+    replace.struct_size = (uint32_t)sizeof replace;
+    replace.device = "intel_backlight";
+    replace.level = 0.5f;
+    bleu_operation_t *fast = NULL;
+    CHECK(bleu_brightness_set_level(brightness, &replace, &fast) == BLEU_STATUS_OK);
+
+    CHECK(bleu_operation_wait(slow, 5000) == BLEU_STATUS_CANCELLED);
     bleu_operation_phase_t phase = BLEU_OPERATION_PHASE_PENDING;
-    CHECK(bleu_operation_phase(operation, &phase) == BLEU_STATUS_OK);
+    CHECK(bleu_operation_phase(slow, &phase) == BLEU_STATUS_OK);
     CHECK(phase == BLEU_OPERATION_PHASE_CANCELLED);
-    CHECK(bleu_brightness_set_result(operation) == NULL);
-    bleu_operation_release(operation);
+    CHECK(bleu_brightness_set_result(slow) == NULL);
+    CHECK(bleu_operation_wait(fast, 5000) == BLEU_STATUS_OK);
+    CHECK(bleu_brightness_set_result(fast) != NULL);
+
+    /* Asking a finished operation to stop is accepted and changes nothing. */
+    CHECK(bleu_operation_cancel(fast) == BLEU_STATUS_OK);
+    CHECK(bleu_operation_wait(fast, 0) == BLEU_STATUS_OK);
+    bleu_operation_release(slow);
+    bleu_operation_release(fast);
 }
 
 static void brightness_failed_operation_has_details(bleu_brightness_t *brightness)

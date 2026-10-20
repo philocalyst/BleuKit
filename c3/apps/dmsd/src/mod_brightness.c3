@@ -11,7 +11,7 @@
  The arithmetic is in `brightness_math.c3`. Deviations are listed in docs/DMSD.md.
 *>
 module dmsd::brightness_mod;
-import std::collections::list, std::time, bleu::brightness, bleu::error, bleu::ipc, bleu::json, bleu::observe, bleu::unit, dmsd::contract, dmsd::wire, dmsd::brightness_math;
+import std::collections::list, std::time, bleu::brightness, bleu::error, bleu::ipc, bleu::json, bleu::observe, bleu::unit, dmsd::contract, dmsd::wire, dmsd::params, dmsd::brightness_math;
 
 const String[2] TOPICS = { "brightness", "brightness.update" };
 const String[1] CAPABILITIES = { "brightness" };
@@ -213,7 +213,7 @@ fn observe::Snapshot{brightness::State}*? settle(brightness::Brightness* service
 
  @return "The state to answer with: the one after the write, in `allocator`"
  @return? error::INVALID_ARGUMENT : "percent is negative"
- @return? error::NOT_FOUND : "device not found"
+ @return? NOT_FOUND : "device not found"
  @return? error::BACKEND_FAILURE : "the write failed or timed out"
 *>
 fn String? BrightnessModule.apply_percent(&self, Allocator allocator, String id, long percent, bool exponential, double exponent)
@@ -331,18 +331,17 @@ fn bool start(contract::Context* context, contract::Module* self)
 fn void stop(contract::Context* context, contract::Module* self)
 {
 	BrightnessModule* m = (BrightnessModule*)self.state;
-	m.service.unwatch(m.watch_id);
+	m.service.unwatch(m.watch_id)!!;
 	m.state_pump.stop();
 	m.state_pump.free();
 	m.service.close();
 	alloc::free(context.allocator, m);
 }
 
-<* The module's descriptor for `main`. *>
-fn contract::Module descriptor()
-{
-	return { .name = "brightness", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
-}
+<* The module's descriptor for `main`. A global constant, so its slices point at static data. *>
+const contract::Module DESCRIPTOR = { .name = "brightness", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
+
+fn contract::Module descriptor() => DESCRIPTOR;
 
 fn void handle_get_state(void* context, ipc::Call* call)
 {

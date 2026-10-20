@@ -1,6 +1,6 @@
 <* The `network` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_network;
-import bleu::network, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::network, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the network service. Its root and bus address options point tests at fakes. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -16,7 +16,7 @@ fn void? scan(registry::Request* request)
 	network::Network* service = (network::Network*)request.handle;
 	network::SettleOp* operation = service.scan()!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -30,12 +30,12 @@ fn void? connect(registry::Request* request)
 	String ssid = request.params.string("ssid")!;
 	network::ConnectRequest connect = {
 		.ssid = (char[])ssid,
-		.passphrase = registry::string_or(request.params, "passphrase", ""),
+		.passphrase = registry::string_or(request.params, "passphrase", "")!,
 		.autoconnect = request.params.boolean("autoconnect") ?? true,
 	};
 	network::ConnectOp* operation = service.connect(connect)!;
 	defer operation.release();
-	network::Connected joined = registry::await(operation, request.timeout)!;
+	network::Connected joined = registry::await{network::Connected}(operation, request.timeout)!;
 	out_connected(request.out, joined)!;
 	return;
 }
@@ -59,7 +59,7 @@ fn void? disconnect(registry::Request* request)
 	network::Network* service = (network::Network*)request.handle;
 	network::SettleOp* operation = service.disconnect()!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -70,7 +70,7 @@ fn void? forget(registry::Request* request)
 	String ssid = request.params.string("ssid")!;
 	network::SettleOp* operation = service.forget((char[])ssid)!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -81,7 +81,7 @@ fn void? set_radio(registry::Request* request)
 	bool enabled = request.params.boolean("enabled")!;
 	network::SettleOp* operation = service.set_radio(enabled)!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -93,7 +93,7 @@ fn void? credentials_submit(registry::Request* request)
 	String secret = request.params.string("secret")!;
 	network::SettleOp* operation = service.supply_credentials((ulong)id, secret)!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -104,7 +104,7 @@ fn void? credentials_cancel(registry::Request* request)
 	long id = request.params.integer("request")!;
 	network::SettleOp* operation = service.cancel_credentials((ulong)id)!;
 	defer operation.release();
-	network::Settled outcome = registry::await(operation, request.timeout)!;
+	network::Settled outcome = registry::await{network::Settled}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -127,6 +127,6 @@ const registry::Spec NETWORK = {
 	.state_after = &live::state_after{network::Network, network::State, network::Cap},
 	.capabilities = &live::capabilities{network::Network, network::State, network::Cap},
 	.backend = &live::backend{network::Network, network::State, network::Cap},
-	.watch = &live::watch{network::Network, network::State, network::Cap},
+	.watch = &tap::watch{network::Network, network::State},
 	.commands = COMMANDS[..],
 };

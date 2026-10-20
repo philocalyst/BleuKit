@@ -1,6 +1,6 @@
 <* The `audio` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_audio;
-import std::time, bleu::audio, bleu::registry, bleu::registry::live, bleu::observe, bleu::error, bleu::unit, bleu::json;
+import std::time, bleu::audio, bleu::registry, bleu::registry::live, bleu::observe, bleu::error, bleu::unit, bleu::json, bleu::registry::tap;
 
 <* The most channels a device may have; PulseAudio's PA_CHANNELS_MAX (32). *>
 const usz CHANNEL_LIMIT = 32;
@@ -55,7 +55,7 @@ fn void? set_volume(registry::Request* request)
 	usz channels = fill_device_gains(service, flow, id, level, &gains)!;
 	audio::Pending* operation = service.set_device_volume(flow, id, gains[0:channels])!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -68,7 +68,7 @@ fn void? set_mute(registry::Request* request)
 	bool muted = request.params.boolean("muted")!;
 	audio::Pending* operation = service.set_device_mute(flow, id, muted)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -80,7 +80,7 @@ fn void? set_default(registry::Request* request)
 	String id = request.params.string("id")!;
 	audio::Pending* operation = service.set_default(flow, id)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -99,6 +99,6 @@ const registry::Spec AUDIO = {
 	.state_after = &live::state_after{audio::Audio, audio::State, audio::Cap},
 	.capabilities = &live::capabilities{audio::Audio, audio::State, audio::Cap},
 	.backend = &live::backend{audio::Audio, audio::State, audio::Cap},
-	.watch = &live::watch{audio::Audio, audio::State, audio::Cap},
+	.watch = &tap::watch{audio::Audio, audio::State},
 	.commands = COMMANDS[..],
 };

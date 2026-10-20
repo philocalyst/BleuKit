@@ -83,7 +83,7 @@ fn bool same_name(String upper, String text) @private
 
  @return? error::INVALID_ARGUMENT : "The member is present but not a string"
 *>
-fn String string_or(json::read::Params params, String key, String fallback)
+fn String? string_or(json::read::Params params, String key, String fallback)
 {
 	Maybe{String} given = params.optional_string(key)!;
 	return given.has_value ? given.value : fallback;

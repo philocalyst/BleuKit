@@ -52,7 +52,15 @@ fn Media*? open(Allocator allocator, Options options = { })
 	void* state    = driver.create(allocator, options, &capabilities)!;
 	Media* self    = alloc::new(allocator, Media);
 	*self = { .allocator = allocator, .driver = driver, .driver_state = state, .capabilities = capabilities };
-	if (catch err = self.hub.start(allocator, "media", driver.info.name, driver.run, state))
+	if (catch err = self.hub.start(
+		allocator,
+		"media",
+		driver.info.name,
+		driver.run,
+		state,
+		service::DEFAULT_QUEUE{State, Command, Event},
+		&abandon_command
+	))
 	{
 		driver.destroy(allocator, state);
 		alloc::free(allocator, self);
@@ -61,7 +69,15 @@ fn Media*? open(Allocator allocator, Options options = { })
 	return self;
 }
 
-<* Stop the backend and release everything. Outstanding operations still complete. *>
+// Runs when the worker stopped with commands still queued: their operations fail, so that no waiter hangs.
+fn void abandon_command(void* backend, Command* command)
+{
+	if (command.op == null) return;
+	(void)command.op.fail(error::DISCONNECTED);
+	command.op.release();
+}
+
+<* Stop the backend and release everything. Commands it had not yet run fail with DISCONNECTED. *>
 fn void Media.close(&self)
 {
 	self.hub.stop();
@@ -163,19 +179,24 @@ fn CommandOp*? Media.set_position(&self, ulong player, String track_id, Duration
 	return submit(self, c);
 }
 
-<* Set the playback speed; 1.0 is normal. *>
+<*
+ Set the playback speed; 1.0 is normal, negative values rewind.
+
+ @return? error::INVALID_ARGUMENT : "The rate is not finite, or its magnitude exceeds MAX_RATE"
+*>
 fn CommandOp*? Media.set_rate(&self, ulong player, PlaybackRate rate)
 {
+	if (rate - rate != 0.0 || rate > MAX_RATE || rate < -MAX_RATE) return error::INVALID_ARGUMENT~;
 	Command c = command(SET_RATE, player);
 	c.rate = rate;
 	return submit(self, c);
 }
 
-<* Set the player's volume, where 1.0 is its nominal full volume. *>
+<* Set the player's volume, where 1.0 is its nominal full volume. A value outside [0, 1] (or NaN) is clamped to it. *>
 fn CommandOp*? Media.set_volume(&self, ulong player, Level volume)
 {
 	Command c = command(SET_VOLUME, player);
-	c.volume = volume;
+	c.volume = unit::level((float)volume);
 	return submit(self, c);
 }
 

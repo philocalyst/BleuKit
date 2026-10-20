@@ -11,11 +11,13 @@ Module root `bleu::input`. Depends on `bleu_core`, `bleu_rt`, `bleu_service`, `b
 
 * `input::open(allocator, Options{backend, poll}) -> Input*?`: the first backend that probes true, in priority
   order (compositor, locale1 on Linux; TIS on macOS; win32 on Windows). `Options.backend` forces one.
-* `Input.latest() -> Snapshot{State}*?`, `Input.wait_after(seen, timeout)`, `Input.watch` / `unwatch`:
+* `Input.latest() -> Snapshot{State}*?`, `Input.wait_after(seen, timeout)`, `Input.watch`, `unwatch` (`void?`:
+  INVALID_STATE from inside the listener it would remove):
   the state, `State{layouts: Layout[], current: Maybe{uint}, can_switch: bool}`.
 * `Layout{id, name, short_code, language, variant}`: `id` is stable (xkb name `us`, `de(nodeadkeys)`; TIS id;
   KLID text `00000409`).
-* `Input.switch_to(id) -> SwitchOperation*?` and `Input.next() -> SwitchOperation*?`: the operation's value is
+* `Input.switch_to(id) -> SwitchOperation*?` and `Input.next() -> SwitchOperation*?` (the id is copied into the
+  operation; any length, only empty is refused): the operation's value is
   `SwitchOutcome`: `ACKNOWLEDGED` (the compositor or the OS confirmed it) or `QUEUED` (posted to the foreground
   window; the change shows in the state later).
 * `Input.subscribe() -> Reader{Event}*?`: `Event{kind: LAYOUTS_CHANGED | CURRENT_CHANGED, layout_id}`.
@@ -58,14 +60,18 @@ type-checked for the target with `tools/check.sh`, never executed. Not done = ab
 * The English layout descriptions in `languages.c3` (all but `English (US)`) are unverified: the xkeyboard-config
   file could not be fetched. They only match names a compositor reports; an unmatched name keeps its own text.
 * Lock keys (caps, num, scroll) and pointer or keyboard settings: cut from v1 by the research.
-* The shutdown path that fails queued switches (`fail_queued`) is reviewed, not exercised by a test.
+* A switch still queued when the backend stops fails with CANCELLED (`abandon_command`); it is exercised by
+  `service_test.c3` through a fake backend, not by a real compositor.
+* A backend that cannot start (its poller refuses) stops with no state published: `latest()` stays
+  UNAVAILABLE, and `capability` still reports what the backend would do. Requests fail, they do not wait.
 
 ## Verified how
 
 * `tools/check.sh bleu_core bleu_rt bleu_service bleu_compositor bleu_dbus bleu_objc bleu_win bleu_input`: clean on
   all six targets.
-* Unit tests (`src/*_test.c3`, 10 functions in this library; 98 with the linked libraries' tests): all pass on
-  Linux x86-64, C3 0.8.5_1.
+* Unit tests (`src/*_test.c3`): `names_test`, `hkl_test`, `locale1_convert_test` pass on Linux x86-64, C3 0.8.5_1.
+  `service_test.c3` (regression: a 200-byte layout id reaches the backend; an event is announced after its state is
+  published; a switch queued at stop is cancelled) passes through a real Hub with fake backends.
 * `tests/run_compositor.sh`: the live driver against `bleu_compositor`'s fake sway, niri and Hyprland; 22 checks
   pass, including the sway and niri switch requests on the wire.
 * `tests/run_locale1.sh`: the live driver on a private system bus against `tests/mock_locale1.py` (python-dbus-next

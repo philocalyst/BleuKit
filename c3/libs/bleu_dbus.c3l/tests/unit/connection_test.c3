@@ -163,11 +163,15 @@ fn void a_failed_send_is_reported_once() @test
 
 // What the Ping handler saw: whether it ran, and whether the blocking call's timeout had
 // already passed by then (an answer given after the timeout is an answer given too late).
+// `inner`, when set, is a blocking call the handler makes to the peer while it runs.
 struct Served
 {
 	bool ran;
 	Deadline until;
 	bool late;
+	Connection* c;
+	Message* inner;
+	bool inner_answered;
 }
 
 fn void? ping(void* context, Call* call)
@@ -175,6 +179,14 @@ fn void? ping(void* context, Call* call)
 	Served* s = (Served*)context;
 	s.ran = true;
 	s.late = s.until.expired();
+	if (s.inner != null)
+	{
+		if (try reply = s.c.call(s.inner, time::ms(WAITING_CALL_MS)))
+		{
+			reply.release();
+			s.inner_answered = true;
+		}
+	}
 	return call.reply({ });
 }
 
@@ -314,5 +326,52 @@ fn void a_malformed_frame_after_the_reply_is_reported_later() @test
 	Message* got = rig.c.call(call, time::ms(1000))!!;
 	got.release();
 	testing::@expect_fault(rig.c.process(), error::PROTOCOL);
+	rig.stop();
+}
+
+// A blocking call that is made inside a served call, while an outer call waits, must not lose
+// the outer call's reply: the inner call reads it first and keeps it for the outer call.
+fn void a_reply_to_an_outer_call_survives_an_inner_call() @test
+{
+	Rig rig;
+	rig.start();
+	Served served;
+	served.c = &rig.c;
+	Method[1] methods       = { { .name = "Ping", .handler = &ping, .context = &served } };
+	Interface[1] interfaces = { { .name = "org.bleu.Test", .methods = methods[..] } };
+	ObjectServer server;
+	server.init(mem);
+	server.attach(&rig.c);
+	server.export("/org/bleu/Test", interfaces[..])!!;
+
+	Message* inner = message::method_call(mem, "org.example.Peer", "/org/bleu/Inner", "org.example.Inner", "Ask")!!;
+	defer inner.release();
+	inner.serial = 2;
+	served.inner = inner;
+	Message* outer = message::method_call(mem, "org.example.Peer", "/org/bleu/Outer", "org.example.Outer", "Ask")!!;
+	defer outer.release();
+	outer.serial = 1;
+
+	// The peer's frames, in the order they arrive: a call to the served method, the reply to the
+	// outer call, then the reply to the inner call.
+	Message* served_call = message::method_call(mem, "org.example.Peer", "/org/bleu/Test", "org.bleu.Test", "Ping")!!;
+	served_call.serial = 100;
+	send_frame(rig.peer, served_call, { });
+	served_call.release();
+	Message* outer_reply = message::reply_to(mem, "", 1)!!;
+	outer_reply.serial = 301;
+	send_frame(rig.peer, outer_reply, { });
+	outer_reply.release();
+	Message* inner_reply = message::reply_to(mem, "", 2)!!;
+	inner_reply.serial = 302;
+	send_frame(rig.peer, inner_reply, { });
+	inner_reply.release();
+
+	Message* got = rig.c.call(outer, time::ms(WAITING_CALL_MS))!!;
+	assert(got.reply_serial == 1, "the outer call did not get its own reply");
+	got.release();
+	assert(served.ran, "the served call did not run");
+	assert(served.inner_answered, "the inner call did not get its reply");
+	server.free();
 	rig.stop();
 }

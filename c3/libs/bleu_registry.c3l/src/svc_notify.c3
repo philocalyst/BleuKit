@@ -1,6 +1,6 @@
 <* The `notify` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_notify;
-import bleu::notify, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::notify, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the notification service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -22,7 +22,7 @@ fn void? close(registry::Request* request)
 	notify::CloseReason reason = (notify::CloseReason)code;
 	Operation{bool}* operation = service.close_notification(id, reason)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -34,7 +34,7 @@ fn void? invoke(registry::Request* request)
 	String key = request.params.string("key")!;
 	Operation{bool}* operation = service.invoke_action(id, key)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -70,6 +70,6 @@ const registry::Spec NOTIFY = {
 	.state_after = &live::state_after{notify::Notify, notify::State, notify::Cap},
 	.capabilities = &live::capabilities{notify::Notify, notify::State, notify::Cap},
 	.backend = &live::backend{notify::Notify, notify::State, notify::Cap},
-	.watch = &live::watch{notify::Notify, notify::State, notify::Cap},
+	.watch = &tap::watch{notify::Notify, notify::State},
 	.commands = COMMANDS[..],
 };

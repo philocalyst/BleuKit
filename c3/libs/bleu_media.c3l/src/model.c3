@@ -34,6 +34,12 @@ enum Loop : char
 alias PlaybackRate = double;
 
 <*
+ The largest speed magnitude the model holds. A peer's reported rate beyond it is
+ clamped; a rate a caller asks for beyond it is refused (`set_rate`).
+*>
+const double MAX_RATE = 16.0;
+
+<*
  A position read from the player and the monotonic time it was read at.
  `position` is in microseconds, `taken_at` on the clock of `monotonic_now()`.
 *>
@@ -187,11 +193,13 @@ enum EventKind : char
 	TRACK_CHANGED,
 	SEEKED,         // the player reported a seek; its anchor was refreshed
 	ACTIVE_CHANGED, // another player became the active one (or none is)
+	BACKEND_FAILED, // the backend cannot read the players now; `id` says why, once per failure run
 }
 
 <*
  One change. `player` is the `Player.handle` concerned; for `ACTIVE_CHANGED` it
- is the new active player's handle, or 0 when no player is active.
+ is the new active player's handle, or 0 when no player is active. For
+ `BACKEND_FAILED`, `id` is a short text saying what failed.
 *>
 struct Event
 {

@@ -1,6 +1,6 @@
 <* The `bluetooth` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_bluetooth;
-import bleu::bluetooth, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::bluetooth, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the Bluetooth service. Its root and bus address options point tests at fakes. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -14,7 +14,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? finish(registry::Request* request, bluetooth::Task task) @private
 {
 	defer task.release();
-	registry::await(task, request.timeout)!;
+	registry::await{bluetooth::Done}(task, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -74,7 +74,7 @@ fn void? pairing_reply(registry::Request* request)
 	bluetooth::Bluetooth* service = (bluetooth::Bluetooth*)request.handle;
 	long id = request.params.integer("request")!;
 	bool accept = request.params.boolean("accept")!;
-	String secret = registry::string_or(request.params, "secret", "");
+	String secret = registry::string_or(request.params, "secret", "")!;
 	return finish(request, service.reply_pairing((ulong)id, accept, secret)!);
 }
 
@@ -105,6 +105,6 @@ const registry::Spec BLUETOOTH = {
 	.state_after = &live::state_after{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.capabilities = &live::capabilities{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.backend = &live::backend{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
-	.watch = &live::watch{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
+	.watch = &tap::watch{bluetooth::Bluetooth, bluetooth::State},
 	.commands = COMMANDS[..],
 };

@@ -8,7 +8,7 @@
  `core/internal/server/models/types.go` (SuccessResult).
 *>
 module dmsd::core_methods;
-import bleu::ipc, bleu::error, dmsd::contract, dmsd::wire, dmsd::params;
+import bleu::ipc, bleu::error, bleu::json, dmsd::contract, dmsd::wire, dmsd::params;
 
 // DMS's protocol version (server.go:42). The QML client's own check is against 1 and never fires.
 const long API_VERSION = 38;

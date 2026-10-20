@@ -1,0 +1,14 @@
+# Known leaks in the service layer, not in the C ABI. Every one of them is allocated inside
+# bleu::service::Hub.start (the mailbox, the worker's arrays, the observable's watcher list) and
+# is still reachable from the hub when the service closes. Reproduced without any capi code
+# (a C3 program that opens and closes bleu_battery: 464 bytes in 3 blocks). Reported to the
+# lead; see docs/research/bleu_capi.md, section "Leaks". Remove this entry when they are fixed.
+# Any leak whose allocation stack does not pass through Hub.start is still reported.
+{
+   bleu-service-hub-start-known-leak
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect
+   ...
+   fun:*Hub*start*
+   ...
+}

@@ -17,7 +17,7 @@
  8be08999 (types.go, handlers.go, actions.go, manager.go). Deviations: docs/DMSD.md.
 *>
 module dmsd::loginctl_mod;
-import std::atomic, std::thread, std::time, bleu::session, bleu::power, bleu::stream, bleu::observe, bleu::deadline, bleu::error, bleu::ipc, bleu::json, dmsd::contract, dmsd::wire, dmsd::params;
+import std::atomic, std::thread, std::time, bleu::session, bleu::power, bleu::stream, bleu::observe, bleu::deadline, bleu::error, bleu::ipc, bleu::json, bleu::rt::foreign, dmsd::contract, dmsd::wire, dmsd::params;
 
 const String[1] TOPICS = { "loginctl" };
 const String[1] CAPABILITIES = { "loginctl" };
@@ -186,7 +186,7 @@ fn void? LoginctlModule.set_sleep_inhibitor(&self, bool enabled)
 	if (self.inhibiting) return;
 	if (!self.power_service)
 	{
-		return error::raise(UNSUPPORTED, error::Domain.INTERNAL, 0, "not supported: no power service: %s", self.power_reason)~;
+		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "not supported: no power service: %s", self.power_reason)~;
 	}
 	power::InhibitOperation* op = self.power_service.inhibit(power::InhibitKind.SLEEP_DELAY, INHIBITOR_WHO, INHIBITOR_WHY)!;
 	defer op.release();
@@ -364,7 +364,7 @@ fn bool start(contract::Context* context, contract::Module* self)
 fn void stop(contract::Context* context, contract::Module* self)
 {
 	LoginctlModule* m = (LoginctlModule*)self.state;
-	m.login_service.unwatch(m.watch_id);
+	m.login_service.unwatch(m.watch_id)!!;
 	m.stop_barrier.store(true);
 	m.state_mutex.lock()!!;
 	m.locker_cond.broadcast()!!;
@@ -384,11 +384,10 @@ fn void stop(contract::Context* context, contract::Module* self)
 	alloc::free(context.allocator, m);
 }
 
-<* The module's descriptor for `main`. *>
-fn contract::Module descriptor()
-{
-	return { .name = "loginctl", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
-}
+<* The module's descriptor for `main`. A global constant, so its slices point at static data. *>
+const contract::Module DESCRIPTOR = { .name = "loginctl", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
+
+fn contract::Module descriptor() => DESCRIPTOR;
 
 fn void handle_get_state(void* context, ipc::Call* call)
 {

@@ -291,9 +291,12 @@ fn void? ensure_available(Bluetooth* self, Cap cap) @private
 	if (!available.ok()) return available.refusal()~;
 }
 
-// Completes a request that the worker will never run, because the service is stopping or its
-// backend has exited. The waiter sees DISCONNECTED; the worker releases the request's reference.
-fn void abandon_request(void* backend, Request* request) @private
+<*
+ Completes a request that the worker will never run, because the service is stopping or its
+ backend has exited: its operation fails with DISCONNECTED, and the request's reference is released.
+ The hub calls it on the worker thread, once per leftover request.
+*>
+fn void abandon_request(void* backend, Request* request)
 {
 	request.op.fail(error::DISCONNECTED);
 	request.op.release();

@@ -86,3 +86,12 @@ fn String? success_result(Allocator allocator, String message)
 	line.writer.end_object()!;
 	return line.finish();
 }
+
+<*
+ Answer `call` with the DMS success result for `message`.
+ @return? error::INVALID_STATE : "The request was already answered"
+*>
+fn void? respond_success(ipc::Call* call, String message)
+{
+	call.respond_raw(success_result(tmem, message)!);
+}

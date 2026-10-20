@@ -426,7 +426,7 @@ fn bool is_done(Task* task)
 // Waits up to `ms` for the task, and says whether it has ended by then.
 fn bool ends_within(Task* task, ulong ms)
 {
-	if (catch task.wait(time::ms(ms))) {}
+	if (catch task.wait(time::ms((long)ms))) {}
 	return is_done(task);
 }
 

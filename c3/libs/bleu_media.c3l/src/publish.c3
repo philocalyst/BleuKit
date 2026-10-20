@@ -9,8 +9,36 @@
 module bleu::media;
 import std::collections::list, bleu::observe, bleu::service, bleu::stream;
 
-<* `text`, or a copy of it in `allocator`; the empty string is returned as is, without copying. *>
-fn String copy_text(String text, Allocator allocator) => text.len == 0 ? "" : text.copy(allocator);
+// Longest text a peer's string may carry into the state. Longer text is cut on a character boundary.
+const usz MAX_TEXT_BYTES = 4096;
+
+<*
+ `text`, cut to `MAX_TEXT_BYTES` on a character boundary, copied into `allocator`;
+ the empty string is returned as is, without copying.
+*>
+fn String copy_text(String text, Allocator allocator)
+{
+	String kept = cut_utf8(text, MAX_TEXT_BYTES);
+	return kept.len == 0 ? "" : kept.copy(allocator);
+}
+
+// The longest prefix of `text` that is at most `max` bytes and ends on a UTF-8 character boundary.
+fn String cut_utf8(String text, usz max)
+{
+	if ((usz)text.len <= max) return text;
+	usz cut = max;
+	// A continuation byte is 10xxxxxx: back up to the lead byte of the character the cut would split.
+	while (cut > 0 && (text[cut] & 0xC0) == 0x80) cut--;
+	return text[0:cut];
+}
+
+<* Publish a failure: the backend cannot read the players now. Players stay as they were; `reason` is copied. *>
+fn void emit_failure(MediaHub* hub, String reason)
+{
+	Packet{Event}* packet = hub.emit_begin();
+	packet.value = { .kind = BACKEND_FAILED, .id = copy_text(reason, packet.allocator()) };
+	hub.emit(packet);
+}
 
 <*
  Publish `snapshot` (built with `hub.begin()`, its value filled from the

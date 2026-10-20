@@ -9,7 +9,7 @@ It owns org.freedesktop.UPower on the bus named by DBUS_SYSTEM_BUS_ADDRESS and e
   Online (b) and NativePath "AC";
 * /org/freedesktop/UPower/devices/battery_BAT0 (Type 2): the battery properties that
   bleu_battery reads (State, Percentage, Energy*, EnergyRate, TimeTo*, ChargeCycles, ...);
-* /org/freedesktop/UPower/devices/mouse_M1 (Type 5), present only while the control says so,
+* /org/freedesktop/UPower/devices/mouse_M1 (Type 2, PowerSupply FALSE), present only while the control says so,
   announced with DeviceAdded and withdrawn with DeviceRemoved.
 
 Property changes are PropertiesChanged signals, emitted by python-dbus-next itself.
@@ -108,6 +108,10 @@ class Device(ServiceInterface):
         return self.props['Type']
 
     @dbus_property(access=PropertyAccess.READ)
+    def PowerSupply(self) -> 'b':
+        return self.props.get('PowerSupply', True)
+
+    @dbus_property(access=PropertyAccess.READ)
     def Online(self) -> 'b':
         return self.props.get('Online', False)
 
@@ -171,6 +175,7 @@ def battery_props(v):
         'Model': 'Cell9',
         'Serial': 'SN-42',
         'Type': 2,
+        'PowerSupply': True,
         'IsPresent': True,
         'State': state,
         'Percentage': percentage,
@@ -191,7 +196,9 @@ def line_props(v):
 
 
 def mouse_props():
-    return {'NativePath': 'hid-M1', 'Type': 5, 'IsPresent': True, 'Percentage': 80.0, 'Vendor': 'Logi'}
+    # A wireless mouse: UPower reports it as a battery (Type 2) with PowerSupply FALSE, which Bleu must
+    # classify as a peripheral.
+    return {'NativePath': 'hid-M1', 'Type': 2, 'PowerSupply': False, 'IsPresent': True, 'Percentage': 80.0, 'Vendor': 'Logi'}
 
 
 def changed_values(old, new):

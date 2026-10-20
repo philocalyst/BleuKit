@@ -9,7 +9,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
 lib="${CAPI_OUT:-$repo/out/capi}"
-inc="$repo/include"
+inc="${CAPI_INCLUDE:-$repo/include}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 status=0
@@ -28,7 +28,7 @@ fake_tree() {  # fake_tree <dir>: the sysfs files the consumers read and write
   printf '1500000\n' > "$bat/current_now"; printf '212\n' > "$bat/cycle_count"; printf '312\n' > "$bat/temp"
   local bl="$root/sys/class/backlight/intel_backlight"
   printf 'firmware\n' > "$bl/type"; printf '48000\n' > "$bl/brightness"
-  printf '48000\n' > "$bl/actual_brightness"; printf '96000\n' > "$bl/max_brightness"
+  printf '96000\n' > "$bl/max_brightness"  # no actual_brightness: the setpoint is read back, as a driver that follows it
 }
 
 test -f "$lib/libbleu_capi.so" || { echo "run tools/capi/build.sh first ($lib has no library)"; exit 2; }
@@ -66,7 +66,7 @@ if command -v valgrind >/dev/null 2>&1; then
   step "valgrind (C test, shared library)"
   fake_tree "$work/root-vg"
   valgrind --leak-check=full --errors-for-leak-kinds=definite,indirect --error-exitcode=9 \
-    --log-file="$work/valgrind.log" "$work/smoke" "$work/root-vg" >/dev/null || status=1
+    --suppressions="$here/valgrind.supp" --log-file="$work/valgrind.log" "$work/smoke" "$work/root-vg" >/dev/null || status=1
   grep -E "ERROR SUMMARY|definitely lost|indirectly lost" "$work/valgrind.log" || true
 else
   step "valgrind not installed: leak check skipped"

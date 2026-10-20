@@ -1,6 +1,6 @@
 <* The `media` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_media;
-import std::time, bleu::media, bleu::registry, bleu::registry::live, bleu::json;
+import std::time, bleu::media, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the media service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -13,7 +13,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? transport(registry::Request* request, media::CommandOp* operation) @private
 {
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -79,6 +79,6 @@ const registry::Spec MEDIA = {
 	.state_after = &live::state_after{media::Media, media::State, media::Cap},
 	.capabilities = &live::capabilities{media::Media, media::State, media::Cap},
 	.backend = &live::backend{media::Media, media::State, media::Cap},
-	.watch = &live::watch{media::Media, media::State, media::Cap},
+	.watch = &tap::watch{media::Media, media::State},
 	.commands = COMMANDS[..],
 };

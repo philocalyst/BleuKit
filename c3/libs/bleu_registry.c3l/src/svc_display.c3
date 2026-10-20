@@ -1,6 +1,6 @@
 <* The `display` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_display;
-import bleu::display, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::display, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the display service. Its root points at a fake tree for EDID lookup in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -31,6 +31,6 @@ const registry::Spec DISPLAY = {
 	.state_after = &live::state_after{display::Display, display::State, display::Cap},
 	.capabilities = &live::capabilities{display::Display, display::State, display::Cap},
 	.backend = &live::backend{display::Display, display::State, display::Cap},
-	.watch = &live::watch{display::Display, display::State, display::Cap},
+	.watch = &tap::watch{display::Display, display::State},
 	.commands = COMMANDS[..],
 };

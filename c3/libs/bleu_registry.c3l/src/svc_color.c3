@@ -1,6 +1,6 @@
 <* The `color` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_color;
-import bleu::color, bleu::registry, bleu::registry::live, bleu::json, bleu::unit;
+import bleu::color, bleu::registry, bleu::registry::live, bleu::json, bleu::unit, bleu::registry::tap;
 
 <* Open the colour service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -13,11 +13,11 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? set_temperature(registry::Request* request)
 {
 	color::Color* service = (color::Color*)request.handle;
-	String output = registry::string_or(request.params, "output", color::ALL_OUTPUTS);
+	String output = registry::string_or(request.params, "output", color::ALL_OUTPUTS)!;
 	Kelvin kelvin = (Kelvin)request.params.integer("kelvin")!;
 	color::ApplyOperation* operation = service.set_temperature(output, kelvin)!;
 	defer operation.release();
-	color::Applied applied = registry::await(operation, request.timeout)!;
+	color::Applied applied = registry::await{color::Applied}(operation, request.timeout)!;
 	return registry::write_value(request.out, "applied", applied);
 }
 
@@ -25,11 +25,11 @@ fn void? set_temperature(registry::Request* request)
 fn void? set_dim(registry::Request* request)
 {
 	color::Color* service = (color::Color*)request.handle;
-	String output = registry::string_or(request.params, "output", color::ALL_OUTPUTS);
+	String output = registry::string_or(request.params, "output", color::ALL_OUTPUTS)!;
 	Level level = (Level)(float)request.params.number("level")!;
 	color::ApplyOperation* operation = service.set_dim(output, level)!;
 	defer operation.release();
-	color::Applied applied = registry::await(operation, request.timeout)!;
+	color::Applied applied = registry::await{color::Applied}(operation, request.timeout)!;
 	return registry::write_value(request.out, "applied", applied);
 }
 
@@ -39,7 +39,7 @@ fn void? reset(registry::Request* request)
 	color::Color* service = (color::Color*)request.handle;
 	color::ApplyOperation* operation = service.reset()!;
 	defer operation.release();
-	color::Applied applied = registry::await(operation, request.timeout)!;
+	color::Applied applied = registry::await{color::Applied}(operation, request.timeout)!;
 	return registry::write_value(request.out, "applied", applied);
 }
 
@@ -58,6 +58,6 @@ const registry::Spec COLOR = {
 	.state_after = &live::state_after{color::Color, color::State, color::Cap},
 	.capabilities = &live::capabilities{color::Color, color::State, color::Cap},
 	.backend = &live::backend{color::Color, color::State, color::Cap},
-	.watch = &live::watch{color::Color, color::State, color::Cap},
+	.watch = &tap::watch{color::Color, color::State},
 	.commands = COMMANDS[..],
 };

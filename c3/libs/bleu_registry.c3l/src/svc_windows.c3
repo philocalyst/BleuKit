@@ -1,6 +1,6 @@
 <* The `windows` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_windows;
-import bleu::windows, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::windows, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the window service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -13,7 +13,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? finish(registry::Request* request, Operation{bool}* operation) @private
 {
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -53,6 +53,6 @@ const registry::Spec WINDOWS = {
 	.state_after = &live::state_after{windows::Windows, windows::State, windows::Cap},
 	.capabilities = &live::capabilities{windows::Windows, windows::State, windows::Cap},
 	.backend = &live::backend{windows::Windows, windows::State, windows::Cap},
-	.watch = &live::watch{windows::Windows, windows::State, windows::Cap},
+	.watch = &tap::watch{windows::Windows, windows::State},
 	.commands = COMMANDS[..],
 };

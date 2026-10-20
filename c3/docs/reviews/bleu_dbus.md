@@ -64,3 +64,46 @@ Other points (no defect as written):
 * Probes (scratch, not in `libs/`): `probe_own.c3` (H1, H2; run against a private `dbus-daemon`, two runs each), `probe_abort.c3` (M1), `probe_reply.c3` (M2), `probe_tmem.c3` (retracted suspicions: the values survived; valgrind reported no invalid reads). All in `<scratchpad>/dbus_review/probes/`.
 * Spec check: WebFetch of `https://dbus.freedesktop.org/doc/dbus-specification.html` confirmed that `runtime` is listen-only (L3). The auth line-length limit could not be confirmed from the text read.
 * Not checked: the other five targets (`tools/check.sh`), the Windows and macOS compilation.
+
+## Resolution
+
+Every CRITICAL, HIGH, MEDIUM and LOW finding is FIXED. The status column says where a fix has
+no test that can run, and why. "Before" is the library at commit 55ac8bf, the one this review
+read; each regression test was run against it (10 of them fail there, see "Tests after the fixes").
+
+| ID | Status | What changed | Regression test (before, after) |
+| --- | --- | --- | --- |
+| H1 | FIXED | A connection keeps close watches (`watch_close`). An `OwnedName` registers one when its request is made. A close clears `held` and runs `on_lost` once, with the connection already closed. `release()` after a close sends no ReleaseName. A queued request dies with the connection and nothing is reported for it (documented in `own_name`). | integration `ownership_across_a_disconnect`: held and no `on_lost` before; `on_lost` once and `held == false` after. probe_own: `o1.held=yes` before, `no` after; `on_lost` now runs. |
+| H2 | FIXED | Library operations bracket their work (`begin_operation`/`end_operation`), so handlers run only when the outermost one ends, never between two steps. `own_name` makes its request without a dispatch in the middle, and `grant` announces a name once, so NameAcquired arriving with the reply is a no-op. The invariant is in the module doc and the README. | integration "a name granted at once is announced once": 2 before, 1 after. probe_own: `on_acquired total=2` before, `1` after. |
+| M1 | FIXED | Socket read errors propagate. `receive` returns the fault, and `process` and `call` close the connection and return it. No `!!` remains on I/O. | unit `a_failed_read_closes_the_connection`: the process aborts before (the library's `!!`); fails with BACKEND_FAILURE and closes after. probe_abort: the library no longer aborts; the probe's own `process()!!` reports the fault. |
+| M2 | FIXED | `error_reply_to` makes its text valid (`text_for_wire`: each byte that does not start a valid character, NUL included, becomes U+FFFD; cut at `MAX_ERROR_TEXT` = 1024 bytes). It releases the message on every failure path. | unit `a_bad_fault_text_still_gets_an_answer`: 0 messages before, 1 after. probe_reply: `messages sent to the caller: 0` before, `1` after. |
+| M3 | FIXED | A blocking call serves each incoming METHOD_CALL as soon as it is read (`deliver_parsed` calls `serve_call`: the server hook, or UnknownMethod). A reply to an outer blocking call that is read during an inner one is stashed for it. Documented on `Connection.call`, in the module doc and in the README. | unit `answers_incoming_calls_while_it_waits`: the answer comes after the call's timeout before (`late`), during the wait after. |
+| M4 | FIXED | Reads never span two frames (`read_limit`). Each descriptor records the stream offset it arrived with (`descriptor_at`). A frame takes exactly the descriptors at its first byte, and `message::parse` requires UNIX_FDS to equal their number; a descriptor inside a frame is a PROTOCOL error. | unit `descriptors_belong_to_their_own_frame`: no error before, PROTOCOL after. |
+| M5 | FIXED | `call_async` returns success once the call is queued. A failed write closes the connection, and the handler gets DISCONNECTED once. Documented in `call_async`. | unit `a_failed_send_is_reported_once`: error returned and handler run before; handler once and no error after. |
+| L1 | FIXED | `recv_some` records the descriptors before its truncation check. | None runnable: MSG_CTRUNC needs more ancillary data than the 1100-byte buffer holds, which the kernel does not produce here. Checked by reading the code. |
+| L2 | FIXED | Reads stop at frame boundaries, so a blocking call never parses past the frame that answers it, and `call` releases a found reply on every failure path. | unit `a_malformed_frame_after_the_reply_is_reported_later`: the call failed with PROTOCOL and the reply leaked before (`LEAKS DETECTED`); the reply is returned and the next operation reports PROTOCOL after. |
+| L3 | FIXED | `runtime` addresses are listen-only, as the specification says: a connect address with `runtime=` is INVALID_ARGUMENT. The dead `XDG_RUNTIME_DIR` lookup was removed. | unit `runtime_addresses_are_listen_only` (replaces `resolves_runtime_directory`, which asserted the defect): accepted before, refused after. |
+| L4 | FIXED (contract) | `begin_array` checks the frame depth before it writes. `end_array`'s refusal (an array over 2^26 bytes) is documented: the writer cannot be finished afterwards, so no corrupt message can be built. | None that fails before: the output was never corrupt (`finish` refuses an open frame), so this was a contract gap, now documented. |
+| L5 | FIXED | `for_name` maps `org.freedesktop.DBus.Error.NoMemory` to NO_MEMORY. | server_test `faults_round_trip_through_the_error_names`: fails before, passes after. |
+| L6 | FIXED | The owner-thread assertion now covers `fd`, `has_pending_output`, `name_on_bus`, `add_subscription`, `subscription`, `deactivate`, `tracks_name`, `owner_of` and `set_owner`. | None runnable: the assertion aborts the process on a cross-thread call, by design, so it cannot be a passing test. |
+| L7 | FIXED | Reply codes outside the specification's sets (NameReply 1 to 4, ReleaseReply 1 to 3, StartReply 1 to 2) are BACKEND_FAILURE, through `name_reply_of`, `release_reply_of` and `start_reply_of`. | unit `bus_test` (3 tests): these functions did not exist before (the test does not compile on the old library); pass after. |
+| L8 | FIXED | The Properties builtins (Get, Set, GetAll) call `Reader.finish`; a body with bytes after its arguments gets InvalidArgs. | unit `trailing_bytes_after_the_arguments_are_refused`: answered before, InvalidArgs after. |
+| L9 | FIXED (Linux) | On Linux the socket is created with `SOCK_CLOEXEC` and descriptors are received with `MSG_CMSG_CLOEXEC`, so no concurrent fork can inherit them. The `fcntl` fallback stays for Apple. Constants are cited in `transport_posix.c3`. | None runnable: the window is between two calls on one thread, and a fork race cannot be reproduced deterministically. |
+| L10 | FIXED | `process()` makes at most `MAX_READS_PER_PROCESS` (16) reads per call. This needs a level-triggered poller: `bleu_rt` uses poll(2). Documented in the module doc and the README. | unit `one_process_call_reads_a_bounded_amount`: all 200 messages read in one call before; some left in the socket after. |
+| L11 | FIXED | `process()` called from a handler returns INVALID_STATE. `close()` from a handler is allowed and documented: it ends the connection and drops the rest of the queue. | unit `process_is_refused_inside_a_handler`: the nested call ran before; refused after. |
+
+Other points, handled in the same change:
+* `bus.c3` `track_sender`: the swallowed `GetNameOwner` failure now has a comment saying why the owner stays unknown.
+* `bus.c3` `subscribe`: if `track_sender` fails after `AddMatch` succeeded, the match is removed again and the rule freed (was: leaked, and the bus kept sending).
+* `bus.c3` `track_sender`: the `changes` rule is freed on every path (`defer`), so a failed `AddMatch` no longer leaks it.
+
+Suspicions (unproven): not defects, so no change was made. The reviewer retracted the temp-pool items; the comments the review recommends at those sites were not added.
+
+## Tests after the fixes
+
+* Unit tests (`compile-test libs/bleu_dbus.c3l/tests/unit/*.c3`, run from a private directory): 91 bleu_dbus tests, all pass (81 before, minus the replaced `resolves_runtime_directory`, plus 11 new). Against the original library, 10 of the new or changed tests fail: the runtime address, the failed send, the malformed frame after a reply, incoming calls during a blocking call, descriptor attribution, the read budget, re-entry from a handler, the bad error text, trailing bytes, and NoMemory. The failed-read test is stubbed in that run, because the original aborts the process there.
+* Integration (`tests/integration.sh`, run from a private directory): INTEGRATION OK. The client suite has 56 checks per socket (49 before), including the ownership checks that failed before (H1 and H2).
+* Probes (scratch, against the changed library): probe_own (H1, H2) shows `on_acquired total=1`, `o1.held=no` and `on_lost` run; probe_reply (M2) sends its reply; probe_abort (M1) no longer aborts in the library.
+* `tools/check.sh bleu_core bleu_dbus`: all six targets ok.
+* Consumers: see the section at the end of this file.
+

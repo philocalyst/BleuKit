@@ -165,7 +165,7 @@
 * `uchar` and `ubyte` are not types → use `char` (unsigned byte) and cast the other side.
 * `uint.max` does not exist → write the literal (`0xFFFF_FFFF`), or use a helper.
 * `var x = f();` is only allowed in macros or with `@safeinfer` → give the type (`Snapshot{Event}* p = ...`).
-* `switch` on a `String` is not supported → use an `if` chain.
+* `switch` on a `String` with literal `case` labels compiles and runs in 0.8.5 (bleu_battery `sysfs_convert.c3`, unit-tested on Linux). Verified; the earlier "not supported" note was wrong.
 * `Writer.begin_array` takes the full array type (`"a{sv}"`, `"as"`), not the element type.
 * `alloc::clone_slice` rejects a `String` argument ("only arrays and slices") → copy into `char[]` with `alloc::new_array` and a loop.
 * `alloc::new_array(allocator, T, n)` needs `sz`: cast a `usz` count.
@@ -234,3 +234,8 @@
 * `std::thread::sleep(d)` returns `void?` → write `thread::sleep(d)!!;` in a function that can fail, or handle it.
 * `git archive HEAD <path>` takes the path from the repository root (`/home/user/BleuKit`), not the project dir; a failing archive in a `|` pipeline is silent → check the archive's exit status before trusting the tree.
 * While other engineers edit the dependencies, `compile-test` of your lib fails in their code → build a verification tree: `git archive <commit>` for the dependencies and your own lib directories copied over it.
+* `c3c compile-test` runs the `@test`s of every linked library, so a hanging test in another library (bleu_rt `unix_test`) hangs yours → pass `--test-filter bleu::<your module>`, or use `compile` for live drivers that have no tests.
+* `Observable.unwatch` returns `void?` (INVALID_STATE from inside its own listener): a service that forwards it as `void` fails with "must be handled" → declare `void? Svc.unwatch` and document the error.
+* `Hub.stop` no longer frees the observable and stream lists → every service `close()` and every test must call `hub.free()` after `stop`, or `LEAKS DETECTED` is reported.
+* A generic module's alias needs its parameters at the use site: `service::RunFn{input::State, input::Command, input::Event}`, not `RunFn`.
+* An aligned struct literal in a `Command command = {...}` line can oscillate under `c3fmt`; bind the copied field to a named local first.

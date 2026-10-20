@@ -1,6 +1,6 @@
 <* The `apps` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_apps;
-import bleu::apps, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::apps, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the application catalogue with its default options. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -18,12 +18,12 @@ fn void? launch(registry::Request* request)
 {
 	apps::Apps* service = (apps::Apps*)request.handle;
 	String app_id = request.params.string("app_id")!;
-	String action = registry::string_or(request.params, "action", "");
+	String action = registry::string_or(request.params, "action", "")!;
 	apps::LaunchOperation* operation = action.len == 0
 		? service.launch(app_id)!
 		: service.launch_action(app_id, action)!;
 	defer operation.release();
-	apps::Launched launched = registry::await(operation, request.timeout)!;
+	apps::Launched launched = registry::await{apps::Launched}(operation, request.timeout)!;
 	return registry::write_value(request.out, "launched", launched);
 }
 
@@ -78,6 +78,6 @@ const registry::Spec APPS = {
 	.state_after = &live::state_after{apps::Apps, apps::State, apps::Cap},
 	.capabilities = &live::capabilities{apps::Apps, apps::State, apps::Cap},
 	.backend = &live::backend{apps::Apps, apps::State, apps::Cap},
-	.watch = &live::watch{apps::Apps, apps::State, apps::Cap},
+	.watch = &tap::watch{apps::Apps, apps::State},
 	.commands = COMMANDS[..],
 };

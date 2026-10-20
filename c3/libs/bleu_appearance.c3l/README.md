@@ -16,11 +16,14 @@ implemented (Caps say so).
 * `appearance::open(allocator, Options) -> Appearance*?`: `backend`, `poll`,
   `bus_address`, `wallpaper_command` (argv; `{path}` is replaced; empty means GNOME keys).
 * `Appearance.close()`, `backend_name()`, `capability(Cap) -> Availability`.
-* `Appearance.latest() -> Snapshot{State}*?`, `wait_after(seen, timeout)`, `watch`, `unwatch`.
+* `Appearance.latest() -> Snapshot{State}*?`, `wait_after(seen, timeout)`, `watch`, `unwatch` (`void?`:
+  INVALID_STATE from inside the listener it would remove).
 * `Appearance.subscribe() -> Reader{Event}*?`: `EventKind` COLOR_SCHEME, ACCENT, ACCESSIBILITY, DESKTOP, WALLPAPER.
 * `Appearance.refresh()`: re-read now.
 * `Appearance.set_color_scheme(ColorScheme) -> Operation{bool}*?`: refused with `UNSUPPORTED` when not available.
-* `Appearance.set_wallpaper(String absolute_path) -> Operation{bool}*?`: refused when not available; `INVALID_ARGUMENT` for a relative path.
+* `Appearance.set_wallpaper(String absolute_path) -> Operation{bool}*?`: refused when not available;
+  `INVALID_ARGUMENT` unless the path is absolute on this platform: `/...` on POSIX; `C:\...`, `C:/...` or
+  `\\server\share\...` on Windows (`paths.c3`).
 * Model: `State` (`ColorScheme`, `Maybe{Rgb} accent`, `Contrast`, `reduced_motion`,
   `reduced_transparency`, `font_name`, `Maybe{float} text_scale`, `icon_theme`,
   `gtk_theme`, `cursor_theme`, `ClockFormat`, `Wallpaper[]`), `Cap`, `Backend`.
@@ -48,8 +51,9 @@ target, never executed. Not done = the capability reports UNSUPPORTED_* at run t
 
 ## Verified how
 
-* Unit: `c3c compile-test` of `src/convert_test.c3` with `convert.c3` and `model.c3`: the 9 `bleu::appearance` `@test`s pass
-  (the run also executes the dependencies' tests; 60 PASS lines in total, none failing).
+* Unit: `c3c compile-test` of `src/convert_test.c3` and `src/paths_test.c3` with the library sources, run with
+  `--test-filter bleu::appearance`: 14 `@test`s pass. They cover the GVariant escapes (unknown ones refused), the
+  `file://` host rule, the per-platform absolute-path predicates (both Windows forms and POSIX run on every host).
 * Live (Linux): `tests/run.sh`: a private dbus-daemon, a python-dbus-next mock of
   `org.freedesktop.portal.Settings` (`ReadAll`, `Read` returning a double variant,
   `SettingChanged`), and the GNOME schemas (the two `.gschema.xml` files fetched upstream; the enums file is hand-written, since the upstream one returned 404) compiled with
@@ -60,7 +64,8 @@ target, never executed. Not done = the capability reports UNSUPPORTED_* at run t
   `server_model.c3` from another engineer). Verification used the committed copy
   (`git archive HEAD libs/bleu_dbus.c3l`), passed to `run.sh` as `BLEU_LIBDIR`.
 * `c3fmt --check` clean on `src/` and `tests/`.
-* macOS and Windows: type-checked only. Nothing ran on either OS.
+* macOS and Windows: type-checked only. Nothing ran on either OS. The Windows degrade-not-abort change (no `!!`
+  on registry or window calls) is compiled, not run.
 
 ## Not done
 
@@ -69,7 +74,13 @@ target, never executed. Not done = the capability reports UNSUPPORTED_* at run t
 * dconf's D-Bus writer (`ca.desrt.dconf`): not cited or mocked, so writes use `gsettings set` (explicit fallback).
 * `org.freedesktop.portal.Wallpaper`, KDE `kdeglobals`, and compositor IPC except through `wallpaper_command`.
 * Reading gsettings through the dconf file database (out of scope; `gsettings get` only).
-* Portal restart is not re-subscribed; if the session bus closes, the backend stops publishing and keeps the last state.
+* Portal restart is not re-subscribed. If the session bus closes, the portal backend stops: the last state
+  stands, and every later request fails with UNAVAILABLE (the worker's mailbox is closed).
+* A failed read keeps the last reading, never a guess: the Windows scheme (when the Personalize key cannot be
+  opened), the gsettings scheme and reduced motion. The portal publishes nothing until its first `ReadAll` works,
+  and a key whose `Read` fails is read again on the next poll tick.
+* Windows: `AppsUseLightTheme` is the only value written. The taskbar and the system UI keep their scheme.
+* A backend that cannot start publishes no state: `latest()` stays UNAVAILABLE, and requests fail.
 * gsettings-sourced desktop keys refresh on the poll interval (30 s default), and on every request.
 * macOS: accent, font, clock; the accessibility-change notification (name not verified); delivery of the distributed notification without a run loop (UNVERIFIED).
 * Windows: a broadcast after writing the scheme; DWM AccentColor layout (UNVERIFIED); contrast, motion, transparency.

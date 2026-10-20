@@ -5,7 +5,9 @@
 
  One line per running player: seven fields separated by tabs, in this order:
  player state, position (ms), sound volume (0 to 100), track length (ms), title,
- artist, album. A stopped or absent player gives an empty line.
+ artist, album. A stopped or absent player gives an empty line. The text fields
+ are last, so a title that contains a tab stays whole: the first four fields
+ have no tabs, and the last two tabs separate the artist and the album.
 *>
 module bleu::media::scripting_convert;
 import bleu::error, bleu::media;
@@ -25,24 +27,47 @@ struct Reading
 	String album;
 }
 
-<*
- Split `line` into its seven tab-separated fields.
+// Index of the first tab at or after `start`, or -1 when there is none.
+fn sz tab_from(String line, usz start) @private
+{
+	for (usz i = start; i < line.len; i++)
+	{
+		if (line[i] == '\t') return (sz)i;
+	}
+	return -1;
+}
 
- @return "true when the line has exactly seven fields; the fields then borrow from `line`"
+<*
+ Split `line` into its seven fields. The first four are split at tabs; the title
+ is everything up to the second-last tab, so a title may contain tabs; the
+ artist and the album are the text after the last two tabs.
+
+ @return "true when the line has all seven fields; the fields then borrow from `line`"
 *>
 fn bool split_fields(String line, String[FIELD_COUNT]* fields)
 {
-	usz field = 0;
 	usz start = 0;
-	for (usz i = 0; i <= line.len; i++)
+	for (usz field = 0; field < FIELD_COUNT - 3; field++)
 	{
-		if (i < line.len && line[i] != '\t') continue;
-		if (field >= FIELD_COUNT) return false;
-		(*fields)[field] = line[start:i - start];
-		field++;
-		start = i + 1;
+		sz end = tab_from(line, start);
+		if (end < 0) return false;
+		(*fields)[field] = line[start:(usz)end - start];
+		start = (usz)end + 1;
 	}
-	return field == FIELD_COUNT;
+	// The last two tabs in the rest of the line bound the artist; anything before them is the title.
+	sz before_artist = -1;
+	sz before_album  = -1;
+	for (usz i = start; i < line.len; i++)
+	{
+		if (line[i] != '\t') continue;
+		before_artist = before_album;
+		before_album = (sz)i;
+	}
+	if (before_artist < 0) return false;
+	(*fields)[4] = line[start:(usz)before_artist - start];
+	(*fields)[5] = line[(usz)before_artist + 1:(usz)before_album - (usz)before_artist - 1];
+	(*fields)[6] = line[(usz)before_album + 1:line.len - (usz)before_album - 1];
+	return true;
 }
 
 <* A non-negative integer from decimal text. @return? error::INVALID_ARGUMENT : "Not a decimal integer" *>

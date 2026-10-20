@@ -1,6 +1,6 @@
 <* The `clipboard` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_clipboard;
-import bleu::clipboard, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::clipboard, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the clipboard service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -14,12 +14,12 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? set_text(registry::Request* request)
 {
 	clipboard::Clipboard* service = (clipboard::Clipboard*)request.handle;
-	String slot = registry::string_or(request.params, "slot", "clipboard");
+	String slot = registry::string_or(request.params, "slot", "clipboard")!;
 	clipboard::Slot target = registry::parse_enum{clipboard::Slot}(slot)!;
 	String text = request.params.string("text")!;
 	Operation{ulong}* operation = service.set_text(target, text)!;
 	defer operation.release();
-	ulong id = registry::await(operation, request.timeout)!;
+	ulong id = registry::await{ulong}(operation, request.timeout)!;
 	return registry::write_value(request.out, "id", id);
 }
 
@@ -31,7 +31,7 @@ fn void? fetch(registry::Request* request)
 	String mime = request.params.string("mime")!;
 	Operation{clipboard::Bytes}* operation = service.fetch(entry, mime)!;
 	defer operation.release();
-	clipboard::Bytes bytes = registry::await(operation, request.timeout)!;
+	clipboard::Bytes bytes = registry::await{clipboard::Bytes}(operation, request.timeout)!;
 	return registry::write_value(request.out, "bytes", bytes);
 }
 
@@ -49,6 +49,6 @@ const registry::Spec CLIPBOARD = {
 	.state_after = &live::state_after{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.capabilities = &live::capabilities{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.backend = &live::backend{clipboard::Clipboard, clipboard::State, clipboard::Cap},
-	.watch = &live::watch{clipboard::Clipboard, clipboard::State, clipboard::Cap},
+	.watch = &tap::watch{clipboard::Clipboard, clipboard::State},
 	.commands = COMMANDS[..],
 };

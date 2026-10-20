@@ -37,7 +37,7 @@ extern fn CInt pipe(CInt* fds);
 
 fn void usage() @private
 {
-	io::eprintln("usage: dmsd [--socket PATH] [--fake-root DIR] [--module-off NAME]... [--debug]");
+	io::eprintfn("usage: dmsd [--socket PATH] [--fake-root DIR] [--module-off NAME]... [--debug]");
 }
 
 // Read the command line into `options`. Unknown arguments are errors, not ignored.

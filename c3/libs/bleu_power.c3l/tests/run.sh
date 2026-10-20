@@ -57,7 +57,7 @@ start_bus() {
   </policy>
 </busconfig>
 XML
-  rm -f "$work/address"
+  rm -f "$work/address" "$work/bus-socket"
   dbus-daemon --config-file="$conf" --nofork --print-address=1 >"$work/address" 2>"$work/daemon.log" &
   BUS_PID=$!
   pids+=("$BUS_PID")
@@ -66,11 +66,18 @@ XML
     sleep 0.05
   done
   DBUS_SYSTEM_BUS_ADDRESS="$(head -n1 "$work/address")"
+  # The guid names one bus instance; a restarted bus has another, and the socket path is what matters.
+  DBUS_SYSTEM_BUS_ADDRESS="${DBUS_SYSTEM_BUS_ADDRESS%%,guid=*}"
   export DBUS_SYSTEM_BUS_ADDRESS
+  # An empty address would send the client to the real system bus: refuse to run without one.
+  if [ -z "$DBUS_SYSTEM_BUS_ADDRESS" ]; then
+    say "the private bus did not start (see $work/daemon.log)"; exit 2
+  fi
 }
 
 # Starts the mock with the given profile daemon mode and waits for READY.
 start_mock() {
+  rm -f "$work/mock.out"
   "$PYTHON" -I "$here/integration/mock_daemons.py" "$1" >"$work/mock.out" 2>"$work/mock.err" &
   MOCK_PID=$!
   pids+=("$MOCK_PID")
@@ -101,6 +108,40 @@ for mode in modern legacy none; do
   kill "$MOCK_PID" "$BUS_PID" 2>/dev/null
   wait "$MOCK_PID" "$BUS_PID" 2>/dev/null
 done
+
+# The bus restarts under a live service: the client holds an inhibitor, the bus is killed and
+# started again on the same socket, and the client must recover (see run_bounce_checks).
+say "== mode: bounce"
+start_bus
+start_mock modern
+rm -f "$work/ready" "$work/bounced"
+BLEU_POWER_BOUNCE_DIR="$work" timeout 180 "$work/integration" bounce >"$work/suite.out" 2>&1 &
+CLIENT_PID=$!
+pids+=("$CLIENT_PID")
+for _ in $(seq 1 600); do
+  [ -f "$work/ready" ] && break
+  kill -0 "$CLIENT_PID" 2>/dev/null || break
+  sleep 0.05
+done
+kill "$MOCK_PID" "$BUS_PID" 2>/dev/null
+wait "$MOCK_PID" "$BUS_PID" 2>/dev/null
+rm -f "$work/bus-socket"
+dbus-daemon --config-file="$work/bus.conf" --nofork --print-address=1 >"$work/address2" 2>>"$work/daemon.log" &
+BUS_PID=$!
+pids+=("$BUS_PID")
+for _ in $(seq 1 100); do
+  [ -S "$work/bus-socket" ] && break
+  sleep 0.05
+done
+start_mock modern
+touch "$work/bounced"
+wait "$CLIENT_PID"
+status=$?
+cat "$work/suite.out"
+say "exit status: $status"
+[ "$status" -eq 0 ] || failed=1
+kill "$MOCK_PID" "$BUS_PID" 2>/dev/null
+wait "$MOCK_PID" "$BUS_PID" 2>/dev/null
 
 if [ "$failed" -eq 0 ]; then say "POWER INTEGRATION OK"; else say "POWER INTEGRATION FAILED"; fi
 exit "$failed"

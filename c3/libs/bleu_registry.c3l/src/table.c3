@@ -13,8 +13,11 @@ import bleu::registry::svc_battery, bleu::registry::svc_power, bleu::registry::s
 	bleu::registry::svc_windows, bleu::registry::svc_secrets, bleu::registry::svc_appearance,
 	bleu::registry::svc_hotkey, bleu::registry::svc_input;
 
+<* The number of services in `SERVICES`. *>
+const usz SERVICE_COUNT = 20;
+
 <* Every service the registry exposes, in table order. *>
-const Spec*[20] SERVICES = {
+const Spec*[SERVICE_COUNT] SERVICES = {
 	&svc_battery::BATTERY, &svc_power::POWER, &svc_network::NETWORK,
 	&svc_bluetooth::BLUETOOTH, &svc_audio::AUDIO, &svc_brightness::BRIGHTNESS,
 	&svc_display::DISPLAY, &svc_color::COLOR, &svc_media::MEDIA,
@@ -24,18 +27,3 @@ const Spec*[20] SERVICES = {
 	&svc_hotkey::HOTKEY, &svc_input::INPUT,
 };
 
-<* The number of registered services. *>
-const usz SERVICE_COUNT = 20;
-
-<* Every registered service. The slice is over a constant table. *>
-fn Spec*[] services() => SERVICES[..];
-
-<* The registered service named `name`, or null. *>
-fn Spec* find_service(String name)
-{
-	foreach (spec : SERVICES)
-	{
-		if (spec.name == name) return spec;
-	}
-	return null;
-}

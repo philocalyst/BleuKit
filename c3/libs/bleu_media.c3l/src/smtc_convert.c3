@@ -63,16 +63,23 @@ fn Duration micros_of_ticks(long ticks) => (Duration)(ticks / TICKS_PER_MICRO);
 <* A tick count in the `TimeSpan` form that the session methods take. *>
 fn long ticks_of_micros(Duration micros) => (long)micros * TICKS_PER_MICRO;
 
+// The oldest `LastUpdatedTime` that still describes a playing session (one day, microseconds).
+const Duration MAX_STAMP_AGE = (Duration)86_400_000_000;
+
 <*
  How long ago a `LastUpdatedTime` (a `DateTime` in ticks since 1601) was, in
  microseconds, against the wall clock `now_unix_us` (microseconds since 1970).
- Clamped to zero: a timestamp in the future is treated as now.
+ A stamp that cannot be a reading is unknown and counts as no age, so the
+ position is anchored at the reading time: a stamp before 1970 (a zero or unset
+ value is 1601), one in the future, or one older than `MAX_STAMP_AGE`.
 *>
 fn Duration age_of(long last_updated_ticks, Time now_unix_us)
 {
 	Duration stamped_unix_us = micros_of_ticks(last_updated_ticks) - UNIX_EPOCH_IN_MICRO_FROM_1601;
-	Duration age             = (Duration)now_unix_us - stamped_unix_us;
-	return age < time::DURATION_ZERO ? time::DURATION_ZERO : age;
+	if (stamped_unix_us <= time::DURATION_ZERO) return time::DURATION_ZERO;
+	Duration age = (Duration)now_unix_us - stamped_unix_us;
+	if (age < time::DURATION_ZERO || age > MAX_STAMP_AGE) return time::DURATION_ZERO;
+	return age;
 }
 
 <* The controls a session reports, as the backend reads them. *>

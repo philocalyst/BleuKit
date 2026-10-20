@@ -1,6 +1,6 @@
 <* The `sysinfo` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_sysinfo;
-import bleu::sysinfo, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::sysinfo, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the system information service. Its root points at a fake /proc, /sys and /etc in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -18,11 +18,11 @@ fn void? kill(registry::Request* request)
 {
 	sysinfo::Sysinfo* service = (sysinfo::Sysinfo*)request.handle;
 	uint pid = (uint)request.params.integer("pid")!;
-	String mode = registry::string_or(request.params, "mode", "terminate");
+	String mode = registry::string_or(request.params, "mode", "terminate")!;
 	sysinfo::KillMode kind = registry::parse_enum{sysinfo::KillMode}(mode)!;
 	Operation{sysinfo::KillReceipt}* operation = service.kill(pid, kind)!;
 	defer operation.release();
-	sysinfo::KillReceipt receipt = registry::await(operation, request.timeout)!;
+	sysinfo::KillReceipt receipt = registry::await{sysinfo::KillReceipt}(operation, request.timeout)!;
 	return registry::write_value(request.out, "receipt", receipt);
 }
 
@@ -39,6 +39,6 @@ const registry::Spec SYSINFO = {
 	.state_after = &live::state_after{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.capabilities = &live::capabilities{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.backend = &live::backend{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
-	.watch = &live::watch{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
+	.watch = &tap::watch{sysinfo::Sysinfo, sysinfo::State},
 	.commands = COMMANDS[..],
 };

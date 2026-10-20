@@ -10,5 +10,7 @@ int main(void)
         printf("abi mismatch\n");
         return 1;
     }
-    return tu_other_check();
+    if (tu_other_check() != 0) return 1;
+    printf("two translation units: ok\n");
+    return 0;
 }

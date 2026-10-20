@@ -9,7 +9,7 @@
  optionals and slices never cross the boundary.
 *>
 module bleu::capi;
-import bleu::error, bleu::availability, bleu::rt::foreign;
+import bleu::error, bleu::availability;
 
 <*
  Version of this C ABI. Compare it with BLEU_ABI_VERSION from the header you
@@ -114,7 +114,7 @@ fn OperationPhase phase_from_ordinal(usz ordinal) => (OperationPhase)(char)ordin
 *>
 fn uint bleu_abi_version() @export("bleu_abi_version")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		return ABI_VERSION;
 	};
@@ -126,7 +126,7 @@ fn uint bleu_abi_version() @export("bleu_abi_version")
 *>
 fn ZString bleu_status_name(int status) @export("bleu_status_name")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (status < 0 || status > (int)CStatus.UNKNOWN.ordinal) return "INVALID";
 		switch ((CStatus)status)
@@ -160,7 +160,7 @@ fn ZString bleu_status_name(int status) @export("bleu_status_name")
 *>
 fn CStatus bleu_last_error(ErrorDetail* out) @export("bleu_last_error")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (!out) return CStatus.INVALID_ARGUMENT;
 		fill_detail(out, error::last());
@@ -174,7 +174,7 @@ fn CStatus bleu_last_error(ErrorDetail* out) @export("bleu_last_error")
 *>
 fn void bleu_free(void* memory) @export("bleu_free")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (memory) alloc::free(mem, memory);
 	};

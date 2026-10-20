@@ -139,7 +139,7 @@ fn Track track_of(Value metadata, Allocator allocator)
 		.id = media::copy_text(track_id_of(object_path_of(metadata, "mpris:trackid")), allocator),
 		.title = media::copy_text(text_of(metadata, "xesam:title"), allocator),
 		.album = media::copy_text(text_of(metadata, "xesam:album"), allocator),
-		.art_url = media::copy_text(text_of(metadata, "mpris:artUrl"), allocator),
+		.art_url = art_url_text(text_of(metadata, "mpris:artUrl"), allocator),
 		.artists = artists_of(metadata, "xesam:artist", allocator),
 		.length = length_of(int_of(metadata, "mpris:length")),
 	};

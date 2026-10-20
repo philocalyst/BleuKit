@@ -5,7 +5,7 @@
  every service. Each service supplies its table in its own `*_api.c3` file.
 *>
 module bleu::capi;
-import std::thread, std::time, bleu::error, bleu::operation, bleu::stream, bleu::observe, bleu::json, bleu::rt::foreign;
+import std::thread, std::time, bleu::error, bleu::operation, bleu::stream, bleu::observe, bleu::json;
 
 <* The service a handle belongs to; typed accessors check it before they cast. *>
 enum Service : char
@@ -217,7 +217,7 @@ fn CStatus bleu_snapshot_retain(CSnapshot* snapshot, CSnapshot** out) @export("b
 <* Drop an owned snapshot; the last reference frees its state. Views are ignored. *>
 fn void bleu_snapshot_release(CSnapshot* snapshot) @export("bleu_snapshot_release")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (!snapshot || !snapshot.owned) return;
 		snapshot.ops.release(snapshot.native);
@@ -260,7 +260,7 @@ fn CStatus bleu_reader_take_dropped(CReader* reader, ulong* out) @export("bleu_r
 <* Unsubscribe and free a reader. Its queued events are discarded. *>
 fn void bleu_reader_release(CReader* reader) @export("bleu_reader_release")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (!reader) return;
 		reader.ops.release(reader.native);
@@ -272,7 +272,7 @@ fn void bleu_reader_release(CReader* reader) @export("bleu_reader_release")
 <* Free an event packet. Read its fields before releasing it. *>
 fn void bleu_packet_release(CPacket* packet) @export("bleu_packet_release")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (!packet) return;
 		packet.ops.release(packet.native);
@@ -339,7 +339,7 @@ fn CStatus bleu_operation_detail(COperation* operation, ErrorDetail* out) @expor
 <* Release an operation. A request still running keeps going, but nobody can read its result. *>
 fn void bleu_operation_release(COperation* operation) @export("bleu_operation_release")
 {
-	foreign::@foreign_entry()
+	@capi_scope()
 	{
 		if (!operation) return;
 		operation.ops.release(operation.native);

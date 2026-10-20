@@ -1,6 +1,6 @@
 <* The `brightness` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_brightness;
-import bleu::brightness, bleu::registry, bleu::registry::live, bleu::json, bleu::unit;
+import bleu::brightness, bleu::registry, bleu::registry::live, bleu::json, bleu::unit, bleu::registry::tap;
 
 <* Open the brightness service. Its root points at a fake sysfs tree in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -21,16 +21,16 @@ fn void? set(registry::Request* request)
 	String device = request.params.string("device")!;
 	Level level = (Level)(float)request.params.number("level")!;
 	brightness::Policy policy = brightness::DEFAULT_POLICY;
-	String kind = registry::string_or(request.params, "policy", "prefer_hardware");
+	String kind = registry::string_or(request.params, "policy", "prefer_hardware")!;
 	policy.kind = registry::parse_enum{brightness::PolicyKind}(kind)!;
 	if (policy.kind == brightness::PolicyKind.EXACT)
 	{
-		String mechanism = registry::string_or(request.params, "mechanism", "backlight");
+		String mechanism = registry::string_or(request.params, "mechanism", "backlight")!;
 		policy.mechanism = registry::parse_enum{brightness::Mechanism}(mechanism)!;
 	}
 	brightness::SetOperation* operation = service.set_level(device, level, policy)!;
 	defer operation.release();
-	brightness::Applied applied = registry::await(operation, request.timeout)!;
+	brightness::Applied applied = registry::await{brightness::Applied}(operation, request.timeout)!;
 	return registry::write_value(request.out, "applied", applied);
 }
 
@@ -56,6 +56,6 @@ const registry::Spec BRIGHTNESS = {
 	.state_after = &live::state_after{brightness::Brightness, brightness::State, brightness::Cap},
 	.capabilities = &live::capabilities{brightness::Brightness, brightness::State, brightness::Cap},
 	.backend = &live::backend{brightness::Brightness, brightness::State, brightness::Cap},
-	.watch = &live::watch{brightness::Brightness, brightness::State, brightness::Cap},
+	.watch = &tap::watch{brightness::Brightness, brightness::State},
 	.commands = COMMANDS[..],
 };

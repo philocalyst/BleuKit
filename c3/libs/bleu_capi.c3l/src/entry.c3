@@ -11,20 +11,61 @@ import std::time, bleu::error, bleu::rt::foreign;
 *>
 const ulong MAX_MILLISECONDS = 31_536_000_000;
 
+// How many exported calls are running on this thread. A nested call (a listener calling an accessor) must not make a second pool.
+tlocal uint scope_depth;
+
+<* Enter an exported call; true for the outermost one on this thread. *>
+fn bool enter_scope()
+{
+	scope_depth++;
+	return scope_depth == 1;
+}
+
+<* Leave an exported call entered with `enter_scope`. *>
+fn void leave_scope()
+{
+	scope_depth--;
+}
+
 <*
- Wrap the body of an exported function. It clears the calling thread's last error,
- then runs the body in a temporary allocator that exists on any thread
- (`rt::foreign`), so a C caller may come from a thread the runtime did not start.
+ Whether this thread already has a temporary allocator. Threads the C3 runtime started
+ do (the service workers), and `@pool_init` must not run on them.
+*>
+fn bool has_temp_allocator() => std::core::mem::allocators::top_temp != null;
+
+<*
+ Wrap the body of any exported function. The outermost call on a thread runs its body
+ in a temporary allocator that exists on any thread (`rt::foreign`), so a C caller may
+ come from a thread the runtime did not start. A nested call runs in that allocator.
+ (`@foreign_entry` must not be nested, nor run where a temporary allocator already exists: it asserts both.)
+*>
+macro void @capi_scope(; @body)
+{
+	bool outermost = enter_scope();
+	defer leave_scope();
+	if (outermost && !has_temp_allocator())
+	{
+		foreign::@foreign_entry()
+		{
+			@body();
+		};
+	}
+	else
+	{
+		@body();
+	}
+}
+
+<*
+ Wrap the body of an exported function that reports a status: as `@capi_scope`, and
+ it first clears the calling thread's last error (see `bleu_last_error`).
 *>
 macro void @capi_entry(; @body)
 {
 	error::Detail* detail = error::last();
 	detail.status = error::Status.OK;
 	detail.len = 0;
-	foreign::@foreign_entry()
-	{
-		@body();
-	};
+	@capi_scope() { @body(); };
 }
 
 <*

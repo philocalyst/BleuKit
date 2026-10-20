@@ -1,6 +1,6 @@
 <* The `tray` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_tray;
-import bleu::tray, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::tray, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the tray service. Its root and bus options are not used; the bus is the session bus. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -13,7 +13,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 fn void? finish(registry::Request* request, tray::CommandOp* operation) @private
 {
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -73,6 +73,6 @@ const registry::Spec TRAY = {
 	.state_after = &live::state_after{tray::Tray, tray::State, tray::Cap},
 	.capabilities = &live::capabilities{tray::Tray, tray::State, tray::Cap},
 	.backend = &live::backend{tray::Tray, tray::State, tray::Cap},
-	.watch = &live::watch{tray::Tray, tray::State, tray::Cap},
+	.watch = &tap::watch{tray::Tray, tray::State},
 	.commands = COMMANDS[..],
 };

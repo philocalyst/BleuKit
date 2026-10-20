@@ -114,18 +114,94 @@ fn void? Slot.watch(&self, Sink sink, void* context)
 
 <*
  Run the command `method` with `params`, writing its result object into `out`.
+ The command waits for its operation for its own timeout, or `DEFAULT_TIMEOUT`.
 
- @param timeout : "Longest the command waits for an operation it starts, unless its own timeout is longer"
  @return? NOT_FOUND : "No command of this service has that name"
  @return? error::UNAVAILABLE : "The service is not open; the message says why"
 *>
-fn void? Slot.call(&self, String method, json::read::Params params, Duration timeout, json::JsonWriter* out)
+fn void? Slot.call(&self, String method, json::read::Params params, json::JsonWriter* out)
 {
 	Command* command = find_command(self.spec, method);
 	if (!command) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "unknown method: %s", method)~;
 	self.require_open()!;
+	Duration timeout = command.timeout == time::DURATION_ZERO ? DEFAULT_TIMEOUT : command.timeout;
 	Request request = { .handle = self.handle, .params = params, .out = out, .timeout = timeout };
 	return command.run(&request);
+}
+
+<*
+ Write one summary object for `--list` and the `services` method:
+ `{"name", "summary", "open", "backend"}` when open, or `{..., "open": false, "reason"}`.
+*>
+fn void? Slot.write_summary(&self, json::JsonWriter* out)
+{
+	out.begin_object()!;
+	out.key("name")!;
+	out.put_string(self.spec.name)!;
+	out.key("summary")!;
+	out.put_string(self.spec.summary)!;
+	out.key("open")!;
+	out.put_bool(self.handle != null)!;
+	if (self.handle)
+	{
+		out.key("backend")!;
+		out.put_string(self.spec.backend(self.handle))!;
+	}
+	else
+	{
+		out.key("reason")!;
+		out.put_string(self.failure_message)!;
+	}
+	return out.end_object();
+}
+
+<*
+ The table index of the service named `name`.
+
+ @return? NOT_FOUND : "No registered service has that name"
+*>
+fn usz? index_of_service(String name)
+{
+	for (usz i = 0; i < SERVICE_COUNT; i++)
+	{
+		if (SERVICES[i].name == name) return i;
+	}
+	return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "not a service: %s", name)~;
+}
+
+<*
+ Open the services named in `names`, a comma-separated list; "" means every service.
+ Each named service is attempted once. A service that fails stays closed and keeps
+ its reason in its slot, so one failure does not stop the others.
+
+ @param slots : "One slot per registered service, in table order (`SERVICE_COUNT` of them)"
+ @return? error::INVALID_ARGUMENT : "A name in the list is not a registered service"
+*>
+fn void? open_selected(Slot[] slots, String names, Allocator allocator, OpenOptions options)
+{
+	bool[SERVICE_COUNT] wanted = { };
+	if (names.len == 0)
+	{
+		for (usz i = 0; i < SERVICE_COUNT; i++) wanted[i] = true;
+	}
+	else
+	{
+		usz start = 0;
+		while (start <= names.len)
+		{
+			usz end = start;
+			while (end < names.len && names[end] != ',') end++;
+			usz index = index_of_service(names[start : end - start])!;
+			wanted[index] = true;
+			start = end + 1;
+		}
+	}
+	for (usz i = 0; i < SERVICE_COUNT; i++)
+	{
+		if (!wanted[i]) continue;
+		// The failure is kept in the slot for every later request to report; it is not raised here.
+		if (catch slots[i].open(SERVICES[i], allocator, options)) {}
+	}
 }
 
 <* The command of `spec` named `method`, or null. *>

@@ -14,13 +14,15 @@ Design and the research behind it: `docs/research/session_windows_input.md`; imp
 
 * `session::open(allocator, Options) -> Session*?`: `Options` = `backend` (AUTO, LOGIND, MACOS,
   WIN32), `bus_address`, `idle_thresholds` (`Duration[]`), `idle_poll`, `allow_private`.
-* `Session.latest()`, `wait_after(seen, timeout)`, `watch`, `unwatch`: `Snapshot{State}`.
+* `Session.latest()`, `wait_after(seen, timeout)`, `watch`, `unwatch` (`void?`: INVALID_STATE from inside
+  the listener it would remove): `Snapshot{State}`.
   `State`: `locked`, `idle_hint` (`Maybe{bool}`), `sleeping`, `current` (`SessionInfo`: id, user,
   uid, seat, type, active, remote), `seats`, `sessions`, `idle` (one `IdleStatus` per threshold).
 * `Session.subscribe() -> stream::Reader{Event}*?`: LOCKED, UNLOCKED, WILL_SLEEP, DID_WAKE, and the
   IDLE/RESUMED edges of the configured thresholds (watch 0).
 * `Session.lock()`, `unlock()`, `lock_session(id)`, `terminate_session(id)` -> `SessionOperation*?`
-  (`Operation{Request}`): the value is the request that was carried out.
+  (`Operation{Request}`): the value is the request that was carried out. An empty session id is
+  INVALID_ARGUMENT. Terminating the session this process runs in ends this process too.
 * `Session.watch_idle(threshold) -> IdleWatch*?`; `IdleWatch.next(timeout) -> EventKind?` (IDLE or
   RESUMED), `IdleWatch.close()`. Close every watch before the session.
 * `Session.capability(Cap) -> Availability`: why a request is refused. Refused calls return
@@ -43,7 +45,9 @@ Compiled = type-checked for the target by `tools/check.sh` only; nothing was exe
 | IDLE_HINT | Run | - | Not done (UNSUPPORTED) | Not done (UNSUPPORTED) |
 | SLEEP_EVENTS | Run (PrepareForSleep, `Manager.Suspend`) | - | Compiled (IOKit power) | Compiled (WM_POWERBROADCAST) |
 | SESSION_LIST | Run (sessions and seats) | - | Not done (UNSUPPORTED) | Not done (UNSUPPORTED) |
-| Pure logic (idle edges, record dedupe, type names) | Run (`common_test.c3`, 5 tests) | - | - | - |
+| Pure logic (idle edges, record dedupe, type names, retry delay) | Run (`common_test.c3`, 6 tests) | - | - | - |
+| Late session (found after SessionNew) | Run (`logind_late.c3`, mock with a late session) | - | - | - |
+| Shutdown rule (queued request completed at stop) | Run (`service_test.c3`) | - | - | - |
 
 ## Not done
 
@@ -54,14 +58,19 @@ Compiled = type-checked for the target by `tools/check.sh` only; nothing was exe
   backend would sit beside `logind.c3` and report `IDLE_WATCH` as DEGRADED.
 * **Idle on macOS and Windows** is polled every `idle_poll` (1 s by default), so an edge can be
   up to one poll late. No idle time is returned: only edges, as on Wayland.
-* **The macOS lock state** reads `CGSSessionScreenIsLocked` (UNVERIFIED on hardware; an absent key
-  is read as unlocked).
+* **The macOS lock state** reads `CGSSessionScreenIsLocked` (UNVERIFIED on hardware). An absent key is
+  unknown (`locked` empty), not "unlocked".
 * **The macOS lock request** needs `Options.allow_private` and `SACLockScreenImmediate` (UNVERIFIED);
   without the gate the capability is UNSUPPORTED_BACKEND.
 * **Sleep on macOS** uses IOKit power notifications, not NSWorkspace: NSWorkspace posts on the main
   thread, which the worker does not run. Commands on macOS and Windows wait up to one poll.
 * **Sessions on macOS and Windows**: no list; the Windows `current.id` is the WTS session id.
 * **No locker, no PAM, no authentication, no idle inhibitor** (`bleu_power`).
+* **A process not in a logind session** (or whose lookup fails) is looked again after 1 s, then 2 s, 4 s and
+  so on up to 30 s, and at once on SessionNew or SessionRemoved. A lost bus is still the only error the
+  worker acts on by reconnecting.
+* **Requests at shutdown:** a request queued when the backend stops is completed with DISCONNECTED
+  (`abandon_command`), never left pending.
 * **logind errors:** `bleu_dbus` maps no `org.freedesktop.login1.*` names, so `NoSuchSession` is
   BACKEND_FAILURE with the text in `error::last()`.
 * **Polkit:** LockSession, UnlockSession and TerminateSession may be refused by polkit
@@ -76,6 +85,8 @@ Compiled = type-checked for the target by `tools/check.sh` only; nothing was exe
   watch, and Suspend producing WILL_SLEEP then DID_WAKE), checked against the calls the mock logged
   in order; then the absent test, with no owner for org.freedesktop.login1. Three consecutive runs
   passed. The library's pure tests run inside the same `compile-test`.
+* `tests/run.sh` also runs `logind_late.c3` against a mock that refuses this process's session for two
+  seconds, then announces it: the session must appear without a reconnect.
 * `tools/check.sh bleu_core bleu_rt bleu_service bleu_objc bleu_win bleu_dbus bleu_dl bleu_session`:
   clean on all six targets. macOS and Windows were type-checked only; no macOS or Windows code ran.
 * `c3fmt --check` clean on `src/` and `tests/`.

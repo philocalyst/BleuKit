@@ -5,7 +5,7 @@
  once, in its reply, to the client that asked for it.
 *>
 module bleu::registry::svc_secrets;
-import bleu::secrets, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::secrets, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::error;
 
 <* Open the keyring service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -16,7 +16,7 @@ fn void*? open(Allocator allocator, registry::OpenOptions options)
 }
 
 <* The entry named by the `service` and `account` members of the request. *>
-fn secrets::Entry entry_of(registry::Request* request) @private
+fn secrets::Entry? entry_of(registry::Request* request) @private
 {
 	return { .service = request.params.string("service")!, .account = request.params.string("account")! };
 }
@@ -29,7 +29,7 @@ fn void? store(registry::Request* request)
 	String value = request.params.string("value")!;
 	Operation{secrets::Entry}* operation = service.store(entry, (char[])value)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{secrets::Entry}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -40,7 +40,7 @@ fn void? read(registry::Request* request)
 	secrets::Entry entry = entry_of(request)!;
 	Operation{secrets::Secret}* operation = service.read(entry)!;
 	defer operation.release();
-	secrets::Secret secret = registry::await(operation, request.timeout)!;
+	secrets::Secret secret = registry::await{secrets::Secret}(operation, request.timeout)!;
 	return registry::write_value(request.out, "secret", secret);
 }
 
@@ -51,8 +51,17 @@ fn void? delete(registry::Request* request)
 	secrets::Entry entry = entry_of(request)!;
 	Operation{bool}* operation = service.delete(entry)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
+}
+
+<*
+ The keyring has no change notifications of its own yet, so it cannot stream its state.
+ Until it does, the topic is refused with UNSUPPORTED.
+*>
+fn void? unsupported_watch(void* handle, registry::Tap* tap) @private
+{
+	return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "secrets state cannot be streamed yet")~;
 }
 
 const registry::Command[3] COMMANDS = {
@@ -70,6 +79,6 @@ const registry::Spec SECRETS = {
 	.state_after = &live::state_after{secrets::Keyring, secrets::State, secrets::Cap},
 	.capabilities = &live::capabilities{secrets::Keyring, secrets::State, secrets::Cap},
 	.backend = &live::backend{secrets::Keyring, secrets::State, secrets::Cap},
-	.watch = &live::watch{secrets::Keyring, secrets::State, secrets::Cap},
+	.watch = &unsupported_watch,
 	.commands = COMMANDS[..],
 };

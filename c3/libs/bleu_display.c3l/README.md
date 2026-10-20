@@ -12,7 +12,8 @@ Depends on `bleu_core`, `bleu_rt`, `bleu_service`, `bleu_wl` (Linux), `bleu_ddc`
 * `display::open(allocator, Options{backend, root})` returns `Display*`; `close`. `backend_name()`.
 * `latest()` returns the newest `Snapshot{State}` (call `release()`); `wait_after(seen, timeout)`;
   `watch`/`unwatch` on the worker thread; `subscribe()` for `Event`s (`OUTPUT_ADDED`, `OUTPUT_REMOVED`,
-  `OUTPUT_CHANGED`, `REVERTED`).
+  `OUTPUT_CHANGED`, `REVERTED`, and `REVERT_FAILED` when the platform refused a rollback; the event does
+  not carry the reason, so read the state to see what the system has).
 * `State { Output[] outputs; uint serial }`. `Output` has `id` (stable), `name`, `make`, `model`,
   `serial`, `description`, `width_mm`/`height_mm`, `enabled`, `primary`, `x`/`y`, `current`, `modes[]`
   (`width`, `height`, `refresh` in millihertz, `preferred`), `scale` (fractional), `transform`,
@@ -20,6 +21,10 @@ Depends on `bleu_core`, `bleu_rt`, `bleu_service`, `bleu_wl` (Linux), `bleu_ddc`
 * `apply(Config, ApplyMode, revert_after)` returns `ApplyOp*` (`Operation{ApplyResult}`). `Config` is a
   full desired layout: one `OutputChange` per output (`enabled`, `mode`, `x`, `y`, `transform`, `scale`),
   plus `persistent`. `ApplyMode`: `TEST_ONLY`, `APPLY`, `APPLY_WITH_REVERT`.
+  `revert_after`: zero is the default 15 s; `FOREVER` means no rollback (applied as `APPLY`); a negative
+  value is `INVALID_ARGUMENT`. A plain `APPLY` supersedes a pending rollback, even when it changes nothing;
+  a second `APPLY_WITH_REVERT` keeps the last confirmed layout as the rollback point and moves the deadline.
+  Scales are accepted from 0.25 to 10, and each enabled output must have a logical size of at least 1x1.
 * `confirm()` keeps a change made with `APPLY_WITH_REVERT`; `refresh()` re-reads the hardware.
 * `capability(Cap)` returns an `Availability` (`YES`, `DEGRADED` with a note, or `no(reason, note)`).
 * Pure rules (no platform code, tested): `validate_layout`, `validate_config`, `origin_offset`,
@@ -51,6 +56,11 @@ type-checked for the target (`tools/check.sh`-equivalent over the six targets), 
 
 ## Not done
 
+* Stop with an armed rollback: the rollback is sent and flushed, then the connection closes without
+  waiting for the compositor's answer, so whether it took effect is not known after `close()`.
+* Linux wlr route: a rollback that is refused, and a poll(2) failure in the worker, are handled in code
+  (`REVERT_FAILED`; the session stops) but no test can inject them.
+
 * Mutter (`org.gnome.Mutter.DisplayConfig`) and KDE routes: the research v1 cut names Mutter as a second
   apply route; this version uses the Wayland protocols only, as the Linux brief asks.
 * Linux: the readiness-driven loop in `run` is not exercised by a test (the tests drive the session on
@@ -65,10 +75,15 @@ type-checked for the target (`tools/check.sh`-equivalent over the six targets), 
 
 ## Verified how
 
-* Unit: `src/pure_test.c3` (14 `@test`s: transform, layout, origin, refresh tolerance, mode matching,
-  config validation, diff, revert guard, conversions) and `src/win_convert_test.c3` (2). All pass
-  (`compile-test`, Linux x86-64, c3c 0.8.5).
-* Mock compositor: `src/linux_test.c3` (3 `@test`s) drives `attach`, `begin_apply`, `advance` and the
+* Unit: `src/pure_test.c3` (transform, layout, origin, refresh tolerance, mode matching, config
+  validation including the logical-size and scale bounds, diff, the revert guard and its window rule,
+  the saturating deadline, conversions) and `src/win_convert_test.c3`. `src/sync_apply_test.c3`
+  drives the synchronous apply flow against a fake platform (a failed read while capturing the
+  rollback, a no-op plain APPLY forgetting the rollback, a second change keeping the last confirmed
+  layout, a refused rollback). All pass (`compile-test`, Linux x86-64, c3c 0.8.5).
+* Mock compositor: `src/linux_test.c3` drives `attach`, `begin_apply`, `advance`, `shutdown` and the
   rollback against `bleu::wl::testing::MockServer`, expecting each request by opcode: the read-only
-  route (wl_output and xdg-output), the wlr test-only path, and the wlr apply with its rollback.
+  route (wl_output and xdg-output), the wlr test-only path, the wlr apply with its rollback, a timed-out
+  test request that must be destroyed (its late answer ignored), a stop while a second change is in
+  flight (its waiter fails with `DISCONNECTED`), and a head missing from the configuration (refused).
 * Six-target type check of the whole library, with `tools/libdir.sh` (`c3c compile-only`).

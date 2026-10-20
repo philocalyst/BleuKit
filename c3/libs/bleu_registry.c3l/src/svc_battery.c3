@@ -2,7 +2,7 @@
  The `battery` entry of the registry: its open adapter, its commands and its `Spec`.
 *>
 module bleu::registry::svc_battery;
-import bleu::battery, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::battery, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the battery service. Its root option points at a fake sysfs tree in tests. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -33,6 +33,6 @@ const registry::Spec BATTERY = {
 	.state_after = &live::state_after{battery::Battery, battery::State, battery::Cap},
 	.capabilities = &live::capabilities{battery::Battery, battery::State, battery::Cap},
 	.backend = &live::backend{battery::Battery, battery::State, battery::Cap},
-	.watch = &live::watch{battery::Battery, battery::State, battery::Cap},
+	.watch = &tap::watch{battery::Battery, battery::State},
 	.commands = COMMANDS[..],
 };

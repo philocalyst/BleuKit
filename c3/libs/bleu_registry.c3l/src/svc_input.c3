@@ -1,6 +1,6 @@
 <* The `input` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_input;
-import bleu::input, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::input, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the keyboard layout service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -15,7 +15,7 @@ fn void? switch_layout(registry::Request* request)
 	input::Input* service = (input::Input*)request.handle;
 	input::SwitchOperation* operation = service.switch_to(request.params.string("layout")!)!;
 	defer operation.release();
-	input::SwitchOutcome outcome = registry::await(operation, request.timeout)!;
+	input::SwitchOutcome outcome = registry::await{input::SwitchOutcome}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -25,7 +25,7 @@ fn void? next(registry::Request* request)
 	input::Input* service = (input::Input*)request.handle;
 	input::SwitchOperation* operation = service.next()!;
 	defer operation.release();
-	input::SwitchOutcome outcome = registry::await(operation, request.timeout)!;
+	input::SwitchOutcome outcome = registry::await{input::SwitchOutcome}(operation, request.timeout)!;
 	return registry::write_value(request.out, "outcome", outcome);
 }
 
@@ -43,6 +43,6 @@ const registry::Spec INPUT = {
 	.state_after = &live::state_after{input::Input, input::State, input::Cap},
 	.capabilities = &live::capabilities{input::Input, input::State, input::Cap},
 	.backend = &live::backend{input::Input, input::State, input::Cap},
-	.watch = &live::watch{input::Input, input::State, input::Cap},
+	.watch = &tap::watch{input::Input, input::State},
 	.commands = COMMANDS[..],
 };

@@ -5,8 +5,8 @@
 // "real" for a PulseAudio daemon (checks that hold for any server). Each check
 // prints PASS or FAIL; the exit status is the number of failures.
 module bleu::audio::integration_test;
-import bleu::audio, bleu::availability, bleu::error, bleu::observe, bleu::stream, bleu::operation, bleu::unit, bleu::rt::unix;
-import std::io, std::os::env, std::time, std::math;
+import bleu::audio, bleu::availability, bleu::error, bleu::observe, bleu::stream, bleu::operation, bleu::unit, bleu::rt::unix, bleu::deadline;
+import std::io, std::os::env, std::thread, std::time, std::math;
 
 <* Failed checks so far. *>
 int failures = 0;
@@ -72,13 +72,30 @@ fn bool completes(Pending* op)
 	return true;
 }
 
-// Send one line to the mock's control socket.
+// Send one line to the mock's control socket and wait until the mock has acted on
+// it: the mock closes the control connection after handling the line, so the
+// end of stream is the acknowledgement. Without the wait, a request the test sends
+// next can reach the mock before the change does.
 fn void control(String line)
 {
 	String path    = string::tformat("%s.ctl", socket_path);
 	UnixSocket ctl = unix::connect(path, SocketKind.STREAM)!!;
 	defer (void)ctl.close();
 	ctl.send_all((char[])line)!!;
+	char[16] sink;
+	bool open_line = true;
+	while (open_line)
+	{
+		// A reset from the mock's side ends the wait the same way as the end of stream.
+		if (try got = ctl.recv(sink[..], { }))
+		{
+			open_line = got.bytes > 0;
+		}
+		else
+		{
+			open_line = false;
+		}
+	}
 }
 
 fn bool speakers(State* s) => s.outputs.len == 1 && s.outputs[0].form_factor == FormFactor.SPEAKERS;
@@ -95,6 +112,8 @@ fn bool stream_quarter(State* s) => s.streams.len > 0 && near_gain(s.streams[0].
 fn bool card_off(State* s) => s.cards.len == 1 && s.cards[0].active_profile == "off";
 fn bool no_outputs(State* s) => s.outputs.len == 0;
 fn bool has_outputs(State* s) => s.outputs.len > 0;
+fn bool degraded_card_list(State* s) => s.degraded.len > 0 && s.cards.len == 0 && s.outputs.len == 2;
+fn bool clean_again(State* s) => s.degraded.len == 0 && s.cards.len == 1 && s.outputs.len == 1;
 
 // The mock's state is fixed, so its expectations are exact.
 fn void mock_state(Audio* audio)
@@ -227,6 +246,108 @@ fn void mock_commands(Audio* audio, Reader{Event}* reader)
 	check(await(audio, &second_gone), "the removed sink is gone");
 }
 
+// A refresh re-reads the server even when no event announces the change.
+fn void mock_refresh(Audio* audio)
+{
+	control("silent-volume alsa_output.test 0.5");
+	check(completes(audio.refresh() ?? null), "refresh is accepted and completes");
+	check(await(audio, &half_volume), "refresh publishes a change that no event announced");
+}
+
+// A card list the decoder rejects costs only that list: the sinks still publish and
+// the state says what was skipped. The count case is a hostile 0xFFFFFFFF, which
+// must be refused before any allocation for it; the tag case is a wrong proplist tag.
+fn void mock_bad_cards(Audio* audio, Reader{Event}* reader)
+{
+	control("corrupt-cards count");
+	control("add-sink bleu.third");
+	check(
+		await(audio, &degraded_card_list),
+		"a hostile card count is skipped, the sinks publish and the state names the skipped list"
+	);
+	control("fix-cards");
+	control("remove-sink bleu.third");
+	check(await(audio, &clean_again), "the next complete refresh clears the note");
+
+	control("corrupt-cards tag");
+	control("add-sink bleu.third");
+	check(await(audio, &degraded_card_list), "a card list with a wrong proplist tag is skipped the same way");
+	control("fix-cards");
+	control("remove-sink bleu.third");
+	check(await(audio, &clean_again), "the note clears again once the card list is well formed");
+	check(saw_event(reader, EventKind.DEVICE_REMOVED, "bleu.third"), "the third sink was removed");
+}
+
+// A server's own TIMEOUT reply fails only that command; the session carries on.
+fn void mock_server_timeout(Audio* audio)
+{
+	control("timeout-next");
+	bool failed_as_backend = false;
+	if (try op = audio.set_device_mute(Flow.OUTPUT, "alsa_output.test", true))
+	{
+		defer op.release();
+		if (catch err = op.wait(time::ms(5000))) failed_as_backend = err == error::BACKEND_FAILURE;
+	}
+	check(failed_as_backend, "a server TIMEOUT reply fails the command with BACKEND_FAILURE");
+	check(
+		completes(audio.set_device_mute(Flow.OUTPUT, "alsa_output.test", false) ?? null),
+		"the session survives a server TIMEOUT: the next command completes"
+	);
+}
+
+// The server stops part-way through the handshake reply and keeps the socket open.
+// `close` must return promptly, and every command queued meanwhile must complete
+// (CANCELLED or UNAVAILABLE, never a hang): 40 commands is more than one batch.
+fn void stalled_handshake_does_not_block_close(Options options)
+{
+	control("handshake-fault stall");
+	Audio*? opened = audio::open(mem, options);
+	if (catch err = opened)
+	{
+		check(false, "open a service whose handshake will stall");
+		return;
+	}
+	Audio* stalled = opened;
+	Pending*[40] queued;
+	Gain[] gains = { (Gain)0.5f };
+	for (int i = 0; i < 40; i++)
+	{
+		queued[i] = stalled.set_device_volume(Flow.OUTPUT, "alsa_output.test", gains) ?? null;
+	}
+	thread::sleep(time::ms(300))!!;
+	Deadline limit = deadline::after(time::ms(2000));
+	stalled.close();
+	check(!limit.expired(), "close returns while the server is silent in the middle of a reply");
+	bool all_completed = true;
+	for (int i = 0; i < 40; i++)
+	{
+		Pending* op = queued[i];
+		if (!op) continue;
+		if (catch err = op.wait(time::ms(100)))
+		{
+			if (err == TIMEOUT) all_completed = false;
+		}
+		op.release();
+	}
+	check(all_completed, "every command queued during the stall completes, none is left pending");
+}
+
+// The server closes the connection part-way through the handshake reply. The
+// worker must treat that as a dropped connection, reconnect and publish, not spin.
+fn void cut_handshake_is_reconnected(Options options)
+{
+	control("handshake-fault cut");
+	Audio*? opened = audio::open(mem, options);
+	if (catch err = opened)
+	{
+		check(false, "open a service whose handshake will be cut");
+		return;
+	}
+	Audio* cut = opened;
+	defer cut.close();
+	check(await(cut, &has_outputs), "a connection cut mid-reply is reconnected and the state is published");
+}
+
 // The server going away: the state empties and commands fail rather than hang.
 fn void mock_disconnect(Audio* audio)
 {
@@ -333,6 +454,11 @@ fn int main()
 		check(await(service, &speakers), "the mock's sink is published");
 		mock_state(service);
 		mock_commands(service, reader);
+		mock_refresh(service);
+		mock_bad_cards(service, reader);
+		mock_server_timeout(service);
+		stalled_handshake_does_not_block_close(options);
+		cut_handshake_is_reconnected(options);
 		mock_disconnect(service);
 	}
 	else

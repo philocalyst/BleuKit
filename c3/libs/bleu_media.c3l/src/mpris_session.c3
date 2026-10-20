@@ -297,8 +297,7 @@ fn void? Session.read(&self, Record* r)
 	{
 		Value root             = r.root.get_all_properties(tmem, CALL_TIMEOUT)!;
 		Value player           = r.player.get_all_properties(tmem, CALL_TIMEOUT)!;
-		Maybe{Anchor} position = { };
-		if (try anchor = self.read_position(r)) position = maybe::value(anchor);
+		if (try anchor = self.read_position(r)) r.position = maybe::value(anchor);
 		Duration now = media::monotonic_now();
 		r.arena.reset();
 		Allocator a = &r.arena;
@@ -318,7 +317,6 @@ fn void? Session.read(&self, Record* r)
 		r.loop = loop_maybe(player);
 		r.track = { };
 		if (try metadata = player.dict_get("Metadata")) r.track = mpris_convert::track_of(metadata, a);
-		r.position = position;
 	};
 }
 
@@ -366,7 +364,11 @@ fn void Session.tick(&self)
 	foreach (r : self.records.array_view())
 	{
 		if (r.status != Playback.PLAYING || r.dirty) continue;
-		if (try anchor = self.read_position(r)) r.position = maybe::value(anchor);
+		if (try anchor = self.read_position(r))
+			{
+				// Replace the anchor only when the reading disagrees with it: a steady player keeps its state unchanged.
+				if (media::needs_reanchor(r.position, anchor, r.status, r.rate, r.track.length)) r.position = maybe::value(anchor);
+			}
 	}
 }
 

@@ -435,7 +435,7 @@ class Mock:
             name, gain = parts[1].split(" ")
             for d in self.server.sinks:
                 if d.name == name:
-                    raw = round(float(gain) ** (1.0 / 3.0) * VOLUME_NORM)
+                    raw = round(float(gain) * VOLUME_NORM)
                     d.volume = [raw] * len(d.volume)
         elif parts[0] == "handshake-fault":
             self.handshake_fault = parts[1]

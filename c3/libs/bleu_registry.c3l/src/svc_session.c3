@@ -1,6 +1,6 @@
 <* The `session` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_session;
-import bleu::session, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::session, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the session service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -15,7 +15,7 @@ fn void? lock(registry::Request* request)
 	session::Session* service = (session::Session*)request.handle;
 	session::SessionOperation* operation = service.lock()!;
 	defer operation.release();
-	session::Request done = registry::await(operation, request.timeout)!;
+	session::Request done = registry::await{session::Request}(operation, request.timeout)!;
 	return registry::write_value(request.out, "request", done);
 }
 
@@ -25,7 +25,7 @@ fn void? unlock(registry::Request* request)
 	session::Session* service = (session::Session*)request.handle;
 	session::SessionOperation* operation = service.unlock()!;
 	defer operation.release();
-	session::Request done = registry::await(operation, request.timeout)!;
+	session::Request done = registry::await{session::Request}(operation, request.timeout)!;
 	return registry::write_value(request.out, "request", done);
 }
 
@@ -43,6 +43,6 @@ const registry::Spec SESSION = {
 	.state_after = &live::state_after{session::Session, session::State, session::Cap},
 	.capabilities = &live::capabilities{session::Session, session::State, session::Cap},
 	.backend = &live::backend{session::Session, session::State, session::Cap},
-	.watch = &live::watch{session::Session, session::State, session::Cap},
+	.watch = &tap::watch{session::Session, session::State},
 	.commands = COMMANDS[..],
 };

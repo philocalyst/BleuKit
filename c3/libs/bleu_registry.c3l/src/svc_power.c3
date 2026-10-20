@@ -1,6 +1,6 @@
 <* The `power` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_power;
-import bleu::power, bleu::registry, bleu::registry::live, bleu::json;
+import bleu::power, bleu::registry, bleu::registry::live, bleu::json, bleu::registry::tap;
 
 <* Open the power service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -16,7 +16,7 @@ fn void? set_profile(registry::Request* request)
 	power::Profile profile = registry::parse_enum{power::Profile}(request.params.string("profile")!)!;
 	power::ProfileOperation* operation = service.set_profile(profile)!;
 	defer operation.release();
-	power::Profile applied = registry::await(operation, request.timeout)!;
+	power::Profile applied = registry::await{power::Profile}(operation, request.timeout)!;
 	return registry::write_value(request.out, "profile", applied);
 }
 
@@ -27,7 +27,7 @@ fn void? perform(registry::Request* request)
 	power::Action action = registry::parse_enum{power::Action}(request.params.string("action")!)!;
 	power::ActionOperation* operation = service.perform(action)!;
 	defer operation.release();
-	power::Action done = registry::await(operation, request.timeout)!;
+	power::Action done = registry::await{power::Action}(operation, request.timeout)!;
 	return registry::write_value(request.out, "action", done);
 }
 
@@ -45,6 +45,6 @@ const registry::Spec POWER = {
 	.state_after = &live::state_after{power::Power, power::State, power::Cap},
 	.capabilities = &live::capabilities{power::Power, power::State, power::Cap},
 	.backend = &live::backend{power::Power, power::State, power::Cap},
-	.watch = &live::watch{power::Power, power::State, power::Cap},
+	.watch = &tap::watch{power::Power, power::State},
 	.commands = COMMANDS[..],
 };

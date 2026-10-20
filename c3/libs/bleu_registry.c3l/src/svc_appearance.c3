@@ -1,6 +1,6 @@
 <* The `appearance` entry of the registry: open adapter, commands and `Spec`. *>
 module bleu::registry::svc_appearance;
-import bleu::appearance, bleu::registry, bleu::registry::live, bleu::json, bleu::operation;
+import bleu::appearance, bleu::registry, bleu::registry::live, bleu::json, bleu::operation, bleu::registry::tap;
 
 <* Open the appearance service with its default backend. *>
 fn void*? open(Allocator allocator, registry::OpenOptions options)
@@ -16,7 +16,7 @@ fn void? set_color_scheme(registry::Request* request)
 	appearance::ColorScheme scheme = registry::parse_enum{appearance::ColorScheme}(request.params.string("scheme")!)!;
 	Operation{bool}* operation = service.set_color_scheme(scheme)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -26,7 +26,7 @@ fn void? set_wallpaper(registry::Request* request)
 	appearance::Appearance* service = (appearance::Appearance*)request.handle;
 	Operation{bool}* operation = service.set_wallpaper(request.params.string("path")!)!;
 	defer operation.release();
-	registry::await(operation, request.timeout)!;
+	registry::await{bool}(operation, request.timeout)!;
 	return registry::write_ok(request.out);
 }
 
@@ -44,6 +44,6 @@ const registry::Spec APPEARANCE = {
 	.state_after = &live::state_after{appearance::Appearance, appearance::State, appearance::Cap},
 	.capabilities = &live::capabilities{appearance::Appearance, appearance::State, appearance::Cap},
 	.backend = &live::backend{appearance::Appearance, appearance::State, appearance::Cap},
-	.watch = &live::watch{appearance::Appearance, appearance::State, appearance::Cap},
+	.watch = &tap::watch{appearance::Appearance, appearance::State},
 	.commands = COMMANDS[..],
 };
