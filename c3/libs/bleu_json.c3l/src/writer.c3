@@ -80,6 +80,20 @@ fn String JsonWriter.written(&self)
 	return (String)self.buffer[0:self.used];
 }
 
+<*
+ Begin a new top-level document in the same output, keeping what was written
+ so far. Line protocols use this to put one document on each line. Refused
+ while a container is open.
+
+ @return? error::INVALID_STATE : "A container is still open"
+*>
+fn void? JsonWriter.restart(&self)
+{
+	self.ready()!;
+	if (self.depth > 0) return misuse("a container is still open")~;
+	self.top_done = false;
+}
+
 <* True when exactly one complete value has been written and no container is open. *>
 fn bool JsonWriter.is_complete(&self) @inline => self.top_done && self.depth == 0;
 

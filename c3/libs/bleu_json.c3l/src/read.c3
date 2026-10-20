@@ -57,7 +57,7 @@ fn Object*? present(Object* obj, String key)
 fn Object*? required(Object* obj, String key)
 {
 	Object* value = present(obj, key)!;
-	if (!value) return wrong_member(key, "is missing")~;
+	if (!value) return wrong_member(key, "is missing or null")~;
 	return value;
 }
 
