@@ -85,13 +85,12 @@ fn usz? native_wait(Poller* self, Deadline deadline) @private
 	}
 }
 
-// Milliseconds left, rounded up; INFINITE for an unbounded wait.
+// Milliseconds left for the wait; INFINITE for an unbounded one.
 fn Win32_DWORD wait_timeout_ms(Deadline deadline) @private
 {
 	Duration left = deadline.remaining();
 	if (left == time::FOREVER) return win32::INFINITE;
-	long ms = (left + time::MS - 1) / time::MS;
-	return (Win32_DWORD)min(ms, (long)win32::INFINITE - 1);
+	return (Win32_DWORD)min(duration_ceil_ms(left), (long)win32::INFINITE - 1);
 }
 
 // Report the object (or window messages) that satisfied the wait, then sweep the

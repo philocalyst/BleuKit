@@ -31,9 +31,8 @@ bitstruct Interest : char
 }
 
 <*
- A native object to wait on, with the tag the owner recognises it by.
-
- @param handle : "A file descriptor (POSIX) or HANDLE (Windows); not owned by the poller"
+ A native object to wait on, with the tag the owner recognises it by. `handle`
+ is a file descriptor (POSIX) or a HANDLE (Windows) that the poller does not own.
 *>
 struct Source
 {
@@ -95,9 +94,9 @@ fn void? Poller.init(&self, Allocator allocator, Wakeup* wakeup, usz capacity, b
 	self.wakeup = wakeup;
 	self.window_messages = window_messages;
 	self.capacity = capacity;
-	self.sources = alloc::new_array(allocator, Source, capacity);
-	self.entries = alloc::new_array(allocator, NativeWait, capacity + 1);
-	self.ready = alloc::new_array(allocator, Ready, capacity + 2);
+	self.sources = alloc::new_array(allocator, Source, (sz)capacity);
+	self.entries = alloc::new_array(allocator, NativeWait, (sz)(capacity + 1));
+	self.ready = alloc::new_array(allocator, Ready, (sz)(capacity + 2));
 }
 
 <* Release the fixed storage. The wake-up is not closed. *>
@@ -146,11 +145,21 @@ fn void? Poller.remove(&self, usz tag)
 	foreach (i, source : self.sources[:self.count])
 	{
 		if (source.tag != tag) continue;
-		for (usz j = i; j + 1 < self.count; j++) self.sources[j] = self.sources[j + 1];
+		for (usz j = (usz)i; j + 1 < self.count; j++) self.sources[j] = self.sources[j + 1];
 		self.count--;
 		return;
 	}
 	return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no source with tag %d", tag)~;
+}
+
+<*
+ `d` in whole milliseconds, rounded up so that a short wait never becomes a
+ busy loop. Zero or less gives zero.
+*>
+fn long duration_ceil_ms(Duration d) @private
+{
+	if (d <= time::DURATION_ZERO) return 0;
+	return (long)((d - 1) / time::MS) + 1;
 }
 
 <*

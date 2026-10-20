@@ -52,7 +52,6 @@ fn Guid make(uint data1, ushort data2, ushort data3,
  Braces are optional. Use it in `const` declarations.
 
  @param $text : "A GUID in canonical text form, 32 hex digits in 8-4-4-4-12 groups"
- @require $text.len == 36 || $text.len == 38 : "A GUID literal has 36 characters, or 38 with braces"
 *>
 macro Guid guid($text)
 {
@@ -134,27 +133,30 @@ fn String Guid.format(self, Allocator allocator)
 
  @param text : "The text to parse"
  @return "The parsed GUID"
- @return? INVALID_ARGUMENT : "If `text` is not a GUID"
+ @return? error::INVALID_ARGUMENT : "If `text` is not a GUID"
 *>
 fn Guid? parse(String text)
 {
 	String body = text;
 	if (body.len == 38 && body[0] == '{' && body[37] == '}') body = body[1..36];
-	if (body.len != 36) return error::raise(INVALID_ARGUMENT, INTERNAL, 0, "not a GUID: '%s'", text)~;
-	char[16] bytes;
-	usz byte_index = 0;
-	for (usz i = 0; i < 36; i += 2)
+	if (body.len != 36) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+	char[32] nibbles;
+	usz count = 0;
+	for (usz i = 0; i < 36; i++)
 	{
-		if (i == 8 || i == 12 || i == 16 || i == 20)
+		char c = body[i];
+		// The four dashes sit at fixed positions in the 8-4-4-4-12 layout.
+		if (i == 8 || i == 13 || i == 18 || i == 23)
 		{
-			if (body[i] != '-') return error::raise(INVALID_ARGUMENT, INTERNAL, 0, "not a GUID: '%s'", text)~;
-			i++;
+			if (c != '-') return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+			continue;
 		}
-		int high = guid_hex_value(body[i]);
-		int low = guid_hex_value(body[i + 1]);
-		if (high < 0 || low < 0) return error::raise(INVALID_ARGUMENT, INTERNAL, 0, "not a GUID: '%s'", text)~;
-		bytes[byte_index++] = (char)(high * 16 + low);
+		int value = guid_hex_value(c);
+		if (value < 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "not a GUID: '%s'", text)~;
+		nibbles[count++] = (char)value;
 	}
+	char[16] bytes;
+	for (usz b = 0; b < 16; b++) bytes[b] = (char)(nibbles[2 * b] * 16 + nibbles[2 * b + 1]);
 	return {
 		.data1 = ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | (uint)bytes[3],
 		.data2 = (ushort)(((uint)bytes[4] << 8) | (uint)bytes[5]),

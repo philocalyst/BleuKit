@@ -421,6 +421,8 @@ fn bool is(String a, String b) @private
 
 fn char[] copy_bytes(char[] source, Allocator allocator) @private
 {
+	// An empty source may have no storage, which `mem::copy` must not be given.
+	if (source.len == 0) return source;
 	char[] copy = alloc::new_array(allocator, char, source.len);
 	mem::copy(copy.ptr, source.ptr, source.len);
 	return copy;

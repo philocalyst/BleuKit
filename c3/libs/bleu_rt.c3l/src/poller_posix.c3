@@ -73,14 +73,12 @@ fn usz? native_wait(Poller* self, Deadline deadline) @private
 	}
 }
 
-// Remaining time in whole milliseconds, rounded up so that a short wait never
-// becomes a busy loop. Infinite waits map to -1.
+// Remaining time in milliseconds for poll(2). Infinite waits map to -1.
 fn CInt poll_timeout_ms(Deadline deadline) @private
 {
 	Duration left = deadline.remaining();
 	if (left == time::FOREVER) return -1;
-	long ms = (left + time::MS - 1) / time::MS;
-	return (CInt)min(ms, (long)CInt::max);
+	return (CInt)min(duration_ceil_ms(left), (long)CInt::max);
 }
 
 // Translate the revents of every entry into `Ready` values, wake-up first.

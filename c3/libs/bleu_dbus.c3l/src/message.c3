@@ -19,6 +19,7 @@
 *>
 module bleu::dbus::message;
 import bleu::error, bleu::dbus::signature, bleu::dbus::names, bleu::dbus::marshal, bleu::dbus::value;
+import bleu::dbus::transport;
 import std::collections::list;
 
 <* Largest message: header, header padding and body together, 2^27 bytes. *>
@@ -126,7 +127,7 @@ fn void Message.release(&self)
 {
 	if (self.owns_fds)
 	{
-		foreach (fd : self.fds) close_descriptor(fd);
+		foreach (fd : self.fds) transport::close_fd(fd);
 	}
 	if (self.has_writer) self.writer.free();
 	self.fds.free();

@@ -43,9 +43,15 @@ const usz MAX_FDS_PER_MESSAGE = 16;
 *>
 const usz CONTROL_BUFFER_SIZE = 256;
 
+<* socklen_t: an unsigned 32-bit length on both Linux and Darwin (socket(2) man pages, XNU bsd/sys/_types/_socklen_t.h). *>
+alias SockLen = CUInt;
+
 // Offset of sun_path in struct sockaddr_un on both platforms (a 2-byte family
 // field or sun_len+sun_family), see the platform files.
 const usz SUN_PATH_OFFSET = 2;
+
+// Round a control-message length up to the platform's cmsg alignment.
+fn usz cmsg_align(usz length) @inline => (length + CMSG_ALIGN_MASK) & ~CMSG_ALIGN_MASK;
 
 // The C library entry points used here; `sys_` names keep them apart from the
 // wrappers below.
@@ -66,9 +72,8 @@ struct IoVec
 }
 
 <*
- Credentials of the process at the other end of a connected socket.
-
- @param pid : "Process id; -1 when the platform cannot tell"
+ Credentials of the process at the other end of a connected socket. `pid` is
+ the process id, or -1 when the platform cannot tell.
 *>
 struct PeerCredentials
 {
@@ -137,7 +142,7 @@ fn UnixSocket? connect(String path, SocketKind kind)
 
  @param backlog : "Pending connections the kernel queues (listen(2))"
  @require backlog > 0 : "A listening socket needs a positive backlog"
- @return? error::ADDRESS_IN_USE : "Bind failed because the path already exists"
+ @return? error::BACKEND_FAILURE : "bind(2) failed, EADDRINUSE when the path already exists"
 *>
 fn UnixSocket? listen(String path, SocketKind kind, CInt backlog)
 {
@@ -273,7 +278,7 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 	char[CONTROL_BUFFER_SIZE] control;
 	IoVec iov = { .base = buffer.ptr, .len = buffer.len };
 	MsgHdr msg;
-	msg.attach(&iov, 1, control.ptr, control.len);
+	msg.attach(&iov, 1, control.ptr, (usz)control.len);
 	sz got;
 	while (true)
 	{
@@ -284,6 +289,14 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 	}
 	usz total = take_descriptors(control.ptr, msg.received_control_len(), fd_buffer);
 	usz stored = min(total, fd_buffer.len);
+	foreach (&fd : fd_buffer[:stored])
+	{
+		if (catch err = configure_received_fd(fd))
+		{
+			close_stored(fd_buffer[:stored]);
+			return err~;
+		}
+	}
 	if (total > fd_buffer.len)
 	{
 		close_stored(fd_buffer[:stored]);

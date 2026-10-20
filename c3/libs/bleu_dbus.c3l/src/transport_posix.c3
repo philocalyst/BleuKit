@@ -70,6 +70,9 @@ const short POLLNVAL = 0x20;
 *>
 const MAX_DESCRIPTORS = 253;
 
+<* Size of one descriptor in the control data: a C `int`, 32 bits on every target. *>
+const DESCRIPTOR_BYTES = 4;
+
 <* Control buffer big enough for `MAX_DESCRIPTORS` descriptors on either platform. *>
 const CONTROL_CAPACITY = 1100;
 
@@ -156,6 +159,7 @@ extern fn uint getuid();
 
  @param path : "Filesystem path, or abstract name when `abstract` is set"
  @return? error::UNSUPPORTED : "Abstract sockets are only available on Linux"
+ @return? error::INVALID_ARGUMENT : "The path is empty or longer than the address can hold"
  @return? error::UNAVAILABLE : "No server is listening at the address (ENOENT, ECONNREFUSED)"
  @return? error::BACKEND_FAILURE : "Any other failure of the socket calls"
 *>
@@ -164,22 +168,22 @@ fn int? connect_unix(String path, bool abstract)
 	if (abstract && !env::LINUX) return error::UNSUPPORTED~;
 	if (path.len == 0 || path.len > SUN_PATH_CAPACITY - 1) return error::INVALID_ARGUMENT~;
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0) return failure("socket");
+	if (fd < 0) return failure("socket")~;
 	char[SOCKADDR_CAPACITY] addr;
 	uint address_len = fill_address(&addr, path, abstract);
 	if (connect(fd, &addr, address_len) < 0)
 	{
 		close_fd(fd);
-		return failure("connect");
+		return failure("connect")~;
 	}
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0 || fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 	{
 		close_fd(fd);
-		return failure("fcntl");
+		return failure("fcntl")~;
 	}
 	$if env::DARWIN:
 	int one = 1;
-	setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, one.sizeof);
+	setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, DESCRIPTOR_BYTES);
 	$endif
 	return fd;
 }
@@ -191,7 +195,7 @@ fn uint fill_address(char[] addr, String path, bool abstract) @private
 	$if env::LINUX:
 	addr[0] = (char)AF_UNIX;
 	addr[1] = 0;
-	$else:
+	$else
 	addr[0] = (char)(2 + path.len + (abstract ? 0 : 1));
 	addr[1] = (char)AF_UNIX;
 	$endif
@@ -202,7 +206,8 @@ fn uint fill_address(char[] addr, String path, bool abstract) @private
 		path_at++;
 	}
 	for (usz i = 0; i < path.len; i++) addr[path_at + i] = path[i];
-	return (uint)(path_at + path.len + (abstract ? 0 : 1));
+	usz terminator = abstract ? 0 : 1;
+	return (uint)(path_at + path.len + terminator);
 }
 
 <* Close a descriptor. Errors on close are ignored: there is nothing to do about them. *>
@@ -229,21 +234,18 @@ fn usz? send_some(int fd, String bytes, usz offset, int[] descriptors)
 	Msghdr msg = { .iov = &vec, .iovlen = 1 };
 	if (offset == 0 && descriptors.len > 0)
 	{
-		usz data_len = descriptors.len * int.sizeof;
+		usz data_len = descriptors.len * DESCRIPTOR_BYTES;
 		msg.control = &control;
 		msg.controllen = control_space(data_len);
-		Cmsghdr* header = (Cmsghdr*)&control;
-		header.len = control_len(data_len);
-		header.level = SOL_SOCKET;
-		header.type = SCM_RIGHTS;
+		write_cmsg_header(&control, data_len);
 		int* out = (int*)((char*)&control + control_header_size());
 		for (usz i = 0; i < descriptors.len; i++) out[i] = descriptors[i];
 	}
 	sz sent = sendmsg(fd, &msg, MSG_NOSIGNAL);
 	if (sent >= 0) return (usz)sent;
-	if (libc::errno() == libc::EAGAIN || libc::errno() == libc::EINTR) return 0;
-	if (libc::errno() == libc::EPIPE || libc::errno() == libc::ECONNRESET) return error::DISCONNECTED~;
-	return failure("sendmsg");
+	if (libc::errno() == EAGAIN || libc::errno() == EINTR) return 0;
+	if (libc::errno() == EPIPE || libc::errno() == ECONNRESET) return error::DISCONNECTED~;
+	return failure("sendmsg")~;
 }
 
 <*
@@ -263,9 +265,9 @@ fn usz? recv_some(int fd, char[] buffer, usz offset, List{int}* descriptors)
 	sz got = recvmsg(fd, &msg, 0);
 	if (got < 0)
 	{
-		if (libc::errno() == libc::EAGAIN || libc::errno() == libc::EINTR) return 0;
-		if (libc::errno() == libc::ECONNRESET) return error::DISCONNECTED~;
-		return failure("recvmsg");
+		if (libc::errno() == EAGAIN || libc::errno() == EINTR) return 0;
+		if (libc::errno() == ECONNRESET) return error::DISCONNECTED~;
+		return failure("recvmsg")~;
 	}
 	if (msg.flags & MSG_CTRUNC) return error::PROTOCOL~;
 	take_descriptors(&control, (usz)msg.controllen, descriptors);
@@ -280,12 +282,12 @@ fn void take_descriptors(char* control, usz length, List{int}* descriptors) @pri
 	usz offset = 0;
 	while (offset + control_header_size() <= length)
 	{
-		Cmsghdr* header = (Cmsghdr*)(control + offset);
-		usz len = (usz)header.len;
+		CmsgHeader header = read_cmsg_header(control + offset);
+		usz len = header.len;
 		if (len < control_header_size() || offset + len > length) return;
 		if (header.level == SOL_SOCKET && header.type == SCM_RIGHTS)
 		{
-			usz count = (len - control_header_size()) / int.sizeof;
+			usz count = (len - control_header_size()) / DESCRIPTOR_BYTES;
 			int* fds = (int*)(control + offset + control_header_size());
 			for (usz i = 0; i < count; i++)
 			{
@@ -295,6 +297,43 @@ fn void take_descriptors(char* control, usz length, List{int}* descriptors) @pri
 		}
 		offset += control_space(len - control_header_size());
 	}
+}
+
+// A control message header, read the same way on both platforms.
+struct CmsgHeader
+{
+	usz len;
+	int level;
+	int type;
+}
+
+// Writes the header of one SCM_RIGHTS control message carrying `data_len` bytes.
+fn void write_cmsg_header(char* control, usz data_len) @private
+{
+	usz len = control_len(data_len);
+	$if env::LINUX:
+	LinuxCmsghdr* header = (LinuxCmsghdr*)control;
+	header.len = len;
+	header.level = SOL_SOCKET;
+	header.type = SCM_RIGHTS;
+	$else
+	AppleCmsghdr* header = (AppleCmsghdr*)control;
+	header.len = (uint)len;
+	header.level = SOL_SOCKET;
+	header.type = SCM_RIGHTS;
+	$endif
+}
+
+// Reads the header of the control message at `control`.
+fn CmsgHeader read_cmsg_header(char* control) @private
+{
+	$if env::LINUX:
+	LinuxCmsghdr* header = (LinuxCmsghdr*)control;
+	return { .len = header.len, .level = header.level, .type = header.type };
+	$else
+	AppleCmsghdr* header = (AppleCmsghdr*)control;
+	return { .len = header.len, .level = header.level, .type = header.type };
+	$endif
 }
 
 // sizeof(cmsghdr) on each platform.
@@ -320,12 +359,12 @@ fn bool wait(int fd, bool for_write, Duration timeout)
 	Pollfd pfd = { .fd = fd, .events = for_write ? POLLOUT : POLLIN };
 	int ms = timeout == time::FOREVER ? -1 : (int)min((long)(timeout / 1000) + 1, 0x7fffffff);
 	int result = poll(&pfd, 1, ms);
-	if (result < 0) return libc::errno() == libc::EINTR ? false : true;
+	if (result < 0) return libc::errno() == EINTR ? false : true;
 	return result > 0;
 }
 
 <* The real user id of this process, which EXTERNAL authentication sends to the bus. *>
-fn uint current_uid() @inline => getuid();
+fn uint? current_uid() @inline => getuid();
 
 // BACKEND_FAILURE carrying the current errno, for the named call.
 fn fault failure(String what) @private

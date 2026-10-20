@@ -1,12 +1,13 @@
 # Research: `battery` and `power` services
 
-Status: read-only spike, 2026-10-20. Nothing was built or run on hardware. Every
-native fact below was read from a primary source (spec, kernel doc, Apple/Microsoft
-header or Learn page, upstream C source) or from a published crate or source file
-that was fetched and read. Claims carry tags that refer to the double-validation
-table in section 4:
+Status: read-only spike, 2026-10-20. Nothing was built or run on hardware. Most
+native facts below were read from a primary source (spec, kernel doc, Microsoft
+Learn page, upstream C source) or from a published crate or source file that was
+fetched and read. Apple's own documentation was not readable, so macOS facts rest
+on generated bindings and open-source Rust code; they are tagged accordingly.
+Claims carry tags that refer to the double-validation table in section 4:
 
-* `[Vn]`: validated, two sources listed in section 4.
+* `[Vn]`: a row in section 4. The status column there says whether two sources agree or only one exists.
 * `(single-source)`: one source only, named in section 4.
 * `(UNVERIFIED)`: not confirmed. Do not implement from the claim without checking.
 
@@ -65,7 +66,7 @@ power, in priority order:
 
 **Interface** (`org.freedesktop.UPower` service, system bus):
 
-* Root: object `/org/freedesktop/UPower`, interface `org.freedesktop.UPower`. Methods: `EnumerateDevices() -> ao devices`, `GetDisplayDevice() -> o`, `GetCriticalAction() -> s action`, `EnumerateKbdBacklights() -> ao`, `GetCriticalAction`. Signals: `DeviceAdded(o device)`, `DeviceRemoved(o device)`. Properties: `DaemonVersion s`, `OnBattery b`, `LidIsClosed b`, `LidIsPresent b`. `[V1 U2]`
+* Root: object `/org/freedesktop/UPower`, interface `org.freedesktop.UPower`. Methods: `EnumerateDevices() -> ao devices`, `GetDisplayDevice() -> o device`, `GetCriticalAction() -> s action`, `EnumerateKbdBacklights()` (argument types not checked). Signals: `DeviceAdded(o device)`, `DeviceRemoved(o device)`. Properties: `DaemonVersion s`, `OnBattery b`, `LidIsClosed b`, `LidIsPresent b`. `[V1]`
 * Display device: object `/org/freedesktop/UPower/devices/DisplayDevice`, fixed path. `[V1]`
 * Device objects: interface `org.freedesktop.UPower.Device`. Methods: `Refresh()` (debug mode only, per spec), `GetHistory(s type, u timespan, u resolution) -> a(udu) data`, `GetStatistics(s type) -> a(dd) data`, `EnableChargeThreshold(b chargeThreshold)`. `[V1]`
 * Device properties with their types (all `access="read"` except as noted): `NativePath s`, `Vendor s`, `Model s`, `Serial s`, `UpdateTime t`, `Type u`, `PowerSupply b`, `HasHistory b`, `HasStatistics b`, `Online b`, `Energy d`, `EnergyEmpty d`, `EnergyFull d`, `EnergyFullDesign d`, `EnergyRate d`, `Voltage d`, `ChargeCycles i`, `Luminosity d` (deprecated), `TimeToEmpty x`, `TimeToFull x`, `Percentage d`, `Temperature d`, `IsPresent b`, `State u`, `IsRechargeable b`, `Capacity d`, `Technology u`, `WarningLevel u`, `BatteryLevel u`, `IconName s`, `ChargeStartThreshold u`, `ChargeEndThreshold u`, `ChargeThresholdEnabled b`, `ChargeThresholdSupported b`, `ChargeThresholdSettingsSupported u` (bitmask), `VoltageMinDesign d`, `VoltageMaxDesign d`, `CapacityLevel s`. `[V1][V5]`
@@ -114,13 +115,13 @@ Attributes used (name, unit, meaning):
 * `capacity`: integer percent 0..100. `capacity_level`: `Unknown`, `Critical`, `Low`, `Normal`, `High`, `Full`. `(single-source: ABI)`
 * `energy_now`, `energy_full`, `energy_full_design`: µWh. `[V6]`
 * `charge_now`, `charge_full`, `charge_full_design`: µAh. `[V6]`
-* `power_now`: µW. `[V6]`. `current_now`: µA, negative when discharging, positive when charging. `(single-source: ABI for sign)`
+* `power_now`: µW (starship conversion only; `(single-source)`). `current_now`: µA, negative when discharging, positive when charging. `[V6]` (µA unit) and `(single-source: ABI for sign)`
 * `voltage_now`, `voltage_max_design`, `voltage_min_design`, `voltage_present`: µV. `[V6]`
 * `temp`: 1/10 °C. `[V6]`
 * `cycle_count`: integer; 0 means not available. `[V12]`
 * `time_to_empty_now` (kernel class name `TIME_TO_EMPTY`): seconds. `[V15]` (the ABI file read did not list it; the class doc names it).
 * `manufacturer`, `model_name`, `serial_number`, `technology`, `health`. `(single-source: ABI)`
-* `online`: 0 offline, 1 online fixed, 2 online programmable (USB and Mains). `(single-source: ABI)`
+* `online`: 0 offline, 1 online fixed, 2 online programmable. The ABI describes it as "VBUS is present". `(single-source: ABI)`
 * `charge_control_start_threshold`, `charge_control_end_threshold`: 0..100 percent; "drivers round written values to the nearest supported value; reading back shows the actual threshold". `[V7]`
 * `charge_behaviour`: `auto`, `inhibit-charge`, `inhibit-charge-awake`, `force-discharge`. `(single-source: ABI)`
 * `scope`: read by starship-battery `sysfs/fs.rs` to select `Device` or `System`. It is not in the kernel ABI file read. `(UNVERIFIED)`
@@ -205,7 +206,7 @@ Not read. `(UNVERIFIED)`. Recommend leaving out of v1 (section 6).
 * Session control: `LockSession(s)`, `UnlockSession(s)`, `LockSessions()`, `UnlockSessions()`, `TerminateUser(u)`, `TerminateSession(s)`, `ActivateSession(s)`. `[V19]`
 * Session object methods: `Lock()`, `Unlock()` (signals), `SetIdleHint(b idle)`, `Terminate()`. `[V19]`
 * Signals: `PrepareForSleep(b start)`, `PrepareForShutdown(b start)`. `[V19][V21]`
-* Manager properties: `LidClosed b` ("true when the lid of a laptop is closed"), `OnExternalPower b`, `Docked b`, `IdleHint b`, `IdleSinceHint t`, `IdleSinceHintMonotonic t`, `BlockInhibited s`, `DelayInhibited s`, `PreparingForShutdown b`, `PreparingForSleep b`. `[V19]`
+* Manager properties: `LidClosed` ("true when the lid of a laptop is closed"), `OnExternalPower` ("true when connected to an external power supply"), `Docked`, `IdleHint`, `IdleSinceHint` and `IdleSinceHintMonotonic` (microseconds since the epoch, realtime and monotonic), `BlockInhibited` and `DelayInhibited` (colon-separated lists), `PreparingForShutdown` (readonly boolean). Property value types other than these were not all read. `[V19]`
 
 **Inhibitor semantics** (from `INHIBITOR_LOCKS.md`):
 
@@ -230,8 +231,8 @@ Not read. `(UNVERIFIED)`. Recommend leaving out of v1 (section 6).
 **Pitfalls:**
 
 * `Can*` results are per user; the same machine can return `"yes"` for one user and `"challenge"` for another. `(single-source)`
-* `Suspend` ignores inhibitors unless the caller has the `-ignore-inhibit` privilege; blocking inhibitors make the call fail with a clear error. `(single-source: login1 man page)`
-* `SuspendThenHibernate` needs the RTC wake configuration; not tested.
+* The login1 man page says `PowerOff`, `Reboot`, `Suspend` and `Hibernate` "enforce inhibition locks for non-privileged users". Privileged callers and the `-ignore-inhibit` polkit actions bypass them. The exact error returned on a blocked call was not read `(UNVERIFIED)`. `(single-source: login1 man page)`
+* `SuspendThenHibernate` requirements (RTC wake configuration) were not read `(UNVERIFIED)`.
 
 #### L-P4. Session lock and logout
 
@@ -283,7 +284,7 @@ Use logind: `LockSession(session_id)` on the manager, or listen for `Lock` and `
 
 **Call sequence** (starship-battery `darwin/iokit/`):
 
-1. `IOMasterPort(MACH_PORT_NULL, &port)`.
+1. `IOMasterPort(...)` to get a Mach port (argument list per starship `darwin/iokit/sys.rs`).
 2. `match = IOServiceMatching("IOPMPowerSource")`.
 3. `IOServiceGetMatchingServices(port, match, &iter)`.
 4. For each `obj = IOIteratorNext(iter)`: `IORegistryEntryCreateCFProperties(obj, &props, kCFAllocatorDefault, 0)`.
@@ -292,13 +293,13 @@ Use logind: `LockSession(session_id)` on the manager, or listen for `Lock` and `
 
 **Keys** (names `[V27]`; units from starship, `(single-source)` on units):
 
-* `ExternalConnected` (bool), `IsCharging` (bool), `FullyCharged` (bool), `BatteryInstalled` (bool).
+* `ExternalConnected` (bool), `IsCharging` (bool), `FullyCharged` (bool), as starship reads them. `BatteryInstalled` exists as a key name only (type not verified).
 * `Voltage`: mV. `Amperage`: mA, signed in the IORegistry; starship takes `abs()` and discards the sign. `[V29]`
 * `DesignCapacity`: mAh. `MaxCapacity` and `CurrentCapacity`: mAh. Prefer `AppleRawMaxCapacity` and `AppleRawCurrentCapacity` when present (starship). `(single-source)`
 * `Temperature`: starship divides by 100 and reports Celsius. The brief says 0.01 K. Both cannot be right; `(UNVERIFIED)` against Apple. `[V28]`
 * `CycleCount`: integer. `TimeRemaining`: minutes; `i32::MAX` means unknown (starship). `(single-source)`
 * Identity: `Manufacturer`, `DeviceName`, `BatterySerialNumber` (starship). The IOPM header key names in `io-kit-sys` are `Model` and `Serial`. Which set is present on current macOS is `(UNVERIFIED)`. `[V30]`
-* `AdapterDetails` (dictionary): `Watts`, `Amperage`, `Voltage`, `ID`, `Revision`, `SerialNumber`, `Family`, `Description`, `SourceID`, `ErrorFlags`, `SharedSource`, `Cloaked`. The key names are `[V31]`; the values are the same key strings in `io-kit-sys`, not measured.
+* `AdapterDetails` (dictionary, key name `kIOPMPSAdapterDetailsKey`): key names from `io-kit-sys` `pwr_mgt/pm.rs` include `Watts` and `Amperage` (string values read, `[V31]`), plus `ID`, `Revision`, `SerialNumber`, `Family`, `Description`, `SourceID`, `ErrorFlags`, `SharedSource`, `Cloaked` (names only, values not read) and a `Voltage` constant whose string value was not read.
 
 **Battery state mapping** (starship `darwin/device.rs`): not external connected means discharging; else charging when `IsCharging`; else empty when current capacity is zero; else full when `FullyCharged`; else unknown. `(single-source)`
 
@@ -334,7 +335,7 @@ Use logind: `LockSession(session_id)` on the manager, or listen for `Lock` and `
 
 **Pitfalls:** `(UNVERIFIED)`: whether the assertion is released automatically when the process exits. keepawake releases explicitly in `Drop`. `(single-source)`
 
-**Permissions:** none (no entitlement needed for these assertion types in the sources read).
+**Permissions:** no entitlement appears in the sources read (keepawake and the bindings). Sandbox behaviour `(UNVERIFIED)`.
 
 #### M-P3. Sleep and wake notifications
 
@@ -385,7 +386,7 @@ Use logind: `LockSession(session_id)` on the manager, or listen for `Lock` and `
 
 1. `DeviceIoControl(h, IOCTL_BATTERY_QUERY_TAG, in: DWORD timeout = 0, out: DWORD tag)`. A tag of 0 means the device is not valid. `[V37]`
 2. `DeviceIoControl(h, IOCTL_BATTERY_QUERY_INFORMATION, in: BATTERY_QUERY_INFORMATION{BatteryTag = tag, InformationLevel = BatteryInformation (0), AtRate = 0}, out: BATTERY_INFORMATION)`. `[V38]`
-3. For the same tag, query other levels the same way: `BatteryTemperature` (2), `BatteryEstimatedTime` (3), `BatteryDeviceName` (4), `BatteryManufactureName` (6), `BatterySerialNumber` (8); strings are read by a two-step size query. `[V37]`
+3. For the same tag, query other levels the same way: `BatteryTemperature` (2), `BatteryEstimatedTime` (3), `BatteryDeviceName` (4), `BatteryManufactureName` (6), `BatterySerialNumber` (8). Buffer sizing for the string levels was not read. `[V37]`
 4. `DeviceIoControl(h, IOCTL_BATTERY_QUERY_STATUS, in: BATTERY_WAIT_STATUS{BatteryTag = tag, Timeout = 0, PowerState = 0, LowCapacity = 0, HighCapacity = 0}, out: BATTERY_STATUS)`. `[V40]`
 5. Stop: `CloseHandle(h)`; `SetupDiDestroyDeviceInfoList(hdev)`.
 
@@ -436,7 +437,7 @@ Not read. `(UNVERIFIED)`. Leave out of v1.
 Two routes:
 
 1. Thread-scoped: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`. `ES_SYSTEM_REQUIRED = 0x1`, `ES_DISPLAY_REQUIRED = 0x2`, `ES_AWAYMODE_REQUIRED = 0x40` (needs `ES_CONTINUOUS`). `ES_USER_PRESENT` is not supported. The state applies until a later call with `ES_CONTINUOUS` clears it. `[V50]` The value of `ES_CONTINUOUS` was not read `(UNVERIFIED)`.
-2. Process-scoped: `PowerCreateRequest(&REASON_CONTEXT) -> HANDLE`, then `PowerSetRequest(h, PowerRequestSystemRequired | PowerRequestDisplayRequired | PowerRequestAwayModeRequired | PowerRequestExecutionRequired)` and `PowerClearRequest(h, type)`. `PowerRequest*` constants: `PowerRequestDisplayRequired = 0`, `PowerRequestSystemRequired = 1`, `PowerRequestAwayModeRequired = 2`, `PowerRequestExecutionRequired = 3`. `[V49]`
+2. Process-scoped: `PowerCreateRequest(&REASON_CONTEXT) -> HANDLE`, then `PowerSetRequest(h, type)` once per request type, and `PowerClearRequest(h, type)` to drop each one. Each call takes a single `POWER_REQUEST_TYPE`, not a bitmask. `PowerRequest*` constants: `PowerRequestDisplayRequired = 0`, `PowerRequestSystemRequired = 1`, `PowerRequestAwayModeRequired = 2`, `PowerRequestExecutionRequired = 3`. `[V49]`
 
 Call sequence (route 2): `h = PowerCreateRequest(&ctx)`; `PowerSetRequest(h, PowerRequestSystemRequired)`; to stop, `PowerClearRequest(h, PowerRequestSystemRequired)` then `CloseHandle(h)` (the close step is standard, not read).
 
@@ -447,12 +448,13 @@ Call sequence (route 2): `h = PowerCreateRequest(&ctx)`; `PowerSetRequest(h, Pow
 #### W-P3. Sleep, hibernate, shutdown, reboot, logout, lock
 
 * `SetSuspendState(BOOLEAN bHibernate, BOOLEAN bForce, BOOLEAN bWakeupEventsDisabled) -> BOOLEAN` (powrprof.dll). `bHibernate` TRUE hibernates, FALSE suspends. `bForce` has no effect. `[V48]`
+* Failure cases (the return value is checked by the caller) were not read in detail `(UNVERIFIED)`.
 * Hibernation availability (hiberfil configured) `(UNVERIFIED)`. Probing it reliably needs a second source (powercfg or the registry); not researched.
 * `InitiateSystemShutdownExW(lpMachineName, lpMessage, dwTimeout, bForceAppsClosed, bRebootAfterShutdown, dwReason) -> BOOL` (advapi32.dll). Signature from `windows-sys` `[V52]`; Learn page not in the cache, so semantics `(single-source)`. Shutdown privilege `SeShutdownPrivilege` `(UNVERIFIED)`.
 * `ExitWindowsEx(uFlags, dwReason)`: `EWX_LOGOFF = 0`, `EWX_HYBRID_SHUTDOWN = 0x00400000`. `[V53]`
 * `LockWorkStation() -> BOOL` (user32.dll). Learn page fetched; semantics `(single-source)`. `[V54]`
 
-**Pitfalls:** `SetSuspendState` returns FALSE if the system cannot sleep in that mode (for example, hibernate disabled). Check the return value. `(single-source: Learn returns BOOLEAN)`
+**Pitfalls:** check the BOOLEAN return value. Hibernate-disabled systems are the expected failure for `bHibernate` TRUE `(UNVERIFIED: the failure was not read in the Learn page)`.
 
 #### W-P4. Lid and AC events
 
@@ -493,7 +495,7 @@ Read status: "code" means the file was read in this spike; "README" or "not read
 
 ## 4. Double validation
 
-Each row is a claim used in section 2. The status column says whether it is confirmed by two independent sources, which is the required standard.
+Each row is a claim used in section 2. The status column says whether it is confirmed by two independent sources (the required standard) or rests on one source. Section 2 cites rows as `[Vn]`; a `[Vn]` tag does not by itself mean two-source, so read the status here.
 
 | ID | Claim | Source A | Source B | Status |
 | --- | --- | --- | --- | --- |
@@ -510,7 +512,7 @@ Each row is a claim used in section 2. The status column says whether it is conf
 | V11 | `online` values 0, 1, 2 | kernel ABI | none | single-source |
 | V12 | `cycle_count` 0 means unavailable | kernel ABI | starship `cycle_count()` returns None on 0 | two |
 | V13 | Fallback chain and rate filters (100 W, 10 µW, 65535 ones) | starship `sysfs/source.rs` (cites UPower; UPower not read) | none | single-source |
-| V14 | Attribute names `energy_now`, `charge_now`, `power_now`, `current_now`, `energy_full`, `energy_full_design`, `voltage_now` | kernel `power_supply_class.rst` (class names) | starship and psutil read the same names | two |
+| V14 | Attribute file names `energy_now`, `charge_now`, `power_now`, `current_now`, `energy_full`, `energy_full_design`, `voltage_now` | starship `sysfs/source.rs` and psutil `_pslinux.py` (both read these names) | kernel `power_supply_class.rst` documents the `ENERGY_*` and `CHARGE_*` families and their units, not the exact file names | two for the names via code; the kernel doc confirms the families only |
 | V15 | psutil discovery by `BAT*` and the `time_to_empty_now`, `energy_now`, `charge_now` fields | psutil `_pslinux.py` | starship `source.rs` (same fields) | two |
 | V16 | Bus names `org.freedesktop.UPower.PowerProfiles` and `net.hadess.PowerProfiles`, paths; served by PPD, not UPower | PPD `power-profiles-daemon.c` (`#define`s) and its `.xml.in` files | UPower spec XML contains no PowerProfiles interface | two (ownership claim: PPD code and absence in UPower XML) |
 | V17 | PPD `HoldProfile` and `ReleaseProfile` semantics, `ProfileReleased` signal, polkit action names | PPD `power-profiles-daemon.c` (`hold_profile`, `release_profile`) | PPD `.xml.in` method and signal definitions | two (one project) |
@@ -576,8 +578,8 @@ typedef MilliVolt    = uint;
 typedef Celsius      = float;   // converted from deci-Kelvin, centi-Celsius or tenths of Celsius at the boundary
 
 enum Kind : char { UNKNOWN, LINE_POWER, BATTERY, UPS, PERIPHERAL }
-enum State : char { UNKNOWN, CHARGING, DISCHARGING, NOT_CHARGING, EMPTY, FULL,
-                    PENDING_CHARGE, PENDING_DISCHARGE }
+enum ChargeState : char { UNKNOWN, CHARGING, DISCHARGING, NOT_CHARGING, EMPTY, FULL,
+                          PENDING_CHARGE, PENDING_DISCHARGE }
 enum Chemistry : char { UNKNOWN, LION, LIPO, LIFEPO4, LEAD_ACID, NICD, NIMH }
 enum WarningLevel : char { UNKNOWN, NONE, LOW, CRITICAL, ACTION }
 
@@ -587,7 +589,7 @@ struct Source {
     Kind kind;
     bool present;
     bool rechargeable;
-    State state;
+    ChargeState state;
     bool has_percent;     Percent percent;
     bool has_energy_rate; MilliWatt energy_rate;
     bool has_time_to_empty; Duration time_to_empty;   // microseconds (std Duration)
