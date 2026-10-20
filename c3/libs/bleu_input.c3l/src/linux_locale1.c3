@@ -10,7 +10,8 @@
  `PropertiesChanged` arrives or the poll interval passes. A missing name means the backend is not offered
  (`probe` is false), so a session without localed never shows an empty list as if it were the configuration.
 
- Source: systemd man page org.freedesktop.locale1 (https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.locale1.html)
+ Source: systemd man page org.freedesktop.locale1
+ (https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.locale1.html)
  for the interface and property names; systemd src/locale/localectl.c for the bus name and object path.
 *>
 module bleu::input::linux_locale1 @feat(LINUX);
@@ -23,7 +24,7 @@ const String LOCALE1_INTERFACE = "org.freedesktop.locale1";
 // The poller tag of the bus connection. The wake-up is not tagged (see bleu_rt).
 const usz CONNECTION_TAG = 1;
 // Commands the worker takes in one pass.
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH  = 8;
 
 <* The backend's state. `changed` is set by the signal handlers and read after the bus has been processed. *>
 struct Locale1Backend
@@ -161,7 +162,7 @@ fn State? read_configured(Locale1Backend* backend, Allocator allocator) @private
 		Value props       = root.get_all_properties(tmem)!;
 		String layout     = prop_text(props, "X11Layout", tmem);
 		String variant    = prop_text(props, "X11Variant", tmem);
-		state.layouts     = locale1_convert::layouts_from(layout, variant, allocator);
+		state.layouts = locale1_convert::layouts_from(layout, variant, allocator);
 	};
 	state.can_switch = false;
 	return state;
@@ -189,7 +190,7 @@ fn void refresh(Locale1Backend* backend, InputHub* hub) @private
 	{
 		snapshot.value = { };
 	}
-	publish_state(hub, snapshot);
+	input::publish_state(hub, snapshot);
 }
 
 fn void run(void* state, InputHub* hub, Host{Command}* host)
@@ -228,7 +229,15 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 			// gets here. The worker still completes the operation, rather than leaving it pending.
 			if (commands[i].kind == CommandKind.SWITCH_TO)
 			{
-				fail_switch(commands[i].operation, error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "systemd-localed cannot change the active layout"));
+				input::fail_switch(
+					commands[i].operation,
+					error::raise(
+						error::UNSUPPORTED,
+						error::Domain.INTERNAL,
+						0,
+						"systemd-localed cannot change the active layout"
+					)
+				);
 			}
 		}
 		if (!backend.connected)
@@ -244,5 +253,6 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 			refresh(backend, hub);
 		}
 	}
+	input::fail_queued(host);
 	disconnect(backend, &poller);
 }

@@ -40,5 +40,7 @@ fn void win32_codes_map_to_excuses() @test
 	assert(win32_to_fault(ERROR_BUSY) == error::BUSY);
 	assert(win32_to_fault(ERROR_CANCELLED) == error::CANCELLED);
 	assert(win32_to_fault(ERROR_NOT_SUPPORTED) == error::UNSUPPORTED);
+	assert(win32_to_fault(ERROR_HOTKEY_ALREADY_REGISTERED) == error::BUSY);
+	assert(win32_to_fault(ERROR_HOTKEY_NOT_REGISTERED) == NOT_FOUND);
 	assert(win32_to_fault(9999) == error::BACKEND_FAILURE);
 }

@@ -11,10 +11,10 @@ fn void decodes_language_and_device() @test
 
 fn void klid_values() @test
 {
-	test::eq(hkl::klid_value(0x04090409), 0x00000409u);   // primary U.S. English, KLID 00000409
-	test::eq(hkl::klid_value(0x00010409), 0x00010409u);   // U.S. Dvorak, KLID 00010409
-	test::eq(hkl::klid_value(0x00000407), 0x00000407u);   // German, device word zero
-	test::eq(hkl::klid_value(0xF0010409), 0xF0010409u);   // device-specific: unchanged
+	test::eq(hkl::klid_value(0x04090409), 0x00000409u); // primary U.S. English, KLID 00000409
+	test::eq(hkl::klid_value(0x00010409), 0x00010409u); // U.S. Dvorak, KLID 00010409
+	test::eq(hkl::klid_value(0x00000407), 0x00000407u); // German, device word zero
+	test::eq(hkl::klid_value(0xF0010409), 0xF0010409u); // device-specific: unchanged
 }
 
 fn void klid_text_is_eight_digits() @test

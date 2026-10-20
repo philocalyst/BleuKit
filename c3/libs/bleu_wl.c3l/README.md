@@ -59,7 +59,9 @@ Not generated on purpose: xdg-shell and the surface side of the compositor proto
    at most 31 characters) and the raw URL of the XML.
 2. Run `tools/wlscan/regen.sh` (or `WLSCAN_XML_DIR=dir tools/wlscan/regen.sh` with the
    XML already downloaded, named `<module>.xml`). It writes `src/proto/<module>.c3`
-   and runs `c3fmt`.
+   and runs `c3fmt`. Where an XML description misstates the wire format, `TEXT_FIXES` in
+   `tools/wlscan/wlscan.py` corrects that one sentence (currently `set_gamma`: "16-byte"
+   becomes "16-bit"); a fix whose text no longer occurs stops the generator.
 3. Run `tools/check.sh bleu_core bleu_rt bleu_wl`, and commit the generated file.
 4. To use it, write a `Client` listener struct for the interface and bind the global.
    A generated module that references another protocol's interface imports it
@@ -112,3 +114,10 @@ call the runtime. Requests with `since` above the bound version fail with UNSUPP
   `wl_output` v4, received its mode (1024x640) and done, and completed a roundtrip.
 * `tools/check.sh bleu_core bleu_rt bleu_wl`: clean on all six targets.
 * `regen.sh` is deterministic: a second run over the same XML leaves the tree unchanged.
+* Stress (Linux x86-64): the bleu_wl test binary, 100 consecutive runs with no failure or
+  hang, and the combined suite that links bleu_wl (bleu_clipboard, bleu_color, bleu_display
+  and their tests, 221 tests), 100 consecutive runs with no failure or hang. Before the fix
+  the registry test failed in about 1 run in 15: the scenario sent `delete_id` as a separate
+  write, so the client's roundtrip could return at `done` with the id still held. The
+  library's `roundtrip` returns at `done` and does not wait for `delete_id`; that is the test's
+  assumption to fix, not the library's behaviour.

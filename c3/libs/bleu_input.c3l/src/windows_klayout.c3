@@ -3,13 +3,13 @@
 
  Calls (Windows SDK, winuser.h and winnls.h as in the mingw-w64 headers, read 2026-10-20; Learn pages for the
  semantics):
-   GetKeyboardLayoutList(int, HKL*) -> int: the input locale identifiers installed in the session.
-   GetForegroundWindow() -> HWND, GetWindowThreadProcessId(HWND, LPDWORD) -> DWORD (thread id).
-   GetKeyboardLayout(DWORD thread) -> HKL: "the input locale identifier for the thread" (bound by std::os::win32).
-   LCIDToLocaleName(LCID, LPWSTR, int, DWORD) and GetLocaleInfoEx(LPCWSTR, LCTYPE, LPWSTR, int) for the BCP-47
-   tag and the English display name; LOCALE_SENGLISHDISPLAYNAME = 0x72 (winnls.h).
-   PostMessageW(HWND, WM_INPUTLANGCHANGEREQUEST = 0x0050, wParam = 0, lParam = HKL): DefWindowProc then activates
-   the locale on that window's thread and sends WM_INPUTLANGCHANGE (Learn, WM_INPUTLANGCHANGEREQUEST).
+ GetKeyboardLayoutList(int, HKL*) -> int: the input locale identifiers installed in the session.
+ GetForegroundWindow() -> HWND, GetWindowThreadProcessId(HWND, LPDWORD) -> DWORD (thread id).
+ GetKeyboardLayout(DWORD thread) -> HKL: "the input locale identifier for the thread" (bound by std::os::win32).
+ LCIDToLocaleName(LCID, LPWSTR, int, DWORD) and GetLocaleInfoEx(LPCWSTR, LCTYPE, LPWSTR, int) for the BCP-47
+ tag and the English display name; LOCALE_SENGLISHDISPLAYNAME = 0x72 (winnls.h).
+ PostMessageW(HWND, WM_INPUTLANGCHANGEREQUEST = 0x0050, wParam = 0, lParam = HKL): DefWindowProc then activates
+ the locale on that window's thread and sends WM_INPUTLANGCHANGE (Learn, WM_INPUTLANGCHANGEREQUEST).
 
  Per thread, honestly: a keyboard layout belongs to a thread, not to the system. The layout reported here is the
  one of the thread that owns the foreground window, which is the one that receives the keys. Another process's
@@ -24,24 +24,37 @@
  Not verified on Windows (compiled only): the behaviour of the foreground window's thread after the post.
 *>
 module bleu::input::windows_klayout @feat(WIN32);
-import std::os::win32, bleu::availability, bleu::error, bleu::input, bleu::input::hkl, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::win::errors, bleu::win::text;
+import std::os::win32, std::time, bleu::availability, bleu::error, bleu::input, bleu::input::hkl, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::win::errors, bleu::win::text;
 
 // WM_INPUTLANGCHANGEREQUEST (winuser.h).
-const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+const uint WM_INPUTLANGCHANGEREQUEST  = 0x0050;
 // LOCALE_SENGLISHDISPLAYNAME (winnls.h): the English display name of a locale, "German (Germany)".
 const uint LOCALE_SENGLISHDISPLAYNAME = 0x72;
 // LOCALE_NAME_MAX_LENGTH (winnt.h): room for a locale name with its terminating NUL.
-const usz LOCALE_NAME_CAPACITY = 85;
+const usz LOCALE_NAME_CAPACITY        = 85;
 // Commands the worker takes in one pass.
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH               = 8;
 // How long after a switch the next read waits, so the window has processed the request.
-const Duration FOLLOW_UP = (Duration)100_000;
+const Duration FOLLOW_UP              = (Duration)100_000;
 
 extern fn int get_keyboard_layout_list(int capacity, Win32_HKL* list) @cname("GetKeyboardLayoutList") @link("user32");
 extern fn Win32_HWND get_foreground_window() @cname("GetForegroundWindow") @link("user32");
-extern fn Win32_DWORD get_window_thread_process_id(Win32_HWND window, Win32_DWORD* process) @cname("GetWindowThreadProcessId") @link("user32");
-extern fn int lcid_to_locale_name(Win32_DWORD lcid, Win32_WCHAR* name, int capacity, Win32_DWORD flags) @cname("LCIDToLocaleName") @link("kernel32");
-extern fn int get_locale_info_ex(Win32_WCHAR* locale, Win32_DWORD info_type, Win32_WCHAR* data, int capacity) @cname("GetLocaleInfoEx") @link("kernel32");
+extern fn Win32_DWORD get_window_thread_process_id(
+	Win32_HWND window,
+	Win32_DWORD* process
+) @cname("GetWindowThreadProcessId") @link("user32");
+extern fn int lcid_to_locale_name(
+	Win32_DWORD lcid,
+	Win32_WCHAR* name,
+	int capacity,
+	Win32_DWORD flags
+) @cname("LCIDToLocaleName") @link("kernel32");
+extern fn int get_locale_info_ex(
+	Win32_WCHAR* locale,
+	Win32_DWORD info_type,
+	Win32_WCHAR* data,
+	int capacity
+) @cname("GetLocaleInfoEx") @link("kernel32");
 
 <* The backend's state. There is nothing to open: every read is a call. *>
 struct KeyboardBackend
@@ -51,7 +64,11 @@ struct KeyboardBackend
 }
 
 const Driver DRIVER = {
-	.info = { "win32", "keyboard layouts through user32 (GetKeyboardLayoutList and the foreground window's layout)", 10 },
+	.info = {
+		"win32",
+		"keyboard layouts through user32 (GetKeyboardLayoutList and the foreground window's layout)",
+		10
+	},
 	.id = Backend.WIN32,
 	.probe = &probe,
 	.create = &create,
@@ -101,7 +118,7 @@ fn Win32_HKL[] installed(Allocator allocator) @private
 	int total = get_keyboard_layout_list(0, null);
 	if (total <= 0) return { };
 	Win32_HKL[] handles = alloc::new_array(allocator, Win32_HKL, (sz)total);
-	int copied = get_keyboard_layout_list(total, handles.ptr);
+	int copied          = get_keyboard_layout_list(total, handles.ptr);
 	if (copied <= 0) return { };
 	return handles[0:(sz)copied];
 }
@@ -145,10 +162,10 @@ fn String locale_display_name(Win32_WCHAR* locale, Allocator allocator) @private
 *>
 fn Layout layout_of(Win32_HKL handle, Allocator allocator) @private
 {
-	uint value = (uint)(usz)handle;
+	uint value      = (uint)(usz)handle;
 	Win32_WCHAR[LOCALE_NAME_CAPACITY] buffer;
 	String language = locale_tag(hkl::lcid_of(value), buffer[..], allocator);
-	String name = locale_display_name(&buffer[0], allocator);
+	String name     = locale_display_name(&buffer[0], allocator);
 	return {
 		.id = hkl::klid_text(value, allocator),
 		.name = name.len > 0 ? name : language.copy(allocator),
@@ -165,7 +182,7 @@ fn State read_state(Allocator allocator) @private
 	@pool()
 	{
 		Win32_HKL[] handles = installed(tmem);
-		Layout[] layouts = alloc::new_array(allocator, Layout, handles.len);
+		Layout[] layouts    = alloc::new_array(allocator, Layout, handles.len);
 		for (sz i = 0; i < handles.len; i++)
 		{
 			layouts[i] = layout_of(handles[i], allocator);
@@ -175,11 +192,11 @@ fn State read_state(Allocator allocator) @private
 		if (foreground_layout(&active))
 		{
 			String active_id = hkl::klid_text(active, tmem);
-			sz index = index_of(layouts, active_id);
+			sz index         = input::index_of(layouts, active_id);
 			if (index >= 0) state.current = { .value = (uint)index, .has_value = true };
 		}
 	};
-	state.can_switch = can_switch_now(true, state.layouts.len);
+	state.can_switch = input::can_switch_now(true, state.layouts.len);
 	return state;
 }
 
@@ -188,7 +205,7 @@ fn void refresh(InputHub* hub) @private
 {
 	Snapshot{State}* snapshot = hub.begin();
 	snapshot.value = read_state(snapshot.allocator());
-	publish_state(hub, snapshot);
+	input::publish_state(hub, snapshot);
 }
 
 <*
@@ -202,9 +219,14 @@ fn void refresh(InputHub* hub) @private
 fn void? switch_to(String id) @private
 {
 	Win32_HWND window = get_foreground_window();
-	if (window == null) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "no foreground window to ask")~;
+	if (window == null) return error::raise(
+		error::UNAVAILABLE,
+		error::Domain.INTERNAL,
+		0,
+		"no foreground window to ask"
+	)~;
 	uint wanted = 0;
-	bool found = false;
+	bool found  = false;
 	@pool()
 	{
 		Win32_HKL[] handles = installed(tmem);
@@ -249,15 +271,16 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 			SwitchOperation* operation = commands[i].operation;
 			if (catch err = switch_to(commands[i].id_text()))
 			{
-				fail_switch(operation, err);
+				input::fail_switch(operation, err);
 			}
 			else
 			{
 				// The window applies the request on its own thread: the change is read again shortly.
-				succeed_switch(operation, SwitchOutcome.QUEUED);
+				input::succeed_switch(operation, SwitchOutcome.QUEUED);
 				wait = FOLLOW_UP;
 			}
 		}
 		refresh(hub);
 	}
+	input::fail_queued(host);
 }

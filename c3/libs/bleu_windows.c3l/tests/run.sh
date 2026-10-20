@@ -74,6 +74,7 @@ check hypr-log-focus "$work/hypr.log" "j/dispatch focuswindow address:$t"
 check hypr-log-close "$work/hypr.log" "j/dispatch closewindow address:$t"
 check hypr-log-move "$work/hypr.log" "j/dispatch movetoworkspace $d,address:$t"
 check hypr-log-float "$work/hypr.log" "j/dispatch togglefloating address:$t"
+check hypr-log-fullscreen "$work/hypr.log" "j/dispatch fullscreen 0"
 check hypr-log-workspace "$work/hypr.log" "j/dispatch workspace $d"
 [ $rc -eq 0 ] || { echo "FAIL  hyprland driver exit $rc"; fail=1; }
 kill "${pids[-1]}" 2>/dev/null; pids=("${pids[@]:0:${#pids[@]}-1}")
@@ -133,6 +134,21 @@ check sway-log-float "$work/sway.log" "[con_id=$t] floating toggle"
 [ $rc -eq 0 ] || { echo "FAIL  sway driver exit $rc"; fail=1; }
 kill "${pids[-1]}" 2>/dev/null; pids=("${pids[@]:0:${#pids[@]}-1}")
 rm -f "$work/run/sway.sock"
+
+# --- i3 (the same tree protocol as sway, and no layouts) -----------------
+echo "== i3"
+python3 "$fakes/fake_sway.py" "$work/run/i3.sock" "$fixtures/sway" "$work/i3.log" "$fakes/live/sway_events.tsv" i3 > "$work/i3.fake" 2>&1 &
+pids+=($!)
+wait_for "$work/run/i3.sock"
+"${env_base[@]}" I3SOCK="$work/run/i3.sock" "$live" > "$work/i3.out" 2>&1; rc=$?
+cat "$work/i3.out"
+check i3-first "$work/i3.out" "first connection=CONNECTED windows=3 workspaces=2 outputs=1 focused=Browser status=none"
+check i3-focus "$work/i3.out" "focus_window=ok"
+t="$(target_of "$work/i3.out")"
+check i3-log-focus "$work/i3.log" "[con_id=$t] focus"
+[ $rc -eq 0 ] || { echo "FAIL  i3 driver exit $rc"; fail=1; }
+kill "${pids[-1]}" 2>/dev/null; pids=("${pids[@]:0:${#pids[@]}-1}")
+rm -f "$work/run/i3.sock"
 
 # --- niri -----------------------------------------------------------------
 echo "== niri"

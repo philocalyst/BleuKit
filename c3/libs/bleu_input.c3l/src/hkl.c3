@@ -7,9 +7,9 @@
 
  Sources, checked 2026-10-20:
  * Learn, GetKeyboardLayout (https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getkeyboardlayout):
-   "The low word contains a Language Identifier ... the high word contains a device handle".
+ "The low word contains a Language Identifier ... the high word contains a device handle".
  * Learn, LoadKeyboardLayoutW: the name is the hex of the language identifier in the low word and a device
-   identifier in the high word; "U.S. English ... is named \"00000409\"", its Dvorak layout "00010409".
+ identifier in the high word; "U.S. English ... is named \"00000409\"", its Dvorak layout "00010409".
  * Wine, dlls/user32/input.c, LoadKeyboardLayoutW: a name whose high word is zero gives the HKL
  (LANGID, LANGID), so 00000409 is HKL 0x04090409; a high word of 0xF000 or more is a registry Layout Id.
  The two agree on the cases used here.
@@ -21,10 +21,10 @@ module bleu::input::hkl;
 
 <* Device words from here up name a registry Layout Id, not a KLID layout number (Wine input.c). *>
 const uint DEVICE_SPECIFIC_FROM = 0xF000;
-const uint WORD_BITS = 16;
-const uint NIBBLE_BITS = 4;
-const uint NIBBLE_MASK = 0xF;
-const usz KLID_DIGITS = 8;
+const uint WORD_BITS            = 16;
+const uint NIBBLE_BITS          = 4;
+const uint NIBBLE_MASK          = 0xF;
+const usz KLID_DIGITS           = 8;
 
 <* The language identifier (LANGID) in the low word of an HKL. *>
 fn ushort language_id(uint hkl) => (ushort)(hkl & 0xFFFF);

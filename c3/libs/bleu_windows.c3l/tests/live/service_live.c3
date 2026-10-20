@@ -58,7 +58,12 @@ fn void summarize(String label, windows::State* state) @private
 }
 
 // Wait for a state newer than `seen` that satisfies `want`; prints the timeout otherwise.
-fn Snapshot{windows::State}*? wait_for_connection(windows::Windows* service, ulong seen, windows::Connection want, Duration limit) @private
+fn Snapshot{windows::State}*? wait_for_connection(
+	windows::Windows* service,
+	ulong seen,
+	windows::Connection want,
+	Duration limit
+) @private
 {
 	ulong generation = seen;
 	while (true)
@@ -133,7 +138,7 @@ fn int main(int argc, char** argv)
 		return 0;
 	}
 	// The actions name what the platform reported, so every backend gets its own ids.
-	String target = now.value.windows[0].id.copy(allocator);
+	String target      = now.value.windows[0].id.copy(allocator);
 	String destination = now.value.workspaces[now.value.workspaces.len - 1].id.copy(allocator);
 	io::printfn("target=%s destination=%s", target, destination);
 	now.release();
@@ -157,13 +162,23 @@ fn int main(int argc, char** argv)
 	if (reconnect)
 	{
 		// The runner kills the compositor after the first state; wait for the loss, then for the return.
-		Snapshot{windows::State}* lost = wait_for_connection(service, seen, windows::Connection.DISCONNECTED, (Duration)15_000_000)!!;
+		Snapshot{windows::State}* lost = wait_for_connection(
+			service,
+			seen,
+			windows::Connection.DISCONNECTED,
+			(Duration)15_000_000
+		)!!;
 		summarize("lost", &lost.value);
 		seen = lost.generation;
 		lost.release();
 		report_action("action_while_down", service.focus_window(target)!!);
 		io::printfn("runner=restart-compositor");
-		Snapshot{windows::State}* back = wait_for_connection(service, seen, windows::Connection.CONNECTED, (Duration)15_000_000)!!;
+		Snapshot{windows::State}* back = wait_for_connection(
+			service,
+			seen,
+			windows::Connection.CONNECTED,
+			(Duration)15_000_000
+		)!!;
 		summarize("back", &back.value);
 		back.release();
 	}

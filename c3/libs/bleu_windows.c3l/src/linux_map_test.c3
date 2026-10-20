@@ -7,15 +7,32 @@ fn void maps_windows_workspaces_and_outputs() @test
 	compositor::Rect wide = { .x = 0, .y = 0, .width = 800, .height = 600 };
 	compositor::Window[2] source_windows = {
 		{
-			.id = "0x1", .title = "~/src", .app_id = "foot", .pid = maybe::value(4242),
-			.workspace_id = "1", .output = "DP-1", .focused = true, .floating = false,
-			.fullscreen = maybe::value(false), .maximized = { }, .urgent = { },
+			.id = "0x1",
+			.title = "~/src",
+			.app_id = "foot",
+			.pid = maybe::value(4242),
+			.workspace_id = "1",
+			.output = "DP-1",
+			.focused = true,
+			.floating = false,
+			.fullscreen = maybe::value(false),
+			.maximized = { },
+			.urgent = { },
 			.geometry = maybe::value(wide),
 		},
 		{
-			.id = "0x2", .title = "Calc", .app_id = "gnome-calculator", .pid = { },
-			.workspace_id = "2", .output = "DP-1", .focused = false, .floating = true,
-			.fullscreen = { }, .maximized = { }, .urgent = maybe::value(true), .geometry = { },
+			.id = "0x2",
+			.title = "Calc",
+			.app_id = "gnome-calculator",
+			.pid = { },
+			.workspace_id = "2",
+			.output = "DP-1",
+			.focused = false,
+			.floating = true,
+			.fullscreen = { },
+			.maximized = { },
+			.urgent = maybe::value(true),
+			.geometry = { },
 		},
 	};
 	compositor::Workspace[2] source_workspaces = {

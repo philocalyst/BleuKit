@@ -9,8 +9,8 @@ and a few process facts. It contains no service and no audio, network or display
 anywhere else; no Windows machine was available. `tools/check.sh bleu_core bleu_rt bleu_win`
 type-checks the library for all six targets, and the Windows parts are checked against the
 standard library's Win32 bindings. The platform-neutral parts (GUID parsing and formatting,
-WinRT parameterized IIDs, the HRESULT mapping, UTF-16 conversion) were run on Linux: 22
-`@test` functions pass under `c3c compile-test`. Every layout, constant and vtable slot is
+WinRT parameterized IIDs, the HRESULT mapping, UTF-16 conversion, message decoding and the
+application message allocator) were run on Linux: 30 `@test` functions pass under `c3c compile-test`. Every layout, constant and vtable slot is
 cited in `docs/research/bleu_win.md`.
 
 ## Public API
@@ -29,7 +29,7 @@ cited in `docs/research/bleu_win.md`.
 | `bleu::win::hstring` | `Hstring`: `create`, `close`, `to_string` |
 | `bleu::win::bstr` | `Bstr`: `create`, `close`, `to_string` |
 | `bleu::win::registry` | `Key`: `open(hive, path, view, access)`, `dword`, `qword`, `string`, `multi_string`, `binary`, `subkeys`, `values`, `set_dword`, `set_qword`, `set_string`; `watch_key` gives a `Watch` whose `handle()` feeds `bleu::rt`'s poller |
-| `bleu::win::message_loop` | `open(allocator, handler, context)` → `Loop` (hidden window), `post_wake`, `watch_power`, `watch_devices`, `pump(timeout)`, `dispatch_pending`; `Event` kinds: `POWER_SETTING`, `POWER_STATE`, `DISPLAY_CHANGE`, `DEVICE_CHANGE`, `SESSION_CHANGE`, `SETTING_CHANGE`, `DPI_CHANGE`, `WAKE` |
+| `bleu::win::message_loop` | `open(allocator, handler, context)` → `Loop` (hidden window), `post_wake`, `allocate_message` (application message ids), `add_clipboard_listener`/`remove_clipboard_listener`, `register_hotkey`/`unregister_hotkey`, `watch_power`, `watch_devices`, `pump(timeout)`, `dispatch_pending`; `Event` kinds: `POWER_SETTING`, `POWER_STATE`, `DISPLAY_CHANGE`, `DEVICE_CHANGE`, `SESSION_CHANGE`, `SETTING_CHANGE`, `DPI_CHANGE`, `WAKE`, `CUSTOM_MESSAGE` (`message`, `wparam`, `lparam`), `CLIPBOARD_UPDATED`, `HOTKEY` (`hotkey_id`, `modifiers`, `vk`) |
 | `bleu::win::session` | `register`/`unregister` (WTS session notifications), `is_locked(session)` |
 | `bleu::win::process` | `is_elevated`, `current_user_sid`, `query_image_name`, `wts_session_id`, `locked_workstation` |
 
@@ -192,5 +192,10 @@ the enumerator has taken its own, so `stop` frees the shell.
 * `Registry`: no `RegDeleteValue`, no key creation, no `REG_EXPAND_SZ` expansion.
 * `IAgileObject` is answered by the shell, but whether MMDevice treats a shell as agile has not been observed.
 * The temporary-allocator wrappers for callbacks allocate a 64 KiB pool per entry (`bleu_rt`).
+* Hot keys: `RegisterHotKey` reports the press only (no key-up). A loop refuses an id it already holds
+  (`INVALID_STATE`), and `close` unregisters the hot keys it still holds.
+* Application message ids are per loop and are never reused; an exhausted range is `CAPACITY_EXCEEDED`.
+* The clipboard listener, hot keys and application messages are compiled only (see section 13 of
+  `docs/research/bleu_win.md`).
 
 See `docs/research/bleu_win.md` for every cited value, the vtable tables, and the open risks.

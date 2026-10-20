@@ -3,7 +3,8 @@
 
  Both properties are comma-separated lists, and the variant list is aligned with the layout list: the
  field at position i of each names layout i ("us,de" with ",nodeadkeys" is us and de(nodeadkeys)). Source:
- systemd man page org.freedesktop.locale1 (https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.locale1.html),
+ systemd man page org.freedesktop.locale1
+ (https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.locale1.html),
  which lists X11Layout and X11Variant as read-only strings; systemd src/locale/localectl.c, which reads them with
  the same names.
 *>
@@ -45,13 +46,13 @@ fn sz field_count(String list)
 fn Layout[] layouts_from(String layouts, String variants, Allocator allocator)
 {
 	sz count = field_count(layouts);
-	sz kept = 0;
+	sz kept  = 0;
 	for (sz i = 0; i < count; i++)
 	{
 		if (field_at(layouts, i).len > 0) kept++;
 	}
 	Layout[] result = alloc::new_array(allocator, Layout, kept);
-	sz out = 0;
+	sz out          = 0;
 	for (sz i = 0; i < count; i++)
 	{
 		String layout = field_at(layouts, i);

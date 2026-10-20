@@ -11,15 +11,17 @@
  Threads: the window and its messages belong to the thread that calls `open`.
  Callbacks run on that thread inside `@foreign_entry`, so they may use temporary
  memory. `Loop.post_wake` is the only call that may come from another thread.
- Pumping and the power and device registrations are in `message_loop_pump.c3`.
+ Pumping is in `message_loop_pump.c3`, power and device registrations in
+ `message_loop_watch.c3`, clipboard-listener and hot-key registrations in
+ `message_loop_register.c3`. Window message numbers are in `message_codes.c3`.
 
  Sources: winuser.h (mingw-w64; Wine `include/winuser.h`), dbt.h, and the Learn
  pages cited beside each constant (docs/research/bleu_win.md, section 7).
 *>
 module bleu::win::message_loop @feat(WIN32) @link("user32");
-import std::os::win32, std::core::string;
+import std::os::win32, std::core::string, std::collections::list;
 import bleu::error, bleu::rt::foreign;
-import bleu::win::errors, bleu::win::guid, bleu::win::hresult, bleu::win::session, bleu::win::text;
+import bleu::win::errors, bleu::win::guid, bleu::win::hresult, bleu::win::message_codes, bleu::win::session, bleu::win::text;
 
 <* `WM_NCCREATE`: sent first; `lParam` is the `CREATESTRUCTW`. winuser.h. *>
 const uint WM_NCCREATE          = 0x0081;
@@ -31,10 +33,6 @@ const uint WM_DEVICECHANGE      = 0x0219;
 const uint WM_POWERBROADCAST    = 0x0218;
 <* `WM_WTSSESSION_CHANGE`: a session was locked, unlocked, logged on or off. wtsapi32.h. *>
 const uint WM_WTSSESSION_CHANGE = 0x02b1;
-<* `WM_APP`: the base of application-private messages. winuser.h. *>
-const uint WM_APP               = 0x8000;
-<* The message `Loop.post_wake` sends: `WM_APP` plus one. *>
-const uint WM_WAKE              = WM_APP + 1;
 
 <* `PBT_POWERSETTINGCHANGE`: a registered power setting changed (wParam). winuser.h. *>
 const uint PBT_POWERSETTINGCHANGE   = 0x8013;
@@ -64,14 +62,17 @@ const uint HIDDEN_WINDOW_EX_STYLE = 0x00000080;
 <* What happened. Each kind sets the `Event` fields documented beside it. *>
 enum EventKind : char
 {
-	POWER_SETTING,  // guid: the setting; code: its first data DWORD
-	POWER_STATE,    // code: the PBT_* value (suspend, resume, power source change)
-	DISPLAY_CHANGE, // code: bits per pixel; width, height: the new resolution
-	DEVICE_CHANGE,  // code: the DBT_* value; text: the device interface path, if any
-	SESSION_CHANGE, // code: the WTS_SESSION_* value; session: the session it concerns
-	SETTING_CHANGE, // code: the SPI_* value; text: the changed section name, or empty
-	DPI_CHANGE,     // width, height: the new horizontal and vertical DPI
-	WAKE,           // `Loop.post_wake` was called, from any thread
+	POWER_SETTING,     // guid: the setting; code: its first data DWORD
+	POWER_STATE,       // code: the PBT_* value (suspend, resume, power source change)
+	DISPLAY_CHANGE,    // code: bits per pixel; width, height: the new resolution
+	DEVICE_CHANGE,     // code: the DBT_* value; text: the device interface path, if any
+	SESSION_CHANGE,    // code: the WTS_SESSION_* value; session: the session it concerns
+	SETTING_CHANGE,    // code: the SPI_* value; text: the changed section name, or empty
+	DPI_CHANGE,        // width, height: the new horizontal and vertical DPI
+	WAKE,              // `Loop.post_wake` was called, from any thread
+	CUSTOM_MESSAGE,    // message, wparam, lparam: a message from `Loop.allocate_message`, as posted
+	CLIPBOARD_UPDATED, // the clipboard contents changed; after `Loop.add_clipboard_listener`
+	HOTKEY,            // hotkey_id, modifiers, vk: a hot key from `Loop.register_hotkey` was pressed
 }
 
 <*
@@ -87,6 +88,12 @@ struct Event
 	uint session;
 	Guid guid;
 	String text;
+	uint message; // CUSTOM_MESSAGE: the id `Loop.allocate_message` returned
+	uptr wparam; // CUSTOM_MESSAGE: the WPARAM the message was posted with
+	iptr lparam; // CUSTOM_MESSAGE: the LPARAM the message was posted with
+	uint hotkey_id; // HOTKEY: the id given to `Loop.register_hotkey` (WM_HOTKEY wParam)
+	uint modifiers; // HOTKEY: the MOD_* flags held with the key (WM_HOTKEY lParam, low word)
+	uint vk; // HOTKEY: the virtual-key code (WM_HOTKEY lParam, high word)
 }
 
 <*
@@ -107,6 +114,10 @@ struct Loop
 	WideZ class_name;
 	Handler handler;
 	void* context;
+	message_codes::CustomMessages custom;
+	bool clipboard_listening;
+	// The hot-key ids this loop registered and has not unregistered.
+	List{uint} hotkeys;
 }
 
 <*
@@ -169,6 +180,8 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 	loop.allocator = allocator;
 	loop.handler = handler;
 	loop.context = context;
+	loop.custom.next = message_codes::FIRST_CUSTOM_MESSAGE;
+	loop.clipboard_listening = false;
 	loop.instance = win32::getModuleHandleW(null);
 	// The class is unique per loop: it holds this loop's window procedure address.
 	String name = string::format(tmem, "bleu.win.message_loop.%x", (uptr)loop);
@@ -209,6 +222,7 @@ fn Loop*? open(Allocator allocator, Handler handler, void* context)
 		return failure~;
 	}
 	loop.window = window;
+	loop.hotkeys.init(allocator);
 	if (catch failure = session::register(window))
 	{
 		loop.close();
@@ -226,14 +240,23 @@ fn void Loop.close(&self)
 	// Clear the owner pointer first: messages sent while the window is destroyed
 	// must not reach a loop that is about to be freed.
 	win32::setWindowLongPtrW(self.window, win32::GWLP_USERDATA, 0);
-	// A failed unregister leaves nothing behind that the destroyed window could
-	// still receive, so the failure is not worth stopping the teardown for.
+	// A failed removal leaves nothing behind that the destroyed window could still
+	// receive, so the failure is not worth stopping the teardown for.
+	if (self.clipboard_listening)
+	{
+		if (catch self.remove_clipboard_listener())
+		{
+		}
+	}
+	self.release_hotkeys();
+	// Same reasoning for the session notifications.
 	if (catch session::unregister(self.window))
 	{
 	}
 	win32::destroyWindow(self.window);
 	win32::unregisterClassW(self.class_name.as_wstring(), self.instance);
 	self.class_name.free();
+	self.hotkeys.free();
 	Allocator allocator = self.allocator;
 	alloc::free(allocator, self);
 }
@@ -246,8 +269,19 @@ fn void Loop.close(&self)
 *>
 fn void? Loop.post_wake(&self)
 {
-	if (win32::postMessageW(self.window, WM_WAKE, 0, 0) == 0) return errors::raise_last("PostMessageW")~;
+	if (win32::postMessageW(self.window, message_codes::WM_WAKE, 0, 0) == 0) return errors::raise_last("PostMessageW")~;
 }
+
+<*
+ Hand out a window message for this loop's own use, such as the callback message of a
+ notification icon (`Shell_NotifyIconW`). Ids come from the application range, starting
+ at `WM_APP` plus two, and are never reused. A message posted to this loop's window with
+ an id from here is delivered as a `CUSTOM_MESSAGE` event. Call it on the thread that
+ opened the loop.
+
+ @return? CAPACITY_EXCEEDED : "Every id in the application range is in use"
+*>
+fn uint? Loop.allocate_message(&self) => self.custom.allocate();
 
 <*
  Window procedure of every loop. `WM_NCCREATE` stores the owner's pointer in
@@ -314,10 +348,22 @@ fn void dispatch(Loop* loop, uint message, uptr wparam, iptr lparam) @local
 			event.kind = SESSION_CHANGE;
 			event.code = (uint)wparam;
 			event.session = (uint)lparam;
-		case WM_WAKE:
+		case message_codes::WM_HOTKEY:
+			event.kind = HOTKEY;
+			event.hotkey_id = (uint)wparam;
+			event.modifiers = message_codes::low_word(lparam);
+			event.vk = message_codes::high_word(lparam);
+		case message_codes::WM_CLIPBOARDUPDATE:
+			event.kind = CLIPBOARD_UPDATED;
+		case message_codes::WM_WAKE:
 			event.kind = WAKE;
 		default:
-			return;
+			// Only the ids this loop handed out are the owner's; anything else is not reported.
+			if (!loop.custom.owns(message)) return;
+			event.kind = CUSTOM_MESSAGE;
+			event.message = message;
+			event.wparam = wparam;
+			event.lparam = lparam;
 	}
 	loop.handler(loop.context, &event);
 }

@@ -15,11 +15,11 @@ import std::collections::maybe, std::time, bleu::availability, bleu::operation;
 *>
 struct Layout
 {
-	String id;         // stable handle: xkb name, TIS input source id, or KLID text
-	String name;       // display name for people: "English (US)", "German"
+	String id; // stable handle: xkb name, TIS input source id, or KLID text
+	String name; // display name for people: "English (US)", "German"
 	String short_code; // two or three capital letters for a small indicator: "US", "DE"
-	String language;   // BCP-47 tag of the layout's language: "en-US", "de-DE"
-	String variant;    // xkb variant ("nodeadkeys"); "" for the default variant and off Linux
+	String language; // BCP-47 tag of the layout's language: "en-US", "de-DE"
+	String variant; // xkb variant ("nodeadkeys"); "" for the default variant and off Linux
 }
 
 <*

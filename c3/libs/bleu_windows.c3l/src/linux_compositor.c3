@@ -7,23 +7,23 @@
  in place, and publishes the complete state after every change.
 
  * `REFRESH_NEEDED` from an event means the model cannot be patched: the worker
-   asks the compositor for a new snapshot.
+ asks the compositor for a new snapshot.
  * When the event socket closes or a read fails, the state is published as
-   DISCONNECTED with the reason, the connection is dropped, and the worker
-   retries with a doubling wait (`Backoff`). `REFRESH` retries at once.
+ DISCONNECTED with the reason, the connection is dropped, and the worker
+ retries with a doubling wait (`Backoff`). `REFRESH` retries at once.
  * Actions queued while disconnected complete with `DISCONNECTED`, not later.
 *>
 module bleu::windows::linux_compositor @feat(LINUX);
 import std::time, bleu::availability, bleu::error, bleu::operation, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::windows, bleu::windows::linux_map;
 
 // The poller tag of the compositor's event socket. The wake-up has its own tag.
-const usz EVENT_TAG = 1;
+const usz EVENT_TAG       = 1;
 // Sources the poller holds: the wake-up and the event socket, with room to spare.
 const usz POLLER_CAPACITY = 4;
 // Commands taken from the mailbox per round.
-const usz COMMAND_BATCH = 16;
+const usz COMMAND_BATCH   = 16;
 // Page size of the arenas that hold the compositor model and the detection strings.
-const sz ARENA_PAGE = 4096;
+const sz ARENA_PAGE       = 4096;
 
 <* Settings and nothing else: the connection itself lives in the worker. *>
 struct LinuxBackend
@@ -61,7 +61,11 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			"no compositor IPC in this library minimizes a window (Hyprland, sway, i3 and niri report no minimized state)"
 		)
 	);
-	return alloc::new(allocator, LinuxBackend, { .allocator = allocator, .retry = options.retry, .retry_max = options.retry_max });
+	return alloc::new(
+		allocator,
+		LinuxBackend,
+		{ .allocator = allocator, .retry = options.retry, .retry_max = options.retry_max }
+	);
 }
 
 fn void destroy(Allocator allocator, void* state)
@@ -77,7 +81,7 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 	if (catch poller.init(mem, host.wakeup(), POLLER_CAPACITY))
 	{
 		// Without a poller nothing can be waited on: report it and stop.
-		publish_status(hub, error::last().message());
+		windows::publish_status(hub, error::last().message());
 		return;
 	}
 	defer poller.free();
@@ -88,10 +92,10 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 	link.attempt(&poller, hub);
 	while (!host.stopping())
 	{
-		Duration timeout = link.connected ? time::FOREVER : link.retry_wait;
+		Duration timeout       = link.connected ? time::FOREVER : link.retry_wait;
 		poller::Ready[]? ready = poller.wait(timeout);
-		bool timed_out = false;
-		bool events    = false;
+		bool timed_out         = false;
+		bool events            = false;
 		if (catch err = ready)
 		{
 			// TIMEOUT is the retry tick; anything else means the poll itself failed.
@@ -131,21 +135,6 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 		}
 	}
 	windows::fail_queued(host, batch[..]);
-}
-
-// A state that says nothing can be read, and why. The lists stay empty: nothing is known.
-fn Snapshot{State}* disconnected(WindowsHub* hub, String reason) @private
-{
-	Snapshot{State}* next = hub.begin();
-	next.value.connection = Connection.DISCONNECTED;
-	next.value.status = reason.copy(next.allocator());
-	return next;
-}
-
-// Publish the state that says nothing can be read, and why, before the worker returns.
-fn void publish_status(WindowsHub* hub, String reason) @private
-{
-	windows::publish_changes(hub, disconnected(hub, reason));
 }
 
 // One connection to the compositor, and the model it has produced.
@@ -198,7 +187,7 @@ fn void? Link.open_client(&self, Poller* poller)
 	DynamicArenaAllocator scratch;
 	scratch.init(self.allocator, ARENA_PAGE);
 	defer scratch.free();
-	Allocator scratch_allocator = &scratch;
+	Allocator scratch_allocator     = &scratch;
 	compositor::Detection detection = compositor::detect(scratch_allocator);
 	if (detection.kind == compositor::Kind.NONE)
 	{
@@ -300,15 +289,18 @@ fn void? Link.act(&self, Command* command)
 	}
 }
 
-// The connection is lost. The reason is copied into the snapshot before the
-// socket is closed, because the caller's text lives in the thread's error record,
-// which a failing close or poller call overwrites.
+// The connection is lost. The reason is copied before the socket is closed, because
+// the caller's text lives in the thread's error record, which a failing close or poller
+// call overwrites.
 fn void Link.lose(&self, Poller* poller, WindowsHub* hub, String reason)
 {
-	Snapshot{State}* next = disconnected(hub, reason);
-	self.drop(poller);
-	self.retry_wait = self.backoff.take();
-	windows::publish_changes(hub, next);
+	@pool()
+	{
+		String kept = reason.copy(tmem);
+		self.drop(poller);
+		self.retry_wait = self.backoff.take();
+		windows::publish_status(hub, kept);
+	};
 }
 
 // Forget the connection: remove the event socket from the poller and close the client.
@@ -317,7 +309,9 @@ fn void Link.drop(&self, Poller* poller)
 	if (!self.connected) return;
 	self.connected = false;
 	// The source may already be gone when the socket failed; there is nothing to undo then.
-	if (catch poller.remove(EVENT_TAG)) {}
+	if (catch poller.remove(EVENT_TAG))
+	{
+	}
 	self.client.close();
 	self.model = { };
 }

@@ -28,13 +28,13 @@ struct Rect
 *>
 bitstruct WindowFlags : char
 {
-	bool focused;    // holds keyboard focus
-	bool floating;   // outside the tiling layout
+	bool focused; // holds keyboard focus
+	bool floating; // outside the tiling layout
 	bool fullscreen; // covers its output
-	bool maximized;  // zoomed to the work area
-	bool minimized;  // hidden to the taskbar or dock
-	bool urgent;     // asks for attention
-	bool pinned;     // shown on every workspace
+	bool maximized; // zoomed to the work area
+	bool minimized; // hidden to the taskbar or dock
+	bool urgent; // asks for attention
+	bool pinned; // shown on every workspace
 }
 
 <*
@@ -124,13 +124,13 @@ struct State
 *>
 enum Cap : char
 {
-	LIST_WINDOWS,            // windows with their ids, titles and states
-	LIST_WORKSPACES,         // workspaces and which one is active
-	WINDOW_TITLES,           // window titles are reported
+	LIST_WINDOWS,     // windows with their ids, titles and states
+	LIST_WORKSPACES,  // workspaces and which one is active
+	WINDOW_TITLES,    // window titles are reported
 	FOCUS_WINDOW,
 	CLOSE_WINDOW,
 	MINIMIZE_WINDOW,
-	SWITCH_WORKSPACE,        // show a workspace on its output
+	SWITCH_WORKSPACE, // show a workspace on its output
 	MOVE_WINDOW_TO_WORKSPACE,
 	TOGGLE_FLOATING,
 	TOGGLE_FULLSCREEN,

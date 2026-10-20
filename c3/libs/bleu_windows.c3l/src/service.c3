@@ -196,11 +196,13 @@ fn Operation{bool}*? send_request(Windows* self, Cap cap, String target, String 
 	Availability availability = self.capabilities.values[cap.ordinal];
 	if (!availability.ok()) return availability.refusal()~;
 	Operation{bool}* op = operation::begin{bool}(self.allocator);
-	Allocator arena = op.allocator();
-	CommandKind kind = command_kind(cap);
+	Allocator arena     = op.allocator();
+	CommandKind kind    = command_kind(cap);
 	// One reference for the caller, one for the queued command (released by the worker).
 	op.retain();
-	if (catch err = self.hub.post({ .kind = kind, .target = target.copy(arena), .destination = destination.copy(arena), .request = op }))
+	if (catch err = self.hub.post(
+		{ .kind = kind, .target = target.copy(arena), .destination = destination.copy(arena), .request = op }
+	))
 	{
 		op.release();
 		op.release();

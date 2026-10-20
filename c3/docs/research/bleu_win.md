@@ -6,7 +6,8 @@ sources it was checked against. Nothing here was executed on Windows: the Window
 code is type-checked by `tools/check.sh` for `windows-x64` and `windows-aarch64`
 against the standard library's Win32 bindings (`/opt/c3/c3/lib/std/os/win32`), and
 the platform-neutral parts were run on Linux (`c3c compile-test`, 22 tests:
-`guid_test.c3`, `pinterface_test.c3`, `hresult_test.c3`, `text_test.c3`).
+`guid_test.c3`, `pinterface_test.c3`, `hresult_test.c3`, `text_test.c3`, `message_codes_test.c3`).
+The count was 22 when first written; 24 `@test`s ran before the message-loop additions of section 7, and 30 run now.
 
 ## Source shorthand
 
@@ -65,6 +66,7 @@ All values were compared line by line between **M** `winerror.h` and **W** `incl
 | `ERROR_TIMEOUT` / `WAIT_TIMEOUT` | 1460 / 258 | |
 | `ERROR_MORE_DATA` / `ERROR_NO_MORE_ITEMS` / `ERROR_INSUFFICIENT_BUFFER` | 234 / 259 / 122 | |
 | `ERROR_ALREADY_EXISTS` / `ERROR_CLASS_ALREADY_EXISTS` | 183 / 1410 | |
+| `ERROR_HOTKEY_ALREADY_REGISTERED` / `ERROR_HOTKEY_NOT_REGISTERED` | 1409 / 1419 | **M** `winerror.h` lines 1188, 1198; **W** `winerror.h` lines 1232, 1242; **R** `windows-sys` `Foundation/mod.rs` lines 2477-2478; **L** "System Error Codes (1300-1699)": "Hot key is already registered" / "Hot key is not registered" |
 
 Fault mapping (`hresult.c3`, the table the brief specifies): an HRESULT with facility 7 is mapped by its low 16 bits
 (`win32_to_fault`), so `E_ACCESSDENIED`, `E_OUTOFMEMORY` and `E_INVALIDARG` reach
@@ -72,7 +74,9 @@ Fault mapping (`hresult.c3`, the table the brief specifies): an HRESULT with fac
 other HRESULTs are matched by value: `E_NOTIMPL` → `UNSUPPORTED`, `RPC_E_DISCONNECTED` →
 `DISCONNECTED`, anything else → `BACKEND_FAILURE`. `ERROR_NOT_FOUND`/`ERROR_FILE_NOT_FOUND`/
 `ERROR_PATH_NOT_FOUND` → `NOT_FOUND`; `ERROR_TIMEOUT`/`WAIT_TIMEOUT` → `TIMEOUT`;
-`RPC_S_SERVER_UNAVAILABLE` → `DISCONNECTED`. Any other code is `BACKEND_FAILURE`.
+`RPC_S_SERVER_UNAVAILABLE` → `DISCONNECTED`. `ERROR_HOTKEY_ALREADY_REGISTERED` → `BUSY` (another
+program holds the chord) and `ERROR_HOTKEY_NOT_REGISTERED` → `NOT_FOUND`, both with the Win32 code in the
+detail (`errors::raise_win32`). Any other code is `BACKEND_FAILURE`.
 
 Message text: `FormatMessageW` with `FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS`
 (`0x1000 | 0x200`; **M** and **W** `winbase.h`). **L** `FormatMessageW`.
@@ -236,6 +240,41 @@ bytes and the signature), and agree with both the mingw values and the C3 test.
   `PostMessageW`, `SetWindowLongPtrW`, `GetWindowLongPtrW`, `CreateWindowExW`, `RegisterClassExW` come from
   the standard library's `std::os::win32` (`winuser.c3`); their signatures were checked against **M**.
 
+### 7a. Application messages, clipboard listener, hot keys (`message_codes.c3`, `message_loop_register.c3`)
+
+* Application range (**L** "WM_APP": "Message numbers in the third range (0x8000 through 0xBFFF) are
+  available for applications to use as private messages. Messages in this range do not conflict with system
+  messages"). `WM_APP` 0x8000: **M** `winuser.h` line 1438; **R** `windows-sys` 0.59.0
+  `Windows/Win32/UI/WindowsAndMessaging/mod.rs` line 2359 (`32768`). `Loop.allocate_message` hands out ids from
+  `WM_APP + 2` (`WM_APP + 1` is `WM_WAKE`) through 0xBFFF, per loop, never reused.
+* `WM_HOTKEY` 0x0312: **M** `winuser.h` line 1412; **R** `windows-sys` `mod.rs` line 2432 (`786`); **L** "WM_HOTKEY":
+  wParam is the hot-key id, lParam's low-order word the modifiers and its high-order word the virtual-key code.
+* `WM_CLIPBOARDUPDATE` 0x031D: **M** `winuser.h` line 1417; **R** `windows-sys` `mod.rs` line 2371 (`797`); **L**
+  "WM_CLIPBOARDUPDATE": posted "whenever the contents of the clipboard have changed" to a window added with
+  `AddClipboardFormatListener`.
+* `AddClipboardFormatListener(HWND) -> BOOL` and `RemoveClipboardFormatListener(HWND) -> BOOL`: **M** `winuser.h`
+  lines 2499-2500; **W** `winuser.h` lines 3877 and 4550; **R** `windows-sys` `Windows/Win32/System/DataExchange/mod.rs`
+  lines 3 and 76 (`user32.dll`); **L** "AddClipboardFormatListener" ("Windows Vista [desktop apps only]").
+  Not bound by the shipped `std::os::win32` (`/opt/c3/c3/lib/std/os/win32`, searched), so declared in `message_loop_register.c3`.
+* `RegisterHotKey(HWND, int, UINT, UINT) -> BOOL` and `UnregisterHotKey(HWND, int) -> BOOL`: **M** `winuser.h` lines
+  1988-1989; **W** `winuser.h` lines 4535 and 4719; **R** `windows-sys` `Input/KeyboardAndMouse/mod.rs` lines 30 and 45
+  (`id: i32`); **L** "RegisterHotKey", "UnregisterHotKey". Learn: the id must be in 0x0000 through 0xBFFF (shared DLLs use
+  0xC000 and up). With the same window and id, a second registration "is maintained along with the new hot key" (Windows
+  Server 2003 replaced it), and "The application must explicitly call UnregisterHotKey to unregister the old hot key". So
+  the loop keeps the ids it registered (`List{uint}` in `Loop`), refuses a reused id with `INVALID_STATE` before any
+  Win32 call, and `close` calls `UnregisterHotKey` for each one it still holds. Both functions return zero on failure;
+  `GetLastError` gives the code, which `errors::raise_win32` / `raise_last` record.
+* `MOD_ALT` 0x0001, `MOD_CONTROL` 0x0002, `MOD_SHIFT` 0x0004, `MOD_WIN` 0x0008, `MOD_NOREPEAT` 0x4000: **M** `winuser.h`
+  lines 1992-1997; **R** `windows-sys` lines 151-155; **L** "RegisterHotKey" (the `fsModifiers` table).
+* `LOWORD` and `HIWORD` (`message_codes.c3`, `low_word`/`high_word`): **M** `minwindef.h` lines 184-185; **W**
+  `minwindef.h` lines 306-307.
+* Decoding is covered by `message_codes_test.c3`: a `WM_HOTKEY` lParam of `0x00410006` gives modifiers 0x0006 and
+  virtual-key 0x41, and bits above 32 of a 64-bit LPARAM are ignored. The allocator test covers the first id (0x8002),
+  the owned set, and `CAPACITY_EXCEEDED` after 0xBFFF.
+* Dispatch (`message_loop.c3`): `WM_HOTKEY` becomes `HOTKEY`, `WM_CLIPBOARDUPDATE` becomes `CLIPBOARD_UPDATED`, and a
+  message in the application range this loop allocated becomes `CUSTOM_MESSAGE` (wParam and lParam as posted). Any other
+  message in the range is not reported, as before.
+
 ## 8. Registry (`registry*.c3`)
 
 * `KEY_QUERY_VALUE` 0x1, `KEY_SET_VALUE` 0x2, `KEY_CREATE_SUB_KEY` 0x4, `KEY_ENUMERATE_SUB_KEYS` 0x8,
@@ -318,3 +357,8 @@ declarations cited above, and C3 uses the C layout for structs without `@packed`
    up to `READ_ATTEMPTS` times.
 7. `Hstring.close` and `Bstr.close` free with the matching APIs; `WideZ.free` frees the allocator's
    buffer. None of these were exercised.
+8. The clipboard listener, the hot keys and the application messages are compiled only. Nothing shows that a
+   hidden top-level window receives `WM_CLIPBOARDUPDATE` or `WM_HOTKEY` through this loop, or that a hot key
+   registered on it fires.
+9. `Loop.close` removes the clipboard listener itself when `add_clipboard_listener` succeeded. The Learn pages read
+   do not say whether destroying a window leaves the listener chain by itself, so the explicit removal is the safe path.

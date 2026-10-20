@@ -11,32 +11,32 @@ module bleu::windows::win32_rules;
 import std::collections::list, bleu::error, bleu::windows;
 
 // winuser.h: win-event constants (SetWinEventHook, WinEventProc).
-const uint EVENT_SYSTEM_FOREGROUND   = 0x0003;
-const uint EVENT_OBJECT_CREATE       = 0x8000;
-const uint EVENT_OBJECT_DESTROY      = 0x8001;
-const uint EVENT_OBJECT_SHOW         = 0x8002;
-const uint EVENT_OBJECT_HIDE         = 0x8003;
-const uint EVENT_OBJECT_STATECHANGE  = 0x800A;
-const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
-const uint EVENT_OBJECT_NAMECHANGE   = 0x800C;
-const uint EVENT_OBJECT_CLOAKED      = 0x8017;
-const uint EVENT_OBJECT_UNCLOAKED    = 0x8018;
+const uint EVENT_SYSTEM_FOREGROUND     =  0x0003;
+const uint EVENT_OBJECT_CREATE         =  0x8000;
+const uint EVENT_OBJECT_DESTROY        =  0x8001;
+const uint EVENT_OBJECT_SHOW           =  0x8002;
+const uint EVENT_OBJECT_HIDE           =  0x8003;
+const uint EVENT_OBJECT_STATECHANGE    =  0x800A;
+const uint EVENT_OBJECT_LOCATIONCHANGE =  0x800B;
+const uint EVENT_OBJECT_NAMECHANGE     =  0x800C;
+const uint EVENT_OBJECT_CLOAKED        =  0x8017;
+const uint EVENT_OBJECT_UNCLOAKED      =  0x8018;
 // The object id of a window itself; other objects (caret, scrollbars) are not windows.
-const int OBJID_WINDOW               = 0;
+const int OBJID_WINDOW                 =  0;
 // winuser.h: flags of SetWinEventHook. Callbacks run on the installing thread.
-const uint WINEVENT_OUTOFCONTEXT     = 0x0000;
-const uint WINEVENT_SKIPOWNPROCESS   = 0x0002;
+const uint WINEVENT_OUTOFCONTEXT       =  0x0000;
+const uint WINEVENT_SKIPOWNPROCESS     =  0x0002;
 // winuser.h: GetAncestor flag, the root of the owner chain.
-const uint GA_ROOTOWNER              = 3;
+const uint GA_ROOTOWNER                =  3;
 // winuser.h: GetWindowLongPtr index of the extended style.
-const int GWL_EXSTYLE                = -20;
+const int GWL_EXSTYLE                  = -20;
 // winuser.h: extended window styles.
-const uint WS_EX_TOOLWINDOW          = 0x00000080;
-const uint WS_EX_APPWINDOW           = 0x00040000;
+const uint WS_EX_TOOLWINDOW            =  0x00000080;
+const uint WS_EX_APPWINDOW             =  0x00040000;
 // dwmapi.h: DWMWINDOWATTRIBUTE value that reports whether a window is cloaked.
-const uint DWMWA_CLOAKED             = 14;
+const uint DWMWA_CLOAKED               =  14;
 // The DWORD size DwmGetWindowAttribute expects for DWMWA_CLOAKED.
-const uint DWORD_BYTES               = 4;
+const uint DWORD_BYTES                 =  4;
 
 <*
  What the Alt-Tab rules need to know about one top-level window.
@@ -76,9 +76,7 @@ fn bool is_alt_tab_window(WindowFacts facts)
 fn bool is_relevant_event(uint event, int id_object)
 {
 	if (id_object != OBJID_WINDOW) return false;
-	return event == EVENT_SYSTEM_FOREGROUND
-		|| event == EVENT_OBJECT_CREATE
-		|| event == EVENT_OBJECT_DESTROY
+	return event == EVENT_SYSTEM_FOREGROUND || event == EVENT_OBJECT_CREATE || event == EVENT_OBJECT_DESTROY
 		|| event == EVENT_OBJECT_SHOW
 		|| event == EVENT_OBJECT_HIDE
 		|| event == EVENT_OBJECT_STATECHANGE
@@ -91,10 +89,15 @@ fn bool is_relevant_event(uint event, int id_object)
 <*
  The window id of an HWND: "0x" and the pointer value in lower-case hexadecimal.
  Windows handles are at most 64 bits, so the text is at most 18 characters.
+
+ @param allocator : "Allocator for the id (the snapshot's arena)"
 *>
-fn String format_handle(ulong handle)
+fn String format_handle(ulong handle, Allocator allocator)
 {
-	return string::tformat("0x%x", handle).copy(tmem);
+	@pool()
+	{
+		return string::tformat("0x%x", handle).copy(allocator);
+	};
 }
 
 <*
@@ -112,7 +115,13 @@ fn ulong? parse_handle(String id)
 	for (sz i = 2; i < id.len; i++)
 	{
 		int digit = hex_digit(id[i]);
-		if (digit < 0) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "'%s' is not a window id", id)~;
+		if (digit < 0) return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"'%s' is not a window id",
+			id
+		)~;
 		value = value * 16 + (ulong)digit;
 	}
 	return value;
@@ -121,9 +130,9 @@ fn ulong? parse_handle(String id)
 // The value of one hexadecimal digit, or -1.
 fn int hex_digit(char c) @private
 {
-	if (c >= '0' && c <= '9') return c - '0';
-	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	if (c >= '0' && c <= '9') return (int)(c - '0');
+	if (c >= 'a' && c <= 'f') return (int)(c - 'a') + 10;
+	if (c >= 'A' && c <= 'F') return (int)(c - 'A') + 10;
 	return -1;
 }
 
@@ -138,15 +147,17 @@ fn String executable_name(String path)
 	{
 		if (c == '\\') start = (sz)i + 1;
 	}
-	String name = path[start : path.len - start];
-	if (name.len >= 4 && is_exe_suffix(name[name.len - 4 : 4])) return name[0 : name.len - 4];
+	String name = path[start:path.len - start];
+	if (name.len >= 4 && is_exe_suffix(name[name.len - 4:4])) return name[0:name.len - 4];
 	return name;
 }
 
 fn bool is_exe_suffix(String suffix) @private
 {
-	return suffix == ".exe" || suffix == ".EXE" || suffix == ".Exe" || suffix == ".eXe"
-		|| suffix == ".exE" || suffix == ".ExE" || suffix == ".EXe" || suffix == ".eXE";
+	return suffix == ".exe" || suffix == ".EXE" || suffix == ".Exe" || suffix == ".eXe" || suffix == ".exE"
+		|| suffix == ".ExE"
+		|| suffix == ".EXe"
+		|| suffix == ".eXE";
 }
 
 <*
@@ -157,7 +168,12 @@ fn bool is_exe_suffix(String suffix) @private
 
  @param allocator : "Allocator for the array (the snapshot's arena)"
 *>
-fn windows::Workspace[] workspaces_of(windows::Window[] listed, String focused_id, String visible_id, Allocator allocator)
+fn windows::Workspace[] workspaces_of(
+	windows::Window[] listed,
+	String focused_id,
+	String visible_id,
+	Allocator allocator
+)
 {
 	List{windows::Workspace} found;
 	found.init(allocator);
@@ -171,23 +187,25 @@ fn windows::Workspace[] workspaces_of(windows::Window[] listed, String focused_i
 			existing.window_count++;
 			continue;
 		}
-		found.push({
-			.id = window.workspace_id.copy(allocator),
-			.name = "",
-			.output_id = "",
-			.active = window.workspace_id == focused_id,
-			.visible = window.workspace_id == visible_id,
-			.window_count = 1,
-		});
+		found.push(
+			{
+				.id = window.workspace_id.copy(allocator),
+				.name = "",
+				.output_id = "",
+				.active = window.workspace_id == focused_id,
+				.visible = window.workspace_id == visible_id,
+				.window_count = 1,
+			}
+		);
 	}
 	return found.array_view();
 }
 
 fn sz find_workspace(List{windows::Workspace}* found, String id) @private
 {
-	foreach (i, workspace : found)
+	for (sz i = 0; i < found.len(); i++)
 	{
-		if (workspace.id == id) return (sz)i;
+		if (found.get(i).id == id) return i;
 	}
 	return -1;
 }

@@ -3,7 +3,7 @@
  finding a layout by id. Platform-neutral; runs on the worker thread.
 *>
 module bleu::input;
-import bleu::error, bleu::observe, bleu::service, bleu::operation, bleu::equal;
+import bleu::error, bleu::observe, bleu::service, bleu::operation, bleu::equal, bleu::rt::worker;
 
 alias InputHub = Hub{State, Command, Event};
 
@@ -85,4 +85,27 @@ fn void fail_switch(SwitchOperation* operation, fault failure)
  Whether a backend's switch route, once connected, can change the layout here: the layout list must
  hold two or more entries for "next" to mean anything.
 *>
-fn bool can_switch_now(bool route_open, usz layout_count) => route_open && layout_count > 1;
+fn bool can_switch_now(bool route_open, sz layout_count) => route_open && layout_count > 1;
+// Commands taken from the queue in one pass when the worker is stopping.
+const usz DRAIN_BATCH = 8;
+
+<*
+ Fail every switch still queued when the worker stops, so that no caller waits for an operation no one will run.
+ Called on the worker thread after its loop has ended. The mailbox is closed by then, but the commands already
+ queued remain there (bleu_rt, Worker.stop).
+*>
+fn void fail_queued(Host{Command}* host)
+{
+	Command[DRAIN_BATCH] batch;
+	for (usz taken = host.mailbox().take_all(batch[..]); taken > 0; taken = host.mailbox().take_all(batch[..]))
+	{
+		for (usz i = 0; i < taken; i++)
+		{
+			if (batch[i].kind != CommandKind.SWITCH_TO) continue;
+			fail_switch(
+				batch[i].operation,
+				error::raise(error::CANCELLED, error::Domain.INTERNAL, 0, "the service closed before the request ran")
+			);
+		}
+	}
+}

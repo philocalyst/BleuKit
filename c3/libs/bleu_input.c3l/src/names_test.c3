@@ -41,13 +41,24 @@ fn void short_codes() @test
 
 fn void table_lookups() @test
 {
-	Entry? us = by_xkb("us");
-	test::eq(us.has_value, true);
-	test::eq((String)us.value.language, "en-US");
-	test::eq(by_xkb("zz") ?? false, false);
-	Entry? german = by_description("German");
-	test::eq((String)german.value.xkb, "de");
-	test::eq(by_description("No such layout") ?? false, false);
+	if (try us = languages::by_xkb("us"))
+	{
+		test::eq((String)us.language, "en-US");
+	}
+	else
+	{
+		test::@check(false, "us is listed");
+	}
+	test::@error(languages::by_xkb("zz"), NOT_FOUND);
+	if (try german = languages::by_description("German"))
+	{
+		test::eq((String)german.xkb, "de");
+	}
+	else
+	{
+		test::@check(false, "German is listed");
+	}
+	test::@error(languages::by_description("No such layout"), NOT_FOUND);
 }
 
 fn void maps_compositor_names() @test

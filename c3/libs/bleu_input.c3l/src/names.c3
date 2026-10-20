@@ -6,7 +6,7 @@ module bleu::input::names;
 import std::core::string, bleu::input, bleu::input::languages;
 
 const usz SHORT_CODE_LENGTH = 3;
-const char ASCII_CASE_BIT = 32; // 'a' - 'A'
+const char ASCII_CASE_BIT   = 32; // 'a' - 'A'
 
 <* An xkb name split into its layout and variant. Both are views into the name it was split from. *>
 struct XkbName
@@ -24,7 +24,7 @@ fn XkbName parse_xkb(String name)
 	if (name.len == 0 || name[name.len - 1] != ')') return { .layout = name, .variant = "" };
 	for (sz i = 0; i < name.len; i++)
 	{
-		if (name[i] == '(') return { .layout = name[0:i], .variant = name[i + 1 : name.len - i - 2] };
+		if (name[i] == '(') return { .layout = name[0:i], .variant = name[i + 1:name.len - i - 2] };
 	}
 	return { .layout = name, .variant = "" };
 }
@@ -105,7 +105,7 @@ fn Layout layout_from_parts(String layout, String variant, Allocator allocator)
 	if (try entry = languages::by_xkb(layout))
 	{
 		description = entry.description;
-		language    = entry.language;
+		language = entry.language;
 	}
 	String id = xkb_name(layout, variant, allocator);
 	return {

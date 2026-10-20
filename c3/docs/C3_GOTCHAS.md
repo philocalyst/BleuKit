@@ -207,3 +207,11 @@
 * A mock-compositor scenario that expects requests hangs forever when the code under test sends none (an unchanged config completes locally); also `Operation.wait()` without a timeout blocks until the op completes. Kill test processes by PID: `pkill -f <pattern>` matches the shell that runs it.
 * `string::tformat` results live in temporary memory: copy before the `@pool()` ends, and never return them from a function (dangling).
 * `Maybe{T}` cannot take an array literal: copy the value through `.set(...)`.
+* `Names of consts must be all uppercase` for `extern const kTISPropertyInputSourceID` → name it `TIS_PROPERTY_INPUT_SOURCE_ID` and keep the native name in `@cname("kTISPropertyInputSourceID")`; a `@feat(DARWIN)` file is parsed on every target, so the error breaks Linux too.
+* A `@feat(LINUX)`/`(DARWIN)` module's `@feat` only gates type-checking: its syntax and naming rules are checked on every target.
+* `Duration` (and `Maybe`) used in a file that names them only through another module → add `import std::time` (`import std::collections::maybe`) to that file; imports are per file.
+* A backend file that imports `bleu::input` and `bleu::compositor::backend` gets "The interface 'Backend' is defined in both" → qualify the enum: `input::Backend.COMPOSITOR`.
+* `Functions from other modules must be prefixed` also applies to helpers of a sibling module of the same library in backend files: `input::publish_state(...)`, `input::index_of(...)`.
+* `std::os::win32` binds `GetKeyboardLayout`, `PostMessageW` and the HKL/HWND/LPARAM types but not `GetKeyboardLayoutList`, `GetForegroundWindow` or `LCIDToLocaleName` → declare those with `extern fn ... @link("user32")` and a `@cname`.
+* Testing an optional-returning function: `x.has_value` and `f() ?? false == x` do not compile → `if (try v = f()) {...} else { test::@check(false, "...") }` and `test::@error(f(), NOT_FOUND)`.
+* `c3c compile-test tools/empty.c3` with `--lib <lib>` runs the `@test`s of that library's `src/` too; no need to name the test files.

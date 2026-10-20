@@ -13,12 +13,12 @@
  is known to pass to `switchxkblayout`.
 *>
 module bleu::input::linux_compositor @feat(LINUX);
-import std::collections::maybe, bleu::availability, bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::error, bleu::input, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::collections::maybe, std::time, bleu::availability, bleu::compositor, bleu::compositor::backend, bleu::compositor::connect, bleu::error, bleu::input, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 // The poller tag of the compositor's event socket. The wake-up is not tagged (see bleu_rt).
-const usz EVENT_TAG = 1;
+const usz EVENT_TAG     = 1;
 // Bytes per page of the arenas that hold the socket state and the model.
-const usz ARENA_PAGE = 65536;
+const usz ARENA_PAGE    = 65536;
 // Commands the worker takes in one pass.
 const usz COMMAND_BATCH = 8;
 
@@ -40,7 +40,7 @@ struct Session
 
 const Driver DRIVER = {
 	.info = { "compositor", "the running compositor's IPC: Hyprland, sway or niri (bleu_compositor)", 20 },
-	.id = Backend.COMPOSITOR,
+	.id = input::Backend.COMPOSITOR,
 	.probe = &probe,
 	.create = &create,
 	.destroy = &destroy,
@@ -86,7 +86,11 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 			)
 		);
 	}
-	CompositorBackend* backend = alloc::new(allocator, CompositorBackend, { .allocator = allocator, .poll = options.poll, .kind = kind });
+	CompositorBackend* backend = alloc::new(
+		allocator,
+		CompositorBackend,
+		{ .allocator = allocator, .poll = options.poll, .kind = kind }
+	);
 	return backend;
 }
 
@@ -119,8 +123,9 @@ fn Maybe{uint} current_index(compositor::KeyboardLayouts* keyboard, sz count) @p
 fn State state_of(compositor::Model* model, Allocator allocator, bool route) @private
 {
 	compositor::KeyboardLayouts* keyboard = &model.layouts;
-	sz count = keyboard.names.len > 0 ? keyboard.names.len : (keyboard.current_name.len > 0 ? 1 : 0);
-	Layout[] layouts = alloc::new_array(allocator, Layout, count);
+	sz count                              = keyboard.names.len > 0 ? keyboard.names.len
+		: (keyboard.current_name.len > 0 ? 1 : 0);
+	Layout[] layouts                      = alloc::new_array(allocator, Layout, count);
 	for (sz i = 0; i < count; i++)
 	{
 		String text = keyboard.names.len > 0 ? keyboard.names[i] : keyboard.current_name;
@@ -129,7 +134,7 @@ fn State state_of(compositor::Model* model, Allocator allocator, bool route) @pr
 	return {
 		.layouts = layouts,
 		.current = current_index(keyboard, count),
-		.can_switch = can_switch_now(route, count),
+		.can_switch = input::can_switch_now(route, count),
 	};
 }
 
@@ -138,7 +143,7 @@ fn State state_of(compositor::Model* model, Allocator allocator, bool route) @pr
 fn void? take_snapshot(Session* session, DynamicArenaAllocator* model_arena) @private
 {
 	model_arena.reset();
-	Allocator allocator = model_arena;
+	Allocator allocator      = model_arena;
 	compositor::Model? taken = session.client.snapshot(allocator);
 	if (catch err = taken)
 	{
@@ -152,9 +157,14 @@ fn void? take_snapshot(Session* session, DynamicArenaAllocator* model_arena) @pr
  Connect to the compositor, watch its event socket and take the first model. False when the compositor
  cannot be reached or does not answer: nothing stays open then.
 *>
-fn bool open_session(Session* session, DynamicArenaAllocator* link_arena, DynamicArenaAllocator* model_arena, Poller* poller) @private
+fn bool open_session(
+	Session* session,
+	DynamicArenaAllocator* link_arena,
+	DynamicArenaAllocator* model_arena,
+	Poller* poller
+) @private
 {
-	Allocator link = link_arena;
+	Allocator link                  = link_arena;
 	compositor::Detection detection = compositor::detect(link);
 	if (try client = connect::open(link, detection))
 	{
@@ -222,7 +232,7 @@ fn void publish_session(CompositorBackend* backend, Session* session, InputHub* 
 			snapshot.value = state_of(&session.model, snapshot.allocator(), route_open(backend.kind));
 		};
 	}
-	publish_state(hub, snapshot);
+	input::publish_state(hub, snapshot);
 }
 
 <*
@@ -235,14 +245,26 @@ fn void? activate(Session* session, String id) @private
 	@pool()
 	{
 		State state = state_of(&session.model, tmem, true);
-		index = index_of(state.layouts, id);
+		index = input::index_of(state.layouts, id);
 	};
-	if (index < 0) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no layout '%s' in the compositor's list", id)~;
+	if (index < 0) return error::raise(
+		NOT_FOUND,
+		error::Domain.INTERNAL,
+		0,
+		"no layout '%s' in the compositor's list",
+		id
+	)~;
 	return session.client.set_layout((uint)index);
 }
 
 <* Carry out one queued command. Returns true when the model changed and must be published. *>
-fn bool handle(CompositorBackend* backend, Session* session, Poller* poller, Command* command, DynamicArenaAllocator* model_arena) @private
+fn bool handle(
+	CompositorBackend* backend,
+	Session* session,
+	Poller* poller,
+	Command* command,
+	DynamicArenaAllocator* model_arena
+) @private
 {
 	switch (command.kind)
 	{
@@ -257,21 +279,32 @@ fn bool handle(CompositorBackend* backend, Session* session, Poller* poller, Com
 			SwitchOperation* operation = command.operation;
 			if (!route_open(backend.kind))
 			{
-				fail_switch(operation, error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Hyprland cannot be given a layout index"));
+				input::fail_switch(
+					operation,
+					error::raise(
+						error::UNSUPPORTED,
+						error::Domain.INTERNAL,
+						0,
+						"Hyprland cannot be given a layout index"
+					)
+				);
 				return false;
 			}
 			if (!session.connected)
 			{
-				fail_switch(operation, error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the compositor is not connected"));
+				input::fail_switch(
+					operation,
+					error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "the compositor is not connected")
+				);
 				return false;
 			}
 			if (catch err = activate(session, command.id_text()))
 			{
-				fail_switch(operation, err);
+				input::fail_switch(operation, err);
 			}
 			else
 			{
-				succeed_switch(operation, SwitchOutcome.ACKNOWLEDGED);
+				input::succeed_switch(operation, SwitchOutcome.ACKNOWLEDGED);
 			}
 			return false;
 	}
@@ -316,4 +349,5 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 		}
 		if (changed) publish_session(backend, &session, hub);
 	}
+	input::fail_queued(host);
 }

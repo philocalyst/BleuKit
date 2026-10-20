@@ -6,7 +6,7 @@ fn void reads_aligned_lists() @test
 {
 	@pool()
 	{
-		Layout[] layouts = layouts_from("us,de", ",nodeadkeys", tmem);
+		Layout[] layouts = locale1_convert::layouts_from("us,de", ",nodeadkeys", tmem);
 		test::eq(layouts.len, 2);
 		test::eq((String)layouts[0].id, "us");
 		test::eq((String)layouts[0].variant, "");
@@ -19,13 +19,13 @@ fn void skips_empty_layouts_and_missing_variants() @test
 {
 	@pool()
 	{
-		Layout[] layouts = layouts_from(",ru,fr", "", tmem);
+		Layout[] layouts = locale1_convert::layouts_from(",ru,fr", "", tmem);
 		test::eq(layouts.len, 2);
 		test::eq((String)layouts[0].id, "ru");
 		test::eq((String)layouts[1].id, "fr");
 	};
 	@pool()
 	{
-		test::eq(layouts_from("", "", tmem).len, 0);
+		test::eq(locale1_convert::layouts_from("", "", tmem).len, 0);
 	};
 }

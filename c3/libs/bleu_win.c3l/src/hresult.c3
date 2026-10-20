@@ -46,27 +46,31 @@ const uint RPC_E_CHANGED_MODE = 0x80010106;
 const uint RPC_E_DISCONNECTED = 0x80010108;
 
 <* System error codes (Win32 `GetLastError` values), from winerror.h. *>
-const uint ERROR_FILE_NOT_FOUND      = 2;
-const uint ERROR_PATH_NOT_FOUND      = 3;
-const uint ERROR_ACCESS_DENIED       = 5;
-const uint ERROR_INVALID_HANDLE      = 6;
-const uint ERROR_NOT_ENOUGH_MEMORY   = 8;
-const uint ERROR_INVALID_FUNCTION    = 1;
-const uint ERROR_NOT_SUPPORTED       = 50;
-const uint ERROR_INVALID_PARAMETER   = 87;
-const uint ERROR_INSUFFICIENT_BUFFER = 122;
-const uint ERROR_BUSY                = 170;
-const uint ERROR_ALREADY_EXISTS      = 183;
-const uint ERROR_OUTOFMEMORY         = 14;
-const uint ERROR_MORE_DATA           = 234;
-const uint ERROR_NO_MORE_ITEMS       = 259;
-const uint ERROR_CANCELLED           = 1223;
-const uint ERROR_TIMEOUT             = 1460;
-const uint ERROR_NOT_FOUND           = 1168;
-const uint ERROR_NONE_MAPPED         = 1332;
-const uint WAIT_TIMEOUT              = 258;
+const uint ERROR_FILE_NOT_FOUND            = 2;
+const uint ERROR_PATH_NOT_FOUND            = 3;
+const uint ERROR_ACCESS_DENIED             = 5;
+const uint ERROR_INVALID_HANDLE            = 6;
+const uint ERROR_NOT_ENOUGH_MEMORY         = 8;
+const uint ERROR_INVALID_FUNCTION          = 1;
+const uint ERROR_NOT_SUPPORTED             = 50;
+const uint ERROR_INVALID_PARAMETER         = 87;
+const uint ERROR_INSUFFICIENT_BUFFER       = 122;
+const uint ERROR_BUSY                      = 170;
+const uint ERROR_ALREADY_EXISTS            = 183;
+const uint ERROR_OUTOFMEMORY               = 14;
+const uint ERROR_MORE_DATA                 = 234;
+const uint ERROR_NO_MORE_ITEMS             = 259;
+const uint ERROR_CANCELLED                 = 1223;
+const uint ERROR_TIMEOUT                   = 1460;
+const uint ERROR_NOT_FOUND                 = 1168;
+const uint ERROR_NONE_MAPPED               = 1332;
+<* `ERROR_HOTKEY_ALREADY_REGISTERED`: another registration holds this key combination (winerror.h). *>
+const uint ERROR_HOTKEY_ALREADY_REGISTERED = 1409;
+<* `ERROR_HOTKEY_NOT_REGISTERED`: `UnregisterHotKey` was given an id that is not registered (winerror.h). *>
+const uint ERROR_HOTKEY_NOT_REGISTERED     = 1419;
+const uint WAIT_TIMEOUT                    = 258;
 <* RPC server unavailable (`RPC_S_SERVER_UNAVAILABLE`), a Win32 code. *>
-const uint RPC_S_SERVER_UNAVAILABLE  = 1722;
+const uint RPC_S_SERVER_UNAVAILABLE        = 1722;
 
 <* True when the severity bit is set. Same as the `FAILED` macro. *>
 fn bool Hresult.failed(self) @inline => (int)self < 0;
@@ -112,9 +116,11 @@ fn fault Hresult.to_fault(self)
 
 <*
  Map a Win32 error code onto the Bleu vocabulary. `ERROR_FILE_NOT_FOUND`,
- `ERROR_PATH_NOT_FOUND` and `ERROR_NOT_FOUND` are "not found"; `ERROR_TIMEOUT` and
- `WAIT_TIMEOUT` are timeouts; `RPC_S_SERVER_UNAVAILABLE` means the peer is gone.
- The rest of the table is in the body; everything else is `BACKEND_FAILURE`.
+ `ERROR_PATH_NOT_FOUND`, `ERROR_NOT_FOUND` and `ERROR_HOTKEY_NOT_REGISTERED` are
+ "not found"; `ERROR_TIMEOUT` and `WAIT_TIMEOUT` are timeouts;
+ `ERROR_HOTKEY_ALREADY_REGISTERED` is `BUSY` (another program holds the chord);
+ `RPC_S_SERVER_UNAVAILABLE` means the peer is gone. The rest of the table is in the
+ body; everything else is `BACKEND_FAILURE`.
 
  @param code : "A Win32 error code (not an HRESULT)"
 *>
@@ -124,7 +130,8 @@ fn fault win32_to_fault(uint code)
 	{
 		case ERROR_FILE_NOT_FOUND:
 		case ERROR_PATH_NOT_FOUND:
-		case ERROR_NOT_FOUND: return NOT_FOUND;
+		case ERROR_NOT_FOUND:
+		case ERROR_HOTKEY_NOT_REGISTERED: return NOT_FOUND;
 		case ERROR_ACCESS_DENIED: return error::PERMISSION_DENIED;
 		case ERROR_NOT_ENOUGH_MEMORY:
 		case ERROR_OUTOFMEMORY: return error::NO_MEMORY;
@@ -132,7 +139,8 @@ fn fault win32_to_fault(uint code)
 		case ERROR_NOT_SUPPORTED: return error::UNSUPPORTED;
 		case ERROR_TIMEOUT:
 		case WAIT_TIMEOUT: return TIMEOUT;
-		case ERROR_BUSY: return error::BUSY;
+		case ERROR_BUSY:
+		case ERROR_HOTKEY_ALREADY_REGISTERED: return error::BUSY;
 		case ERROR_CANCELLED: return error::CANCELLED;
 		case RPC_S_SERVER_UNAVAILABLE: return error::DISCONNECTED;
 		default: return error::BACKEND_FAILURE;

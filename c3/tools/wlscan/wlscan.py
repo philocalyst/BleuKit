@@ -36,6 +36,18 @@ HOOKS = {
     ("wl_display", "delete_id"): "conn.release_id(id);",
 }
 
+# Corrections to protocol text that misdescribes the wire format. Keyed by (interface, message);
+# each pair is (text as the XML has it, text to emit), matched after whitespace is collapsed. A pair
+# that matches nothing stops generation, so a fix cannot go stale without anyone noticing.
+#
+# zwlr_gamma_control_v1.set_gamma (wlr-gamma-control-unstable-v1.xml, line 97) says "16-byte unsigned
+# integers". Each entry of a gamma ramp is a 16-bit value: wlroots sizes the table as
+# `ramp_size * 3 * sizeof(uint16_t)` (types/wlr_gamma_control_v1.c line 70,
+# https://gitlab.freedesktop.org/wlroots/wlroots/-/raw/master/types/wlr_gamma_control_v1.c).
+TEXT_FIXES = {
+    ("zwlr_gamma_control_v1", "set_gamma"): [("16-byte unsigned integers", "16-bit unsigned integers")],
+}
+
 # Identifiers the generated code uses for itself or C3 reserves. A protocol
 # argument with one of these names gets a trailing underscore.
 RESERVED = {
@@ -92,6 +104,19 @@ def text_of(element):
     return element.get("summary", "")
 
 
+def fix_text(interface, message, text):
+    """The description of one message with its TEXT_FIXES applied (see TEXT_FIXES)."""
+    fixes = TEXT_FIXES.get((interface, message), [])
+    if not fixes:
+        return text
+    flat = " ".join(text.split())
+    for old, new in fixes:
+        if old not in flat:
+            sys.exit(f"wlscan: TEXT_FIXES for {interface}.{message} matches nothing: {old!r}")
+        flat = flat.replace(old, new)
+    return flat
+
+
 class Arg:
     def __init__(self, element):
         self.name = element.get("name")
@@ -136,6 +161,8 @@ class Interface:
         self.description = text_of(element)
         self.requests = [Message(e, i) for i, e in enumerate(element.findall("request"))]
         self.events = [Message(e, i) for i, e in enumerate(element.findall("event"))]
+        for message in self.requests + self.events:
+            message.description = fix_text(self.name, message.name, message.description)
         self.enums = [Enum(e, self) for e in element.findall("enum")]
 
     @property

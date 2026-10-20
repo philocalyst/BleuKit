@@ -19,8 +19,8 @@ module bleu::input::languages;
 <* One layout the table knows. *>
 struct Entry
 {
-	String xkb;         // xkb layout name, no variant
-	String language;    // BCP-47 tag of the language the layout types
+	String xkb; // xkb layout name, no variant
+	String language; // BCP-47 tag of the language the layout types
 	String description; // English layout description (see the module note on verification)
 }
 

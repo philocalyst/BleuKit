@@ -4,13 +4,13 @@
  Binding sources (HIToolbox TextInputSources.h, MacOSX SDK, read 2026-10-20 from the phracker/MacOSX-SDKs
  mirror, path System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/
  Headers/TextInputSources.h):
-   TISCreateInputSourceList(CFDictionaryRef properties, Boolean includeAllInstalled) -> CFArrayRef
-   TISCopyCurrentKeyboardInputSource(void) -> TISInputSourceRef (a Copy: owned)
-   TISGetInputSourceProperty(TISInputSourceRef, CFStringRef key) -> void* (a Get: not owned)
-   TISSelectInputSource(TISInputSourceRef) -> OSStatus, paramErr when the source is not selectable
-   constants TIS_PROPERTY_INPUT_SOURCE_ID, TIS_PROPERTY_LOCALIZED_NAME, TIS_PROPERTY_INPUT_SOURCE_LANGUAGES,
-   TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE, TIS_PROPERTY_INPUT_SOURCE_TYPE, TIS_TYPE_KEYBOARD_LAYOUT,
-   TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED (a CF distributed notification name).
+ TISCreateInputSourceList(CFDictionaryRef properties, Boolean includeAllInstalled) -> CFArrayRef
+ TISCopyCurrentKeyboardInputSource(void) -> TISInputSourceRef (a Copy: owned)
+ TISGetInputSourceProperty(TISInputSourceRef, CFStringRef key) -> void* (a Get: not owned)
+ TISSelectInputSource(TISInputSourceRef) -> OSStatus, paramErr when the source is not selectable
+ constants TIS_PROPERTY_INPUT_SOURCE_ID, TIS_PROPERTY_LOCALIZED_NAME, TIS_PROPERTY_INPUT_SOURCE_LANGUAGES,
+ TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE, TIS_PROPERTY_INPUT_SOURCE_TYPE, TIS_TYPE_KEYBOARD_LAYOUT,
+ TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED (a CF distributed notification name).
  Second source: Firefox widget/cocoa/TextInputHandler.mm (mozilla/gecko-dev, read 2026-10-20) calls
  TISCreateInputSourceList with a filter on TIS_PROPERTY_INPUT_SOURCE_TYPE = TIS_TYPE_KEYBOARD_LAYOUT, and observes
  TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED on CFNotificationCenterGetDistributedCenter().
@@ -23,34 +23,56 @@
  The notification callback only enqueues a REFRESH; it never reads the sources or publishes.
 *>
 module bleu::input::macos_tis @feat(DARWIN) @link("Carbon.framework");
-import bleu::availability, bleu::cf, bleu::error, bleu::input, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
+import std::collections::maybe, std::time, bleu::availability, bleu::cf, bleu::error, bleu::input, bleu::input::names, bleu::observe, bleu::operation, bleu::rt::poller, bleu::rt::worker, bleu::service;
 
 // Enabled sources only: TISCreateInputSourceList's includeAllInstalled is false (TextInputSources.h).
-const bool ENABLED_ONLY = false;
+const bool ENABLED_ONLY               = false;
 // OSStatus noErr.
-const int NO_ERROR = 0;
+const int NO_ERROR                    = 0;
 // Commands the worker takes in one pass.
-const usz COMMAND_BATCH = 8;
+const usz COMMAND_BATCH               = 8;
 // CFNotificationSuspensionBehaviorDeliverImmediately (core-foundation-sys notification_center.rs).
 const cf::CFIndex DELIVER_IMMEDIATELY = 4;
 
-extern fn CFTypeRef tis_create_input_source_list(CFTypeRef properties, bool include_all_installed) @cname("TISCreateInputSourceList");
+extern fn CFTypeRef tis_create_input_source_list(
+	CFTypeRef properties,
+	bool include_all_installed
+) @cname("TISCreateInputSourceList");
 extern fn CFTypeRef tis_copy_current_keyboard_input_source() @cname("TISCopyCurrentKeyboardInputSource");
 extern fn CFTypeRef tis_get_input_source_property(CFTypeRef source, CFTypeRef key) @cname("TISGetInputSourceProperty");
 extern fn int tis_select_input_source(CFTypeRef source) @cname("TISSelectInputSource");
 
-extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_ID @cname("TIS_PROPERTY_INPUT_SOURCE_ID");
-extern const CFTypeRef TIS_PROPERTY_LOCALIZED_NAME @cname("TIS_PROPERTY_LOCALIZED_NAME");
-extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_LANGUAGES @cname("TIS_PROPERTY_INPUT_SOURCE_LANGUAGES");
-extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE @cname("TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE");
-extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_TYPE @cname("TIS_PROPERTY_INPUT_SOURCE_TYPE");
-extern const CFTypeRef TIS_TYPE_KEYBOARD_LAYOUT @cname("TIS_TYPE_KEYBOARD_LAYOUT");
-extern const CFTypeRef TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED @cname("TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_ID @cname("kTISPropertyInputSourceID");
+extern const CFTypeRef TIS_PROPERTY_LOCALIZED_NAME @cname("kTISPropertyLocalizedName");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_LANGUAGES @cname("kTISPropertyInputSourceLanguages");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_IS_SELECT_CAPABLE @cname("kTISPropertyInputSourceIsSelectCapable");
+extern const CFTypeRef TIS_PROPERTY_INPUT_SOURCE_TYPE @cname("kTISPropertyInputSourceType");
+extern const CFTypeRef TIS_TYPE_KEYBOARD_LAYOUT @cname("kTISTypeKeyboardLayout");
+extern const CFTypeRef TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED @cname("kTISNotifySelectedKeyboardInputSourceChanged");
 
-extern fn CFTypeRef cf_dictionary_create(CFTypeRef allocator, CFTypeRef* keys, CFTypeRef* values, cf::CFIndex count, void* key_callbacks, void* value_callbacks) @cname("CFDictionaryCreate");
+extern fn CFTypeRef cf_dictionary_create(
+	CFTypeRef allocator,
+	CFTypeRef* keys,
+	CFTypeRef* values,
+	cf::CFIndex count,
+	void* key_callbacks,
+	void* value_callbacks
+) @cname("CFDictionaryCreate");
 extern fn CFTypeRef cf_notification_center_distributed() @cname("CFNotificationCenterGetDistributedCenter");
-extern fn void cf_notification_center_add_observer(CFTypeRef center, void* observer, NotificationCallback callback, CFTypeRef name, CFTypeRef object, cf::CFIndex behavior) @cname("CFNotificationCenterAddObserver");
-extern fn void cf_notification_center_remove_observer(CFTypeRef center, void* observer, CFTypeRef name, CFTypeRef object) @cname("CFNotificationCenterRemoveObserver");
+extern fn void cf_notification_center_add_observer(
+	CFTypeRef center,
+	void* observer,
+	NotificationCallback callback,
+	CFTypeRef name,
+	CFTypeRef object,
+	cf::CFIndex behavior
+) @cname("CFNotificationCenterAddObserver");
+extern fn void cf_notification_center_remove_observer(
+	CFTypeRef center,
+	void* observer,
+	CFTypeRef name,
+	CFTypeRef object
+) @cname("CFNotificationCenterRemoveObserver");
 
 // CFNotificationCallback: (center, observer, name, object, userInfo).
 alias NotificationCallback = fn void(CFTypeRef center, void* observer, CFTypeRef name, void* object, CFTypeRef info);
@@ -98,7 +120,7 @@ fn void destroy(Allocator allocator, void* state)
 fn void on_selection_changed(CFTypeRef center, void* observer, CFTypeRef name, void* object, CFTypeRef info)
 {
 	TisBackend* backend = (TisBackend*)observer;
-	Command command = { .kind = CommandKind.REFRESH };
+	Command command     = { .kind = CommandKind.REFRESH };
 	if (catch backend.host.mailbox().post(command))
 	{
 		// The queue is full of commands, which trigger a read as well.
@@ -142,9 +164,9 @@ fn bool selectable(CFTypeRef source) @private
 *>
 fn Layout? layout_of(CFTypeRef source, Allocator allocator) @private
 {
-	String id = cf::string_value(string_property(source, TIS_PROPERTY_INPUT_SOURCE_ID), allocator)!;
-	String name = cf::string_value(string_property(source, TIS_PROPERTY_LOCALIZED_NAME), allocator) ?? id;
-	String language = "";
+	String id           = cf::string_value(string_property(source, TIS_PROPERTY_INPUT_SOURCE_ID), allocator)!;
+	String name         = cf::string_value(string_property(source, TIS_PROPERTY_LOCALIZED_NAME), allocator) ?? id;
+	String language     = "";
 	CFTypeRef languages = string_property(source, TIS_PROPERTY_INPUT_SOURCE_LANGUAGES);
 	if (cf::array_count(languages) > 0)
 	{
@@ -170,15 +192,20 @@ fn State? read_state(Allocator allocator) @private
 	defer filter.close();
 	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, ENABLED_ONLY));
 	defer list.close();
-	if (list.is_nil()) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "TISCreateInputSourceList returned no list")~;
+	if (list.is_nil()) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"TISCreateInputSourceList returned no list"
+	)~;
 	sz total = cf::array_count(list.ptr);
-	sz kept = 0;
+	sz kept  = 0;
 	for (sz i = 0; i < total; i++)
 	{
 		if (selectable(cf::array_at(list.ptr, i))) kept++;
 	}
 	Layout[] layouts = alloc::new_array(allocator, Layout, kept);
-	sz out = 0;
+	sz out           = 0;
 	for (sz i = 0; i < total; i++)
 	{
 		CFTypeRef source = cf::array_at(list.ptr, i);
@@ -186,15 +213,15 @@ fn State? read_state(Allocator allocator) @private
 		if (try layout = layout_of(source, allocator)) layouts[out++] = layout;
 	}
 	Maybe{uint} current = { };
-	cf::Ref active = cf::adopt(tis_copy_current_keyboard_input_source());
+	cf::Ref active      = cf::adopt(tis_copy_current_keyboard_input_source());
 	defer active.close();
 	if (!active.is_nil())
 	{
 		String active_id = cf::string_value(string_property(active.ptr, TIS_PROPERTY_INPUT_SOURCE_ID), allocator) ?? "";
-		sz index = index_of(layouts[0:out], active_id);
+		sz index         = input::index_of(layouts[0:out], active_id);
 		if (index >= 0) current = { .value = (uint)index, .has_value = true };
 	}
-	return { .layouts = layouts[0:out], .current = current, .can_switch = can_switch_now(true, out) };
+	return { .layouts = layouts[0:out], .current = current, .can_switch = input::can_switch_now(true, out) };
 }
 
 // Publish the sources now. An unreadable source list is an empty state.
@@ -209,7 +236,7 @@ fn void refresh(TisBackend* backend, InputHub* hub) @private
 	{
 		snapshot.value = { };
 	}
-	publish_state(hub, snapshot);
+	input::publish_state(hub, snapshot);
 }
 
 <*
@@ -225,14 +252,19 @@ fn void? select(String id) @private
 	defer filter.close();
 	cf::Ref list = cf::adopt(tis_create_input_source_list(filter.ptr, ENABLED_ONLY));
 	defer list.close();
-	if (list.is_nil()) return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "TISCreateInputSourceList returned no list")~;
+	if (list.is_nil()) return error::raise(
+		error::BACKEND_FAILURE,
+		error::Domain.INTERNAL,
+		0,
+		"TISCreateInputSourceList returned no list"
+	)~;
 	sz total = cf::array_count(list.ptr);
 	for (sz i = 0; i < total; i++)
 	{
 		CFTypeRef source = cf::array_at(list.ptr, i);
 		if (!selectable(source)) continue;
 		bool matched = false;
-		int status = NO_ERROR;
+		int status   = NO_ERROR;
 		@pool()
 		{
 			String source_id = cf::string_value(string_property(source, TIS_PROPERTY_INPUT_SOURCE_ID), tmem) ?? "";
@@ -244,7 +276,13 @@ fn void? select(String id) @private
 		};
 		if (matched)
 		{
-			if (status != NO_ERROR) return error::raise(error::BACKEND_FAILURE, error::Domain.MACH, status, "TISSelectInputSource returned %d", status)~;
+			if (status != NO_ERROR) return error::raise(
+				error::BACKEND_FAILURE,
+				error::Domain.MACH,
+				status,
+				"TISSelectInputSource returned %d",
+				status
+			)~;
 			return;
 		}
 	}
@@ -259,8 +297,20 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 	if (catch poller.init(mem, host.wakeup(), 1)) return;
 	defer poller.free();
 	CFTypeRef center = cf_notification_center_distributed();
-	cf_notification_center_add_observer(center, backend, &on_selection_changed, TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED, null, DELIVER_IMMEDIATELY);
-	defer cf_notification_center_remove_observer(center, backend, TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED, null);
+	cf_notification_center_add_observer(
+		center,
+		backend,
+		&on_selection_changed,
+		TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED,
+		null,
+		DELIVER_IMMEDIATELY
+	);
+	defer cf_notification_center_remove_observer(
+		center,
+		backend,
+		TIS_NOTIFY_SELECTED_KEYBOARD_INPUT_SOURCE_CHANGED,
+		null
+	);
 	refresh(backend, hub);
 	Command[COMMAND_BATCH] commands;
 	while (!host.stopping())
@@ -277,13 +327,14 @@ fn void run(void* state, InputHub* hub, Host{Command}* host)
 			SwitchOperation* operation = commands[i].operation;
 			if (catch err = select(commands[i].id_text()))
 			{
-				fail_switch(operation, err);
+				input::fail_switch(operation, err);
 			}
 			else
 			{
-				succeed_switch(operation, SwitchOutcome.ACKNOWLEDGED);
+				input::succeed_switch(operation, SwitchOutcome.ACKNOWLEDGED);
 			}
 		}
 		refresh(backend, hub);
 	}
+	input::fail_queued(host);
 }

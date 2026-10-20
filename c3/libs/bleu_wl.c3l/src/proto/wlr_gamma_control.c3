@@ -143,7 +143,7 @@ fn void ZwlrGammaControlV1.set_listener(&self, ZwlrGammaControlV1Listener* liste
 <*
  Set the gamma table. The file descriptor can be memory-mapped to provide the raw gamma
  table, which contains successive gamma ramps for the red, green and blue channels. Each
- gamma ramp is an array of 16-byte unsigned integers which has the same length as the gamma
+ gamma ramp is an array of 16-bit unsigned integers which has the same length as the gamma
  size. The file descriptor data must have the same length as three times the gamma size.
 *>
 fn void? ZwlrGammaControlV1.set_gamma(&self, Native fd)

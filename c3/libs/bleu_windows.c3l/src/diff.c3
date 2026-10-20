@@ -24,9 +24,9 @@ fn void publish_changes(WindowsHub* hub, Snapshot{State}* next)
 		return;
 	}
 	// The first state is compared with nothing: every window and workspace is new.
-	State nothing = { .connection = DISCONNECTED };
+	State nothing   = { .connection = DISCONNECTED };
 	State* previous = before != null ? &before.value : &nothing;
-	Event[] events = changes(previous, &next.value, next.allocator());
+	Event[] events  = changes(previous, &next.value, next.allocator());
 	hub.publish(next);
 	foreach (event : events)
 	{
@@ -117,4 +117,16 @@ fn sz find_workspace(State* state, String id)
 		if (workspace.id == id) return (sz)i;
 	}
 	return -1;
+}
+
+<*
+ Publish a state that says nothing can be read, and why. The lists stay empty:
+ nothing is known. Used when a worker cannot start or cannot keep its platform.
+*>
+fn void publish_status(WindowsHub* hub, String reason)
+{
+	Snapshot{State}* next = hub.begin();
+	next.value.connection = Connection.DISCONNECTED;
+	next.value.status = reason.copy(next.allocator());
+	publish_changes(hub, next);
 }

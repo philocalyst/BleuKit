@@ -46,7 +46,7 @@ fn Input*? open(Allocator allocator, Options options = { })
 {
 	if (options.poll == time::DURATION_ZERO) options.poll = DEFAULT_POLL;
 	Driver* driver = select_driver(options)!;
-	Input* self = alloc::new(allocator, Input);
+	Input* self    = alloc::new(allocator, Input);
 	self.allocator = allocator;
 	self.driver = driver;
 	void*? state = driver.create(allocator, options, &self.capabilities);
@@ -126,7 +126,13 @@ fn SwitchOperation*? Input.switch_to(&self, String layout_id)
 {
 	if (layout_id.len == 0 || layout_id.len > ID_CAPACITY)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "layout id must be 1 to %d bytes", ID_CAPACITY)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"layout id must be 1 to %d bytes",
+			ID_CAPACITY
+		)~;
 	}
 	Availability switch_ok = self.capability(Cap.SWITCH);
 	if (!switch_ok.ok()) return switch_ok.refusal()~;
@@ -156,9 +162,15 @@ fn SwitchOperation*? Input.next(&self)
 	usz count = snapshot.value.layouts.len;
 	if (count < 2)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "%d layout(s) known: nothing to switch to", count)~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"%d layout(s) known: nothing to switch to",
+			count
+		)~;
 	}
-	usz from = snapshot.value.current.has_value ? (usz)snapshot.value.current.value : count - 1;
+	usz from   = snapshot.value.current.has_value ? (usz)snapshot.value.current.value : count - 1;
 	usz target = (from + 1) % count;
 	return self.post_switch(snapshot.value.layouts[target].id);
 }
@@ -167,7 +179,7 @@ fn SwitchOperation*? Input.next(&self)
 fn SwitchOperation*? Input.post_switch(&self, String layout_id)
 {
 	SwitchOperation* operation = operation::begin{SwitchOutcome}(self.allocator);
-	Command command = { .kind = SWITCH_TO, .id_len = (usz)layout_id.len, .operation = operation };
+	Command command            = { .kind = SWITCH_TO, .id_len = (usz)layout_id.len, .operation = operation };
 	mem::copy(&command.id, layout_id.ptr, layout_id.len);
 	// The worker holds its own reference until it completes the operation.
 	operation.retain();

@@ -6,7 +6,7 @@
  objects, wlr-data-control's receive with a pipe, and a compositor protocol error.
 *>
 module bleu::wl::client_test @feat(POSIX);
-import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control, bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control, bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem, std::io, std::os;
+import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control, bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control, bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem, std::os;
 
 // libc entry points for the pipes the gamma and data-control scenarios pass around.
 extern fn CInt sys_pipe(CInt* fds) @cname("pipe");
@@ -25,7 +25,9 @@ fn void expect(bool ok, String what)
 {
 	if (!ok)
 	{
-		io::eprintn(what);
+		// A raw write: the test runner captures stderr, and the exit below would drop the capture.
+		sys_write(2, what.ptr, what.len);
+		sys_write(2, "\n".ptr, 1);
 		os::exit(1);
 	}
 }
@@ -584,6 +586,7 @@ fn void idle_notification_reports_idled_then_resumed() @test
 		ext_idle_notify::EXT_IDLE_NOTIFIER_V1
 	)!!;
 	wayland::WlSeat* seat = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
+
 	ext_idle_notify::ExtIdleNotificationV1* notification = notifier.get_idle_notification(5000, seat)!!;
 	IdleState state;
 	notification.set_listener(&IDLE_LISTENER, &state);
@@ -604,6 +607,7 @@ fn void gamma_ramp_is_passed_as_a_descriptor() @test
 	t.create(&gamma_scenario, &server)!!;
 	client.roundtrip()!!;
 	Global[] globals = client.globals_view();
+
 	wayland::WlOutput* output = (wayland::WlOutput*)client.bind(globals[0], wayland::WL_OUTPUT)!!;
 	wlr_gamma_control::ZwlrGammaControlManagerV1* manager = (wlr_gamma_control::ZwlrGammaControlManagerV1*)client.bind(
 		globals[1],

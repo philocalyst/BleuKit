@@ -27,7 +27,7 @@ fn void Backoff.init(&self, Duration first, Duration limit)
 <* The wait to use now; the one after it is doubled, up to the limit. *>
 fn Duration Backoff.take(&self)
 {
-	Duration wait = self.next;
+	Duration wait    = self.next;
 	Duration doubled = (Duration)(2 * (long)wait);
 	self.next = doubled > self.limit ? self.limit : doubled;
 	return wait;
