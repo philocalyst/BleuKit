@@ -232,7 +232,8 @@ fn uint Message.attach_fd(&self, int fd)
 }
 
 <*
- The descriptor a UNIX_FD argument refers to.
+ The descriptor a UNIX_FD argument refers to. The message owns it: it is valid
+ until `release`, so `dup` it to keep it longer.
 
  @return? error::PROTOCOL : "The index is past the descriptors the message carries"
 *>

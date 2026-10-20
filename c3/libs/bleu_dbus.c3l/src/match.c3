@@ -98,6 +98,19 @@ fn void? Match.with_sender(&self, String name)
 	append_key(self, "sender", name);
 }
 
+<*
+ Only messages addressed to this destination (the bus name or unique name the
+ message was sent to).
+
+ @return? error::INVALID_ARGUMENT : "The name is not a bus name"
+*>
+fn void? Match.with_destination(&self, String name)
+{
+	if (!names::is_bus_name(name)) return error::INVALID_ARGUMENT~;
+	self.destination = copy_value(self, name);
+	append_key(self, "destination", name);
+}
+
 <* Only messages on this interface. @return? error::INVALID_ARGUMENT : "Not an interface name" *>
 fn void? Match.with_interface(&self, String name)
 {

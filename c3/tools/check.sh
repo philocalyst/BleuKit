@@ -10,7 +10,7 @@
 set -u
 here="$(cd "$(dirname "$0")/.." && pwd)"
 targets="${TARGETS:-linux-x64 linux-aarch64 macos-aarch64 macos-x64 windows-x64 windows-aarch64}"
-if [ "$#" -gt 0 ]; then libs=("$@"); else libs=($(cd "$here/libs" && ls -d *.c3l | sed 's/\.c3l$//')); fi
+if [ "$#" -gt 0 ]; then libs=("$@"); else libs=($(cd "$here/libs" && for d in *.c3l; do [ -f "$d/manifest.json" ] && echo "${d%.c3l}"; done)); fi
 args=(); for l in "${libs[@]}"; do args+=(--lib "$l"); done
 status=0
 for t in $targets; do

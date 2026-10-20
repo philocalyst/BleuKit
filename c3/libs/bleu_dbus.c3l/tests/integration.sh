@@ -79,8 +79,15 @@ start_mock() {
   say "the mock service did not start:"; cat "$work/mock.err"; exit 2
 }
 
+# Only the two libraries this test needs are visible to the compiler, so other
+# libraries under construction in libs/ cannot break it.
+libdir="$work/libs"
+mkdir -p "$libdir"
+ln -s "$repo/libs/bleu_core.c3l" "$libdir/bleu_core.c3l"
+ln -s "$repo/libs/bleu_dbus.c3l" "$libdir/bleu_dbus.c3l"
+
 compile() { # source output
-  c3c --libdir "$repo/libs" --lib bleu_core --lib bleu_dbus compile "$1" -o "$2" >"$2.log" 2>&1 || {
+  c3c --libdir "$libdir" --lib bleu_core --lib bleu_dbus compile "$1" -o "$2" >"$2.log" 2>&1 || {
     say "compile failed: $1"; cat "$2.log"; exit 2; }
 }
 
@@ -102,10 +109,12 @@ for listen in "unix:tmpdir=$work" "unix:path=$work/bus-socket"; do
   wait "$MOCK_PID" "$BUS_PID" 2>/dev/null
 done
 
-# 2. A client whose bus disappears: process() must say DISCONNECTED.
-say "== suite: disconnect"
+# 2. A client whose bus disappears and comes back at the same address: process()
+#    must say DISCONNECTED, reopening must fail while the bus is down, and must
+#    succeed once the bus is restarted.
+say "== suite: disconnect and reconnect"
 compile "$here/integration/disconnect.c3" "$work/disconnect"
-start_bus "unix:tmpdir=$work"
+start_bus "unix:path=$work/reconnect-bus"
 "$work/disconnect" >"$work/disconnect.out" 2>&1 &
 client=$!
 for _ in $(seq 1 200); do
@@ -114,10 +123,19 @@ for _ in $(seq 1 200); do
 done
 kill "$BUS_PID"
 wait "$BUS_PID" 2>/dev/null
+for _ in $(seq 1 200); do
+  grep -q 'REOPEN ' "$work/disconnect.out" 2>/dev/null && break
+  sleep 0.05
+done
+rm -f "$work/reconnect-bus"
+start_bus "unix:path=$work/reconnect-bus"
 wait "$client"
+client_status=$?
 cat "$work/disconnect.out"
+[ "$client_status" -eq 0 ] || { say "the client did not reconnect (status $client_status)"; failed=1; }
 grep -q '^DISCONNECTED' "$work/disconnect.out" || { say "no DISCONNECTED report"; failed=1; }
-grep -q '^REOPEN error::UNAVAILABLE' "$work/disconnect.out" || { say "reopen did not fail with UNAVAILABLE"; failed=1; }
+grep -q '^REOPEN error::UNAVAILABLE' "$work/disconnect.out" || { say "reopen while down did not fail with UNAVAILABLE"; failed=1; }
+grep -q '^REOPENED as :1.' "$work/disconnect.out" || { say "no successful reopen after restart"; failed=1; }
 
 if [ "$failed" -eq 0 ]; then say "INTEGRATION OK"; else say "INTEGRATION FAILED"; fi
 exit "$failed"

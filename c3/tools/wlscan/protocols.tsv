@@ -1,0 +1,17 @@
+# module<TAB>source URL. The module name is the C3 module under bleu::wl::proto and the
+# output file name (src/proto/<module>.c3). Read by regen.sh and wlscan.py.
+# Protocols that are not listed here (xdg-shell, the compositor-side ones, kde-*) are not generated.
+wayland	https://gitlab.freedesktop.org/wayland/wayland/-/raw/main/protocol/wayland.xml
+xdg_output	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/unstable/xdg-output/xdg-output-unstable-v1.xml
+idle_inhibit	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/unstable/idle-inhibit/idle-inhibit-unstable-v1.xml
+wp_primary_selection	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/unstable/primary-selection/primary-selection-unstable-v1.xml
+ext_idle_notify	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/staging/ext-idle-notify/ext-idle-notify-v1.xml
+ext_foreign_toplevel_list	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml
+ext_workspace	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/staging/ext-workspace/ext-workspace-v1.xml
+ext_data_control	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/staging/ext-data-control/ext-data-control-v1.xml
+ext_session_lock	https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/main/staging/ext-session-lock/ext-session-lock-v1.xml
+wlr_output_management	https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/raw/master/unstable/wlr-output-management-unstable-v1.xml
+wlr_output_power	https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/raw/master/unstable/wlr-output-power-management-unstable-v1.xml
+wlr_gamma_control	https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/raw/master/unstable/wlr-gamma-control-unstable-v1.xml
+wlr_foreign_toplevel	https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/raw/master/unstable/wlr-foreign-toplevel-management-unstable-v1.xml
+wlr_data_control	https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/raw/master/unstable/wlr-data-control-unstable-v1.xml

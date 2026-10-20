@@ -55,3 +55,4 @@
 * `foreach` over `String.to_temp_utf32()` needs `!!` (it is optional) → bind the array first.
 * `c3fmt -i` changes doc-comment indentation as well as code; run it before `--check`.
 * `-D VMEM_TEMP` did not trap a deliberate use-after-scope in a probe on this machine (the pool's pages were not released), so it is not evidence that tmem code is safe.
+* `DString.delete_range` end is inclusive; `keep ? {a,b} : {}` with slice literals dangles; `if (catch)`/`try` need the optional itself.

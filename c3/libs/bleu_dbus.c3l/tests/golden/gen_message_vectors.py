@@ -8,8 +8,10 @@ its four integer header words byte-swapped (the only integers it has). The
 wrongly typed PATH is assembled with dbus-next's Marshaller from a PATH field
 holding a STRING, which dbus-next itself would not produce.
 
-Usage:  python3 -I gen_message_vectors.py <venv-with-dbus-next>/bin/python  > ../unit/message_golden_test.c3
-(run it with a Python that has dbus-next; the output is written to stdout)
+Usage (from the library directory, with a Python that has dbus-next 0.2.x):
+
+    <python-with-dbus-next> -I tests/golden/gen_message_vectors.py > tests/unit/message_golden_test.c3
+    c3fmt -i --default tests/unit/message_golden_test.c3
 """
 import struct
 import sys

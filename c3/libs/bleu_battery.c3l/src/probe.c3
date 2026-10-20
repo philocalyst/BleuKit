@@ -3,9 +3,14 @@ module bleu::battery;
 <* Backends for the platform being compiled, best first. *>
 fn Driver*[] platform_drivers()
 {
-	$if env::LINUX:
+	$switch:
+	$case env::LINUX:
 		return linux_drivers();
-	$else
+	$case env::DARWIN:
+		return darwin_drivers();
+	$case env::WIN32:
+		return windows_drivers();
+	$default:
 		return { };
-	$endif
+	$endswitch;
 }

@@ -4,7 +4,8 @@
 It owns org.bleu.Mock and exports, at /org/bleu/Mock:
 
 * org.bleu.Mock: Echo, Add, Describe (a{sv} with nested variants), Fail (an
-  error reply), Slow (replies after 1.5 s), Touch (emits PropertiesChanged and
+  error reply), PingClient (calls Peer.Ping back on the caller), Slow (replies
+  after 1.5 s), Touch (emits PropertiesChanged and
   the Ping signal), AddItem / RemoveItem (object tree changes), ReadFd (reads a
   descriptor that arrived with the call), and the properties State (read-write)
   and Label (read-only);
@@ -71,6 +72,15 @@ class Mock(ServiceInterface):
             }),
             'pi': Variant('d', 3.5),
         }
+
+    @method()
+    async def PingClient(self, name: 's') -> 's':
+        # Peer.Ping back to the caller: the client must answer while it pumps.
+        reply = await BUS.call(Message(destination=name, path='/org/bleu/Client',
+                                       interface='org.freedesktop.DBus.Peer', member='Ping'))
+        if reply.message_type == MessageType.ERROR:
+            return 'error: ' + reply.error_name
+        return 'pong'
 
     @method()
     def Fail(self) -> 's':

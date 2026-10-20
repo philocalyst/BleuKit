@@ -143,6 +143,7 @@ fn int main()
 	object_tree(&bus, &mock);
 	name_changes(&bus);
 	timeouts_and_async(&bus, &mock);
+	peer_pings(&bus, &mock);
 	descriptors(&bus, &mock);
 	io::printfn("%d check(s) failed", failures);
 	return failures;
@@ -397,6 +398,22 @@ fn void timeouts_and_async(Connection* bus, Proxy* mock)
 		transport::wait(bus.fd()!!, true, false, time::ms(50));
 	}
 	check(true, "a late reply after a timeout is dropped without error");
+}
+
+fn void peer_pings(Connection* bus, Proxy* mock)
+{
+	Probe probe;
+	probe.text.init(mem);
+	defer probe.text.free();
+	@pool()
+	{
+		Message* call = mock.new_call(tmem, "PingClient")!!;
+		call.body_writer("s")!!.append_string(bus.name_on_bus())!!;
+		bus.call_async(call, &on_reply, &probe)!!;
+		call.release();
+	};
+	check(pump_until(bus, &probe, 1), "a Peer.Ping from the bus peer is answered during process()");
+	check(probe.text.str_view() == "pong", "the peer received an empty METHOD_RETURN to its Ping");
 }
 
 fn void descriptors(Connection* bus, Proxy* mock)

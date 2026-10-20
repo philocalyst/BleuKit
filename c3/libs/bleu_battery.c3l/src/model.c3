@@ -73,6 +73,10 @@ struct State
 {
 	bool on_mains;
 	Source[] sources;
+	// Rated wattage of the connected mains adapter. Empty when none is connected or the platform
+	// does not report it (macOS reports it; Linux and Windows do not in v1). Added after v1 of the
+	// model: the field is last so that positional initialisers written earlier keep their meaning.
+	Maybe{uint} adapter_watts;
 }
 
 enum Cap : char

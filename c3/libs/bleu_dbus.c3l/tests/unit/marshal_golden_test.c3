@@ -222,3 +222,29 @@ fn void writes_an_array_of_structs_with_variants() @test
 		);
 	};
 }
+// Big-endian scalars and their alignment: the spec's byte order rule, checked
+// on values whose bytes are easy to read by eye.
+fn void writes_big_endian_scalars() @test
+{
+	@pool()
+	{
+		Writer w;
+		w.init(tmem, "yqud", true)!!;
+		w.append_byte(0xAB)!!;
+		w.append_u16(0x1234)!!;
+		w.append_u32(0x01020304)!!;
+		w.append_f64(1.0)!!;
+		w.finish()!!;
+		testing::expect_bytes(w.bytes(), "ab 00 12 34 01 02 03 04 3f f0 00 00 00 00 00 00");
+	};
+	@pool()
+	{
+		Reader r;
+		r.init(testing::from_hex("ab 00 12 34 01 02 03 04 3f f0 00 00 00 00 00 00"), "yqud", true)!!;
+		assert(r.read_byte()!! == 0xAB);
+		assert(r.read_u16()!! == 0x1234);
+		assert(r.read_u32()!! == 0x01020304);
+		assert(r.read_f64()!! == 1.0);
+		r.finish()!!;
+	};
+}

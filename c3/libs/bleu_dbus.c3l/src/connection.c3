@@ -39,6 +39,9 @@ const DEFAULT_TIMEOUT_MS = 25000;
 <* Longest wait for the authentication handshake, in milliseconds. *>
 const HANDSHAKE_TIMEOUT_MS = 25000;
 
+<* Interface of the peer-to-peer methods every connection answers. *>
+const PEER_INTERFACE = "org.freedesktop.DBus.Peer";
+
 <* Bytes read from the socket per receive call. *>
 const RECEIVE_CHUNK = 16384;
 
@@ -617,11 +620,17 @@ fn void observe_owner_change(Connection* c, Message* m) @private
 	}
 }
 
-// Replies "UnknownMethod" to a method call that no one implements here (the
-// service will answer its own methods once it exports objects).
+// Answers a method call that no one implements here. Peer.Ping gets its empty
+// reply, as the specification requires of every peer; everything else gets
+// UnknownMethod. (The service answers its own methods once it exports objects.)
 fn void answer_unknown(Connection* c, Message* m) @private
 {
 	if ((m.flags & message::FLAG_NO_REPLY_EXPECTED) != 0) return;
+	if (m.interface_name == PEER_INTERFACE && m.member == "Ping")
+	{
+		if (try reply = message::reply(c.allocator, m)) send_or_drop(c, reply);
+		return;
+	}
 	if (try reply = message::error_reply(
 		c.allocator,
 		m,
@@ -629,11 +638,17 @@ fn void answer_unknown(Connection* c, Message* m) @private
 		"no such method is implemented here"
 	))
 	{
-		defer reply.release();
-		// If the reply cannot be sent, the connection has closed, and the next call says so.
-		if (catch c.send(reply))
-		{
-		}
+		send_or_drop(c, reply);
+	}
+}
+
+// Sends a reply built for an incoming call and releases it. If sending fails the
+// connection has closed, and the next call reports that.
+fn void send_or_drop(Connection* c, Message* reply) @private
+{
+	defer reply.release();
+	if (catch c.send(reply))
+	{
 	}
 }
 
