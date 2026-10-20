@@ -41,7 +41,7 @@ fn bool probe(Options* options) => socket_exists(options);
  does not exist is an error here: the worker would otherwise retry forever.
 
  @return? error::UNAVAILABLE : "no socket path can be found"
- @return? error::NOT_FOUND : "the cookie file named by the options or PULSE_COOKIE does not exist"
+ @return? NOT_FOUND : "the cookie file named by the options or PULSE_COOKIE does not exist"
 *>
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
@@ -62,7 +62,7 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 		free_owned(allocator, socket);
 		free_owned(allocator, cookie);
 		return error::raise(
-			error::NOT_FOUND,
+			NOT_FOUND,
 			error::Domain.INTERNAL,
 			0,
 			"cookie file %s does not exist",

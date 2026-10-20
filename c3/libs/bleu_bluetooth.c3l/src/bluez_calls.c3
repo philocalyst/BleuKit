@@ -4,7 +4,7 @@
  Connect, ...) return at once; their reply completes the task.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::collections::list, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::error, bleu::operation;
+import std::collections::list, std::time, bleu::bluetooth, bleu::dbus::connection, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::deadline, bleu::error, bleu::operation;
 
 // BlueZ's names for conditions that a request asks for but which already hold.
 const String ALREADY_CONNECTED       = "org.bluez.Error.AlreadyConnected";
@@ -16,11 +16,15 @@ const String DOES_NOT_EXIST          = "org.bluez.Error.DoesNotExist";
 const String NOT_AVAILABLE           = "org.bluez.Error.NotAvailable";
 const String NOT_READY               = "org.bluez.Error.NotReady";
 
-// What an asynchronous call needs when its reply arrives. Lives in the task's arena.
+// What an asynchronous call needs when its reply arrives. Lives in the task's arena, and is
+// listed in the backend's `waiting` until the call completes.
 struct Pending
 {
+	Bluez* owner;
 	Task* task; // retained for the call; released when the reply has been applied
 	String tolerated; // an error name that means the request already holds: success
+	String device; // address of the device the call pairs with; its prompts close when the call ends. "" for none
+	Deadline deadline; // when the call expires: the same timeout the bus was given, started here
 }
 
 // The command, run now. Returns an error when the request is refused at once.
@@ -36,7 +40,7 @@ fn void? perform(Bluez* self, Request* r) @private
 		case bluetooth::Command.START_DISCOVERY: return start_discovery(self, r);
 		case bluetooth::Command.STOP_DISCOVERY: return adapter_method(self, r, "StopDiscovery");
 		case bluetooth::Command.PAIR: return device_method(self, r, "Pair", "", ALREADY_EXISTS);
-		case bluetooth::Command.CANCEL_PAIRING: return device_method(self, r, "CancelPairing", "", "");
+		case bluetooth::Command.CANCEL_PAIRING: return cancel_pairing(self, r);
 		case bluetooth::Command.CONNECT: return device_method(self, r, "Connect", "", ALREADY_CONNECTED);
 		case bluetooth::Command.DISCONNECT: return device_method(self, r, "Disconnect", "", NOT_CONNECTED);
 		case bluetooth::Command.CONNECT_PROFILE: return device_method(self, r, "ConnectProfile", bluetooth::profile_uuid(r.profile), ALREADY_CONNECTED);
@@ -204,6 +208,7 @@ fn String transport_name(Transport transport) @private
 }
 
 // Calls a method on the device a request names. `argument` is a string argument ("" for none).
+// Pairing gets its own, longer timeout: it includes the user's answers to the prompts.
 fn void? device_method(Bluez* self, Request* r, String member, String argument, String tolerated) @private
 {
 	String path   = device_path(self, r)!;
@@ -216,7 +221,27 @@ fn void? device_method(Bluez* self, Request* r, String member, String argument, 
 		call_sync(self, call)!;
 		return;
 	}
-	call_async(self, r.op, call, tolerated)!;
+	bool pairing     = r.kind == bluetooth::Command.PAIR;
+	String address   = pairing ? (bluetooth::address_of_device_path(path, tmem) ?? "") : "";
+	Duration timeout = pairing ? self.pairing_timeout : self.call_timeout;
+	call_async(self, r.op, call, tolerated, timeout, address)!;
+}
+
+// Stops a pairing. The prompts that the pairing left waiting are closed too: BlueZ may not answer them.
+fn void? cancel_pairing(Bluez* self, Request* r) @private
+{
+	String path   = device_path(self, r)!;
+	Proxy device  = object_proxy(self, path, DEVICE_IFACE)!;
+	Message* call = device.new_call(tmem, "CancelPairing")!;
+	call_sync(self, call)!;
+	close_prompts_of(self, path);
+}
+
+// Closes the waiting prompts of the device at `path`, replying Canceled to each.
+fn void close_prompts_of(Bluez* self, String path) @private
+{
+	String address = bluetooth::address_of_device_path(path, tmem) ?? "";
+	close_prompts(self, address);
 }
 
 // Removes a device from its adapter. BlueZ's RemoveDevice is a method of the adapter, so the adapter is read first.
@@ -230,6 +255,7 @@ fn void? remove_device(Bluez* self, Request* r) @private
 	Message* call         = adapter.new_call(tmem, "RemoveDevice")!;
 	call.body_writer("o")!.append_object_path(path)!;
 	call_sync(self, call)!;
+	close_prompts_of(self, path);
 }
 
 // Sends a call and waits for its reply on the worker. The message is released here.
@@ -240,24 +266,63 @@ fn void? call_sync(Bluez* self, Message* call) @private
 	reply.release();
 }
 
-// Sends a call whose reply completes `task`. Takes its own reference to the task.
-fn void? call_async(Bluez* self, Task* task, Message* call, String tolerated) @private
+// Sends a call whose reply completes `task`. Takes its own reference to the task. The call is listed as
+// waiting, so the worker wakes at its deadline even when nothing else arrives. `device` is the address
+// whose prompts close when the call ends ("" for none); it is copied into the task's arena.
+fn void? call_async(
+	Bluez* self,
+	Task* task,
+	Message* call,
+	String tolerated,
+	Duration timeout,
+	String device
+) @private
 {
 	defer call.release();
-	Pending* pending = alloc::new(task.allocator(), Pending, { .task = task.retain(), .tolerated = tolerated });
-	if (catch err = self.bus.call_async(call, &on_reply, pending))
+	Allocator arena  = task.allocator();
+	Pending* pending = alloc::new(
+		arena,
+		Pending,
+		{
+			.owner = self,
+			.task = task.retain(),
+			.tolerated = bluetooth::copy_text(tolerated, arena),
+			.device = bluetooth::copy_text(device, arena),
+			.deadline = deadline::after(timeout),
+		}
+	);
+	// Listed before the send: the bus may complete the call inside `call_async` (when it fails at once).
+	self.waiting.push(pending);
+	if (catch err = self.bus.call_async(call, &on_reply, pending, timeout))
 	{
+		forget(self, pending);
 		task.release();
 		return err~;
 	}
 }
 
-// A reply to an asynchronous call: success, the tolerated "already holds" case, or the mapped failure.
+// Removes a call from the waiting list, once it has completed.
+fn void forget(Bluez* self, Pending* pending) @private
+{
+	foreach (i, listed : self.waiting)
+	{
+		if (listed == pending)
+		{
+			self.waiting.remove_at(i);
+			return;
+		}
+	}
+}
+
+// A reply to an asynchronous call. A reply is success. Without one, the status says why: an error reply
+// (its BlueZ name is checked), or TIMEOUT or DISCONNECTED, which carry no name and are never tolerated.
+// A pairing that ends this way also closes its device's waiting prompts.
 fn void on_reply(void* context, Message* reply, error::Status status)
 {
 	Pending* pending = (Pending*)context;
 	Task* task       = pending.task;
-	if (reply != null || tolerated_error(pending.tolerated))
+	forget(pending.owner, pending);
+	if (reply != null || (pending.tolerated.len > 0 && reply_error_is(status, pending.tolerated)))
 	{
 		task.succeed(bluetooth::Done.DONE);
 	}
@@ -265,13 +330,18 @@ fn void on_reply(void* context, Message* reply, error::Status status)
 	{
 		task.fail(failure_of(status));
 	}
+	if (pending.device.len > 0) close_prompts(pending.owner, pending.device);
 	task.release();
 }
 
-// True when the last failure on this thread is the BlueZ error `name`.
-fn bool tolerated_error(String name) @private
+// True when `status` came from an error reply and that reply's BlueZ error name is `name`.
+// The bus records an error reply's name in `error::last()` just before it calls the handler, so the
+// record is this reply's. Only BACKEND_FAILURE can come from an error reply on this path (it is what
+// `errors::from_reply` gives the names checked here), so any other status is never matched against it:
+// a stale record from an earlier failure on this thread must not decide the outcome.
+fn bool reply_error_is(error::Status status, String name) @private
 {
-	if (name.len == 0) return false;
+	if (status != error::Status.BACKEND_FAILURE) return false;
 	Detail* last = error::last();
 	return last.domain == error::Domain.DBUS && error_name(last.message()) == name;
 }
@@ -286,14 +356,9 @@ fn String error_name(String text) @private
 // The excuse for a failed reply: BlueZ's own names where the meaning is clear, otherwise the status.
 fn fault failure_of(error::Status status) @private
 {
-	Detail* last = error::last();
-	if (status != error::Status.DISCONNECTED && last.domain == error::Domain.DBUS)
-	{
-		String name = error_name(last.message());
-		if (name == CANCELED || name == AUTHENTICATION_CANCELED) return error::CANCELLED;
-		if (name == DOES_NOT_EXIST) return NOT_FOUND;
-		if (name == NOT_AVAILABLE || name == NOT_READY) return error::UNAVAILABLE;
-	}
 	if (status == error::Status.OK) return error::BACKEND_FAILURE;
+	if (reply_error_is(status, CANCELED) || reply_error_is(status, AUTHENTICATION_CANCELED)) return error::CANCELLED;
+	if (reply_error_is(status, DOES_NOT_EXIST)) return NOT_FOUND;
+	if (reply_error_is(status, NOT_AVAILABLE) || reply_error_is(status, NOT_READY)) return error::UNAVAILABLE;
 	return error::fault_of(status);
 }

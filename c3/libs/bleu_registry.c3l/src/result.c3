@@ -33,3 +33,47 @@ fn Value? await(Operation{Value}* operation, Duration timeout)<Value>
 	}
 	return value;
 }
+
+<*
+ Write the success object with one value: `{"ok": true, "<key>": value}`.
+ The value is written with bleu_json's reflection, so enums are lower_snake strings.
+
+ @param key : "The member name of the value"
+ @param value : "Any plain-data value"
+*>
+macro void? write_value(json::JsonWriter* out, String key, value)
+{
+	out.begin_object()!;
+	out.key("ok")!;
+	out.put_bool(true)!;
+	out.key(key)!;
+	json::write(out, value)!;
+	return out.end_object();
+}
+
+<*
+ The enum member whose name, in lower_snake, is `text`. Matching ignores ASCII case,
+ so `"power_saver"` and `"POWER_SAVER"` both name `POWER_SAVER`.
+
+ @return? error::INVALID_ARGUMENT : "No member of the enum has that name"
+*>
+fn Enum? parse_enum(String text)<Enum>
+{
+	for (usz i = 0; i < Enum::len; i++)
+	{
+		Enum candidate = Enum::from_ordinal(i);
+		if (same_name(string::tformat("%s", candidate), text)) return candidate;
+	}
+	return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "unknown value: %s", text)~;
+}
+
+<* Whether the two names are equal when ASCII letters are compared without case. *>
+fn bool same_name(String upper, String text) @private
+{
+	if (upper.len != text.len) return false;
+	for (usz i = 0; i < upper.len; i++)
+	{
+		if ((upper[i] | 0x20) != (text[i] | 0x20)) return false;
+	}
+	return true;
+}
