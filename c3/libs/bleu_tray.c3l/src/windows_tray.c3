@@ -211,8 +211,9 @@ fn windows_api::NotifyIconDataW icon_data(WinBackend* backend)
 	};
 	if (try tip = text::to_wide(mem, backend.own.title))
 	{
-		usz units = tip.len() < windows_api::TIP_UNITS - 1 ? tip.len() : windows_api::TIP_UNITS - 1;
-		mem::copy(&data.tip[0], tip.units.ptr, units * UTF16_UNIT_BYTES);
+		sz room = (sz)windows_api::TIP_UNITS - 1;
+		sz units = tip.len() < room ? tip.len() : room;
+		mem::copy(&data.tip[0], tip.units.ptr, (usz)units * UTF16_UNIT_BYTES);
 		tip.free();
 	}
 	return data;

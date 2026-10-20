@@ -15,7 +15,7 @@
  Compiled only: no macOS machine was available. Every call goes through bleu_objc.
 *>
 module bleu::notify::sender_un @feat(DARWIN) @link("UserNotifications.framework");
-import std::os::darwin::objc, std::thread, std::time, bleu::availability, bleu::deadline, bleu::error, bleu::objc, bleu::objc::foundation, bleu::notify, bleu::notify::sender;
+import std::os::darwin::objc, std::thread, std::time, bleu::availability, bleu::deadline, bleu::error, bleu::objc, bleu::objc::foundation, bleu::notify, bleu::notify::rules, bleu::notify::sender;
 
 const ulong OPTION_BADGE = 1; // UNAuthorizationOptionBadge
 const ulong OPTION_SOUND = 2; // UNAuthorizationOptionSound
@@ -117,14 +117,14 @@ fn bool has_bundle_identifier()
 	return present;
 }
 
-fn objc::Obj center() => objc::borrow(objc::class_named("UNUserNotificationCenter").send(ObjId, "currentNotificationCenter"));
+fn objc::Obj notification_center() => objc::borrow(objc::class_named("UNUserNotificationCenter").send(ObjId, "currentNotificationCenter"));
 
 // Ask once for the permissions this sender uses. The user's answer decides every later send.
 fn void? authorize(UnSender* self)
 {
-	objc::Obj center = center();
+	objc::Obj center = notification_center();
 	defer center.close();
-	Block handler = bool_error_block(&on_authorized, self);
+	objc::Block handler = objc::bool_error_block(&on_authorized, self);
 	defer handler.release();
 	self.answered = false;
 	center.send_void(
@@ -159,7 +159,7 @@ fn notify::NoteId? send_un(void* state, sender::Request* request)
 {
 	UnSender* self = (UnSender*)state;
 	notify::NoteId id = request.replaces_id != 0 ? request.replaces_id : self.next_id;
-	if (request.replaces_id == 0) self.next_id = id == notify::NoteId.max ? 1 : id + 1;
+	if (request.replaces_id == 0) self.next_id = rules::next_id(id);
 	objc::Obj content = objc::adopt(objc::class_named("UNMutableNotificationContent").send(ObjId, "new"));
 	defer content.close();
 	objc::Obj title = foundation::from_string(request.summary);
@@ -184,9 +184,9 @@ fn notify::NoteId? send_un(void* state, sender::Request* request)
 		content.ptr,
 		null
 	);
-	objc::Obj center = center();
+	objc::Obj center = notification_center();
 	defer center.close();
-	Block handler = id_block(&on_added, self);
+	objc::Block handler = objc::id_block(&on_added, self);
 	defer handler.release();
 	self.answered = false;
 	self.failure.close();
