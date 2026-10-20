@@ -19,23 +19,23 @@
 module dmsd::loginctl_mod;
 import std::atomic, std::thread, std::time, bleu::session, bleu::power, bleu::stream, bleu::observe, bleu::deadline, bleu::error, bleu::ipc, bleu::json, bleu::rt::foreign, dmsd::contract, dmsd::wire, dmsd::params;
 
-const String[1] TOPICS = { "loginctl" };
+const String[1] TOPICS       = { "loginctl" };
 const String[1] CAPABILITIES = { "loginctl" };
 
 // How long a lock, unlock or terminate request may take before the reply says so.
-const Duration OPERATION_TIMEOUT = (Duration)5_000_000;
+const Duration OPERATION_TIMEOUT       = (Duration)5_000_000;
 // How long a sleep barrier waits for `lockerReady` after the lock request (DMS falls back on a delay too).
-const Duration LOCKER_READY_TIMEOUT = (Duration)5_000_000;
+const Duration LOCKER_READY_TIMEOUT    = (Duration)5_000_000;
 // How often the barrier thread checks for its stop request while no event arrives.
-const Duration POWER_POLL = (Duration)200_000;
+const Duration POWER_POLL              = (Duration)200_000;
 // The inhibitor's name and reason, as DMS takes them (manager.go, acquireSleepInhibitor).
-const String INHIBITOR_WHO = "DankMaterialShell";
-const String INHIBITOR_WHY = "Lock before suspend";
+const String INHIBITOR_WHO             = "DankMaterialShell";
+const String INHIBITOR_WHY             = "Lock before suspend";
 // Replies for the methods Bleu has no equivalent of (docs/DMSD.md, coverage table).
-const String NOT_SUPPORTED_ACTIVATE = "not supported: bleu_session cannot activate a session";
-const String NOT_SUPPORTED_IDLE_HINT = "not supported: bleu_session reads the idle hint and cannot write it";
+const String NOT_SUPPORTED_ACTIVATE    = "not supported: bleu_session cannot activate a session";
+const String NOT_SUPPORTED_IDLE_HINT   = "not supported: bleu_session reads the idle hint and cannot write it";
 const String NOT_SUPPORTED_LOCKED_HINT = "not supported: bleu_session reads the locked hint and cannot write it";
-const String NOT_SUPPORTED_SUBSCRIBE = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"loginctl\"] instead";
+const String NOT_SUPPORTED_SUBSCRIBE   = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"loginctl\"] instead";
 
 <* The module's runtime state. Allocated in `start`, freed in `stop`. *>
 struct LoginctlModule
@@ -43,13 +43,13 @@ struct LoginctlModule
 	session::Session* login_service;
 	observe::WatchId{session::State} watch_id;
 	contract::StatePump state_pump;
-	Mutex state_mutex;          // guards `locker_ready` and `lock_before_suspend`
+	Mutex state_mutex; // guards `locker_ready` and `lock_before_suspend`
 	ConditionVariable locker_cond;
 	bool locker_ready;
 	bool lock_before_suspend;
-	Mutex inhibit_mutex;        // guards `inhibitor` and `inhibiting`; held across power calls
-	bool inhibiting;            // the inhibitor is held now
-	bool inhibit_wanted;        // DMS's `sleepInhibitorEnabled`: take it again after a sleep
+	Mutex inhibit_mutex; // guards `inhibitor` and `inhibiting`; held across power calls
+	bool inhibiting; // the inhibitor is held now
+	bool inhibit_wanted; // DMS's `sleepInhibitorEnabled`: take it again after a sleep
 	power::Inhibitor inhibitor;
 	power::Power* power_service; // null when power is absent; `power_reason` says why
 	String power_reason;
@@ -82,9 +82,9 @@ fn String? render_state(Allocator allocator, session::State* state)
 {
 	bool locked = state.locked.has_value ? state.locked.value : false;
 	bool active = state.current.active.has_value ? state.current.active.value : false;
-	bool idle = state.idle_hint.has_value ? state.idle_hint.value : false;
+	bool idle   = state.idle_hint.has_value ? state.idle_hint.value : false;
 	bool remote = state.current.remote.has_value ? state.current.remote.value : false;
-	ulong uid = state.current.uid.has_value ? (ulong)state.current.uid.value : 0;
+	ulong uid   = state.current.uid.has_value ? (ulong)state.current.uid.value : 0;
 	wire::Line line;
 	line.begin(allocator);
 	json::JsonWriter* w = &line.writer;
@@ -127,7 +127,7 @@ fn String LoginctlModule.reply_state(&self, Allocator allocator)
 // Encodes the newest state for the `loginctl` topic.
 fn String? encode_state(void* context, Allocator allocator)
 {
-	LoginctlModule* m = (LoginctlModule*)context;
+	LoginctlModule* m                           = (LoginctlModule*)context;
 	observe::Snapshot{session::State}* snapshot = m.login_service.latest()!;
 	defer snapshot.release();
 	return render_state(allocator, &snapshot.value);
@@ -167,7 +167,12 @@ fn void? terminate_current(LoginctlModule* m, ipc::Call* call) @private
 	String id = snapshot.value.current.id;
 	if (id.len == 0)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "failed to terminate session: this process has no session")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"failed to terminate session: this process has no session"
+		)~;
 	}
 	session::SessionOperation* op = m.login_service.terminate_session(id)!;
 	defer op.release();
@@ -189,9 +194,19 @@ fn void? LoginctlModule.set_sleep_inhibitor(&self, bool enabled)
 	if (self.inhibiting) return;
 	if (!self.power_service)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "not supported: no power service: %s", self.power_reason)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"not supported: no power service: %s",
+			self.power_reason
+		)~;
 	}
-	power::InhibitOperation* op = self.power_service.inhibit(power::InhibitKind.SLEEP_DELAY, INHIBITOR_WHO, INHIBITOR_WHY)!;
+	power::InhibitOperation* op = self.power_service.inhibit(
+		power::InhibitKind.SLEEP_DELAY,
+		INHIBITOR_WHO,
+		INHIBITOR_WHY
+	)!;
 	defer op.release();
 	if (catch err = op.wait(OPERATION_TIMEOUT))
 	{
@@ -206,7 +221,9 @@ fn void LoginctlModule.release_inhibitor(&self)
 {
 	if (!self.inhibiting) return;
 	// A queued release cannot fail here: closing the service releases the inhibitor anyway.
-	if (catch self.inhibitor.release()) {}
+	if (catch self.inhibitor.release())
+	{
+	}
 	self.inhibiting = false;
 }
 
@@ -250,7 +267,7 @@ fn void LoginctlModule.answer_sleep(&self, uint ticket)
 {
 	self.state_mutex.lock()!!;
 	bool ready_before = self.locker_ready;
-	bool lock_first = self.lock_before_suspend;
+	bool lock_first   = self.lock_before_suspend;
 	self.state_mutex.unlock();
 	if (lock_first && !self.session_locked())
 	{
@@ -397,7 +414,9 @@ fn bool start(contract::Context* context, contract::Module* self)
 	m.open_power(context.allocator);
 	if (m.power_service)
 	{
-		if (catch m.set_sleep_inhibitor(true)) contract::warn("loginctl: sleep inhibitor not taken: %s", contract::failure_text("no reason given"));
+		if (catch m.set_sleep_inhibitor(
+			true
+		)) contract::warn("loginctl: sleep inhibitor not taken: %s", contract::failure_text("no reason given"));
 	}
 	ipc::Topic* topic = context.server.register_topic("loginctl")!!;
 	context.server.register_method("loginctl.getState", &handle_get_state, m)!!;
@@ -424,7 +443,6 @@ fn bool start(contract::Context* context, contract::Module* self)
 fn void stop(contract::Context* context, contract::Module* self)
 {
 	LoginctlModule* m = (LoginctlModule*)self.state;
-	contract::note("DEBUG loginctl stop power=%d", m.power_service != null);
 	m.login_service.unwatch(m.watch_id)!!;
 	m.stop_barrier.store(true);
 	m.state_mutex.lock()!!;
@@ -447,7 +465,13 @@ fn void stop(contract::Context* context, contract::Module* self)
 }
 
 <* The module's descriptor for `main`. A global constant, so its slices point at static data. *>
-const contract::Module DESCRIPTOR = { .name = "loginctl", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
+const contract::Module DESCRIPTOR = {
+	.name = "loginctl",
+	.start = &start,
+	.stop = &stop,
+	.topics = TOPICS[..],
+	.capabilities = CAPABILITIES[..]
+};
 
 fn contract::Module descriptor() => DESCRIPTOR;
 
@@ -465,7 +489,11 @@ fn void handle_lock(void* context, ipc::Call* call)
 	LoginctlModule* m = (LoginctlModule*)context;
 	@pool()
 	{
-		if (catch run_session_action(call, m, true)) call.respond_error(contract::failure_text("failed to lock session"));
+		if (catch run_session_action(
+			call,
+			m,
+			true
+		)) call.respond_error(contract::failure_text("failed to lock session"));
 	};
 }
 
@@ -474,7 +502,11 @@ fn void handle_unlock(void* context, ipc::Call* call)
 	LoginctlModule* m = (LoginctlModule*)context;
 	@pool()
 	{
-		if (catch run_session_action(call, m, false)) call.respond_error(contract::failure_text("failed to unlock session"));
+		if (catch run_session_action(
+			call,
+			m,
+			false
+		)) call.respond_error(contract::failure_text("failed to unlock session"));
 	};
 }
 
@@ -493,7 +525,10 @@ fn void handle_locker_ready(void* context, ipc::Call* call)
 	m.mark_locker_ready();
 	@pool()
 	{
-		if (catch wire::respond_success(call, "ok")) call.respond_error(contract::failure_text("failed to answer lockerReady"));
+		if (catch wire::respond_success(
+			call,
+			"ok"
+		)) call.respond_error(contract::failure_text("failed to answer lockerReady"));
 	};
 }
 

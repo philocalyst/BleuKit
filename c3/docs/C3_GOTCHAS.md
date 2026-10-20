@@ -259,3 +259,5 @@
 * A macro can read a struct member's name at compile time: `$foreach $member : $Type::members: $if $member.name == "value":` works (checked in a probe on 0.8.5).
 * `Hub.stop` keeps every lock alive on purpose; `Hub.free` destroys them. Write `defer hub.free();` before `defer hub.stop();` so the stop runs first.
 * `pkill -f <pattern>` matches the calling shell too when the pattern appears in its own command line: kill test binaries by exact name with `pgrep -x`.
+* `Hub.stop` does not free the hub's state and stream (bleu_service): a service's `close` must call `Hub.free` after it, or every run reports LEAKS DETECTED.
+* `Mutex.unlock()` returns void, while `Mutex.lock()` returns `void?`: write `lock()!!;` and a plain `unlock();` (not `unlock()!!`).

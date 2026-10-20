@@ -23,8 +23,8 @@ typedef uint8_t bleu_brightness_backend_t;
 
 /*
  * Options for `bleu_brightness_open`. Zero every member you do not set. `bus_address`
- * is the D-Bus address that carries logind on Linux: NULL means the system bus and
- * an empty string disables logind.
+ * is the D-Bus address that carries logind on Linux; NULL or an empty string means the
+ * system bus.
  */
 typedef struct bleu_brightness_options_t bleu_brightness_options_t;
 struct bleu_brightness_options_t

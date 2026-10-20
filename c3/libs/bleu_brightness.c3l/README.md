@@ -11,15 +11,24 @@ implementation notes: `docs/research/brightness_impl.md`.
 ## Public API
 
 - `open(allocator, Options) -> Brightness*?` (`backend`, `poll`, `transition_step`, `root`, `bus_address`, `open_bus`).
-- `Brightness.latest()`, `wait_after(seen, timeout)`, `watch`/`unwatch`: `Snapshot{State}`.
+- `Brightness.latest()`, `wait_after(seen, timeout)`, `watch`/`unwatch` (`unwatch` is `void?`: it refuses to run inside the listener it removes): `Snapshot{State}`.
 - `State` -> `Device[]` (`id`, `name`, `kind`: PANEL/EXTERNAL/KEYBOARD) -> `Control[]` (`mechanism`, `readable`, `writable`, `availability`, `level`, `raw`, `raw_min`, `raw_max`).
 - `set_level(device, Level, Policy = DEFAULT_POLICY, Duration transition = 0) -> SetOperation*?`
-  (`SetOperation = Operation{Applied}`; `Applied`: `mechanism`, `requested`, `applied`, `raw`, `read_back`).
+  (`SetOperation = Operation{Applied}`; `Applied`: `mechanism`, `requested`, `applied`, `raw`, `read_back`). A NaN level is `INVALID_ARGUMENT`.
 - `Policy`: `prefer_hardware()`, `allow_software()`, `exact(Mechanism)`.
 - `Mechanism`: BACKLIGHT, NATIVE, DDC, GAMMA, OVERLAY, KEYBOARD_LED.
 - `capability(Cap)`: `SET_BACKLIGHT`, `SET_NATIVE`, `SET_DDC`, `SET_GAMMA`, `SET_OVERLAY`, `SET_KEYBOARD_LED`, `TRANSITION`.
 - `subscribe()`: `Event` (`LEVEL_CHANGED`, `DEVICE_ADDED`, `DEVICE_REMOVED`).
 - `refresh()`, `backend_name()`, `close()`.
+
+## Behaviour that callers rely on
+
+- Read-back: after each write the device's own report (`actual_brightness`, VCP 0x10 read, the monitor's current value) must agree with the raw value written, to within one device step. A device that reports another value did not take the write: the operation fails with `BACKEND_FAILURE`. A device with no report is written without a check. A device whose report lags the write fails it too.
+- Failed reads keep the last published state, so one bad read does not remove every device. Before the first successful read there is no state (`UNAVAILABLE`).
+- A transition needs a readable start level; without one the request fails `UNAVAILABLE` rather than jumping.
+- logind: a call that fails (refused, not on the bus, or no answer within 1 s) switches the logind route off for 30 s. Writes meanwhile go to the file. A write that fails on both says why logind refused.
+- DDC: the bus is locked for each transaction only, not for the life of the display. Three failed transfers in a row detach the display, and the next pass opens it again.
+- A request still queued when the backend stops fails `DISCONNECTED` (or `CANCELLED` when stopped cleanly).
 
 ## Coverage (capability x OS -> status)
 
@@ -51,13 +60,15 @@ for the named target by `c3c compile-only`; never executed. Not done = not built
 - Keyboard backlight on Windows and macOS; WMI brightness; nits; EDR; ambient-light toggle.
 - Brightness-key events as key presses (`KEY_PRESSED`): key changes arrive as `LEVEL_CHANGED` from the poll.
 - Windows: only `\\.\LCD` is opened, not every display from `EnumDisplayDevices`. The AC byte is taken as a percentage and `VIDEO_SUPPORTED_BRIGHTNESS` is not read (both UNVERIFIED).
-- Linux DDC: the real `/dev/i2c-N` transport and its `flock` retry are not exercised; every DDC test uses the mock. Linux DDC writes use the luminance maximum from the last read.
+- Linux DDC: the real `/dev/i2c-N` transport and its per-transaction `flock` are not exercised on hardware; every DDC test uses the mock. Linux DDC writes use the luminance maximum from the last read.
+- A busy DDC bus is reported as `HARDWARE_ABSENT` with a note saying it is busy: `availability::Reason` (bleu_core) has no transient value to use.
+- Windows external monitors take their id from the display device name and the monitor's index; this is compiled only and has not been run.
 - logind: tested against a stand-in, not a real logind. Foreground-session and seat rules are not exercised.
 - Writes to a read-only backlight file while running as root succeed: `access(2)` reports writable for root.
 
 ## Verified how
 
-- `c3c compile-test` on Linux: 139 `@test` functions pass, counting the dependencies' tests (pure policy, ramp and level arithmetic; sysfs/DRM naming; engine with an in-memory platform, including transitions, cancellation and events; fake-root service tests; DDC against `bleu::ddc::mock`).
+- `c3c compile-test` on Linux: 202 `@test` functions pass, counting the dependencies' tests (pure policy, ramp and level arithmetic; sysfs/DRM naming; engine with an in-memory platform, including transitions, cancellation, events, the early-return abandon and read failures; fake-root service tests including NaN and a device that ignores writes; DDC against `bleu::ddc::mock`, including an injected bus that must not be closed; logind route backoff).
 - `libs/bleu_brightness.c3l/tests/run.sh`: runs the above, then the logind route twice (stand-in implementing `SetBrightness`, and one that does not). Output: `ALL PASSED`.
 - `c3c compile-only` for `linux-x64`, `linux-aarch64`, `macos-x64`, `macos-aarch64`, `windows-x64`, `windows-aarch64`: clean.
 - `c3fmt --check` clean.

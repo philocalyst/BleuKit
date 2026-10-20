@@ -40,7 +40,7 @@ sources by `tools/capi/genheader.py`; the library and header are built by `tools
 * Run on Linux x86-64, C3 0.8.5: `tools/capi/build.sh` (exports restricted to the header, `nm -D`
   checked: 48 functions). `tools/capi/tests/run.sh`: a C11 program (`-Wall -Wextra -pedantic -Werror`)
   against the shared and the static library, a C++17 program, a Python ctypes program checked against
-  the JSON path, two translation units linked together, and valgrind (no capi leak; six
-  service-layer leaks suppressed, see the research note). Four `@test`s in `src/abi_test.c3`.
+  the JSON path, two translation units linked together, and valgrind (0 errors, no leaks). Four
+  `@test`s in `src/abi_test.c3`.
 * Type-checked on all six targets: `tools/check.sh bleu_core bleu_rt bleu_service bleu_json bleu_objc
   bleu_win bleu_dbus bleu_ddc bleu_dl bleu_battery bleu_brightness bleu_capi`.

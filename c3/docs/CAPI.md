@@ -236,5 +236,5 @@ not need to know the C names. Steps:
 * Only Linux is run; the other platforms are type-checked (`tools/check.sh`) and their backends
   are absent or unexecuted. Their symbol visibility is not restricted (section 13).
 * Test hooks of the services (`open_bus` in brightness) are not exported.
-* Two service-layer leaks are known and suppressed in `tools/capi/tests/valgrind.supp`; see
-  `docs/research/bleu_capi.md`.
+* The consumer tests check leaks with valgrind (`tools/capi/tests/run.sh`): none in the current tree,
+  and no suppressions are kept. The service-layer leaks found earlier are in `docs/research/bleu_capi.md`.

@@ -6,11 +6,11 @@ module bleuctl::embedded;
 import std::io, std::thread, std::time, std::core::string, std::encoding::json, std::collections::object, bleu::error, bleu::json, bleu::registry, bleuctl::options, bleuctl::pretty;
 
 <*
- Run `opts.command` in this process.
+ Run `opts.command` in this process. A service that does not open is reported on
+ stderr with the reason it gave, and the exit code is 1.
 
- @return "The exit code: 0 on success"
+ @return "The exit code: 0 on success, 1 when the service did not open or the command failed"
  @return? NOT_FOUND : "No service has that name"
- @return? error::UNAVAILABLE : "The service did not open; the message says why"
 *>
 fn int? run(options::Options opts)
 {
@@ -22,9 +22,21 @@ fn int? run(options::Options opts)
 		list(slots[..]);
 		return 0;
 	}
-	usz index = registry::index_of_service(opts.target)!;
+	// A `call` names its method, `<service>.<verb>`; every other command names the service.
+	String service = opts.target;
+	if (opts.command == "call")
+	{
+		usz dot = 0;
+		while (dot < service.len && service[dot] != '.') dot++;
+		service = service[0 : dot];
+	}
+	usz index = registry::index_of_service(service)!;
 	registry::Slot slot;
-	slot.open(registry::SERVICES[index], mem, open_options)!;
+	if (catch err = slot.open(registry::SERVICES[index], mem, open_options))
+	{
+		io::eprintfn("bleuctl: %s did not open: %s", service, slot.failure_message);
+		return 1;
+	}
 	defer slot.close();
 	if (opts.command == "watch")
 	{

@@ -10,12 +10,12 @@
 
  Rules every module follows:
  * `start` opens its Bleu service. When the backend is absent it prints one
-   line to stderr and returns false: the module is not started, its capability
-   is not advertised, and the daemon keeps running. Never fatal.
+ line to stderr and returns false: the module is not started, its capability
+ is not advertised, and the daemon keeps running. Never fatal.
  * Methods and topics are registered in `start`, before the server starts.
  * A service's state reaches a topic through a `StatePump`: the service's
-   listener only marks the pump dirty, and the pump's own thread encodes the
-   newest state and publishes it. Several changes in a row cost one publication.
+ listener only marks the pump dirty, and the pump's own thread encodes the
+ newest state and publishes it. Several changes in a row cost one publication.
  * `stop` releases what `start` took: unwatch, stop pumps, close the service.
 *>
 module dmsd::contract;
@@ -31,7 +31,7 @@ bool debug_logging = false;
 struct Options
 {
 	String socket_path; // "" selects DMS's default `$XDG_RUNTIME_DIR/dmsd-<pid>.sock`
-	String fake_root;   // "" uses the real system; otherwise the brightness backend reads this sysfs root (tests)
+	String fake_root; // "" uses the real system; otherwise the brightness backend reads this sysfs root (tests)
 	List{String} module_off; // module names not to start
 }
 
@@ -230,7 +230,9 @@ fn void StatePump.publish_latest(&self)
 	{
 		if (try json = self.encode(self.context, tmem))
 		{
-			if (catch err = self.topic.publish(json)) warn("%s: publish failed: %s", self.name, failure_text("publish failed"));
+			if (catch err = self.topic.publish(
+				json
+			)) warn("%s: publish failed: %s", self.name, failure_text("publish failed"));
 		}
 		else
 		{

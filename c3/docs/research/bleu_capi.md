@@ -89,7 +89,7 @@ by `tools/capi/build.sh` and `tools/capi/tests/run.sh`).
   `nm` check passed; headers regenerated (deterministic: two runs give identical files).
 * `tools/capi/tests/run.sh`: PASS. C11 shared (`capi_smoke`: all checks), C11 static, two
   translation units ("two translation units: ok"), C++17 (`capi_cxx`), Python ctypes
-  (`capi_ctypes`), valgrind (0 capi leaks).
+  (`capi_ctypes`), valgrind (0 errors, 0 leaks).
 * `tools/check.sh bleu_core bleu_rt bleu_service bleu_json bleu_objc bleu_win bleu_dbus bleu_ddc bleu_dl
   bleu_battery bleu_brightness bleu_capi`: all six targets ok. (The list in the brief needs the
   transitive dependencies `bleu_objc bleu_win bleu_dbus bleu_ddc bleu_dl`; without them `c3c` stops with
@@ -98,14 +98,14 @@ by `tools/capi/build.sh` and `tools/capi/tests/run.sh`).
 
 ## 6. Leaks found in the service layer (not in bleu_capi)
 
-Valgrind (definitely lost, 6 blocks, 3600 bytes) on the smoke test. Every block was allocated
-inside `bleu::service::Hub.start` (`hub.c3:128`, `hub.c3:130`): the observable's watcher list
-(`observe.c3:120`), the mailbox (`bleu_rt` `mailbox.c3:60`) and the worker's arrays. Reproduced
-with a C3 program that only opens and closes `bleu::battery` (no capi): 464 bytes in 3 blocks.
-`docs/C3_GOTCHAS.md` already records the cause (`Observable.close` no longer frees its lists;
-`destroy` does, and the Hub must call it). These six are listed in `tools/capi/tests/valgrind.supp`
-with a pattern that matches only frames through `Hub.start`. Remove the entry when the Hub calls
-`destroy`; a capi-owned leak would still be reported.
+The first valgrind run of the smoke test reported 6 definitely-lost blocks (3600 bytes), all
+allocated inside `bleu::service::Hub.start` (`hub.c3:128`, `hub.c3:130`): the observable's
+watcher list (`observe.c3:120`), the mailbox (`bleu_rt` `mailbox.c3:60`) and the worker's arrays.
+Reproduced with a C3 program that only opens and closes `bleu::battery` (no capi): 464 bytes in
+3 blocks. The cause is recorded in `docs/C3_GOTCHAS.md` (`Observable.close` no longer frees its
+lists; `destroy` does, and the Hub must call it). With the Hub calling `destroy` in the working
+tree, the same valgrind run reports 0 errors, and no suppression is kept: a leak in the capi layer
+or below would now fail `tools/capi/tests/run.sh`.
 
 ## 7. Issues for the lead (other libraries, not changed here)
 

@@ -52,17 +52,17 @@ fn int DmsClass.rank(self)
 }
 
 // Lowest raw value of a backlight (sysfs.go:60) and of an LED (sysfs.go:63).
-const long BACKLIGHT_MIN = 1;
-const long LED_MIN = 0;
+const long BACKLIGHT_MIN      = 1;
+const long LED_MIN            = 0;
 // Lowest raw value of a DDC/CI monitor (ddc.go percentToValue: `const minValue = 1`).
-const long DDC_MIN = 1;
+const long DDC_MIN            = 1;
 // Exponent of the DDC/CI exponential curve (ddc.go percentToValue). Sysfs uses the request's exponent.
-const double DDC_EXPONENT = 2.0;
+const double DDC_EXPONENT     = 2.0;
 // Exponent used when a request does not give one (handlers.go: `params.FloatOpt(req.Params, "exponent", 1.2)`).
 const double DEFAULT_EXPONENT = 1.2;
 // Percent range: 0 to 100, with 1 to 100 spread over 99 steps.
-const long PERCENT_MAX = 100;
-const double PERCENT_STEPS = 99.0;
+const long PERCENT_MAX        = 100;
+const double PERCENT_STEPS    = 99.0;
 
 <* Lower bound of the class's raw range. *>
 fn long DmsClass.min_value(self)

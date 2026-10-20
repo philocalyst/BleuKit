@@ -7,11 +7,11 @@
  :511-517, `APIVersion` at :42), `core/internal/server/router.go:58-68` (shell.ready),
  `core/internal/server/models/types.go` (SuccessResult).
 *>
-module dmsd::core_methods;
+module dmsd::server_methods;
 import bleu::ipc, bleu::error, bleu::json, dmsd::contract, dmsd::wire, dmsd::params;
 
 // DMS's protocol version (server.go:42). The QML client's own check is against 1 and never fires.
-const int API_VERSION = 38;
+const int API_VERSION    = 38;
 // The version this daemon reports as its `cliVersion` (DMS reports its build version).
 const String CLI_VERSION = "0.1.0";
 // The largest pid DMS accepts: `uint64(pid) > uint64(^uint32(0))` is rejected (router.go:60).

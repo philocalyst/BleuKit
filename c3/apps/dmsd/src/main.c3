@@ -8,16 +8,16 @@
 
  Usage: dmsd [--socket PATH] [--fake-root DIR] [--module-off NAME]... [--debug]
 
-   --socket PATH      serve on PATH instead of the DMS default
-   --fake-root DIR    read brightness from the sysfs tree under DIR and do not use logind (tests)
-   --module-off NAME  do not start module NAME (repeatable): brightness, loginctl
-   --debug            print what the modules do to stderr
+ --socket PATH      serve on PATH instead of the DMS default
+ --fake-root DIR    read brightness from the sysfs tree under DIR and do not use logind (tests)
+ --module-off NAME  do not start module NAME (repeatable): brightness, loginctl
+ --debug            print what the modules do to stderr
 
  SIGINT and SIGTERM stop the daemon: the IPC server stops first, then the modules
  are stopped in reverse order of their start, and everything is freed.
 *>
 module dmsd;
-import std::io, std::collections::list, std::os::posix, libc, bleu::ipc, bleu::error, dmsd::contract, dmsd::capabilities, dmsd::core_methods, dmsd::loginctl_mod, dmsd::brightness_mod;
+import std::io, std::collections::list, std::os::posix, libc, bleu::ipc, bleu::error, dmsd::contract, dmsd::capabilities, dmsd::server_methods, dmsd::loginctl_mod, dmsd::brightness_mod;
 
 // The pipe a signal handler writes to; `serve` blocks reading its other end.
 CInt shutdown_fd = -1;
@@ -85,7 +85,7 @@ fn void wait_for_signal(CInt fd) @private
 fn int serve(contract::Context* context, contract::Module[] modules, CInt wait_fd) @private
 {
 	ipc::Server* server = context.server;
-	int status = 0;
+	int status          = 0;
 	if (catch server.start())
 	{
 		contract::warn("cannot start the IPC server: %s", error::last().message());
@@ -133,7 +133,7 @@ fn int main(String[] args)
 	contract::Context context = { .allocator = mem, .options = &options, .server = &server };
 	ipc::Config config = {
 		.app_name = "dmsd",
-		.api_version = core_methods::API_VERSION,
+		.api_version = server_methods::API_VERSION,
 		.socket_path = options.socket_path,
 		.capabilities_fn = &capabilities::handshake,
 		.capabilities_context = &context,
@@ -143,8 +143,8 @@ fn int main(String[] args)
 		contract::warn("cannot prepare the IPC server: %s", error::last().message());
 		return 1;
 	}
-	server.register_method("getServerInfo", &core_methods::get_server_info, &context)!!;
-	server.register_method("shell.ready", &core_methods::handle_shell_ready, &context)!!;
+	server.register_method("getServerInfo", &server_methods::get_server_info, &context)!!;
+	server.register_method("shell.ready", &server_methods::handle_shell_ready, &context)!!;
 
 	// Order is DMS's capability order (server.go getCapabilities): loginctl, then brightness.
 	contract::Module[2] modules = { loginctl_mod::descriptor(), brightness_mod::descriptor() };

@@ -10,12 +10,13 @@ verification record: `docs/research/color_impl.md`.
 ## Public API
 
 - `open(allocator, Options) -> Color*?`. `Options`: `backend` (`AUTO`, `WLR_GAMMA`, `WIN32_RAMP`, `COREGRAPHICS`), `tick` (schedule evaluation, default 10 s), `connect`/`connect_context` (Linux test seam).
-- `latest()`, `wait_after(seen, timeout)`, `watch`/`unwatch`: `Snapshot{State}`; `subscribe()`: `Event` (`CONTROL_CHANGED`, `TEMPERATURE_CHANGED`).
+- `latest()`, `wait_after(seen, timeout)`, `watch`/`unwatch` (`unwatch` is `void?`): `Snapshot{State}`; `subscribe()`: `Event` (`CONTROL_CHANGED`, `TEMPERATURE_CHANGED`).
+  An event is announced after the state that shows it is published. `CONTROL_CHANGED` is sent once when a display's refusal begins and once when it ends; retries of a refused display are silent. `TEMPERATURE_CHANGED` is sent when the schedule moves the temperature.
 - `State` -> `Output[]` (`id`, `name`, `Control`) and `Schedule`. `Control`: `gamma_supported`, `availability`, `size`, `temperature` (`Maybe{Kelvin}`), `brightness` (`Level`), `active`, `refused`.
-- `set_temperature(output | ALL_OUTPUTS, Kelvin)`: clamped to 1000..25000 K; stops the schedule.
-- `set_dim(output | ALL_OUTPUTS, Level)`: multiplies the ramp (the GAMMA mechanism); leaves the schedule alone.
+- `set_temperature(output | ALL_OUTPUTS, Kelvin)`: clamped to 1000..25000 K; stops the schedule for every output, not only the named one (the schedule is one setting of the service).
+- `set_dim(output | ALL_OUTPUTS, Level)`: multiplies the ramp (the GAMMA mechanism); leaves the schedule alone. A NaN level is `INVALID_ARGUMENT`.
 - `reset()`: schedule off, temperature and dimming to defaults, every gamma control released.
-- `set_schedule(Schedule)`: `Mode.MANUAL`, `Mode.SCHEDULE` (latitude, longitude) or `Mode.TIMES` (sunrise, sunset as local times of day); `day`/`night` temperatures; `transition` (at most one hour).
+- `set_schedule(Schedule)`: `Mode.MANUAL`, `Mode.SCHEDULE` (latitude, longitude) or `Mode.TIMES` (sunrise, sunset as local times of day); `day`/`night` temperatures (1000..25000 K); `transition` (at most one hour). Two sunrise or sunset edges closer than one transition blend continuously: each edge is a smoothstep step of the daylight state, and the steps are summed.
 - Every command returns `ApplyOperation*?` (`Operation{Applied}`): `wait()` gives `Applied` (outputs written, temperature and brightness now in force) or the failure.
 - Pure helpers: `bleu::color::kelvin::rgb(Kelvin)`, `bleu::color::ramp::fill(...)`, `bleu::color::schedule::temperature_at(...)`, `schedule::validate(...)`.
 - `backend_name()`, `capability(Cap)`, `close()`.
@@ -87,14 +88,19 @@ Semantics a caller of this must know:
 - Windows: the ramp is reset by most display events, and this service does not re-apply it after one.
 - macOS: the table is reset when a display's configuration changes; this service does not re-apply it.
 - `set_schedule` is verified by the schedule maths (tests) but not through the service on a running clock.
+- A command queued when the worker's `run` returns (for example after a failed connect) fails `DISCONNECTED` through the Hub's abandon hook.
+- Windows and macOS error codes are the native `GetLastError`/`errno` values, but the mapping is compiled only.
 - A compositor that disappears before the worker starts leaves the service without a state
   (`latest()` says UNAVAILABLE); no retry.
 - Gamma exponent is always 1.0 from the service; the pure `ramp::fill` takes any exponent.
 
 ## Verified how
 
-- `c3c compile-test` (Linux x86-64, c3 0.8.5): 23 `@test` functions in `bleu::color` pass
-  (`--test-filter bleu::color`), repeated 40 times with no failure. The full suite includes
+- `c3c compile-test` (Linux x86-64, c3 0.8.5): 26 `@test` functions in `bleu::color` pass
+  (`--test-filter bleu::color`). The new ones cover the schedule's continuity over overlapping edges, the
+  validation of day/night and equal sun times, a queued command whose worker returns early, a NaN dimming
+  level, and the refusal events (each refusal change announced once). Each new test fails against the
+  session-start `schedule.c3` or `service.c3` (checked, then restored). The full suite includes
   `bleu_wl`'s tests, which are not stable (see `docs/research/color_impl.md`, section 6).
 - Mock compositor: `src/linux_wlr_test.c3` drives the full exchange (acquire, write, dim, reset, reacquire,
   release on close), a refusal at open, and a `failed` event after a successful write, including the retry.

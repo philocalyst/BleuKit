@@ -13,17 +13,17 @@
 module dmsd::brightness_mod;
 import std::collections::list, std::time, bleu::brightness, bleu::error, bleu::ipc, bleu::json, bleu::observe, bleu::unit, dmsd::contract, dmsd::wire, dmsd::params, dmsd::brightness_math;
 
-const String[2] TOPICS = { "brightness", "brightness.update" };
+const String[2] TOPICS       = { "brightness", "brightness.update" };
 const String[1] CAPABILITIES = { "brightness" };
 
 // Bus address used when a fake sysfs root is given: logind is then unreachable and writes go to the fake files.
-const String NO_LOGIND = "unix:path=/nonexistent/dmsd-no-logind";
+const String NO_LOGIND             = "unix:path=/nonexistent/dmsd-no-logind";
 // How long a request waits for its write to finish (the DDC/CI writes take a while).
-const Duration WRITE_TIMEOUT = (Duration)5_000_000;
+const Duration WRITE_TIMEOUT       = (Duration)5_000_000;
 // How long a request waits for the state to show its write before it answers with the newest state.
-const Duration SETTLE_TIMEOUT = (Duration)500_000;
+const Duration SETTLE_TIMEOUT      = (Duration)500_000;
 // Reply when there is no state yet: DMS's empty list.
-const String EMPTY_STATE = "{\"devices\":[]}";
+const String EMPTY_STATE           = "{\"devices\":[]}";
 // Reply text when a request names the subscribe form of a stream.
 const String SUBSCRIBE_UNSUPPORTED = "not supported: a streaming method cannot reply in this protocol; subscribe with services [\"brightness\"] instead";
 
@@ -81,8 +81,7 @@ fn bool to_shown(brightness::Device* device, Shown* out)
 	// DMS names a sysfs device by its entry name, and a monitor by its adapter's name.
 	out.name = cls == DDC ? device.name : device.id;
 	out.id = cls == DDC ? string::tformat("ddc:%s", device.id) : string::tformat("%s:%s", cls.wire_name(), device.id);
-	out.percent = cls == DDC
-		? brightness_math::ddc_percent(raw, control.raw_max)
+	out.percent = cls == DDC ? brightness_math::ddc_percent(raw, control.raw_max)
 		: brightness_math::sysfs_percent(raw, cls.min_value(), control.raw_max);
 	return true;
 }
@@ -128,7 +127,7 @@ fn void sort_shown(Shown[] items) @private
 	for (sz i = 1; i < items.len; i++)
 	{
 		Shown item = items[i];
-		sz j = i;
+		sz j       = i;
 		while (j > 0 && before(&item, &items[j - 1]))
 		{
 			items[j] = items[j - 1];
@@ -216,7 +215,14 @@ fn observe::Snapshot{brightness::State}*? settle(brightness::Brightness* service
  @return? NOT_FOUND : "device not found"
  @return? error::BACKEND_FAILURE : "the write failed or timed out"
 *>
-fn String? BrightnessModule.apply_percent(&self, Allocator allocator, String id, long percent, bool exponential, double exponent)
+fn String? BrightnessModule.apply_percent(
+	&self,
+	Allocator allocator,
+	String id,
+	long percent,
+	bool exponential,
+	double exponent
+)
 {
 	if (percent < 0)
 	{
@@ -224,12 +230,18 @@ fn String? BrightnessModule.apply_percent(&self, Allocator allocator, String id,
 	}
 	observe::Snapshot{brightness::State}* before = self.service.latest()!;
 	defer before.release();
-	Shown shown = find_shown(&before.value, id)!;
+	Shown shown                  = find_shown(&before.value, id)!;
 	brightness::Control* control = shown.control;
-	long span = control.raw_max - control.raw_min;
+	long span                    = control.raw_max - control.raw_min;
 	if (span <= 0)
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.INTERNAL, 0, "device '%s' has no brightness range", id)~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.INTERNAL,
+			0,
+			"device '%s' has no brightness range",
+			id
+		)~;
 	}
 	long target = brightness_math::target_value(shown.cls, percent, control.raw_max, exponential, exponent);
 	double fraction = (double)(target - control.raw_min) / (double)span;
@@ -261,12 +273,25 @@ fn void BrightnessModule.publish_update(&self, Allocator allocator, Shown* shown
  Move `id` by `step` percent, clamped to 0..100 (manager.go IncrementBrightnessWithExponent):
  the step is applied to the percent the state shows now.
 *>
-fn String? BrightnessModule.step_percent(&self, Allocator allocator, String id, long step, bool exponential, double exponent)
+fn String? BrightnessModule.step_percent(
+	&self,
+	Allocator allocator,
+	String id,
+	long step,
+	bool exponential,
+	double exponent
+)
 {
 	observe::Snapshot{brightness::State}* now = self.service.latest()!;
 	defer now.release();
 	Shown shown = find_shown(&now.value, id)!;
-	return self.apply_percent(allocator, id, brightness_math::clamp_percent(shown.percent + step), exponential, exponent);
+	return self.apply_percent(
+		allocator,
+		id,
+		brightness_math::clamp_percent(shown.percent + step),
+		exponential,
+		exponent
+	);
 }
 
 // The newest state as a reply: the empty list when none has been published yet.
@@ -283,7 +308,7 @@ fn String BrightnessModule.reply_state(&self, Allocator allocator)
 // Encodes the newest state for the `brightness` topic.
 fn String? encode_state(void* context, Allocator allocator)
 {
-	BrightnessModule* m = (BrightnessModule*)context;
+	BrightnessModule* m                            = (BrightnessModule*)context;
 	observe::Snapshot{brightness::State}* snapshot = m.service.latest()!;
 	defer snapshot.release();
 	return render_state(allocator, &snapshot.value);
@@ -339,7 +364,13 @@ fn void stop(contract::Context* context, contract::Module* self)
 }
 
 <* The module's descriptor for `main`. A global constant, so its slices point at static data. *>
-const contract::Module DESCRIPTOR = { .name = "brightness", .start = &start, .stop = &stop, .topics = TOPICS[..], .capabilities = CAPABILITIES[..] };
+const contract::Module DESCRIPTOR = {
+	.name = "brightness",
+	.start = &start,
+	.stop = &stop,
+	.topics = TOPICS[..],
+	.capabilities = CAPABILITIES[..]
+};
 
 fn contract::Module descriptor() => DESCRIPTOR;
 
@@ -367,11 +398,11 @@ fn void handle_set_brightness(void* context, ipc::Call* call)
 // Parse, apply, reply. Any error is returned and answered by the caller.
 fn void? set_brightness(BrightnessModule* m, ipc::Call* call) @private
 {
-	String device = params::param_string(call.params, "device")!;
-	long percent = params::param_int(call.params, "percent")!;
+	String device    = params::param_string(call.params, "device")!;
+	long percent     = params::param_int(call.params, "percent")!;
 	bool exponential = params::opt_bool(call.params, "exponential", false);
-	double exponent = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
-	String line = m.apply_percent(tmem, device, percent, exponential, exponent)!;
+	double exponent  = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
+	String line      = m.apply_percent(tmem, device, percent, exponential, exponent)!;
 	call.respond_raw(line);
 }
 
@@ -402,11 +433,11 @@ fn void handle_decrement(void* context, ipc::Call* call)
 // `increment` (direction 1) and `decrement` (direction -1): step defaults to 10 (handlers.go).
 fn void? step_by(BrightnessModule* m, ipc::Call* call, long direction) @private
 {
-	String device = params::param_string(call.params, "device")!;
-	long step = params::opt_int(call.params, "step", 10);
+	String device    = params::param_string(call.params, "device")!;
+	long step        = params::opt_int(call.params, "step", 10);
 	bool exponential = params::opt_bool(call.params, "exponential", false);
-	double exponent = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
-	String line = m.step_percent(tmem, device, direction * step, exponential, exponent)!;
+	double exponent  = params::opt_float(call.params, "exponent", brightness_math::DEFAULT_EXPONENT);
+	String line      = m.step_percent(tmem, device, direction * step, exponential, exponent)!;
 	call.respond_raw(line);
 }
 

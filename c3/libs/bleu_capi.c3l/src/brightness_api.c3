@@ -8,8 +8,8 @@ import std::thread, std::time, bleu::brightness, bleu::error, bleu::json, bleu::
 
 <*
  Options for `bleu_brightness_open`. Zero every member you do not set. `bus_address`
- is the D-Bus address that carries logind on Linux: NULL means the system bus and
- an empty string disables logind.
+ is the D-Bus address that carries logind on Linux; NULL or an empty string means the
+ system bus.
 *>
 struct BrightnessOptions @export("bleu_brightness_options_t")
 {

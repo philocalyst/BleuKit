@@ -353,8 +353,8 @@ fn void losing_the_control_later_is_reported() @test
 	t.create(&lost_scenario, &server)!!;
 	Color* color                  = open_on(&seam)!!;
 	stream::Reader{Event}* events = color.subscribe()!!;
-	Snapshot{State}* before = color.wait_after(0, time::sec(5))!!;
-	ulong generation        = before.generation;
+	Snapshot{State}* before       = color.wait_after(0, time::sec(5))!!;
+	ulong generation              = before.generation;
 	before.release();
 	ApplyOperation* operation = color.set_temperature(color::ALL_OUTPUTS, (Kelvin)2700)!!;
 	assert(operation.wait(time::sec(5))!!.outputs == 1, "written before the control is lost");
