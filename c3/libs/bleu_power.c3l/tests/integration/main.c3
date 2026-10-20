@@ -180,7 +180,10 @@ fn void run_linux_checks(Power* svc, Connection* bus, Proxy* control, String mod
 		);
 		check(state.lid_closed.has_value && !state.lid_closed.value, "lid reads open");
 		check(state.on_external_power.has_value && state.on_external_power.value, "external power reads connected");
-		check(state.degraded == Degraded.NONE, "profile is not degraded");
+		check(
+			state.degraded == (mode == "none" ? Degraded.UNKNOWN : Degraded.NONE),
+			"degradation is NONE with a daemon, UNKNOWN without one"
+		);
 	}
 	else
 	{
@@ -497,6 +500,18 @@ fn bool file_appears(String name)
 	return false;
 }
 
+// Whether the number of open descriptors reaches `wanted` within about two seconds. A release is queued
+// to the worker, which closes the descriptor when it runs.
+fn bool descriptors_drop_to(usz wanted)
+{
+	for (int i = 0; i < 100; i++)
+	{
+		if (open_descriptors() == wanted) return true;
+		pause();
+	}
+	return false;
+}
+
 // The number of descriptors this process holds, from /proc/self/fd.
 fn usz open_descriptors()
 {
@@ -618,7 +633,7 @@ fn void run_bounce_checks()
 	}
 	else
 	{
-		check(open_descriptors() + 1 == before, "releasing it closes its descriptor");
+		check(descriptors_drop_to(before - 1), "releasing it closes its descriptor");
 	}
 	if (try op = svc.inhibit(InhibitKind.KEEP_AWAKE_IDLE, "bleu-test", "after the restart"))
 	{

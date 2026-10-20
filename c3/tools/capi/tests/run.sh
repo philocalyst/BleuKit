@@ -66,7 +66,7 @@ if command -v valgrind >/dev/null 2>&1; then
   step "valgrind (C test, shared library)"
   fake_tree "$work/root-vg"
   valgrind --leak-check=full --errors-for-leak-kinds=definite,indirect --error-exitcode=9 \
-    --suppressions="$here/valgrind.supp" --log-file="$work/valgrind.log" "$work/smoke" "$work/root-vg" >/dev/null || status=1
+    --log-file="$work/valgrind.log" "$work/smoke" "$work/root-vg" >/dev/null || status=1
   grep -E "ERROR SUMMARY|definitely lost|indirectly lost" "$work/valgrind.log" || true
 else
   step "valgrind not installed: leak check skipped"

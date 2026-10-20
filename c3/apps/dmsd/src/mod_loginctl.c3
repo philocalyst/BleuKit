@@ -424,6 +424,7 @@ fn bool start(contract::Context* context, contract::Module* self)
 fn void stop(contract::Context* context, contract::Module* self)
 {
 	LoginctlModule* m = (LoginctlModule*)self.state;
+	contract::note("DEBUG loginctl stop power=%d", m.power_service != null);
 	m.login_service.unwatch(m.watch_id)!!;
 	m.stop_barrier.store(true);
 	m.state_mutex.lock()!!;

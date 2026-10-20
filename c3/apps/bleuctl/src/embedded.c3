@@ -60,8 +60,14 @@ fn int? one_shot(registry::Slot* slot, options::Options opts) @private
 		text.init(tmem);
 		bleu::json::JsonWriter out;
 		out.init_dstring(&text);
-		if (opts.command == "state") slot.write_state(&out)!;
-		else if (opts.command == "caps") slot.write_capabilities(&out)!;
+		if (opts.command == "state")
+		{
+			slot.write_state(&out)!;
+		}
+		else if (opts.command == "caps")
+		{
+			slot.write_capabilities(&out)!;
+		}
 		else
 		{
 			Object* params = parse_params(opts.params)!;

@@ -97,7 +97,8 @@ fn String reply_error(String line) @private
 <* The JSON value that follows `key` in a frame, without the `closing` brackets of the frame. *>
 fn String fragment(String line, String key, usz closing) @private
 {
-	usz start = line.index_of(key)! + key.len;
+	usz start = (usz)(line.index_of(key) ?? 0);
+	start += key.len;
 	return line[start : line.len - closing - start];
 }
 
