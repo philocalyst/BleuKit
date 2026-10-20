@@ -23,9 +23,9 @@ struct Probe
 {
 	int calls;
 	uint number;
+	uint count;
 	DString text;
 	error::Status status;
-	String[] strings;
 }
 
 fn void check(bool ok, String what)
@@ -85,7 +85,7 @@ fn void on_properties(void* context, PropertyChange* change)
 	{
 		probe.number = v.as_u32() ?? 0;
 	}
-	probe.strings = change.invalidated;
+	probe.count = (uint)change.invalidated.len;
 }
 
 fn void on_objects(void* context, ObjectChange* change)
@@ -95,7 +95,7 @@ fn void on_objects(void* context, ObjectChange* change)
 	probe.text.clear();
 	probe.text.append_string(change.path);
 	probe.number = change.added ? 1 : 0;
-	probe.strings = change.removed;
+	probe.count = (uint)change.removed.len;
 }
 
 fn void on_owner(void* context, Message* signal)
@@ -174,7 +174,7 @@ fn void method_calls(Connection* bus, Proxy* mock)
 		Message* call = mock.new_call(tmem, "Echo")!!;
 		call.body_writer("s")!!.append_string("hello")!!;
 		Message* reply = bus.call(call)!!;
-		check(reply.reader()!!.read_string() == "hello", "Echo returns its argument");
+		check(reply.reader()!!.read_string()!! == "hello", "Echo returns its argument");
 		reply.release();
 	};
 	@pool()
@@ -300,9 +300,8 @@ fn void signals(Connection* bus, Proxy* mock)
 	};
 	int before = pings.calls;
 	check(pump_until(bus, &changes, 2), "PropertiesChanged still arrives after unsubscribing Ping");
-	bus.process() ?? {};
+	if (catch err = bus.process()) report("process", err);
 	check(pings.calls == before, "an unsubscribed rule receives nothing");
-	mock.watch_properties(&on_properties, &changes) ?? 0;
 	bus.unsubscribe(props)!!;
 }
 
@@ -315,7 +314,6 @@ fn void object_tree(Connection* bus, Proxy* mock)
 	@pool()
 	{
 		Message* call = mock.new_call(tmem, "AddItem")!!;
-		call.body_writer("su")!!.append_string("item3")!!;
 		Writer* w = call.body_writer("su")!!;
 		w.append_string("item3")!!;
 		w.append_u32(33)!!;
@@ -332,7 +330,7 @@ fn void object_tree(Connection* bus, Proxy* mock)
 		call.release();
 	};
 	check(pump_until(bus, &probe, 2), "InterfacesRemoved is delivered");
-	check(probe.number == 0 && probe.strings.len == 1, "InterfacesRemoved lists the removed interfaces");
+	check(probe.number == 0 && probe.count == 1, "InterfacesRemoved lists the removed interfaces");
 	bus.unsubscribe(id)!!;
 }
 
@@ -369,7 +367,8 @@ fn void timeouts_and_async(Connection* bus, Proxy* mock)
 			check(false, "Slow must not answer within 300 ms");
 		}
 		call.release();
-		check(bus.fd() case INVALID_STATE == false, "the connection stays open after a timeout");
+		int fd_now = bus.fd() ?? -1;
+		check(fd_now >= 0, "the connection stays open after a timeout");
 	};
 	Probe probe;
 	probe.text.init(mem);
@@ -384,10 +383,17 @@ fn void timeouts_and_async(Connection* bus, Proxy* mock)
 	check(pump_until(bus, &probe, 1), "call_async completes through process()");
 	check(probe.status == error::Status.OK && probe.text.str_view() == "async", "call_async delivers the reply");
 	// The late reply to the timed-out call arrives during this wait; it must be dropped quietly.
-	Probe late;
-	late.text.init(mem);
-	defer late.text.free();
-	pump_until(bus, &late, 1);
+	Deadline d = deadline::after(time::ms(1600));
+	while (!d.expired())
+	{
+		if (catch err = bus.process())
+		{
+			report("process after a timeout", err);
+			return;
+		}
+		transport::wait(bus.fd()!!, true, false, time::ms(50));
+	}
+	check(true, "a late reply after a timeout is dropped without error");
 }
 
 fn void descriptors(Connection* bus, Proxy* mock)
@@ -404,7 +410,7 @@ fn void descriptors(Connection* bus, Proxy* mock)
 		uint index = call.attach_fd(fds[0]);
 		w.append_unix_fd(index)!!;
 		Message* reply = bus.call(call)!!;
-		check(reply.reader()!!.read_string() == "fd-data", "a descriptor sent with a call arrives intact");
+		check(reply.reader()!!.read_string()!! == "fd-data", "a descriptor sent with a call arrives intact");
 		reply.release();
 		call.release();
 	};

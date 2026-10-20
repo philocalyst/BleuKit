@@ -8,8 +8,10 @@ It owns org.bleu.Mock and exports, at /org/bleu/Mock:
   the Ping signal), AddItem / RemoveItem (object tree changes), ReadFd (reads a
   descriptor that arrived with the call), and the properties State (read-write)
   and Label (read-only);
-* org.freedesktop.DBus.ObjectManager: GetManagedObjects, and the signals
-  InterfacesAdded and InterfacesRemoved.
+* org.freedesktop.DBus.ObjectManager: GetManagedObjects. Exporting or
+  unexporting an object under it makes python-dbus-next emit InterfacesAdded
+  or InterfacesRemoved itself, from the object's path (the mock does not emit
+  them a second time).
 
 It connects with unix-fd negotiation, so descriptors can arrive with calls.
 Prints READY on stdout once the name is owned.
@@ -44,14 +46,6 @@ class ObjectManager(ServiceInterface):
     def GetManagedObjects(self) -> 'a{oa{sa{sv}}}':
         return {path: {ITEM_INTERFACE: {'Size': Variant('u', item.size)}}
                 for path, item in ITEMS.items()}
-
-    @signal()
-    def InterfacesAdded(self, object_path: 'o', interfaces: 'a{sa{sv}}') -> 'oa{sa{sv}}':
-        return [object_path, interfaces]
-
-    @signal()
-    def InterfacesRemoved(self, object_path: 'o', interfaces: 'as') -> 'oas':
-        return [object_path, interfaces]
 
 
 class Mock(ServiceInterface):
@@ -103,7 +97,6 @@ class Mock(ServiceInterface):
         item = Item(size)
         ITEMS[path] = item
         BUS.export(path, item)
-        OBJECT_MANAGER.InterfacesAdded(path, {ITEM_INTERFACE: {'Size': Variant('u', size)}})
         return path
 
     @method()
@@ -111,7 +104,6 @@ class Mock(ServiceInterface):
         path = f'{ROOT}/{name}'
         ITEMS.pop(path, None)
         BUS.unexport(path)
-        OBJECT_MANAGER.InterfacesRemoved(path, [ITEM_INTERFACE])
         return path
 
     @dbus_property(access=PropertyAccess.READWRITE)

@@ -1,10 +1,23 @@
 module bleu::service::hub_test;
 import std::io, std::time, std::thread, bleu::error, bleu::rt::worker, bleu::service, bleu::observe, bleu::stream;
 
-struct DemoState { int counter; }
-enum DemoCommandKind : char { BUMP }
-struct DemoCommand { DemoCommandKind kind; int by; }
-struct DemoEvent { int bumped_to; }
+struct DemoState
+{
+	int counter;
+}
+enum DemoCommandKind : char
+{
+	BUMP
+}
+struct DemoCommand
+{
+	DemoCommandKind kind;
+	int by;
+}
+struct DemoEvent
+{
+	int bumped_to;
+}
 alias DemoHub = Hub{DemoState, DemoCommand, DemoEvent};
 
 fn void demo_run(void* backend, DemoHub* hub, Host{DemoCommand}* host)

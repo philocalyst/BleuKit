@@ -178,3 +178,18 @@ fn void? refuse(void* context, DesktopFile file)
 {
 	return error::CANCELLED~;
 }
+// The example desktop file of the specification's "Example Desktop Entry File" section, verbatim.
+fn void specification_example_parses_and_expands() @test
+{
+	String text         = $embed("../fixtures/foo-viewer.desktop");
+	DesktopEntry* entry = parse(mem, text, "")!!;
+	defer entry.release();
+	test::eq("Foo Viewer", entry.name);
+	test::eq("fooview %F", entry.exec);
+	test::eq(2, entry.actions.len);
+	test::eq("Create a new Foo!", entry.actions[1].name);
+	test::eq("fooview-new", entry.actions[1].icon);
+	test::eq("fooview --gallery", entry.actions[0].exec);
+	test::eq(1, entry.mime_types.len);
+	test::eq("image/x-foo", entry.mime_types[0]);
+}

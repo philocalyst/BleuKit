@@ -6,23 +6,23 @@
  backend; the `Hub` wires them together so that no service re-implements
  threading, publication or shutdown.
 
-     alias NetHub = Hub{NetState, NetCommand, NetEvent};
+ alias NetHub = Hub{NetState, NetCommand, NetEvent};
 
  The backend's run function executes on the hub's worker thread:
 
-     fn void run(void* backend, NetHub* hub, Host* host)
-     {
-         // poll native sources + host.wakeup(); take commands from host.mailbox();
-         // build a snapshot with hub.begin(), fill it, hub.publish(snapshot);
-         // emit transients with hub.emit_begin()/hub.emit(packet).
-     }
+ fn void run(void* backend, NetHub* hub, Host* host)
+ {
+ // poll native sources + host.wakeup(); take commands from host.mailbox();
+ // build a snapshot with hub.begin(), fill it, hub.publish(snapshot);
+ // emit transients with hub.emit_begin()/hub.emit(packet).
+ }
 
  Public service methods are callable from any thread: they `post` a command
  (returning an `Operation` whose completion the worker drives) or read the
  published state.
 *>
 module bleu::service <State, Command, Event>;
-import bleu::error, bleu::observe, bleu::stream, bleu::rt::worker;
+import bleu::error, bleu::equal, bleu::observe, bleu::stream, bleu::rt::worker;
 
 alias StateSnapshot = Snapshot{State};
 alias EventPacket = Packet{Event};
@@ -61,7 +61,15 @@ struct Hub
  @param max_queue : "Most commands that may wait for the worker"
  @return? error::BACKEND_FAILURE : "The mailbox or the thread could not be created"
 *>
-fn void? Hub.start(&self, Allocator allocator, String name, String backend_name, RunFn run, void* backend, usz max_queue = DEFAULT_QUEUE)
+fn void? Hub.start(
+	&self,
+	Allocator allocator,
+	String name,
+	String backend_name,
+	RunFn run,
+	void* backend,
+	usz max_queue = DEFAULT_QUEUE
+)
 {
 	*self = { .allocator = allocator, .backend_name = backend_name, .run = run, .backend = backend };
 	self.state.init(allocator);
@@ -125,3 +133,25 @@ fn void Hub.emit(&self, EventPacket* packet) => self.events.publish(packet);
 
 <* The latest published state, retained for the caller; `UNAVAILABLE` before the first publication. *>
 fn StateSnapshot*? Hub.latest(&self) => self.state.latest();
+
+<*
+ Publish `snapshot` only if its value differs from the latest published one;
+ otherwise drop it. Polling backends use this so consumers wake only on real
+ change. Consumes the caller's reference either way.
+
+ @return "true when a new generation was published"
+*>
+fn bool Hub.publish_if_changed(&self, StateSnapshot* snapshot)
+{
+	if (try current = self.state.latest())
+	{
+		defer current.release();
+		if (equal::deep(current.value, snapshot.value))
+		{
+			snapshot.release();
+			return false;
+		}
+	}
+	self.state.publish(snapshot);
+	return true;
+}

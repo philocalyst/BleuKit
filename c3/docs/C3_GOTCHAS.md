@@ -37,3 +37,21 @@
 * `catch` is only valid in `if`/`while` conditions. Generic module sections need their own imports; nested generic types need an alias.
 * `$assert(cond, "msg")` did not parse; `$assert(cond)` does. Methods cannot take their own type as a type parameter → free generic function.
 * Optional-like plain data: reuse `std::collections::maybe::Maybe{T}` ({value, has_value}) rather than ad-hoc has_* flags.
+* A function that takes an `Allocator` and opens its own `@pool()` returns dangling results when the caller passes `tmem` → open no pool there; use `tmem` for scratch and copy results with `.copy(allocator)`.
+* `std::os::env`-style `=> @pool()` functions that copy into a caller allocator share that hazard; prefer `tformat(...).copy(allocator)` over `string::format(allocator, ...)` (which pools internally).
+* A struct returned from a function whose slices point at array literals declared in that function is dangling → build the literal arrays in the caller's frame (or inline the struct).
+* `foreach (&x : array)` already binds `x` as a pointer; `&x` is then `T**`.
+* `@local` on a method is ignored (warning) → drop it.
+* Enum members from another module must be qualified: `error::Domain.INTERNAL`, `XmlEventKind.START_ELEMENT` (`error::INTERNAL` is "could not be found").
+* `import m as alias` does not exist → write the full path (`std::encoding::xml::XmlNode`) or `alias NodeKind = std::encoding::xml::XmlEventKind;`.
+* Adjacent string literals do not concatenate (`"a" CONST "b"`) → use `string::tformat` or a `const`.
+* `foreach (x : { "a", "b" })` → "Add an explicit type": declare `String[2] xs = { ... };` first.
+* `struct X (Iface) {}` → "Zero sized structs are not permitted" → give it a real field (e.g. an override table).
+* Interface method declarations take typed parameters and no `&self` (`fn String? get(Allocator, String);`); an interface value needs a pointer: pass `&vars` for an `Environment` parameter.
+* `try x = f()` is only valid as a whole `if`/`while` condition, not inside `&&` or standalone.
+* `double.nan` does not exist in `std::math`; build it with `bitcast((ulong)0x7FF8000000000000, double)`. `math::is_nan`/`is_inf` are macros that need `import std::math`.
+* `alloc::new_array(allocator, T, n)` needs `sz`: cast `usz` lengths. `mem::copy` with a zero length from a null pointer asserts ("Passed null to a ref parameter") → return an empty slice first.
+* `$embed("../fixtures/x")` resolves relative to the source file and yields `char[]`; cast to `String` before `.trim()` or comparing.
+* `foreach` over `String.to_temp_utf32()` needs `!!` (it is optional) → bind the array first.
+* `c3fmt -i` changes doc-comment indentation as well as code; run it before `--check`.
+* `-D VMEM_TEMP` did not trap a deliberate use-after-scope in a probe on this machine (the pool's pages were not released), so it is not evidence that tmem code is safe.

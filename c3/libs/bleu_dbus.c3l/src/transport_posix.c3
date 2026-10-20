@@ -48,6 +48,10 @@ const int O_NONBLOCK = env::LINUX ? 0x800 : 0x4;
 const int SOL_SOCKET = env::LINUX ? 1 : 0xffff;
 const int SCM_RIGHTS = 1;
 
+<* connect(2) errors meaning that nothing listens at the address (ENOENT: no such socket; ECONNREFUSED: no listener). *>
+const ENOENT = 2;
+const ECONNREFUSED = env::LINUX ? 111 : 61;
+
 <* `recvmsg` flag: the control data did not fit and was truncated. *>
 const int MSG_CTRUNC = env::LINUX ? 0x8 : 0x20;
 
@@ -173,7 +177,13 @@ fn int? connect_unix(String path, bool abstract)
 	uint address_len = fill_address(&addr, path, abstract);
 	if (connect(fd, &addr, address_len) < 0)
 	{
+		// Capture errno before close(2), which may overwrite it.
+		int code = (int)libc::errno();
 		close_fd(fd);
+		if (code == ENOENT || code == ECONNREFUSED)
+		{
+			return error::raise(error::UNAVAILABLE, error::Domain.ERRNO, code, "no bus is listening at '%s'", path)~;
+		}
 		return failure("connect")~;
 	}
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0 || fcntl(fd, F_SETFL, O_NONBLOCK) < 0)

@@ -5,15 +5,17 @@
  `<plist version="1.0">` root and the `<dict>` key/value pairing) and the
  "Property List Programming Guide". Cross-checked against CoreFoundation's
  `CFPropertyList.c` (https://github.com/apple-oss-distributions/CF), which
- rejects `<data>` that is not base64, parses ISO dates, reads a one-key
- `CF$UID` dictionary as a UID, and whose writer refuses UIDs; and against
+ rejects `<data>` that is not base64, parses ISO dates, and reads a one-key
+ `CF$UID` dictionary as a UID; and against
  Python's `plistlib` (the golden fixtures). The reader uses the standard
  library's XML DOM (`std::encoding::xml`, a port of yxml), which resolves the
  five predefined entities and character references, merges CDATA into text, and
  ignores the DOCTYPE and comments.
 
  Not done: the writer writes dates without fractional seconds, as the format
- requires, and it refuses UIDs, as Apple's writer does.
+ requires. It refuses UIDs with an error, where Apple's serializer has no UID
+ branch and writes nothing for one (`CFPropertyList.c`, the type chain of the
+ XML serializer ends after the boolean case).
 *>
 module bleu::plist::xml;
 import bleu::error, bleu::plist::value, std::encoding::base64, std::encoding::xml, std::collections::list, std::collections::set, std::math;
@@ -80,7 +82,7 @@ fn Value? parse(Allocator allocator, String text)
  Write `root` as an XML property list, version 1.0, UTF-8.
 
  @param [&inout] allocator : "Allocator for the document text"
- @return? error::INVALID_ARGUMENT : "A string holds a control character XML 1.0 cannot represent, or a real is not finite"
+ @return? error::INVALID_ARGUMENT : "A string holds a control character XML 1.0 cannot represent, a real is not finite, or a UID is present"
  @return? error::PROTOCOL : "The tree is nested deeper than the readers accept"
 *>
 fn String? write(Allocator allocator, Value* root)

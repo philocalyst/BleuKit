@@ -445,7 +445,7 @@ fn String? read_line(Connection* c, Deadline deadline) @private
 		if (try end = auth::find_line_end(c.inbox.str_view()))
 		{
 			String line = c.inbox.str_view()[0:end].copy(tmem);
-			c.inbox.delete_range(0, (sz)end + 2);
+			c.inbox.delete(0, (sz)end + 2);
 			return line;
 		}
 		if (deadline.expired()) return TIMEOUT~;
@@ -485,7 +485,7 @@ fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 		usz total = message::frame_length(buffered[0:message::FIXED_HEADER_LENGTH])!;
 		if (c.inbox.len() < (sz)total) return;
 		Message* parsed = message::parse(c.allocator, buffered[0:total], &c.descriptors)!;
-		c.inbox.delete_range(0, (sz)total);
+		c.inbox.delete(0, (sz)total);
 		if (wanted != 0 && found != null && *found == null && is_reply_to(parsed, wanted))
 		{
 			*found = parsed;
