@@ -32,3 +32,8 @@
 * After `if (catch e = v)`, `!`/`!!` on `v` is rejected; just `return v;`. `$else` has no colon.
 * String/char[] need explicit casts; ZString needs `.str_view()`; `test::eq` needs identical types.
 * `std::io::path::rmdir(String)` does not compile from another module (stdlib defect) → use `Path`.
+* A struct global with constant initialisers must be `const`. `a[start:len]` is start+length; `a[..n]` is inclusive.
+* Other modules' globals/typedefs need the module prefix (`hresult::Hresult`). `time::ms()` in a global const overflows → literal µs.
+* `catch` is only valid in `if`/`while` conditions. Generic module sections need their own imports; nested generic types need an alias.
+* `$assert(cond, "msg")` did not parse; `$assert(cond)` does. Methods cannot take their own type as a type parameter → free generic function.
+* Optional-like plain data: reuse `std::collections::maybe::Maybe{T}` ({value, has_value}) rather than ad-hoc has_* flags.
