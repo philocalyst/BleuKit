@@ -21,7 +21,8 @@ fn void reads_a_dictionary_into_values() @test
 	@pool()
 	{
 		String data = testing::from_hex(
-			"60 00 00 00 00 00 00 00 04 00 00 00 4e 61 6d 65 00 01 73 00 04 00 00 00 62 6c 65 75 00 00 00 00 05 00 00 00 43 6f 75 6e 74 00 01 75 00 00 00 00 07 00 00 00 00 00 00 00 06 00 00 00 4e 65 73 74 65 64 00 05 61 7b 73 76 7d 00 00 00 18 00 00 00 01 00 00 00 6b 00 01 76 00 01 64 00 00 00 00 00 00 00 00 00 00 00 f8 3f");
+			"60 00 00 00 00 00 00 00 04 00 00 00 4e 61 6d 65 00 01 73 00 04 00 00 00 62 6c 65 75 00 00 00 00 05 00 00 00 43 6f 75 6e 74 00 01 75 00 00 00 00 07 00 00 00 00 00 00 00 06 00 00 00 4e 65 73 74 65 64 00 05 61 7b 73 76 7d 00 00 00 18 00 00 00 01 00 00 00 6b 00 01 76 00 01 64 00 00 00 00 00 00 00 00 00 00 00 f8 3f"
+		);
 		Reader r;
 		r.init(data, "a{sv}")!!;
 		Value dict = r.read_value(tmem)!!;
@@ -38,7 +39,9 @@ fn void round_trips_golden_values_back_to_the_same_bytes() @test
 {
 	@pool()
 	{
-		String data = testing::from_hex("18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00");
+		String data = testing::from_hex(
+			"18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00"
+		);
 		Reader r;
 		r.init(data, "a(yv)")!!;
 		Value list = r.read_value(tmem)!!;
@@ -46,7 +49,10 @@ fn void round_trips_golden_values_back_to_the_same_bytes() @test
 		w.init(tmem, "a(yv)")!!;
 		w.append_value(list)!!;
 		w.finish()!!;
-		testing::expect_bytes(w.bytes(), "18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00");
+		testing::expect_bytes(
+			w.bytes(),
+			"18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00"
+		);
 		assert(list.at(1)!!.at(1)!!.as_u32()!! == 9);
 	};
 }

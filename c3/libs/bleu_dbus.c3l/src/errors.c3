@@ -29,13 +29,11 @@ fn fault for_name(String name)
 	if (name == "org.freedesktop.DBus.Error.AccessDenied"
 		|| name == "org.freedesktop.DBus.Error.AuthFailed") return error::PERMISSION_DENIED;
 	if (name == "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired") return error::AUTH_REQUIRED;
-	if (name == "org.freedesktop.DBus.Error.UnknownMethod"
-		|| name == "org.freedesktop.DBus.Error.UnknownObject"
+	if (name == "org.freedesktop.DBus.Error.UnknownMethod" || name == "org.freedesktop.DBus.Error.UnknownObject"
 		|| name == "org.freedesktop.DBus.Error.UnknownInterface"
 		|| name == "org.freedesktop.DBus.Error.UnknownProperty") return NOT_FOUND;
 	if (name == "org.freedesktop.DBus.Error.InvalidArgs") return error::INVALID_ARGUMENT;
-	if (name == "org.freedesktop.DBus.Error.NoReply"
-		|| name == "org.freedesktop.DBus.Error.Timeout") return TIMEOUT;
+	if (name == "org.freedesktop.DBus.Error.NoReply" || name == "org.freedesktop.DBus.Error.Timeout") return TIMEOUT;
 	if (name == "org.freedesktop.DBus.Error.Disconnected") return error::DISCONNECTED;
 	if (name.ends_with(POLKIT_NOT_AUTHORIZED_SUFFIX)) return error::AUTH_REQUIRED;
 	return error::BACKEND_FAILURE;

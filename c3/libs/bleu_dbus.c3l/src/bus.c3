@@ -9,8 +9,7 @@
  reply codes are the ones the specification lists (1 to 4, and 1 to 3, and 1 to 2).
 *>
 module bleu::dbus::bus;
-import bleu::error, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message,
-	bleu::dbus::marshal, bleu::dbus::names, bleu::dbus::value;
+import bleu::error, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::names, bleu::dbus::value;
 
 <* RequestName flag: other connections may take the name from this one. *>
 const uint NAME_ALLOW_REPLACEMENT = 0x1;
@@ -27,27 +26,27 @@ const uint NAME_DO_NOT_QUEUE = 0x4;
 enum NameReply : char
 {
 	UNKNOWN_REPLY,
-	PRIMARY_OWNER,    // this connection now owns the name
-	IN_QUEUE,         // the name is owned elsewhere; we wait our turn
-	EXISTS,           // the name is owned elsewhere and we did not queue
-	ALREADY_OWNER,    // this connection already owned it
+	PRIMARY_OWNER, // this connection now owns the name
+	IN_QUEUE,      // the name is owned elsewhere; we wait our turn
+	EXISTS,        // the name is owned elsewhere and we did not queue
+	ALREADY_OWNER, // this connection already owned it
 }
 
 <* The answer to ReleaseName. The values are the specification's reply codes. *>
 enum ReleaseReply : char
 {
 	UNKNOWN_REPLY,
-	RELEASED,         // the name was released
-	NON_EXISTENT,     // nobody owns the name
-	NOT_OWNER,        // someone else owns it
+	RELEASED,     // the name was released
+	NON_EXISTENT, // nobody owns the name
+	NOT_OWNER,    // someone else owns it
 }
 
 <* The answer to StartServiceByName. The values are the specification's reply codes. *>
 enum StartReply : char
 {
 	UNKNOWN_REPLY,
-	SUCCESS,          // the service was started
-	ALREADY_RUNNING,  // the name already had an owner
+	SUCCESS,         // the service was started
+	ALREADY_RUNNING, // the name already had an owner
 }
 
 <* Name of the signal the bus sends when a name changes owner. *>
@@ -99,9 +98,16 @@ fn ReleaseReply? Connection.release_name(&self, String name)
  @return "Identifier for `unsubscribe`"
  @return? error::BACKEND_FAILURE : "The bus refused the match rule (see error::last())"
 *>
-fn SubscriptionId? Connection.subscribe(&self, match::Match rule, SignalHandler handler, void* context, void* owned = null)
+fn SubscriptionId? Connection.subscribe(
+	&self,
+	match::Match rule,
+	SignalHandler handler,
+	void* context,
+	void* owned = null
+)
 {
-	if (catch err = add_match(self, rule.rule_text())) {
+	if (catch err = add_match(self, rule.rule_text()))
+	{
 		rule.free();
 		if (owned != null) alloc::free(self.allocator, owned);
 		return err~;
@@ -118,7 +124,7 @@ fn SubscriptionId? Connection.subscribe(&self, match::Match rule, SignalHandler 
 *>
 fn void? Connection.unsubscribe(&self, SubscriptionId id)
 {
-	Subscription* s = self.subscription(id)!;
+	Subscription* s  = self.subscription(id)!;
 	String rule_text = s.rule.rule_text();
 	self.deactivate(id);
 	remove_match(self, rule_text)!;
@@ -216,7 +222,13 @@ fn StartReply? Connection.start_service_by_name(&self, String name)
 // A METHOD_CALL to a member of org.freedesktop.DBus on the bus daemon.
 fn Message*? bus_method(Connection* c, String member) @private
 {
-	return message::method_call(c.allocator, connection::BUS_NAME, connection::BUS_PATH, connection::BUS_INTERFACE, member);
+	return message::method_call(
+		c.allocator,
+		connection::BUS_NAME,
+		connection::BUS_PATH,
+		connection::BUS_INTERFACE,
+		member
+	);
 }
 
 // AddMatch for a rule text.
@@ -266,7 +278,7 @@ fn void? track_sender(Connection* c, String name) @private
 // The strings of an `as` argument, copied into `allocator`.
 fn String[]? string_array(Reader r, Allocator allocator) @private
 {
-	Value list = r.read_value(allocator)!;
+	Value list   = r.read_value(allocator)!;
 	String[] out = alloc::new_array(allocator, String, (sz)list.count());
 	for (usz i = 0; i < out.len; i++) out[i] = list.at(i)!.as_string()!;
 	return out;

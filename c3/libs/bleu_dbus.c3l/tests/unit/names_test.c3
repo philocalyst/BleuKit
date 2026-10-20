@@ -7,22 +7,22 @@ fn void accepts_strict_utf8() @test
 {
 	assert(names::is_utf8_text(""));
 	assert(names::is_utf8_text("abc"));
-	assert(names::is_utf8_text("\xc3\xa9"));            // U+00E9
-	assert(names::is_utf8_text("\xe2\x82\xac"));        // U+20AC
-	assert(names::is_utf8_text("\xf0\x90\x8d\x88"));    // U+10348
-	assert(names::is_utf8_text("\xef\xb7\x90"));        // U+FDD0, a noncharacter: allowed
+	assert(names::is_utf8_text("\xc3\xa9")); // U+00E9
+	assert(names::is_utf8_text("\xe2\x82\xac")); // U+20AC
+	assert(names::is_utf8_text("\xf0\x90\x8d\x88")); // U+10348
+	assert(names::is_utf8_text("\xef\xb7\x90")); // U+FDD0, a noncharacter: allowed
 }
 
 fn void rejects_bad_utf8() @test
 {
-	assert(!names::is_utf8_text("a\0b"));               // NUL is not text
-	assert(!names::is_utf8_text("\xc0\x80"));           // overlong NUL
-	assert(!names::is_utf8_text("\xe0\x80\xaf"));       // overlong '/'
-	assert(!names::is_utf8_text("\xed\xa0\x80"));       // surrogate U+D800
-	assert(!names::is_utf8_text("\xf4\x90\x80\x80"));   // above U+10FFFF
-	assert(!names::is_utf8_text("\xe2\x82"));           // truncated sequence
-	assert(!names::is_utf8_text("\x80"));               // continuation byte alone
-	assert(!names::is_utf8_text("\xff"));               // never a UTF-8 byte
+	assert(!names::is_utf8_text("a\0b")); // NUL is not text
+	assert(!names::is_utf8_text("\xc0\x80")); // overlong NUL
+	assert(!names::is_utf8_text("\xe0\x80\xaf")); // overlong '/'
+	assert(!names::is_utf8_text("\xed\xa0\x80")); // surrogate U+D800
+	assert(!names::is_utf8_text("\xf4\x90\x80\x80")); // above U+10FFFF
+	assert(!names::is_utf8_text("\xe2\x82")); // truncated sequence
+	assert(!names::is_utf8_text("\x80")); // continuation byte alone
+	assert(!names::is_utf8_text("\xff")); // never a UTF-8 byte
 }
 
 fn void validates_object_paths() @test

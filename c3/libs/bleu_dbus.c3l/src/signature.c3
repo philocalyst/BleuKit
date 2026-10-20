@@ -7,12 +7,12 @@
 
  Sources:
  * D-Bus specification, "Type System" and "Valid Signatures": container depth
-   of 32 arrays and 32 structs, a maximum signature length of 255, dict entries
-   only as array elements with a basic key.
-   https://dbus.freedesktop.org/doc/dbus-specification.html
+ of 32 arrays and 32 structs, a maximum signature length of 255, dict entries
+ only as array elements with a basic key.
+ https://dbus.freedesktop.org/doc/dbus-specification.html
  * zvariant 5.5.0 src/container_depths.rs (MAX_STRUCT_DEPTH = 32,
-   MAX_ARRAY_DEPTH = 32) and systemd sd-bus src/libsystemd/sd-bus/bus-signature.c
-   (the same two limits; dict entries count against the struct depth).
+ MAX_ARRAY_DEPTH = 32) and systemd sd-bus src/libsystemd/sd-bus/bus-signature.c
+ (the same two limits; dict entries count against the struct depth).
 *>
 module bleu::dbus::signature;
 import bleu::error;
@@ -175,7 +175,7 @@ fn usz? scan(String sig, usz pos, uint arrays, uint structs, bool array_element)
 // Fields of a struct, from `pos` (just after '(') up to and including ')'.
 fn usz? scan_fields(String sig, usz pos, uint arrays, uint structs) @private
 {
-	usz p = pos;
+	usz p      = pos;
 	uint count = 0;
 	while (p < sig.len && sig[p] != STRUCT_CLOSE)
 	{
@@ -261,7 +261,7 @@ fn bool TypeIterator.has_next(&self) @inline => self.pos < self.sig.len;
 *>
 fn String? TypeIterator.next(&self)
 {
-	usz end = complete_end(self.sig, self.pos)!;
+	usz end     = complete_end(self.sig, self.pos)!;
 	String type = self.sig[self.pos:end - self.pos];
 	self.pos = end;
 	return type;

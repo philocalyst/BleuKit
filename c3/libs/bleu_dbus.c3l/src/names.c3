@@ -130,7 +130,8 @@ fn bool is_unique_name(String name) => name.len > 1 && name[0] == ':' && is_bus_
 // `[A-Za-z0-9_]`, plus `-` when `hyphen` is allowed.
 fn bool is_word_char(char c, bool hyphen = false) @inline
 {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || (hyphen && c == '-');
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
+		|| (hyphen && c == '-');
 }
 
 // At least `min_elements` non-empty elements separated by '.', each made of
@@ -139,7 +140,7 @@ fn bool is_word_char(char c, bool hyphen = false) @inline
 fn bool is_dotted(String name, bool hyphen, bool digit_start_ok, usz min_elements) @private
 {
 	usz elements = 0;
-	usz start = 0;
+	usz start    = 0;
 	for (usz i = 0; i <= name.len; i++)
 	{
 		if (i == name.len || name[i] == '.')

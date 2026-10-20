@@ -17,10 +17,10 @@ import bleu::error, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::signat
 const MAX_ARGUMENTS = 8;
 
 <* Message type names as the bus spells them in a rule. *>
-const SIGNAL_TYPE = "signal";
-const METHOD_CALL_TYPE = "method_call";
+const SIGNAL_TYPE        = "signal";
+const METHOD_CALL_TYPE   = "method_call";
 const METHOD_RETURN_TYPE = "method_return";
-const ERROR_TYPE = "error";
+const ERROR_TYPE         = "error";
 
 <*
  A match rule. Create it with `Match.init`, give it constraints with the
@@ -50,7 +50,7 @@ struct Match
 *>
 fn void Match.init(&self, Allocator allocator)
 {
-	*self = {};
+	*self = { };
 	self.storage.init(allocator, 256);
 	self.text.init(allocator);
 }

@@ -12,7 +12,8 @@ fn void renders_rules_in_bus_syntax() @test
 	rule.with_interface("org.freedesktop.DBus")!!;
 	rule.with_member("NameOwnerChanged")!!;
 	rule.with_arg(0, "org.bleu.Mock")!!;
-	assert(rule.rule_text() == "type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bleu.Mock'");
+	assert(rule.rule_text()
+		== "type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bleu.Mock'");
 }
 
 fn void quotes_apostrophes_inside_values() @test

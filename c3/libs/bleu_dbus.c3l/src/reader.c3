@@ -10,11 +10,11 @@
 
  Typical use:
 
-     Reader r;
-     r.init(body, "sa{sv}")!;
-     String name = r.read_string()!;
-     Value props = r.read_value(alloc)!;      // or read element by element
-     r.finish()!;
+ Reader r;
+ r.init(body, "sa{sv}")!;
+ String name = r.read_string()!;
+ Value props = r.read_value(alloc)!;      // or read element by element
+ r.finish()!;
 
  After a failed read the reader is in an undefined position: stop reading.
  Strings returned by the typed reads are slices of `data`; `read_value` copies
@@ -337,12 +337,12 @@ fn Value? decode(Reader* self, bool keep, Allocator allocator) @private
 			Value key = decode(self, keep, allocator)!;
 			Value val = decode(self, keep, allocator)!;
 			self.end_dict_entry()!;
-			v = { .kind = DICT_ENTRY, .sig = type, .items = keep ? pair(allocator, key, val) : {} };
+			v = { .kind = DICT_ENTRY, .sig = type, .items = keep ? pair(allocator, key, val) : { } };
 		case signature::VARIANT:
 			self.begin_variant()!;
 			Value inner = decode(self, keep, allocator)!;
 			self.end_variant()!;
-			v = { .kind = VARIANT, .sig = type, .items = keep ? single(allocator, inner) : {} };
+			v = { .kind = VARIANT, .sig = type, .items = keep ? single(allocator, inner) : { } };
 		default: return malformed(self.pos, "unknown type code")~;
 	}
 	if (keep)
@@ -377,7 +377,7 @@ fn Value[]? collect(Reader* self, bool keep, Allocator allocator) @private
 	if (!keep)
 	{
 		while (more(self)) decode(self, false, allocator)!;
-		return {};
+		return { };
 	}
 	Value[] result;
 	@pool()
@@ -409,8 +409,14 @@ fn void? claim_read(Reader* self, String type) @private
 	usz end = frame_end(f)!;
 	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,
-			"reading type '%s' where '%s' is next", type, f.sig[f.cursor:end - f.cursor])~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"reading type '%s' where '%s' is next",
+			type,
+			f.sig[f.cursor:end - f.cursor]
+		)~;
 	}
 	f.cursor = end;
 	if (f.kind == ARRAY && f.cursor == f.sig.len) f.cursor = 0;
@@ -469,7 +475,7 @@ fn String? read_text(Reader* self, String type, usz length_bytes) @private
 fn String? read_text_body(Reader* self, String type, usz length_bytes) @private
 {
 	align(self, length_bytes)!;
-	usz n = (usz)take(self, length_bytes)!;
+	usz n         = (usz)take(self, length_bytes)!;
 	usz remaining = limit(self) - self.pos;
 	if (n >= remaining) return malformed(self.pos, "text runs past its container")~;
 	String text = self.data[self.pos:n];
@@ -489,5 +495,12 @@ fn String? read_text_body(Reader* self, String type, usz length_bytes) @private
 // PROTOCOL error describing malformed data at `at`.
 fn fault malformed(usz at, String what) @private
 {
-	return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "malformed D-Bus data at byte %d: %s", (long)at, what);
+	return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"malformed D-Bus data at byte %d: %s",
+		(long)at,
+		what
+	);
 }

@@ -8,15 +8,15 @@
  `INVALID_ARGUMENT` and writes nothing, so a message can never be emitted with
  bytes that disagree with its signature.
 
-     Writer w;
-     w.init(alloc, "sa{sv}")!;
-     defer w.free();
-     w.append_string("Name")!;
-     w.begin_array("a{sv}")!;
-     ...
-     w.end_array()!;
-     w.finish()!;
-     String bytes = w.bytes();
+ Writer w;
+ w.init(alloc, "sa{sv}")!;
+ defer w.free();
+ w.append_string("Name")!;
+ w.begin_array("a{sv}")!;
+ ...
+ w.end_array()!;
+ w.finish()!;
+ String bytes = w.bytes();
 
  The signature string must outlive the writer; literals and signatures copied
  into an arena are safe.
@@ -199,7 +199,7 @@ fn void? Writer.begin_array(&self, String array_sig)
 	if (!signature::is_single(array_sig) || array_sig[0] != signature::ARRAY) return error::INVALID_ARGUMENT~;
 	claim(self, array_sig)!;
 	put_fixed(self, 0, 4);
-	usz length_at = self.size() - 4;
+	usz length_at  = self.size() - 4;
 	String element = array_sig[1:array_sig.len - 1];
 	self.align(signature::alignment_of(element));
 	push(self, ARRAY, element, length_at, self.size())!;
@@ -213,7 +213,7 @@ fn void? Writer.begin_array(&self, String array_sig)
 *>
 fn void? Writer.end_array(&self)
 {
-	Frame* f = top(self, ARRAY)!;
+	Frame* f   = top(self, ARRAY)!;
 	usz length = self.size() - f.data_at;
 	if (length > MAX_ARRAY_LENGTH) return error::INVALID_ARGUMENT~;
 	patch_fixed(self, f.length_at, length, 4);
@@ -364,8 +364,14 @@ fn void? claim(Writer* w, String type) @private
 	usz end = frame_end(f)!;
 	if (f.sig[f.cursor:end - f.cursor] != type)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0,
-			"expected type '%s', got '%s'", f.sig[f.cursor:end - f.cursor], type)~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"expected type '%s', got '%s'",
+			f.sig[f.cursor:end - f.cursor],
+			type
+		)~;
 	}
 	f.cursor = end;
 	if (f.kind == ARRAY && f.cursor == f.sig.len) f.cursor = 0;

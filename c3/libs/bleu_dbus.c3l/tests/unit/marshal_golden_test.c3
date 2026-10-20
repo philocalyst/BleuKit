@@ -1,5 +1,5 @@
 // Golden byte vectors for the marshalling layer.
-//
+// 
 // Little-endian vectors were produced by python-dbus-next 0.2.3's independent
 // marshaller (dbus_next._private.marshaller.Marshaller) for the stated signature
 // and value, and re-decoded by its unmarshaller. The big-endian array vector is
@@ -17,8 +17,7 @@ fn void writes_strings() @test
 		w.append_string("+")!!;
 		w.append_string("bar")!!;
 		w.finish()!!;
-		testing::expect_bytes(w.bytes(),
-			"03 00 00 00 66 6f 6f 00 01 00 00 00 2b 00 00 00 03 00 00 00 62 61 72 00");
+		testing::expect_bytes(w.bytes(), "03 00 00 00 66 6f 6f 00 01 00 00 00 2b 00 00 00 03 00 00 00 62 61 72 00");
 	};
 }
 
@@ -90,8 +89,10 @@ fn void writes_nested_arrays() @test
 		w.end_array()!!;
 		w.end_array()!!;
 		w.finish()!!;
-		testing::expect_bytes(w.bytes(),
-			"18 00 00 00 08 00 00 00 01 00 00 00 02 00 00 00 00 00 00 00 04 00 00 00 03 00 00 00");
+		testing::expect_bytes(
+			w.bytes(),
+			"18 00 00 00 08 00 00 00 01 00 00 00 02 00 00 00 00 00 00 00 04 00 00 00 03 00 00 00"
+		);
 	};
 }
 
@@ -187,8 +188,10 @@ fn void writes_a_string_dictionary_with_variants() @test
 		w.end_dict_entry()!!;
 		w.end_array()!!;
 		w.finish()!!;
-		testing::expect_bytes(w.bytes(),
-			"60 00 00 00 00 00 00 00 04 00 00 00 4e 61 6d 65 00 01 73 00 04 00 00 00 62 6c 65 75 00 00 00 00 05 00 00 00 43 6f 75 6e 74 00 01 75 00 00 00 00 07 00 00 00 00 00 00 00 06 00 00 00 4e 65 73 74 65 64 00 05 61 7b 73 76 7d 00 00 00 18 00 00 00 01 00 00 00 6b 00 01 76 00 01 64 00 00 00 00 00 00 00 00 00 00 00 f8 3f");
+		testing::expect_bytes(
+			w.bytes(),
+			"60 00 00 00 00 00 00 00 04 00 00 00 4e 61 6d 65 00 01 73 00 04 00 00 00 62 6c 65 75 00 00 00 00 05 00 00 00 43 6f 75 6e 74 00 01 75 00 00 00 00 07 00 00 00 00 00 00 00 06 00 00 00 4e 65 73 74 65 64 00 05 61 7b 73 76 7d 00 00 00 18 00 00 00 01 00 00 00 6b 00 01 76 00 01 64 00 00 00 00 00 00 00 00 00 00 00 f8 3f"
+		);
 	};
 }
 
@@ -213,7 +216,9 @@ fn void writes_an_array_of_structs_with_variants() @test
 		w.end_struct()!!;
 		w.end_array()!!;
 		w.finish()!!;
-		testing::expect_bytes(w.bytes(),
-			"18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00");
+		testing::expect_bytes(
+			w.bytes(),
+			"18 00 00 00 00 00 00 00 01 01 73 00 01 00 00 00 78 00 00 00 00 00 00 00 02 01 75 00 09 00 00 00"
+		);
 	};
 }

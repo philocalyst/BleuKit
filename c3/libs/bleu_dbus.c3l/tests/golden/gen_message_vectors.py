@@ -194,7 +194,7 @@ fn void encodes_replies_like_dbus_next() @test
 		testing::expect_bytes(out.str_view(), ERROR);
 		err.release();
 
-		Message* ret = message::method_return(mem, call)!!;
+		Message* ret = message::reply(mem, call)!!;
 		ret.serial = 5;
 		Writer* w = ret.body_writer("s")!!;
 		w.append_string(":1.9")!!;

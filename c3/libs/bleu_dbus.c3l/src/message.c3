@@ -48,7 +48,7 @@ enum MessageType : char
 	METHOD_RETURN,
 	ERROR,
 	SIGNAL,
-	UNKNOWN,       // a type code this implementation does not know: ignored
+	UNKNOWN, // a type code this implementation does not know: ignored
 }
 
 <* Header flag: the sender does not want a reply (flags bit 0x1). *>
@@ -61,15 +61,15 @@ const char FLAG_NO_AUTO_START = 0x2;
 const char FLAG_ALLOW_INTERACTIVE_AUTHORIZATION = 0x4;
 
 // Header field codes (spec "Header Fields").
-const char FIELD_PATH = 1;
-const char FIELD_INTERFACE = 2;
-const char FIELD_MEMBER = 3;
-const char FIELD_ERROR_NAME = 4;
+const char FIELD_PATH         = 1;
+const char FIELD_INTERFACE    = 2;
+const char FIELD_MEMBER       = 3;
+const char FIELD_ERROR_NAME   = 4;
 const char FIELD_REPLY_SERIAL = 5;
-const char FIELD_DESTINATION = 6;
-const char FIELD_SENDER = 7;
-const char FIELD_SIGNATURE = 8;
-const char FIELD_UNIX_FDS = 9;
+const char FIELD_DESTINATION  = 6;
+const char FIELD_SENDER       = 7;
+const char FIELD_SIGNATURE    = 8;
+const char FIELD_UNIX_FDS     = 9;
 
 <* Object path the specification reserves for the local implementation. *>
 const LOCAL_PATH = "/org/freedesktop/DBus/Local";
@@ -164,7 +164,9 @@ fn Message*? method_call(Allocator parent, String destination, String path, Stri
 *>
 fn Message*? signal(Allocator parent, String path, String iface, String member, String destination = "")
 {
-	if (!names::is_object_path(path) || !names::is_interface(iface) || !names::is_member(member)) return error::INVALID_ARGUMENT~;
+	if (!names::is_object_path(
+		path
+	) || !names::is_interface(iface) || !names::is_member(member)) return error::INVALID_ARGUMENT~;
 	if (destination.len > 0 && !names::is_bus_name(destination)) return error::INVALID_ARGUMENT~;
 	Message* m = create(parent, SIGNAL);
 	m.path = path.copy(&m.storage);
@@ -177,7 +179,7 @@ fn Message*? signal(Allocator parent, String path, String iface, String member, 
 <*
  A METHOD_RETURN answering `call`. Its body is written with `body_writer`.
 *>
-fn Message*? method_return(Allocator parent, Message* call)
+fn Message*? reply(Allocator parent, Message* call)
 {
 	Message* m = create(parent, METHOD_RETURN);
 	m.reply_serial = call.serial;
@@ -274,7 +276,7 @@ fn usz? frame_length(String prefix)
 	if (prefix.len < FIXED_HEADER_LENGTH) return error::INVALID_ARGUMENT~;
 	bool big = endianness_of(prefix)!;
 	if (prefix[3] != PROTOCOL_VERSION) return error::PROTOCOL~;
-	usz body = fixed_uint(prefix, 4, big);
+	usz body   = fixed_uint(prefix, 4, big);
 	usz fields = fixed_uint(prefix, 12, big);
 	if (fields > marshal::MAX_ARRAY_LENGTH) return error::PROTOCOL~;
 	usz total = align8(FIXED_HEADER_LENGTH + fields) + body;
@@ -319,7 +321,8 @@ fn Message*? parse(Allocator parent, String frame, List{int}* descriptors = null
 *>
 fn String? Message.error_text(&self)
 {
-	if (self.type != ERROR || self.signature.len == 0 || self.signature[0] != signature::STRING) return error::INVALID_STATE~;
+	if (self.type != ERROR || self.signature.len == 0
+		|| self.signature[0] != signature::STRING) return error::INVALID_STATE~;
 	Reader r = self.reader()!;
 	return r.read_string();
 }

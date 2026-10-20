@@ -21,18 +21,18 @@ fn void accepts_valid_signatures() @test
 
 fn void rejects_invalid_signatures() @test
 {
-	assert(!signature::valid("aa"));        // array without element type
-	assert(!signature::valid("(ii"));       // unclosed struct
-	assert(!signature::valid("ii)"));       // unopened struct
-	assert(!signature::valid("()"));        // empty struct
-	assert(!signature::valid("{sv}"));      // dict entry outside an array
-	assert(!signature::valid("a{vs}"));     // container as key
-	assert(!signature::valid("a{sss}"));    // three fields in a dict entry
-	assert(!signature::valid("a{s}"));      // one field in a dict entry
-	assert(!signature::valid("r"));         // STRUCT code is reserved
-	assert(!signature::valid("e"));         // DICT_ENTRY code is reserved
-	assert(!signature::valid("*"));         // reserved for bindings
-	assert(!signature::valid("m"));         // reserved for GVariant maybe
+	assert(!signature::valid("aa")); // array without element type
+	assert(!signature::valid("(ii")); // unclosed struct
+	assert(!signature::valid("ii)")); // unopened struct
+	assert(!signature::valid("()")); // empty struct
+	assert(!signature::valid("{sv}")); // dict entry outside an array
+	assert(!signature::valid("a{vs}")); // container as key
+	assert(!signature::valid("a{sss}")); // three fields in a dict entry
+	assert(!signature::valid("a{s}")); // one field in a dict entry
+	assert(!signature::valid("r")); // STRUCT code is reserved
+	assert(!signature::valid("e")); // DICT_ENTRY code is reserved
+	assert(!signature::valid("*")); // reserved for bindings
+	assert(!signature::valid("m")); // reserved for GVariant maybe
 	assert(!signature::valid("(i}"));
 }
 
@@ -80,7 +80,7 @@ fn void reports_alignments() @test
 fn void splits_complete_types() @test
 {
 	TypeIterator it = signature::iterate("a{sv}(ii)s");
-	String first = it.next()!!;
+	String first    = it.next()!!;
 	assert(first == "a{sv}");
 	String second = it.next()!!;
 	assert(second == "(ii)");

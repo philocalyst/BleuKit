@@ -3,9 +3,7 @@
 // DBUS_SESSION_BUS_ADDRESS. Each check prints PASS or FAIL; the exit status is
 // the number of failures.
 module bleu::dbus::integration_test;
-import bleu::error, bleu::deadline, bleu::dbus::connection, bleu::dbus::bus, bleu::dbus::proxy,
-	bleu::dbus::match, bleu::dbus::message, bleu::dbus::value, bleu::dbus::marshal,
-	bleu::dbus::transport;
+import bleu::error, bleu::deadline, bleu::dbus::connection, bleu::dbus::bus, bleu::dbus::proxy, bleu::dbus::match, bleu::dbus::message, bleu::dbus::value, bleu::dbus::marshal, bleu::dbus::transport;
 import std::io, std::time;
 
 extern fn int pipe(int* fds);
@@ -157,8 +155,8 @@ fn void names_and_owners(Connection* bus)
 	{
 		String owner = bus.get_name_owner("org.freedesktop.DBus", tmem) ?? "";
 		check(owner == "org.freedesktop.DBus", "GetNameOwner of the bus itself");
-		String[] names = bus.list_names(tmem) ?? {};
-		bool has_mock = false;
+		String[] names = bus.list_names(tmem) ?? { };
+		bool has_mock  = false;
 		foreach (name : names) has_mock = has_mock || name == "org.bleu.Mock";
 		check(has_mock, "ListNames includes the mock service");
 		check(bus.name_has_owner("org.bleu.Mock") ?? false, "NameHasOwner is true for the mock");
@@ -180,7 +178,7 @@ fn void method_calls(Connection* bus, Proxy* mock)
 	@pool()
 	{
 		Message* call = mock.new_call(tmem, "Add")!!;
-		Writer* w = call.body_writer("ii")!!;
+		Writer* w     = call.body_writer("ii")!!;
 		w.append_i32(2)!!;
 		w.append_i32(3)!!;
 		Message* reply = bus.call(call)!!;
@@ -189,9 +187,9 @@ fn void method_calls(Connection* bus, Proxy* mock)
 	};
 	@pool()
 	{
-		Message* call = mock.new_call(tmem, "Describe")!!;
+		Message* call  = mock.new_call(tmem, "Describe")!!;
 		Message* reply = bus.call(call)!!;
-		Value dict = reply.reader()!!.read_value(tmem)!!;
+		Value dict     = reply.reader()!!.read_value(tmem)!!;
 		check(dict.dict_get("name")!!.as_string()!! == "bleu", "a{sv} reply: plain variant");
 		Value nested = dict.dict_get("nested")!!;
 		check(nested.dict_get("depth")!!.as_u32()!! == 2, "a{sv} reply: nested a{sv} inside a variant");
@@ -258,9 +256,11 @@ fn void properties(Connection* bus, Proxy* mock)
 		String xml = mock.introspect(tmem)!!;
 		check(xml.contains("org.bleu.Mock") && xml.contains("<node"), "Introspect returns XML");
 		Value objects = mock.get_managed_objects(tmem)!!;
-		Value item = objects.dict_get("/org/bleu/Mock/item1")!!;
-		check(item.dict_get("org.bleu.Mock.Item")!!.dict_get("Size")!!.as_u32()!! == 11,
-			"GetManagedObjects returns the object tree");
+		Value item    = objects.dict_get("/org/bleu/Mock/item1")!!;
+		check(
+			item.dict_get("org.bleu.Mock.Item")!!.dict_get("Size")!!.as_u32()!! == 11,
+			"GetManagedObjects returns the object tree"
+		);
 	};
 }
 
@@ -314,7 +314,7 @@ fn void object_tree(Connection* bus, Proxy* mock)
 	@pool()
 	{
 		Message* call = mock.new_call(tmem, "AddItem")!!;
-		Writer* w = call.body_writer("su")!!;
+		Writer* w     = call.body_writer("su")!!;
 		w.append_string("item3")!!;
 		w.append_u32(33)!!;
 		bus.call(call)!!.release();
@@ -340,7 +340,7 @@ fn void name_changes(Connection* bus)
 	probe.text.init(mem);
 	defer probe.text.free();
 	SubscriptionId id = bus.watch_name("org.bleu.Temp", &on_owner, &probe)!!;
-	NameReply got = bus.request_name("org.bleu.Temp", 0)!!;
+	NameReply got     = bus.request_name("org.bleu.Temp", 0)!!;
 	check(got == NameReply.PRIMARY_OWNER, "RequestName gives primary ownership");
 	check(pump_until(bus, &probe, 1), "NameOwnerChanged is delivered for our own name");
 	check(probe.text.str_view() == bus.name_on_bus(), "NameOwnerChanged names the new owner");
@@ -350,7 +350,10 @@ fn void name_changes(Connection* bus)
 	check(probe.text.len() == 0, "the released name has no owner");
 	check(bus.owner_of("org.bleu.Temp").len == 0, "the owner cache follows the release");
 	bus.unsubscribe(id)!!;
-	check(bus.release_name("org.bleu.Temp")!! == ReleaseReply.NON_EXISTENT, "releasing an unowned name reports NON_EXISTENT");
+	check(
+		bus.release_name("org.bleu.Temp")!! == ReleaseReply.NON_EXISTENT,
+		"releasing an unowned name reports NON_EXISTENT"
+	);
 }
 
 fn void timeouts_and_async(Connection* bus, Proxy* mock)
@@ -406,8 +409,8 @@ fn void descriptors(Connection* bus, Proxy* mock)
 	@pool()
 	{
 		Message* call = mock.new_call(tmem, "ReadFd")!!;
-		Writer* w = call.body_writer("h")!!;
-		uint index = call.attach_fd(fds[0]);
+		Writer* w     = call.body_writer("h")!!;
+		uint index    = call.attach_fd(fds[0]);
 		w.append_unix_fd(index)!!;
 		Message* reply = bus.call(call)!!;
 		check(reply.reader()!!.read_string()!! == "fd-data", "a descriptor sent with a call arrives intact");

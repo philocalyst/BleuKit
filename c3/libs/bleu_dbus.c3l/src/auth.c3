@@ -111,7 +111,7 @@ fn Reply? parse_reply(String line)
 			break;
 		}
 	}
-	String command = line[0:space];
+	String command  = line[0:space];
 	String argument = space < line.len ? line[space + 1:line.len - space - 1] : "";
 	if (command == "OK") return { .kind = OK, .argument = argument };
 	if (command == "REJECTED") return { .kind = REJECTED, .argument = argument };

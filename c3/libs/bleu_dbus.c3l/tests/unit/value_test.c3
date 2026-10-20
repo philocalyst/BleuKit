@@ -34,7 +34,7 @@ fn void containers_check_their_element_types() @test
 	@pool()
 	{
 		Value[] words = { value::str(tmem, "a")!!, value::str(tmem, "b")!! };
-		Value list = value::array(tmem, "s", words)!!;
+		Value list    = value::array(tmem, "s", words)!!;
 		assert(list.sig == "as" && list.count() == 2);
 		assert(list.at(1)!!.as_string()!! == "b");
 		testing::@expect_fault(value::array(tmem, "u", words), error::INVALID_ARGUMENT);
@@ -48,12 +48,15 @@ fn void structs_and_dict_entries() @test
 	@pool()
 	{
 		Value[] fields = { value::u32(1), value::str(tmem, "two")!! };
-		Value pair = value::structure(tmem, fields)!!;
+		Value pair     = value::structure(tmem, fields)!!;
 		assert(pair.sig == "(us)");
 		assert(pair.at(1)!!.as_string()!! == "two");
 		Value entry = value::dict_entry(tmem, value::str(tmem, "k")!!, value::u32(3))!!;
 		assert(entry.sig == "{su}");
-		testing::@expect_fault(value::dict_entry(tmem, value::variant(tmem, value::u32(1)), value::u32(1)), error::INVALID_ARGUMENT);
+		testing::@expect_fault(
+			value::dict_entry(tmem, value::variant(tmem, value::u32(1)), value::u32(1)),
+			error::INVALID_ARGUMENT
+		);
 	};
 }
 

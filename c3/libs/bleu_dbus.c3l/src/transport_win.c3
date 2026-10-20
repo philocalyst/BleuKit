@@ -24,7 +24,9 @@ fn int? connect_unix(String path, bool abstract)
 const MAX_DESCRIPTORS = 253;
 
 <* Nothing to close: no descriptor can exist on this platform. *>
-fn void close_fd(int fd) {}
+fn void close_fd(int fd)
+{
+}
 
 <*
  Not available on Windows.

@@ -30,8 +30,13 @@ fn void encodes_hello_like_dbus_next() @test
 {
 	@pool()
 	{
-		Message* m = message::method_call(mem, "org.freedesktop.DBus", "/org/freedesktop/DBus",
-			"org.freedesktop.DBus", "Hello")!!;
+		Message* m = message::method_call(
+			mem,
+			"org.freedesktop.DBus",
+			"/org/freedesktop/DBus",
+			"org.freedesktop.DBus",
+			"Hello"
+		)!!;
 		m.serial = 1;
 		DString out;
 		out.init(tmem);
@@ -46,8 +51,13 @@ fn void encodes_a_call_with_arguments_like_dbus_next() @test
 {
 	@pool()
 	{
-		Message* m = message::method_call(mem, "org.freedesktop.DBus", "/org/freedesktop/DBus",
-			"org.freedesktop.DBus", "GetNameOwner")!!;
+		Message* m = message::method_call(
+			mem,
+			"org.freedesktop.DBus",
+			"/org/freedesktop/DBus",
+			"org.freedesktop.DBus",
+			"GetNameOwner"
+		)!!;
 		m.serial = 2;
 		Writer* w = m.body_writer("s")!!;
 		w.append_string("org.freedesktop.DBus")!!;
@@ -100,7 +110,7 @@ fn void encodes_replies_like_dbus_next() @test
 		testing::expect_bytes(out.str_view(), ERROR);
 		err.release();
 
-		Message* ret = message::method_return(mem, call)!!;
+		Message* ret = message::reply(mem, call)!!;
 		ret.serial = 5;
 		Writer* w = ret.body_writer("s")!!;
 		w.append_string(":1.9")!!;

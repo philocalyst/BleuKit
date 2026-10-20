@@ -25,13 +25,12 @@
  byte of its message; the message's UNIX_FDS field counts them.
 *>
 module bleu::dbus::connection;
-import bleu::error, bleu::deadline, bleu::dbus::address, bleu::dbus::auth, bleu::dbus::errors,
-	bleu::dbus::match, bleu::dbus::message, bleu::dbus::transport, bleu::dbus::marshal;
+import bleu::error, bleu::deadline, bleu::dbus::address, bleu::dbus::auth, bleu::dbus::errors, bleu::dbus::match, bleu::dbus::message, bleu::dbus::transport, bleu::dbus::marshal;
 import std::collections::list, std::thread, std::time;
 
 <* Bus name and object path of the message bus daemon. *>
-const BUS_NAME = "org.freedesktop.DBus";
-const BUS_PATH = "/org/freedesktop/DBus";
+const BUS_NAME      = "org.freedesktop.DBus";
+const BUS_PATH      = "/org/freedesktop/DBus";
 const BUS_INTERFACE = "org.freedesktop.DBus";
 
 <* Longest wait for a call whose timeout the caller does not give, in milliseconds. *>
@@ -130,7 +129,13 @@ struct Connection
 *>
 fn void Connection.init(&self, Allocator allocator)
 {
-	*self = { .allocator = allocator, .owner = thread::current(), .socket_fd = -1, .next_serial = 1, .next_subscription = 1 };
+	*self = {
+		.allocator = allocator,
+		.owner = thread::current(),
+		.socket_fd = -1,
+		.next_serial = 1,
+		.next_subscription = 1
+	};
 	self.unique_name.init(allocator);
 	self.outbound.init(allocator);
 	self.inbox.init(allocator);
@@ -209,7 +214,7 @@ fn void? Connection.open_address(&self, String addresses)
 	@pool()
 	{
 		Endpoint[] endpoints = address::parse_addresses(tmem, addresses)!;
-		fault last = error::UNAVAILABLE;
+		fault last           = error::UNAVAILABLE;
 		foreach (endpoint : endpoints)
 		{
 			if (catch err = open_endpoint(self, endpoint))
@@ -318,9 +323,9 @@ fn Message*? Connection.call(&self, Message* message, Duration timeout = time::m
 fn Message*? call(Connection* c, Message* message, Duration timeout) @private
 {
 	if (!c.is_open) return error::DISCONNECTED~;
-	uint serial = queue_message(c, message)!;
+	uint serial       = queue_message(c, message)!;
 	Deadline deadline = deadline::after(timeout);
-	Message* reply = null;
+	Message* reply    = null;
 	while (true)
 	{
 		if (catch err = flush(c)) return drop(c, err)~;
@@ -349,12 +354,20 @@ fn Message*? finish_reply(Message* reply) @private
 
  @return? error::DISCONNECTED : "The connection is not open"
 *>
-fn void? Connection.call_async(&self, Message* message, ReplyHandler handler, void* context, Duration timeout = time::ms(DEFAULT_TIMEOUT_MS))
+fn void? Connection.call_async(
+	&self,
+	Message* message,
+	ReplyHandler handler,
+	void* context,
+	Duration timeout = time::ms(DEFAULT_TIMEOUT_MS)
+)
 {
 	self.check_owner();
 	if (!self.is_open) return error::DISCONNECTED~;
 	uint serial = queue_message(self, message)!;
-	self.pending.push({ .serial = serial, .deadline = deadline::after(timeout), .handler = handler, .context = context });
+	self.pending.push(
+		{ .serial = serial, .deadline = deadline::after(timeout), .handler = handler, .context = context }
+	);
 	if (catch err = flush(self)) return drop(self, err)~;
 }
 
@@ -411,8 +424,8 @@ fn void? flush(Connection* c) @private
 	while (c.sent < total)
 	{
 		bool carries = c.outbound_fds.len() > 0 && c.outbound_fds.get(0).at == c.sent;
-		int[] fds = carries ? c.outbound_fds.get(0).fds : {};
-		usz written = transport::send_some(c.socket_fd, c.outbound.str_view(), c.sent, fds)!;
+		int[] fds    = carries ? c.outbound_fds.get(0).fds : { };
+		usz written  = transport::send_some(c.socket_fd, c.outbound.str_view(), c.sent, fds)!;
 		if (written == 0) return;
 		if (carries)
 		{
@@ -482,7 +495,7 @@ fn void? parse_inbox(Connection* c, uint wanted, Message** found) @private
 	while (c.inbox.len() >= (sz)message::FIXED_HEADER_LENGTH)
 	{
 		String buffered = c.inbox.str_view();
-		usz total = message::frame_length(buffered[0:message::FIXED_HEADER_LENGTH])!;
+		usz total       = message::frame_length(buffered[0:message::FIXED_HEADER_LENGTH])!;
 		if (c.inbox.len() < (sz)total) return;
 		Message* parsed = message::parse(c.allocator, buffered[0:total], &c.descriptors)!;
 		c.inbox.delete(0, (sz)total);
@@ -529,7 +542,7 @@ fn void dispatch_one(Connection* c, Message* m) @private
 			answer_unknown(c, m);
 		case INVALID:
 		case UNKNOWN:
-			// Unknown types are ignored, as the specification requires.
+		// Unknown types are ignored, as the specification requires.
 	}
 }
 
@@ -609,11 +622,18 @@ fn void observe_owner_change(Connection* c, Message* m) @private
 fn void answer_unknown(Connection* c, Message* m) @private
 {
 	if ((m.flags & message::FLAG_NO_REPLY_EXPECTED) != 0) return;
-	if (try reply = message::error_reply(c.allocator, m, "org.freedesktop.DBus.Error.UnknownMethod", "no such method is implemented here"))
+	if (try reply = message::error_reply(
+		c.allocator,
+		m,
+		"org.freedesktop.DBus.Error.UnknownMethod",
+		"no such method is implemented here"
+	))
 	{
 		defer reply.release();
 		// If the reply cannot be sent, the connection has closed, and the next call says so.
-		if (catch c.send(reply)) {}
+		if (catch c.send(reply))
+		{
+		}
 	}
 }
 
@@ -720,10 +740,23 @@ fn fault drop(Connection* c, fault failure) @private
 
  @return "Identifier for `deactivate`"
 *>
-fn SubscriptionId Connection.add_subscription(&self, match::Match rule, SignalHandler handler, void* context, void* owned = null)
+fn SubscriptionId Connection.add_subscription(
+	&self,
+	match::Match rule,
+	SignalHandler handler,
+	void* context,
+	void* owned = null
+)
 {
 	Subscription* s = alloc::new(self.allocator, Subscription);
-	*s = { .id = (SubscriptionId)self.next_subscription++, .active = true, .rule = rule, .handler = handler, .context = context, .owned = owned };
+	*s = {
+		.id = (SubscriptionId)self.next_subscription++,
+		.active = true,
+		.rule = rule,
+		.handler = handler,
+		.context = context,
+		.owned = owned
+	};
 	self.subscriptions.push(s);
 	return s.id;
 }

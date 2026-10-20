@@ -18,8 +18,7 @@
  InterfacesRemoved), and org.freedesktop.DBus.Introspectable.Introspect.
 *>
 module bleu::dbus::proxy;
-import bleu::error, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message,
-	bleu::dbus::marshal, bleu::dbus::names, bleu::dbus::value;
+import bleu::error, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::names, bleu::dbus::value;
 import std::collections::list, std::time;
 
 <* Interface of the property accessors. *>
@@ -35,7 +34,7 @@ const INTROSPECTABLE_INTERFACE = "org.freedesktop.DBus.Introspectable";
 const PROPERTIES_CHANGED = "PropertiesChanged";
 
 <* The object-tree signals. *>
-const INTERFACES_ADDED = "InterfacesAdded";
+const INTERFACES_ADDED   = "InterfacesAdded";
 const INTERFACES_REMOVED = "InterfacesRemoved";
 
 <*
@@ -176,7 +175,13 @@ fn bool? Proxy.get_bool(&self, String name, Duration timeout = time::ms(25000))
 *>
 fn Value? Proxy.get_managed_objects(&self, Allocator allocator, Duration timeout = time::ms(25000))
 {
-	Message* call = message::method_call(self.connection.allocator, self.destination, self.path, OBJECT_MANAGER_INTERFACE, "GetManagedObjects")!;
+	Message* call = message::method_call(
+		self.connection.allocator,
+		self.destination,
+		self.path,
+		OBJECT_MANAGER_INTERFACE,
+		"GetManagedObjects"
+	)!;
 	defer call.release();
 	Message* reply = self.connection.call(call, timeout)!;
 	defer reply.release();
@@ -191,7 +196,13 @@ fn Value? Proxy.get_managed_objects(&self, Allocator allocator, Duration timeout
 *>
 fn String? Proxy.introspect(&self, Allocator allocator, Duration timeout = time::ms(25000))
 {
-	Message* call = message::method_call(allocator, self.destination, self.path, INTROSPECTABLE_INTERFACE, "Introspect")!;
+	Message* call = message::method_call(
+		allocator,
+		self.destination,
+		self.path,
+		INTROSPECTABLE_INTERFACE,
+		"Introspect"
+	)!;
 	defer call.release();
 	Message* reply = self.connection.call(call, timeout)!;
 	defer reply.release();
@@ -252,7 +263,7 @@ struct ObjectWatch
 *>
 fn SubscriptionId? Proxy.watch_properties(&self, PropertyHandler handler, void* context, bool subtree = false)
 {
-	match::Match rule = signal_rule(self, PROPERTIES_INTERFACE, PROPERTIES_CHANGED, subtree);
+	match::Match rule    = signal_rule(self, PROPERTIES_INTERFACE, PROPERTIES_CHANGED, subtree);
 	PropertyWatch* watch = alloc::new(self.connection.allocator, PropertyWatch);
 	*watch = { .handler = handler, .context = context };
 	return self.connection.subscribe(rule, &property_signal, watch, watch);
@@ -266,7 +277,7 @@ fn SubscriptionId? Proxy.watch_properties(&self, PropertyHandler handler, void* 
 *>
 fn SubscriptionId? Proxy.watch_objects(&self, ObjectHandler handler, void* context)
 {
-	match::Match rule = signal_rule(self, OBJECT_MANAGER_INTERFACE, "", true);
+	match::Match rule  = signal_rule(self, OBJECT_MANAGER_INTERFACE, "", true);
 	ObjectWatch* watch = alloc::new(self.connection.allocator, ObjectWatch);
 	*watch = { .handler = handler, .context = context };
 	return self.connection.subscribe(rule, &object_signal, watch, watch);
@@ -314,7 +325,12 @@ fn void property_signal(void* context, Message* signal) @private
 				{
 					if (try invalidated = strings_of(invalid, &signal.storage))
 					{
-						PropertyChange change = { .path = signal.path, .interface_name = interface_name, .changed = changed, .invalidated = invalidated };
+						PropertyChange change = {
+							.path = signal.path,
+							.interface_name = interface_name,
+							.changed = changed,
+							.invalidated = invalidated
+						};
 						watch.handler(watch.context, &change);
 					}
 				}

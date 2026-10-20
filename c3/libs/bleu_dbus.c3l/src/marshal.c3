@@ -6,11 +6,11 @@
  apply the same rules:
 
  * every value is aligned to its natural boundary, counted from the first byte
-   of the buffer, with NUL padding of the minimum length;
+ of the buffer, with NUL padding of the minimum length;
  * STRUCT and DICT_ENTRY start on an 8-byte boundary;
  * an ARRAY is a UINT32 byte length (excluding the padding that follows it),
-   padding to the element alignment (present even when the array is empty),
-   then the elements;
+ padding to the element alignment (present even when the array is empty),
+ then the elements;
  * a VARIANT is a SIGNATURE of its contents, then the contents.
 
  Sources: D-Bus specification, "Byte order and alignment", "Marshalling basic

@@ -47,10 +47,10 @@ enum Kind : char
  A value in the D-Bus type system.
 
  - `bits` carries integers, BOOLEAN (0 or 1), the bit pattern of a DOUBLE, and
-   the index of a UNIX_FD in the message's descriptor array.
+ the index of a UNIX_FD in the message's descriptor array.
  - `text` carries STRING, OBJECT_PATH and SIGNATURE.
  - `items` carries the elements of an ARRAY, the fields of a STRUCT, the
-   key and value of a DICT_ENTRY, and the single contents of a VARIANT.
+ key and value of a DICT_ENTRY, and the single contents of a VARIANT.
 *>
 struct Value
 {

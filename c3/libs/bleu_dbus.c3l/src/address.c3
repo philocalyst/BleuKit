@@ -71,8 +71,8 @@ fn Endpoint[]? parse_addresses(Allocator allocator, String addresses)
 	List{Endpoint} found;
 	found.init(tmem);
 	bool unsupported = false;
-	bool malformed = false;
-	usz start = 0;
+	bool malformed   = false;
+	usz start        = 0;
 	while (start <= addresses.len)
 	{
 		usz end = find_byte(addresses, ADDRESS_SEPARATOR, start);
@@ -129,19 +129,19 @@ fn void? parse_entry(Allocator allocator, String entry, List{Endpoint}* found) @
 {
 	usz colon = find_byte(entry, ':', 0);
 	if (colon >= entry.len || entry[0:colon] != UNIX_TRANSPORT) return error::UNSUPPORTED~;
-	String options = entry[colon + 1:entry.len - colon - 1];
+	String options   = entry[colon + 1:entry.len - colon - 1];
 	Endpoint endpoint;
-	uint selectors = 0;
+	uint selectors   = 0;
 	bool listen_only = false;
-	usz start = 0;
+	usz start        = 0;
 	while (start <= options.len)
 	{
-		usz end = find_byte(options, PAIR_SEPARATOR, start);
+		usz end     = find_byte(options, PAIR_SEPARATOR, start);
 		String pair = options[start:end - start];
 		start = end + 1;
 		usz equals = find_byte(pair, '=', 0);
 		if (equals >= pair.len) continue; // not key=value: ignored
-		String key = pair[0:equals];
+		String key   = pair[0:equals];
 		String value = unescape(allocator, pair[equals + 1:pair.len - equals - 1])!;
 		switch (key)
 		{
@@ -162,7 +162,7 @@ fn void? parse_entry(Allocator allocator, String entry, List{Endpoint}* found) @
 				listen_only = true;
 				selectors++;
 			default:
-				// Unknown keys are ignored: the specification reserves them for later use.
+			// Unknown keys are ignored: the specification reserves them for later use.
 		}
 	}
 	if (selectors != 1 || listen_only || endpoint.path.len == 0) return error::INVALID_ARGUMENT~;
@@ -192,7 +192,7 @@ fn String? unescape(Allocator allocator, String raw) @private
 		}
 		if (raw.len - i < 3) return error::INVALID_ARGUMENT~;
 		int high = hex_value(raw[i + 1]);
-		int low = hex_value(raw[i + 2]);
+		int low  = hex_value(raw[i + 2]);
 		if (high < 0 || low < 0) return error::INVALID_ARGUMENT~;
 		out.append_char((char)(high * 16 + low));
 		i += 3;
@@ -203,8 +203,10 @@ fn String? unescape(Allocator allocator, String raw) @private
 // Bytes that never need escaping in an address value: [-0-9A-Za-z_/.*].
 fn bool is_optionally_escaped(char c) @inline
 {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-		|| c == '-' || c == '_' || c == '/' || c == '.' || c == '*';
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+		|| c == '/'
+		|| c == '.'
+		|| c == '*';
 }
 
 // The value of a hex digit, or -1.

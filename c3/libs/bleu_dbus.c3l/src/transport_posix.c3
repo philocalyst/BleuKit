@@ -10,20 +10,20 @@
 
  Sources for every constant and layout (each checked against a second source):
  * Linux: `struct msghdr` with `size_t msg_iovlen`, `size_t msg_controllen`;
-   `struct cmsghdr { size_t cmsg_len; int cmsg_level; int cmsg_type; }` aligned
-   to `size_t`; `sockaddr_un { sa_family_t; char sun_path[108]; }`; `SOL_SOCKET 1`,
-   `O_NONBLOCK 0x800`, `MSG_CTRUNC 0x8`, `MSG_NOSIGNAL 0x4000`.
-   Sources: the Linux man pages unix(7), cmsg(3), and the libc crate 0.2.191
-   src/unix/linux_like/mod.rs (MSG_CTRUNC, MSG_NOSIGNAL, CMSG_ALIGN) and
-   src/unix/linux_like/linux/gnu/mod.rs (msghdr).
+ `struct cmsghdr { size_t cmsg_len; int cmsg_level; int cmsg_type; }` aligned
+ to `size_t`; `sockaddr_un { sa_family_t; char sun_path[108]; }`; `SOL_SOCKET 1`,
+ `O_NONBLOCK 0x800`, `MSG_CTRUNC 0x8`, `MSG_NOSIGNAL 0x4000`.
+ Sources: the Linux man pages unix(7), cmsg(3), and the libc crate 0.2.191
+ src/unix/linux_like/mod.rs (MSG_CTRUNC, MSG_NOSIGNAL, CMSG_ALIGN) and
+ src/unix/linux_like/linux/gnu/mod.rs (msghdr).
  * Apple (macOS, BSD): `msghdr` with `socklen_t` lengths and `int msg_iovlen`,
-   `cmsghdr` of `socklen_t` length, `CMSG_ALIGN` 4; `sockaddr_un { u8 sun_len;
-   u8 sun_family; char sun_path[104]; }`; `SOL_SOCKET 0xffff`, `O_NONBLOCK 0x4`,
-   `MSG_CTRUNC 0x20`, `MSG_NOSIGNAL 0x80000`, `SO_NOSIGPIPE 0x1022`.
-   Sources: the libc crate 0.2.191 src/unix/bsd/mod.rs (msghdr, cmsghdr),
-   src/unix/bsd/apple/mod.rs (CMSG_* macros with __DARWIN_ALIGN32, constants).
+ `cmsghdr` of `socklen_t` length, `CMSG_ALIGN` 4; `sockaddr_un { u8 sun_len;
+ u8 sun_family; char sun_path[104]; }`; `SOL_SOCKET 0xffff`, `O_NONBLOCK 0x4`,
+ `MSG_CTRUNC 0x20`, `MSG_NOSIGNAL 0x80000`, `SO_NOSIGPIPE 0x1022`.
+ Sources: the libc crate 0.2.191 src/unix/bsd/mod.rs (msghdr, cmsghdr),
+ src/unix/bsd/apple/mod.rs (CMSG_* macros with __DARWIN_ALIGN32, constants).
  * `SCM_RIGHTS 1`, `POLL*` values and `F_SETFD 2`, `FD_CLOEXEC 1` agree on both
-   (libc crate src/unix/bsd/mod.rs and src/unix/linux_like/mod.rs).
+ (libc crate src/unix/bsd/mod.rs and src/unix/linux_like/mod.rs).
 *>
 module bleu::dbus::transport @feat(POSIX);
 import bleu::error, std::time, std::collections::list, libc;
@@ -35,7 +35,7 @@ const int AF_UNIX = 1;
 const int SOCK_STREAM = 1;
 
 <* `fcntl` command setting the descriptor flags, and the flag that closes on exec. *>
-const int F_SETFD = 2;
+const int F_SETFD    = 2;
 const int FD_CLOEXEC = 1;
 
 <* `fcntl` command setting the status flags. *>
@@ -49,7 +49,7 @@ const int SOL_SOCKET = env::LINUX ? 1 : 0xffff;
 const int SCM_RIGHTS = 1;
 
 <* connect(2) errors meaning that nothing listens at the address (ENOENT: no such socket; ECONNREFUSED: no listener). *>
-const ENOENT = 2;
+const ENOENT       = 2;
 const ECONNREFUSED = env::LINUX ? 111 : 61;
 
 <* `recvmsg` flag: the control data did not fit and was truncated. *>
@@ -62,10 +62,10 @@ const int MSG_NOSIGNAL = env::LINUX ? 0x4000 : 0x80000;
 const int SO_NOSIGPIPE = 0x1022;
 
 <* `poll` event bits, the same on both platforms. *>
-const short POLLIN = 0x1;
-const short POLLOUT = 0x4;
-const short POLLERR = 0x8;
-const short POLLHUP = 0x10;
+const short POLLIN   = 0x1;
+const short POLLOUT  = 0x4;
+const short POLLERR  = 0x8;
+const short POLLHUP  = 0x10;
 const short POLLNVAL = 0x20;
 
 <*
@@ -192,8 +192,8 @@ fn int? connect_unix(String path, bool abstract)
 		return failure("fcntl")~;
 	}
 	$if env::DARWIN:
-	int one = 1;
-	setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, DESCRIPTOR_BYTES);
+		int one = 1;
+		setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, DESCRIPTOR_BYTES);
 	$endif
 	return fd;
 }
@@ -203,11 +203,11 @@ fn uint fill_address(char[] addr, String path, bool abstract) @private
 {
 	usz offset = 0;
 	$if env::LINUX:
-	addr[0] = (char)AF_UNIX;
-	addr[1] = 0;
+		addr[0] = (char)AF_UNIX;
+		addr[1] = 0;
 	$else
-	addr[0] = (char)(2 + path.len + (abstract ? 0 : 1));
-	addr[1] = (char)AF_UNIX;
+		addr[0] = (char)(2 + path.len + (abstract ? 0 : 1));
+		addr[1] = (char)AF_UNIX;
 	$endif
 	usz path_at = 2;
 	if (abstract)
@@ -240,7 +240,7 @@ fn usz? send_some(int fd, String bytes, usz offset, int[] descriptors)
 {
 	if (descriptors.len > MAX_DESCRIPTORS) return error::INVALID_ARGUMENT~;
 	char[CONTROL_CAPACITY] control;
-	Iovec vec = { .base = &bytes[offset], .len = bytes.len - offset };
+	Iovec vec  = { .base = &bytes[offset], .len = bytes.len - offset };
 	Msghdr msg = { .iov = &vec, .iovlen = 1 };
 	if (descriptors.len > 0)
 	{
@@ -270,9 +270,9 @@ fn usz? send_some(int fd, String bytes, usz offset, int[] descriptors)
 fn usz? recv_some(int fd, char[] buffer, usz offset, List{int}* descriptors)
 {
 	char[CONTROL_CAPACITY] control;
-	Iovec vec = { .base = &buffer[offset], .len = buffer.len - offset };
+	Iovec vec  = { .base = &buffer[offset], .len = buffer.len - offset };
 	Msghdr msg = { .iov = &vec, .iovlen = 1, .control = &control, .controllen = CONTROL_CAPACITY };
-	sz got = recvmsg(fd, &msg, 0);
+	sz got     = recvmsg(fd, &msg, 0);
 	if (got < 0)
 	{
 		if (libc::errno() == EAGAIN || libc::errno() == EINTR) return 0;
@@ -293,12 +293,12 @@ fn void take_descriptors(char* control, usz length, List{int}* descriptors) @pri
 	while (offset + control_header_size() <= length)
 	{
 		CmsgHeader header = read_cmsg_header(control + offset);
-		usz len = header.len;
+		usz len           = header.len;
 		if (len < control_header_size() || offset + len > length) return;
 		if (header.level == SOL_SOCKET && header.type == SCM_RIGHTS)
 		{
 			usz count = (len - control_header_size()) / DESCRIPTOR_BYTES;
-			int* fds = (int*)(control + offset + control_header_size());
+			int* fds  = (int*)(control + offset + control_header_size());
 			for (usz i = 0; i < count; i++)
 			{
 				(void)fcntl(fds[i], F_SETFD, FD_CLOEXEC);
@@ -322,15 +322,15 @@ fn void write_cmsg_header(char* control, usz data_len) @private
 {
 	usz len = control_len(data_len);
 	$if env::LINUX:
-	LinuxCmsghdr* header = (LinuxCmsghdr*)control;
-	header.len = len;
-	header.level = SOL_SOCKET;
-	header.type = SCM_RIGHTS;
+		LinuxCmsghdr* header = (LinuxCmsghdr*)control;
+		header.len = len;
+		header.level = SOL_SOCKET;
+		header.type = SCM_RIGHTS;
 	$else
-	AppleCmsghdr* header = (AppleCmsghdr*)control;
-	header.len = (uint)len;
-	header.level = SOL_SOCKET;
-	header.type = SCM_RIGHTS;
+		AppleCmsghdr* header = (AppleCmsghdr*)control;
+		header.len = (uint)len;
+		header.level = SOL_SOCKET;
+		header.type = SCM_RIGHTS;
 	$endif
 }
 
@@ -338,11 +338,11 @@ fn void write_cmsg_header(char* control, usz data_len) @private
 fn CmsgHeader read_cmsg_header(char* control) @private
 {
 	$if env::LINUX:
-	LinuxCmsghdr* header = (LinuxCmsghdr*)control;
-	return { .len = header.len, .level = header.level, .type = header.type };
+		LinuxCmsghdr* header = (LinuxCmsghdr*)control;
+		return { .len = header.len, .level = header.level, .type = header.type };
 	$else
-	AppleCmsghdr* header = (AppleCmsghdr*)control;
-	return { .len = header.len, .level = header.level, .type = header.type };
+		AppleCmsghdr* header = (AppleCmsghdr*)control;
+		return { .len = header.len, .level = header.level, .type = header.type };
 	$endif
 }
 
@@ -369,9 +369,9 @@ fn usz control_space(usz data) @inline => control_header_size() + control_align(
 fn bool wait(int fd, bool readable, bool writable, Duration timeout)
 {
 	short events = (readable ? POLLIN : 0) | (writable ? POLLOUT : 0);
-	Pollfd pfd = { .fd = fd, .events = events };
-	int ms = timeout == time::FOREVER ? -1 : (int)min((long)(timeout / 1000) + 1, 0x7fffffff);
-	int result = poll(&pfd, 1, ms);
+	Pollfd pfd   = { .fd = fd, .events = events };
+	int ms       = timeout == time::FOREVER ? -1 : (int)min((long)(timeout / 1000) + 1, 0x7fffffff);
+	int result   = poll(&pfd, 1, ms);
 	// A failed poll is reported as ready: the next read or write returns the error.
 	if (result < 0) return true;
 	return result > 0;
