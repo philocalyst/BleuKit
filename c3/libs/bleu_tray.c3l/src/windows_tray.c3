@@ -7,6 +7,10 @@
  window's messages. An icon the shell cannot load is shown as no icon, and `own_published` stays false.
  Explorer restarts drop every notification icon; the TaskbarCreated message re-adds ours.
 
+ The hidden window is a `bleu::win::message_loop.Loop`. The icon's callback message comes from
+ `Loop.allocate_message`, and TaskbarCreated from `Loop.register_named_message`; both arrive as
+ `CUSTOM_MESSAGE` events on the worker.
+
  Sources: Microsoft Learn Shell_NotifyIconW, NOTIFYICONDATAW, NIM_SETVERSION and the callback
  values (LOWORD(lParam) is the event, GET_X/Y_LPARAM of wParam the anchor); tray-icon 0.21.0
  src/platform_impl/windows/mod.rs (legacy callback, TaskbarCreated re-add), read for lead only.
@@ -14,17 +18,10 @@
 module bleu::tray::windows_tray @feat(WIN32);
 import std::os::win32, std::time, bleu::availability, bleu::error, bleu::rt::poller, bleu::rt::worker, bleu::service, bleu::tray, bleu::tray::convert, bleu::tray::windows_api, bleu::tray::windows_user, bleu::win::errors, bleu::win::message_loop, bleu::win::text, bleu::observe;
 
-// The message the notification icon sends its window. WM_APP + 2, clear of the message loop's WM_APP + 1.
-const uint TRAY_MESSAGE           = 0x8002;
 // The identifier of our one notification icon.
 const uint TRAY_ICON_ID           = 1;
 // Bytes of one UTF-16 code unit.
 const usz UTF16_UNIT_BYTES        = 2;
-// The window's class and window styles: a hidden top-level window (see bleu::win::message_loop).
-const uint HIDDEN_WINDOW_STYLE    = 0x80000000;
-const uint HIDDEN_WINDOW_EX_STYLE = 0x00000080;
-// The messages a window procedure sees first and must not treat as its own.
-const uint WM_NCCREATE            = 0x0081;
 // How long the worker sleeps between checks for a stop request, in microseconds.
 const Duration WAIT_INTERVAL      = (Duration)1_000_000;
 
@@ -34,18 +31,14 @@ struct WinBackend
 	bool publish_own;
 	tray::OwnItem own;
 	TrayHub* hub;
-	WideZ class_name;
-	void* instance;
-	void* window;
-	void* icon;
+	// The hidden window and its messages. Opened by `open_icon`, closed by `close_icon`.
+	message_loop::Loop* loop;
+	// The message the notification icon sends the loop, from `Loop.allocate_message`.
+	uint callback_message;
+	// The message the shell broadcasts when Explorer restarts, from `Loop.register_named_message`.
 	uint taskbar_message;
+	void* icon;
 	bool own_added;
-}
-
-// The create-struct the window procedure receives with WM_NCCREATE; its first field is the parameter.
-struct CreateStructW
-{
-	void* create_params;
 }
 
 const Driver DRIVER = {
@@ -141,50 +134,14 @@ fn void publish(WinBackend* backend)
 }
 
 <*
- Register the window class, create the hidden window, load the icon, and add the notification icon.
- On failure everything created so far is released.
+ Open the hidden window, register the two messages the icon needs, load the icon and add it to the
+ notification area. On failure the loop stays open for `close_icon` to release.
 *>
 fn void? open_icon(WinBackend* backend)
 {
-	backend.instance = win32::getModuleHandleW(null);
-	backend.taskbar_message = windows_user::taskbar_created_message()!;
-	String name = string::format(mem, "bleu.tray.%x", (uptr)backend);
-	defer alloc::free(mem, name.ptr);
-	backend.class_name = text::to_wide(backend.allocator, name)!;
-	win32::Win32_WNDCLASSEXW wc = {
-		.cbSize = win32::Win32_WNDCLASSEXW::size,
-		.lpfnWndProc = &window_proc,
-		.hInstance = backend.instance,
-		.lpszClassName = backend.class_name.as_wstring(),
-	};
-	if (win32::registerClassExW(&wc) == 0)
-	{
-		fault failure = errors::raise_last("RegisterClassExW");
-		backend.class_name.free();
-		return failure~;
-	}
-	void* window = win32::createWindowExW(
-		HIDDEN_WINDOW_EX_STYLE,
-		backend.class_name.as_wstring(),
-		null,
-		HIDDEN_WINDOW_STYLE,
-		0,
-		0,
-		0,
-		0,
-		null,
-		null,
-		backend.instance,
-		backend
-	);
-	if (window == null)
-	{
-		fault failure = errors::raise_last("CreateWindowExW");
-		win32::unregisterClassW(backend.class_name.as_wstring(), backend.instance);
-		backend.class_name.free();
-		return failure~;
-	}
-	backend.window = window;
+	backend.loop = message_loop::open(mem, &on_event, backend)!;
+	backend.callback_message = backend.loop.allocate_message()!;
+	backend.taskbar_message = backend.loop.register_named_message("TaskbarCreated")!;
 	backend.icon = load_icon(backend.own.icon, backend.allocator);
 	add_icon(backend)!;
 }
@@ -221,14 +178,14 @@ fn void? add_icon(WinBackend* backend)
 	backend.own_added = true;
 }
 
-// The NOTIFYICONDATAW that names our icon, with the tooltip (the title) and the callback.
+// The NOTIFYICONDATAW that names our icon, with the tooltip (the title) and the callback. Needs an open loop.
 fn windows_api::NotifyIconDataW icon_data(WinBackend* backend)
 {
 	windows_api::NotifyIconDataW data = {
 		.cb_size = windows_api::NotifyIconDataW::size,
-		.hwnd = backend.window,
+		.hwnd = backend.loop.window,
 		.id = TRAY_ICON_ID,
-		.callback_message = TRAY_MESSAGE,
+		.callback_message = backend.callback_message,
 		.icon = backend.icon,
 	};
 	if (try tip = text::to_wide(mem, backend.own.title))
@@ -241,7 +198,7 @@ fn windows_api::NotifyIconDataW icon_data(WinBackend* backend)
 	return data;
 }
 
-// Remove the icon and destroy the window, its class and its icon. Safe when nothing was opened.
+// Remove the icon, then close the window and its messages, and destroy the icon. Safe when nothing was opened.
 fn void close_icon(WinBackend* backend)
 {
 	if (backend.own_added)
@@ -252,13 +209,10 @@ fn void close_icon(WinBackend* backend)
 		}
 		backend.own_added = false;
 	}
-	if (backend.window != null)
+	if (backend.loop != null)
 	{
-		win32::setWindowLongPtrW(backend.window, win32::GWLP_USERDATA, 0);
-		win32::destroyWindow(backend.window);
-		win32::unregisterClassW(backend.class_name.as_wstring(), backend.instance);
-		backend.class_name.free();
-		backend.window = null;
+		backend.loop.close();
+		backend.loop = null;
 	}
 	if (backend.icon != null)
 	{
@@ -272,30 +226,20 @@ fn void? shell_icon(uint message, windows_api::NotifyIconDataW* data)
 	if (windows_api::shellNotifyIconW(message, data) == 0) return errors::raise_last("Shell_NotifyIconW")~;
 }
 
-// The window procedure: the icon's callbacks, the shell's restart message, and everything else by default.
-fn Win32_LRESULT window_proc(void* window, uint message, uptr wparam, iptr lparam)
+<*
+ Every message of the hidden window reaches the worker here: the icon's callbacks and the shell's
+ restart message. Other events of the loop are not ours.
+*>
+fn void on_event(void* context, message_loop::Event* event) @local
 {
-	if (message == WM_NCCREATE)
+	if (event.kind != message_loop::EventKind.CUSTOM_MESSAGE) return;
+	WinBackend* backend = (WinBackend*)context;
+	if (event.message == backend.callback_message)
 	{
-		CreateStructW* create = (CreateStructW*)lparam;
-		win32::setWindowLongPtrW(window, win32::GWLP_USERDATA, (iptr)create.create_params);
-	}
-	WinBackend* backend = (WinBackend*)win32::getWindowLongPtrW(window, win32::GWLP_USERDATA);
-	if (backend != null)
-	{
-		handle(backend, window, message, wparam, lparam);
-	}
-	return win32::defWindowProcW(window, message, wparam, lparam);
-}
-
-fn void handle(WinBackend* backend, void* window, uint message, uptr wparam, iptr lparam)
-{
-	if (message == TRAY_MESSAGE)
-	{
-		callback(backend, window, wparam, lparam);
+		callback(backend, event.wparam, event.lparam);
 		return;
 	}
-	if (backend.taskbar_message != 0 && message == backend.taskbar_message)
+	if (event.message == backend.taskbar_message)
 	{
 		// Explorer restarted and took our icon with it: add it again.
 		if (catch add_icon(backend)) backend.own_added = false;
@@ -304,7 +248,7 @@ fn void handle(WinBackend* backend, void* window, uint message, uptr wparam, ipt
 }
 
 // The version 4 callback: LOWORD(lParam) is the event, and wParam holds the anchor (x, y).
-fn void callback(WinBackend* backend, void* window, uptr wparam, iptr lparam)
+fn void callback(WinBackend* backend, uptr wparam, iptr lparam)
 {
 	uint event = (uint)((ulong)lparam & 0xFFFF);
 	int x      = (int)(short)((ulong)wparam & 0xFFFF);
@@ -314,16 +258,17 @@ fn void callback(WinBackend* backend, void* window, uptr wparam, iptr lparam)
 		case windows_api::NIN_SELECT:
 			emit(backend, tray::EventKind.OWN_ACTIVATED, 0, x, y);
 		case windows_user::WM_CONTEXTMENU:
-			show_menu(backend, window, x, y);
+			show_menu(backend, x, y);
 		default:
 			return;
 	}
 }
 
 // Show our menu at the anchor. The chosen entry, if any, is an event.
-fn void show_menu(WinBackend* backend, void* window, int x, int y)
+fn void show_menu(WinBackend* backend, int x, int y)
 {
 	if (backend.own.menu.len == 0) return;
+	void* window = backend.loop.window;
 	void*? menu = windows_user::create_menu();
 	if (catch menu) return;
 	defer windows_user::destroyMenu(menu);

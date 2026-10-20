@@ -116,16 +116,31 @@ fn void maybe_empty_is_null_and_nests() @test
 {
 	Maybe{Leaf} none;
 	Maybe{OptionalLong} nested = maybe::value{OptionalLong}({});
-	assert(to_json(mem, none)!! == "null");
-	assert(to_json(mem, nested)!! == "null");
-	assert(to_json(mem, maybe::value{OptionalLong}(maybe::value{long}(3)))!! == "3");
+	@pool()
+	{
+	assert(to_json(tmem, none)!! == "null");
+	};
+	@pool()
+	{
+	assert(to_json(tmem, nested)!! == "null");
+	};
+	@pool()
+	{
+	assert(to_json(tmem, maybe::value{OptionalLong}(maybe::value{long}(3)))!! == "3");
+	};
 }
 
 fn void durations_are_integers_in_their_unit() @test
 {
 	NanoDuration nanos = (NanoDuration)1_500;
-	assert(to_json(mem, (Duration)1_500_000)!! == "1500000");
-	assert(to_json(mem, nanos)!! == "1500");
+	@pool()
+	{
+	assert(to_json(tmem, (Duration)1_500_000)!! == "1500000");
+	};
+	@pool()
+	{
+	assert(to_json(tmem, nanos)!! == "1500");
+	};
 }
 
 struct Renamed
@@ -138,11 +153,17 @@ fn void tagged_names_are_exact_wire_names() @test
 {
 	Renamed r = { .time_to_empty = 2, .plain_name = 3 };
 	Options o = { .key_style = CAMEL_CASE };
-	assert(to_json(mem, r, o)!! == `{"timeToEmpty":2,"plainName":3}`);
+	@pool()
+	{
+	assert(to_json(tmem, r, o)!! == `{"timeToEmpty":2,"plainName":3}`);
+	};
 }
 
 fn void to_json_reports_nothing_it_cannot_write() @test
 {
 	// Nothing in this module is refused at run time: the refusals are compile errors (see README).
-	assert(to_json(mem, (uint)7)!! == "7");
+	@pool()
+	{
+	assert(to_json(tmem, (uint)7)!! == "7");
+	};
 }
