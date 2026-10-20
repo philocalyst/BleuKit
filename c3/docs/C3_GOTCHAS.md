@@ -269,3 +269,12 @@
 * `--test-filter` belongs to `c3c compile-test` (the tests run inside that command); pass it there, not to the test binary.
 * `pkill -f <pattern>` kills the shell that runs it when the pattern is in its own command line → find the PID with an anchored `pgrep -f "^/path/binary"` and kill it.
 * A mock or test control request sent right after a state change can be handled after the next request → wait until the server closes the control connection before the next step.
+* A `const` global array sliced into a struct that outlives the call (`CAPS[..]` handed to `ipc::Server`) reads out of bounds later → keep the data in a heap-allocated struct the server's owner holds (bleud `Daemon.capabilities`).
+* A generic module is instantiated as a whole: one method missing from one instance (`Keyring.watch`) fails every instance of that module → put the method's adapter in its own generic module (`bleu::registry::tap`).
+* A slot or table entry that is only given its spec when opened is NULL when unopened, and a loop over the table then dereferences NULL → set the identity of every entry before opening any of them (`registry::open_selected`).
+* `thread::sleep` returns `thread::INTERRUPTED` when a signal arrives; `!!` on it panics → treat it as a wake-up and check the stop flag.
+* `Enum.values` does not exist; iterate with `for (usz i = 0; i < Enum::len; i++) Enum::from_ordinal(i)`.
+* Generic functions declare their parameters after the list (`fn Value? await(Operation{Value}* op, Duration t)<Value>`) and each call names them: `registry::await{power::Profile}(op, t)`.
+* `import m as alias` and `Type.sizeof` do not exist; `std::encoding::json` and `bleu::json` both answer to `json::`: import both and spell the std side `std::encoding::json::tparse`; its `Object` is in `std::collections::object`.
+* A `switch` case with an empty body that falls into the next label is rejected even for enum-free labels: use an `if` chain for characters and for `String`.
+* Two `@feat`-gated files may share a module name (`bleud::daemon` for POSIX and WIN32): the excluded one is not parsed, so the same function name serves both platforms.

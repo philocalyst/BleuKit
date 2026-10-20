@@ -20,7 +20,7 @@ struct Adapter
 	String address; // the controller's Bluetooth address; its identity
 	String name; // the controller's own name, "" when unknown
 	String display_name; // what to show: the user's alias, else the name
-	bool powered; // the radio is on
+	Maybe{bool} powered; // the radio is on; unknown where the backend cannot read the power state
 	bool blocked; // a kill switch or firmware block holds the radio off; it cannot be powered on
 	bool discoverable; // other devices can find it right now
 	uint discoverable_timeout_s; // seconds until discoverable turns off again; 0 means until switched off

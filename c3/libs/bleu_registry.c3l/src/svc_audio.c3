@@ -107,7 +107,6 @@ const registry::Spec AUDIO = {
 	.open = &open,
 	.close = &live::close{audio::Audio, audio::State, audio::Cap},
 	.state = &live::state{audio::Audio, audio::State, audio::Cap},
-	.state_after = &live::state_after{audio::Audio, audio::State, audio::Cap},
 	.capabilities = &live::capabilities{audio::Audio, audio::State, audio::Cap},
 	.backend = &live::backend{audio::Audio, audio::State, audio::Cap},
 	.watch = &tap::watch{audio::Audio, audio::State},

@@ -76,8 +76,16 @@ fn int print_reply(String line) @private
 		print_pretty(fragment(line, "\"result\":", 1));
 		return 0;
 	}
-	io::eprintfn("bleuctl: %s", reply_error(line));
+	print_error(line);
 	return 1;
+}
+
+<* Print the error of an error frame on stderr. *>
+fn void print_error(String line) @private
+{
+	String message = reply_error(line);
+	defer alloc::free(mem, message.ptr);
+	io::eprintfn("bleuctl: %s", message);
 }
 
 <* The error text of an error frame, or a note when the frame has none. *>
@@ -113,19 +121,38 @@ fn void print_pretty(String compact) @private
 
 <*
  Subscribe to one service and print each state the daemon sends, until the
- connection ends or the process is interrupted.
+ connection ends or the process is interrupted. A service that is not open is
+ reported first, from its capabilities reply, because a subscription to an unknown
+ name is silently empty.
+
+ @return "The exit code: 1 when the daemon refuses the service or a frame is an error"
 *>
 fn int? watch(ipc::client::Client* client, String service)
 {
+	@pool()
+	{
+		String line = client.request(string::tformat("%s.capabilities", service), "{}", REQUEST_TIMEOUT)!;
+		defer alloc::free(mem, line.ptr);
+		if (!line.contains("\"result\":"))
+		{
+			print_error(line);
+			return 1;
+		}
+	};
 	String[1] names = { service };
 	client.subscribe(names[..], REQUEST_TIMEOUT)!;
 	while (true)
 	{
 		String line = client.next_line(FOREVER_LIMIT)!;
 		defer alloc::free(mem, line.ptr);
+		if (!line.contains("\"result\":"))
+		{
+			print_error(line);
+			return 1;
+		}
 		@pool()
 		{
-			if (line.contains("\"service\":")) print_pretty(fragment(line, "\"data\":", 2));
+			print_pretty(fragment(line, "\"data\":", 2));
 		};
 	}
 	return 0;

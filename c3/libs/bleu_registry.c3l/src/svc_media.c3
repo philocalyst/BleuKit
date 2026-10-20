@@ -76,7 +76,6 @@ const registry::Spec MEDIA = {
 	.open = &open,
 	.close = &live::close{media::Media, media::State, media::Cap},
 	.state = &live::state{media::Media, media::State, media::Cap},
-	.state_after = &live::state_after{media::Media, media::State, media::Cap},
 	.capabilities = &live::capabilities{media::Media, media::State, media::Cap},
 	.backend = &live::backend{media::Media, media::State, media::Cap},
 	.watch = &tap::watch{media::Media, media::State},

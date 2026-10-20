@@ -194,6 +194,9 @@ fn void an_empty_receive_buffer_is_refused() @test
 	unix::SocketPair pair = unix::socket_pair(STREAM)!!;
 	defer (void)pair.first.close();
 	defer (void)pair.second.close();
+	// Non-blocking, so that if the guard in `recv` ever regresses, the read fails with BUSY
+	// instead of blocking this test forever on the empty socket.
+	pair.second.fd.set_nonblocking(true)!!;
 	char[1] unused;
 	unix::Fd[1] none;
 	test::@error(pair.second.recv(unused[0:0], none[..]), error::INVALID_ARGUMENT);

@@ -22,7 +22,8 @@ Sources and decisions: `docs/research/bleu_rt.md`.
 * `bleu::rt::worker <Command>` - `Worker{Command}`: `init(alloc, max_queue)`,
   `start(name, RunFn, context)`, `stop()` (idempotent, joins). `Host{Command}`:
   `stopping()`, `mailbox()`, `wakeup()`.
-* `bleu::rt::foreign` - `@foreign_entry(; @body)`: temp allocator for any thread.
+* `bleu::rt::foreign` - `@foreign_entry(; @body)`: temp allocator for any thread; safe to nest
+  and to use on a thread that already has one (`has_temp_allocator()`).
 * `bleu::rt::unix` (POSIX) - `Fd`, `UnixSocket`, `SocketPair`, `connect`, `listen`,
   `socket_pair`, `send`/`send_all`/`recv` with SCM_RIGHTS, `peer_credentials`,
   `errno_to_fault`. Zero bytes from `recv` mean end of file on a stream, and on a

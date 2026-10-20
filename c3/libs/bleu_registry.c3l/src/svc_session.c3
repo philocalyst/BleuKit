@@ -40,7 +40,6 @@ const registry::Spec SESSION = {
 	.open = &open,
 	.close = &live::close{session::Session, session::State, session::Cap},
 	.state = &live::state{session::Session, session::State, session::Cap},
-	.state_after = &live::state_after{session::Session, session::State, session::Cap},
 	.capabilities = &live::capabilities{session::Session, session::State, session::Cap},
 	.backend = &live::backend{session::Session, session::State, session::Cap},
 	.watch = &tap::watch{session::Session, session::State},

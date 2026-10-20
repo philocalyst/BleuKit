@@ -46,7 +46,6 @@ const registry::Spec CLIPBOARD = {
 	.open = &open,
 	.close = &live::close{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.state = &live::state{clipboard::Clipboard, clipboard::State, clipboard::Cap},
-	.state_after = &live::state_after{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.capabilities = &live::capabilities{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.backend = &live::backend{clipboard::Clipboard, clipboard::State, clipboard::Cap},
 	.watch = &tap::watch{clipboard::Clipboard, clipboard::State},

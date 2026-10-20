@@ -106,7 +106,6 @@ const registry::Spec BLUETOOTH = {
 	.open = &open,
 	.close = &live::close{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.state = &live::state{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
-	.state_after = &live::state_after{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.capabilities = &live::capabilities{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.backend = &live::backend{bluetooth::Bluetooth, bluetooth::State, bluetooth::Cap},
 	.watch = &tap::watch{bluetooth::Bluetooth, bluetooth::State},

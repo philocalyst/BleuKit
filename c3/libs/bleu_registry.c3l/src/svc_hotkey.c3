@@ -47,7 +47,6 @@ const registry::Spec HOTKEY = {
 	.open = &open,
 	.close = &live::close{hotkey::Hotkey, hotkey::State, hotkey::Cap},
 	.state = &live::state{hotkey::Hotkey, hotkey::State, hotkey::Cap},
-	.state_after = &live::state_after{hotkey::Hotkey, hotkey::State, hotkey::Cap},
 	.capabilities = &live::capabilities{hotkey::Hotkey, hotkey::State, hotkey::Cap},
 	.backend = &live::backend{hotkey::Hotkey, hotkey::State, hotkey::Cap},
 	.watch = &tap::watch{hotkey::Hotkey, hotkey::State},

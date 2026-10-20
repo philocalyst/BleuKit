@@ -53,7 +53,6 @@ const registry::Spec BRIGHTNESS = {
 	.open = &open,
 	.close = &live::close{brightness::Brightness, brightness::State, brightness::Cap},
 	.state = &live::state{brightness::Brightness, brightness::State, brightness::Cap},
-	.state_after = &live::state_after{brightness::Brightness, brightness::State, brightness::Cap},
 	.capabilities = &live::capabilities{brightness::Brightness, brightness::State, brightness::Cap},
 	.backend = &live::backend{brightness::Brightness, brightness::State, brightness::Cap},
 	.watch = &tap::watch{brightness::Brightness, brightness::State},

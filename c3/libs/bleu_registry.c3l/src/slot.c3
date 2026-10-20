@@ -85,13 +85,6 @@ fn void? Slot.write_state(&self, json::JsonWriter* out)
 	return self.spec.state(self.handle, out);
 }
 
-<* Write the state object after a newer generation than `seen`, or fail with TIMEOUT. *>
-fn void? Slot.write_state_after(&self, ulong seen, Duration timeout, json::JsonWriter* out)
-{
-	self.require_open()!;
-	return self.spec.state_after(self.handle, seen, timeout, out);
-}
-
 <* Write the capabilities array of an open service. *>
 fn void? Slot.write_capabilities(&self, json::JsonWriter* out)
 {

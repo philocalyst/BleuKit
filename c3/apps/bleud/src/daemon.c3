@@ -13,6 +13,9 @@ import std::io, std::thread, std::time, std::atomic, std::core::string, bleu::er
 <* Set by SIGINT and SIGTERM; the serving loop ends when it is set. *>
 Atomic{bool} stop_requested;
 
+<* Set once the server is being stopped: publications that arrive after this are expected, not errors. *>
+Atomic{bool} shutting_down;
+
 alias SignalHandler = fn void(int signal_number);
 
 // POSIX signal numbers: SIGINT is 2 and SIGTERM is 15 on Linux and macOS (signal.h).
@@ -79,6 +82,7 @@ fn int? serve(registry::Slot[] slots, String socket_path)
 			if (err != thread::INTERRUPTED) return err~;
 		}
 	}
+	shutting_down.store(true);
 	daemon.server.stop();
 	foreach (&slot : daemon.slots) slot.close();
 	daemon.server.free();
@@ -144,6 +148,7 @@ fn void? register_service_methods(Daemon* daemon, registry::Spec* spec) @private
 <* Publish one state to a topic. Runs on the service's worker thread, so it only hands the text over. *>
 fn void publish_state(void* context, String text)
 {
+	if (shutting_down.load()) return;
 	ipc::Topic* topic = (ipc::Topic*)context;
 	if (catch err = topic.publish(text))
 	{

@@ -42,7 +42,6 @@ const registry::Spec POWER = {
 	.open = &open,
 	.close = &live::close{power::Power, power::State, power::Cap},
 	.state = &live::state{power::Power, power::State, power::Cap},
-	.state_after = &live::state_after{power::Power, power::State, power::Cap},
 	.capabilities = &live::capabilities{power::Power, power::State, power::Cap},
 	.backend = &live::backend{power::Power, power::State, power::Cap},
 	.watch = &tap::watch{power::Power, power::State},

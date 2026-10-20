@@ -67,7 +67,6 @@ const registry::Spec NOTIFY = {
 	.open = &open,
 	.close = &live::close{notify::Notify, notify::State, notify::Cap},
 	.state = &live::state{notify::Notify, notify::State, notify::Cap},
-	.state_after = &live::state_after{notify::Notify, notify::State, notify::Cap},
 	.capabilities = &live::capabilities{notify::Notify, notify::State, notify::Cap},
 	.backend = &live::backend{notify::Notify, notify::State, notify::Cap},
 	.watch = &tap::watch{notify::Notify, notify::State},

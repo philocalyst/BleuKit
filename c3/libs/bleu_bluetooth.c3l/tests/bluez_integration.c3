@@ -24,6 +24,9 @@ const ulong PAIRING_MS = 2000;
 // How long a check waits for a task that must end by its deadline. Longer than the bus's own 25 s default,
 // so that a pairing which the code before the fix would complete with its stale success is still seen.
 const ulong FINISH_MS  = 30000;
+// The slack allowed on top of the pairing deadline before a task that should have ended counts as idle.
+// The mock fails an unanswered pairing by itself after 20 s, so this must stay well under that.
+const ulong SLACK_MS   = 3000;
 // Requests posted at once when a service is stopped, and how many times the stop is repeated.
 const int BURST        = 50;
 const int BURST_ROUNDS = 20;
@@ -49,7 +52,7 @@ fn Device* device_at(State* state, String address)
 
 fn bool has_device(State* state, String address) => device_at(state, address) != null;
 
-fn bool dev_powered(State* state) => state.adapters.len > 0 && state.adapters[0].powered;
+fn bool dev_powered(State* state) => state.adapters.len > 0 && state.adapters[0].powered.has_value && state.adapters[0].powered.value;
 
 fn bool dev_blocked(State* state) => state.adapters.len > 0 && state.adapters[0].blocked;
 
@@ -202,7 +205,10 @@ fn int main(String[] args)
 	{
 		defer first.release();
 		State* s = &first.value;
-		expect(s.adapters.len == 1 && !s.adapters[0].powered, "one controller, powered off");
+		expect(
+			s.adapters.len == 1 && s.adapters[0].powered.has_value && !s.adapters[0].powered.value,
+			"one controller, powered off"
+		);
 		expect(s.adapters[0].address == "00:1A:7D:DA:71:13", "controller address");
 		Device* h = device_at(s, HEADSET);
 		expect(h != null, "remembered headset is known");
@@ -406,6 +412,11 @@ fn int main(String[] args)
 	}
 	write_file(fail_tree, "0");
 
+	expect(
+		@catch(bt.connect("AA:BB:CC")) == error::INVALID_ARGUMENT,
+		"a malformed device address is refused with INVALID_ARGUMENT"
+	);
+
 	deadline_checks(address, root);
 	stopping_completes_queued(address, root);
 
@@ -487,8 +498,9 @@ fn void deadline_checks(String address, String root)
 	if (hang)
 	{
 		defer hang.release();
-		bool ended = ends_within(hang, FINISH_MS);
-		expect(ended, "an unanswered pairing ends at its deadline while the worker is idle");
+		bool prompt = ends_within(hang, PAIRING_MS + SLACK_MS);
+		expect(prompt, "an unanswered pairing ends at its deadline while the worker is idle");
+		bool ended = prompt || ends_within(hang, FINISH_MS);
 		expect(
 			ended && hang.failure == TIMEOUT,
 			"a pairing that times out is a timeout, not a success left over from an earlier AlreadyExists"

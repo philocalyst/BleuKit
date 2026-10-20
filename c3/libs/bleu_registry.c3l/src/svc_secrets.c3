@@ -76,7 +76,6 @@ const registry::Spec SECRETS = {
 	.open = &open,
 	.close = &live::close{secrets::Keyring, secrets::State, secrets::Cap},
 	.state = &live::state{secrets::Keyring, secrets::State, secrets::Cap},
-	.state_after = &live::state_after{secrets::Keyring, secrets::State, secrets::Cap},
 	.capabilities = &live::capabilities{secrets::Keyring, secrets::State, secrets::Cap},
 	.backend = &live::backend{secrets::Keyring, secrets::State, secrets::Cap},
 	.watch = &unsupported_watch,

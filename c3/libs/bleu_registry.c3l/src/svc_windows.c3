@@ -50,7 +50,6 @@ const registry::Spec WINDOWS = {
 	.open = &open,
 	.close = &live::close{windows::Windows, windows::State, windows::Cap},
 	.state = &live::state{windows::Windows, windows::State, windows::Cap},
-	.state_after = &live::state_after{windows::Windows, windows::State, windows::Cap},
 	.capabilities = &live::capabilities{windows::Windows, windows::State, windows::Cap},
 	.backend = &live::backend{windows::Windows, windows::State, windows::Cap},
 	.watch = &tap::watch{windows::Windows, windows::State},

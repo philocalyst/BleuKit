@@ -104,6 +104,7 @@ def main():
         daemon.terminate()
         daemon.wait(10)
     print_log(sock)
+    check_shutdown()
     run_real_sysinfo()
     print("\n%d failure(s)" % len(failures))
     return 1 if failures else 0
@@ -145,6 +146,11 @@ def run_checks(sock):
     err = reply.get("error", "")
     check("a service that is not open is an UNAVAILABLE error string",
           err.startswith("UNAVAILABLE: ") and ERROR_SHAPE.match(err) is not None, reply)
+
+    _, reply = call(sock, "network.capabilities")
+    err = reply.get("error", "")
+    check("capabilities of a service that is not open say why",
+          err.startswith("UNAVAILABLE: ") and "not selected" not in err, reply)
 
     _, reply = call(sock, "brightness.set", {"device": "nope", "level": 0.5})
     err = reply.get("error", "")
@@ -231,6 +237,24 @@ def check_dropped_client(sock):
     time.sleep(0.2)
     _, reply = call(sock, "battery.backend")
     check("the daemon survives a client that hangs up", reply.get("result", {}).get("ok") is True, reply)
+
+
+def check_shutdown():
+    """SIGTERM ends the daemon cleanly: status 0, no error output, socket removed."""
+    sock = os.path.join(WORK, "term.sock")
+    daemon = start_daemon(sock, "battery", FAKE)
+    call(sock, "battery.backend")
+    daemon.terminate()
+    try:
+        code = daemon.wait(10)
+    except subprocess.TimeoutExpired:
+        daemon.kill()
+        code = None
+    with open(sock + ".log") as f:
+        log = f.read()
+    check("SIGTERM stops the daemon with status 0", code == 0, code)
+    check("the daemon prints nothing but its start line on shutdown",
+          log.count("\n") == 1 and "ERROR" not in log, log)
 
 
 def run_real_sysinfo():

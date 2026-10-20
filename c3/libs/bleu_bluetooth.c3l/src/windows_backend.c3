@@ -12,7 +12,7 @@
  trust, block, rename, battery, RSSI and modalias. See docs/research/bluetooth_impl.md.
 
  Approximations that Win32 forces (each documented in the library README):
- a radio that Win32 enumerates is reported as powered; `discoverable`,
+ the power state of a radio is unknown (`powered` is unset); `discoverable`,
  `pairable` and `discovering` are reported false because they are not read;
  `paired` is the device's authenticated flag and `bonded` its remembered flag.
 *>
@@ -258,7 +258,7 @@ fn void? read_radio(
 			.address = address,
 			.name = name,
 			.display_name = name.len > 0 ? name : address,
-			.powered = true,
+			// BLUETOOTH_RADIO_INFO carries no power state, so `powered` stays unknown.
 		}
 	);
 	read_devices(api, radio, address, allocator, devices)!;

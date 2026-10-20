@@ -26,9 +26,6 @@ alias CloseFn = fn void(void* handle);
 <* Writes `{"generation": n, "state": ...}` for the latest state. *>
 alias StateFn = fn void?(void* handle, json::JsonWriter* out);
 
-<* Like `StateFn`, but first waits until a state newer than `seen` exists, or `timeout` passes. *>
-alias StateAfterFn = fn void?(void* handle, ulong seen, Duration timeout, json::JsonWriter* out);
-
 <* Writes the array of `{"cap", "reason", "note"}` objects, one per capability. *>
 alias CapabilitiesFn = fn void?(void* handle, json::JsonWriter* out);
 
@@ -93,7 +90,6 @@ struct Spec
 	OpenFn open;
 	CloseFn close;
 	StateFn state;
-	StateAfterFn state_after;
 	CapabilitiesFn capabilities;
 	BackendFn backend;
 	WatchFn watch;

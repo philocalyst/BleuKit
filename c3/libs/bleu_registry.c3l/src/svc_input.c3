@@ -40,7 +40,6 @@ const registry::Spec INPUT = {
 	.open = &open,
 	.close = &live::close{input::Input, input::State, input::Cap},
 	.state = &live::state{input::Input, input::State, input::Cap},
-	.state_after = &live::state_after{input::Input, input::State, input::Cap},
 	.capabilities = &live::capabilities{input::Input, input::State, input::Cap},
 	.backend = &live::backend{input::Input, input::State, input::Cap},
 	.watch = &tap::watch{input::Input, input::State},

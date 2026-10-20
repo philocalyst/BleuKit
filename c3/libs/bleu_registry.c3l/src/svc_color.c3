@@ -59,7 +59,6 @@ const registry::Spec COLOR = {
 	.open = &open,
 	.close = &live::close{color::Color, color::State, color::Cap},
 	.state = &live::state{color::Color, color::State, color::Cap},
-	.state_after = &live::state_after{color::Color, color::State, color::Cap},
 	.capabilities = &live::capabilities{color::Color, color::State, color::Cap},
 	.backend = &live::backend{color::Color, color::State, color::Cap},
 	.watch = &tap::watch{color::Color, color::State},

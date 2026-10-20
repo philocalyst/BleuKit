@@ -81,10 +81,7 @@ fn Adapter read_adapter(Value props, bool kill_switch, Allocator allocator) @pri
 		.address = address,
 		.name = name,
 		.display_name = nickname.len > 0 ? nickname : name,
-		.powered = bool_prop(
-			props,
-			"Powered"
-		), // BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
+		.powered = maybe::value(bool_prop(props, "Powered")), // BlueZ reports a kill switch as PowerState off-blocked; sysfs reports it for every radio.
 		.blocked = kill_switch || text_prop(props, "PowerState", allocator) == "off-blocked",
 		.discoverable = bool_prop(props, "Discoverable"),
 		.discoverable_timeout_s = u32_prop(props, "DiscoverableTimeout"),

@@ -132,7 +132,6 @@ const registry::Spec NETWORK = {
 	.open = &open,
 	.close = &live::close{network::Network, network::State, network::Cap},
 	.state = &live::state{network::Network, network::State, network::Cap},
-	.state_after = &live::state_after{network::Network, network::State, network::Cap},
 	.capabilities = &live::capabilities{network::Network, network::State, network::Cap},
 	.backend = &live::backend{network::Network, network::State, network::Cap},
 	.watch = &tap::watch{network::Network, network::State},

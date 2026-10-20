@@ -1,5 +1,5 @@
 module bleu::secrets::wipe_test;
-import bleu::secrets::wipe;
+import bleu::operation, bleu::secrets::wipe;
 
 // Stands in for the backing allocator. It remembers every block it hands out, and
 // before each release it checks that the payload of that block is all zeros.
@@ -89,4 +89,24 @@ fn void over_aligned_blocks_are_refused() @test
 {
 	WipingAllocator wiping = { .inner = mem };
 	assert(@catch(wiping.acquire(16, NO_ZERO, 64)) == mem::INVALID_ALLOC_SIZE);
+}
+// An operation can outlive the keyring that made it: its memory stays valid until the operation is
+// released, and the arena is freed only then. Run under valgrind, a use after the close would show.
+fn void operation_outlives_arena_close() @test
+{
+	OperationArena* arena = open_arena(mem);
+	Operation{bool}* op = operation::begin{bool}(arena);
+	Allocator op_arena = op.allocator();
+	String text = "a secret that lives in the operation".copy(op_arena);
+	arena.close();
+	assert(text == "a secret that lives in the operation");
+	op.succeed(true);
+	op.release();
+}
+
+// A closed arena with nothing outstanding is freed at once; it must not be used after that.
+fn void idle_arena_frees_on_close() @test
+{
+	OperationArena* arena = open_arena(mem);
+	arena.close();
 }

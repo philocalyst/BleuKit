@@ -28,7 +28,6 @@ const registry::Spec DISPLAY = {
 	.open = &open,
 	.close = &live::close{display::Display, display::State, display::Cap},
 	.state = &live::state{display::Display, display::State, display::Cap},
-	.state_after = &live::state_after{display::Display, display::State, display::Cap},
 	.capabilities = &live::capabilities{display::Display, display::State, display::Cap},
 	.backend = &live::backend{display::Display, display::State, display::Cap},
 	.watch = &tap::watch{display::Display, display::State},

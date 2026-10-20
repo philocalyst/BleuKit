@@ -12,7 +12,6 @@ import std::time, bleu::observe, bleu::json, bleu::availability, bleu::registry,
 <* Longest a read waits for a service's first reading. *>
 const Duration FIRST_STATE_TIMEOUT = (Duration)5_000_000;
 
-
 <*
  Write the latest state. A service that has not produced its first reading yet is
  waited for up to `FIRST_STATE_TIMEOUT`; once a reading exists this returns at once.
@@ -21,14 +20,6 @@ fn void? state(void* handle, json::JsonWriter* out)
 {
 	Svc* svc                  = (Svc*)handle;
 	Snapshot{State}* snapshot = svc.wait_after(0, FIRST_STATE_TIMEOUT)!;
-	defer snapshot.release();
-	return state_json::write{State}(out, snapshot, true);
-}
-
-fn void? state_after(void* handle, ulong seen, Duration timeout, json::JsonWriter* out)
-{
-	Svc* svc                  = (Svc*)handle;
-	Snapshot{State}* snapshot = svc.wait_after(seen, timeout)!;
 	defer snapshot.release();
 	return state_json::write{State}(out, snapshot, true);
 }

@@ -44,7 +44,7 @@ struct Keyring
 	Driver* driver;
 	void* driver_state;
 	Capabilities capabilities;
-	WipingAllocator operations; // arenas of every operation: zeroed when freed
+	OperationArena* operations; // the memory of every operation: zeroed when released, freed once closed and released
 }
 
 <*
@@ -61,24 +61,43 @@ fn Keyring*? open(Allocator allocator, Options options = { })
 	Keyring* self  = alloc::new(allocator, Keyring);
 	self.allocator = allocator;
 	self.driver = driver;
-	self.operations.inner = allocator;
-	self.driver_state = driver.create(allocator, options, &self.capabilities)!;
-	if (catch err = self.hub.start(allocator, "secrets", driver.info.name, driver.run, self.driver_state))
+	self.operations = wipe::open_arena(allocator);
+	void*? state = driver.create(allocator, options, &self.capabilities);
+	if (catch err = state)
+	{
+		self.operations.close();
+		alloc::free(allocator, self);
+		return err~;
+	}
+	self.driver_state = state;
+	if (catch err = self.hub.start(
+		allocator,
+		"secrets",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
+		self.operations.close();
 		alloc::free(allocator, self);
 		return err~;
 	}
 	return self;
 }
 
-<* Stop the backend and release everything. Operations still held by callers stay valid until released. *>
+<*
+ Stop the backend and release everything. Operations still held by callers stay valid until they are
+ released: their memory outlives the keyring (see `OperationArena`).
+*>
 fn void Keyring.close(&self)
 {
 	self.hub.stop();
 	self.hub.free();
 	self.driver.destroy(self.allocator, self.driver_state);
 	Allocator allocator = self.allocator;
+	self.operations.close();
 	alloc::free(allocator, self);
 }
 
@@ -121,7 +140,7 @@ fn Reader{Event}*? Keyring.subscribe(&self) => self.hub.events.subscribe();
 fn Operation{Entry}*? Keyring.store(&self, Entry entry, char[] value)
 {
 	check_key(entry)!;
-	Operation{Entry}* op = operation::begin{Entry}(&self.operations);
+	Operation{Entry}* op = operation::begin{Entry}(self.operations);
 	Command command = {
 		.kind = STORE,
 		.entry = copy_entry(op.allocator(), entry),
@@ -147,7 +166,7 @@ fn Operation{Entry}*? Keyring.store(&self, Entry entry, char[] value)
 fn Operation{Secret}*? Keyring.read(&self, Entry entry)
 {
 	check_key(entry)!;
-	Operation{Secret}* op = operation::begin{Secret}(&self.operations);
+	Operation{Secret}* op = operation::begin{Secret}(self.operations);
 	Command command       = { .kind = READ, .entry = copy_entry(op.allocator(), entry) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
@@ -168,7 +187,7 @@ fn Operation{Secret}*? Keyring.read(&self, Entry entry)
 fn Operation{bool}*? Keyring.delete(&self, Entry entry)
 {
 	check_key(entry)!;
-	Operation{bool}* op = operation::begin{bool}(&self.operations);
+	Operation{bool}* op = operation::begin{bool}(self.operations);
 	Command command     = { .kind = DELETE, .entry = copy_entry(op.allocator(), entry) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
@@ -190,7 +209,7 @@ fn Operation{bool}*? Keyring.delete(&self, Entry entry)
 fn Operation{Entry[]}*? Keyring.search(&self, Entry filter)
 {
 	check_attributes(filter.attributes)!;
-	Operation{Entry[]}* op = operation::begin{Entry[]}(&self.operations);
+	Operation{Entry[]}* op = operation::begin{Entry[]}(self.operations);
 	Command command        = { .kind = SEARCH, .entry = copy_entry(op.allocator(), filter) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
@@ -209,7 +228,7 @@ fn Operation{Entry[]}*? Keyring.search(&self, Entry filter)
 *>
 fn Operation{Lock}*? Keyring.unlock(&self)
 {
-	Operation{Lock}* op = operation::begin{Lock}(&self.operations);
+	Operation{Lock}* op = operation::begin{Lock}(self.operations);
 	Command command     = { .kind = UNLOCK };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
@@ -219,6 +238,55 @@ fn Operation{Lock}*? Keyring.unlock(&self)
 		return err~;
 	}
 	return op;
+}
+
+// Completes a command that will never run, because the service is stopping or its backend has exited:
+// its operation fails with DISCONNECTED and the command's reference is released.
+fn void abandon_command(void* backend, Command* command) @private
+{
+	switch (command.kind)
+	{
+		case STORE: abandon_store(command);
+		case READ: abandon_read(command);
+		case DELETE: abandon_delete(command);
+		case SEARCH: abandon_search(command);
+		case UNLOCK: abandon_unlock(command);
+	}
+}
+
+fn void abandon_store(Command* command) @private
+{
+	Operation{Entry}* op = (Operation{Entry}*)command.operation;
+	op.fail(error::DISCONNECTED);
+	op.release();
+}
+
+fn void abandon_read(Command* command) @private
+{
+	Operation{Secret}* op = (Operation{Secret}*)command.operation;
+	op.fail(error::DISCONNECTED);
+	op.release();
+}
+
+fn void abandon_delete(Command* command) @private
+{
+	Operation{bool}* op = (Operation{bool}*)command.operation;
+	op.fail(error::DISCONNECTED);
+	op.release();
+}
+
+fn void abandon_search(Command* command) @private
+{
+	Operation{Entry[]}* op = (Operation{Entry[]}*)command.operation;
+	op.fail(error::DISCONNECTED);
+	op.release();
+}
+
+fn void abandon_unlock(Command* command) @private
+{
+	Operation{Lock}* op = (Operation{Lock}*)command.operation;
+	op.fail(error::DISCONNECTED);
+	op.release();
 }
 
 // Mandatory identity of an entry: a service and an account, and no reserved attribute keys.

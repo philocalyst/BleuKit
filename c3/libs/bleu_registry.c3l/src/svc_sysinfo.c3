@@ -36,7 +36,6 @@ const registry::Spec SYSINFO = {
 	.open = &open,
 	.close = &live::close{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.state = &live::state{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
-	.state_after = &live::state_after{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.capabilities = &live::capabilities{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.backend = &live::backend{sysinfo::Sysinfo, sysinfo::State, sysinfo::Cap},
 	.watch = &tap::watch{sysinfo::Sysinfo, sysinfo::State},

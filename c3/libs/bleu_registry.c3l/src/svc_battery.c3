@@ -30,7 +30,6 @@ const registry::Spec BATTERY = {
 	.open = &open,
 	.close = &live::close{battery::Battery, battery::State, battery::Cap},
 	.state = &live::state{battery::Battery, battery::State, battery::Cap},
-	.state_after = &live::state_after{battery::Battery, battery::State, battery::Cap},
 	.capabilities = &live::capabilities{battery::Battery, battery::State, battery::Cap},
 	.backend = &live::backend{battery::Battery, battery::State, battery::Cap},
 	.watch = &tap::watch{battery::Battery, battery::State},

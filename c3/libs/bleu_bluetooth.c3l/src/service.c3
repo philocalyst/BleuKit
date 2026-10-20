@@ -303,9 +303,19 @@ fn void abandon_request(void* backend, Request* request)
 	request.op.release();
 }
 
+// True when `text` is a Bluetooth address: six hex pairs separated by colons.
+fn bool valid_address(String text) @private
+{
+	if (catch address_value(text)) return false;
+	return true;
+}
+
 // Queue `request` for the worker. The task is created here; the worker releases the request's reference.
+// An address that is not six colon-separated hex pairs is refused here, before anything is queued.
 fn Task*? submit(Bluetooth* self, Request request) @private
 {
+	if (request.adapter.len > 0 && !valid_address(request.adapter)) return error::INVALID_ARGUMENT~;
+	if (request.device.len > 0 && !valid_address(request.device)) return error::INVALID_ARGUMENT~;
 	Task* task      = operation::begin{Done}(self.allocator);
 	Allocator arena = task.allocator();
 	request.adapter = copy_text(request.adapter, arena);

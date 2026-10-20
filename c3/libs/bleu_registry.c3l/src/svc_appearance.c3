@@ -45,7 +45,6 @@ const registry::Spec APPEARANCE = {
 	.open = &open,
 	.close = &live::close{appearance::Appearance, appearance::State, appearance::Cap},
 	.state = &live::state{appearance::Appearance, appearance::State, appearance::Cap},
-	.state_after = &live::state_after{appearance::Appearance, appearance::State, appearance::Cap},
 	.capabilities = &live::capabilities{appearance::Appearance, appearance::State, appearance::Cap},
 	.backend = &live::backend{appearance::Appearance, appearance::State, appearance::Cap},
 	.watch = &tap::watch{appearance::Appearance, appearance::State},

@@ -74,7 +74,6 @@ const registry::Spec TRAY = {
 	.open = &open,
 	.close = &live::close{tray::Tray, tray::State, tray::Cap},
 	.state = &live::state{tray::Tray, tray::State, tray::Cap},
-	.state_after = &live::state_after{tray::Tray, tray::State, tray::Cap},
 	.capabilities = &live::capabilities{tray::Tray, tray::State, tray::Cap},
 	.backend = &live::backend{tray::Tray, tray::State, tray::Cap},
 	.watch = &tap::watch{tray::Tray, tray::State},

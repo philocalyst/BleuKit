@@ -74,7 +74,6 @@ const registry::Spec APPS = {
 	.open = &open,
 	.close = &live::close{apps::Apps, apps::State, apps::Cap},
 	.state = &live::state{apps::Apps, apps::State, apps::Cap},
-	.state_after = &live::state_after{apps::Apps, apps::State, apps::Cap},
 	.capabilities = &live::capabilities{apps::Apps, apps::State, apps::Cap},
 	.backend = &live::backend{apps::Apps, apps::State, apps::Cap},
 	.watch = &tap::watch{apps::Apps, apps::State},
