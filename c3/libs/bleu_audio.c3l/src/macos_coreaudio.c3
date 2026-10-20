@@ -121,7 +121,7 @@ fn void run(void* state, AudioHub* hub, Host{Command}* host)
 	}
 	defer poller.free();
 	bool listening = add_system_listeners(backend);
-	if (listening) defer remove_system_listeners(backend);
+	defer if (listening) remove_system_listeners(backend);
 	Duration tick = listening ? time::FOREVER : FALLBACK_TICK;
 	Command[COMMAND_BATCH] buffer;
 	refresh(backend, hub);
