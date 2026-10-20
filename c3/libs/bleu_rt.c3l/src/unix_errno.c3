@@ -43,5 +43,5 @@ fn fault errno_to_fault(CInt err)
 *>
 fn fault errno_fault(String what, CInt err)
 {
-	return error::raise(errno_to_fault(err), error::Domain.ERRNO, err, "%s failed: %s", what, (String)libc::strerror(err));
+	return error::raise(errno_to_fault(err), error::Domain.ERRNO, err, "%s failed: %s", what, libc::strerror(err).str_view());
 }

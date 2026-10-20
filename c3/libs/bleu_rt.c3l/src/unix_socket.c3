@@ -213,21 +213,22 @@ fn UnixSocket? UnixSocket.accept(&self)
 *>
 fn usz? UnixSocket.send(&self, char[] bytes, Fd[] fds = {})
 {
-	if (fds.len > MAX_FDS_PER_MESSAGE)
+	if ((usz)fds.len > MAX_FDS_PER_MESSAGE)
 	{
 		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "at most %d descriptors per message", MAX_FDS_PER_MESSAGE)~;
 	}
-	char[CONTROL_BUFFER_SIZE] control;
+	char[CONTROL_BUFFER_SIZE] control_storage;
+	char[] control = control_storage[..];
 	IoVec iov = { .base = bytes.ptr, .len = bytes.len };
 	MsgHdr msg;
 	msg.attach(&iov, 1, null, 0);
 	if (fds.len > 0)
 	{
-		usz data_len = fds.len * CInt::size;
+		usz data_len = (usz)fds.len * CInt::size;
 		CmsgHdr* header = (CmsgHdr*)control.ptr;
 		header.set_rights(data_len);
 		CInt* values = (CInt*)(control.ptr + cmsg_align(CMSG_HEADER_SIZE));
-		for (usz i = 0; i < fds.len; i++) values[i] = fds[i].raw();
+		for (usz i = 0; i < (usz)fds.len; i++) values[i] = fds[i].raw();
 		msg.attach(&iov, 1, control.ptr, cmsg_align(CMSG_HEADER_SIZE) + cmsg_align(data_len));
 	}
 	while (true)
@@ -250,7 +251,7 @@ fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = {})
 {
 	usz done = 0;
 	Fd[] pending = fds;
-	while (done < bytes.len)
+	while (done < (usz)bytes.len)
 	{
 		usz accepted = self.send(bytes[done..], pending)!;
 		if (accepted == 0) return error::raise(error::BUSY, error::Domain.INTERNAL, 0, "sendmsg accepted no bytes")~;
@@ -275,10 +276,11 @@ fn void? UnixSocket.send_all(&self, char[] bytes, Fd[] fds = {})
 *>
 fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 {
-	char[CONTROL_BUFFER_SIZE] control;
+	char[CONTROL_BUFFER_SIZE] control_storage;
+	char[] control = control_storage[..];
 	IoVec iov = { .base = buffer.ptr, .len = buffer.len };
 	MsgHdr msg;
-	msg.attach(&iov, 1, control.ptr, (usz)control.len);
+	msg.attach(&iov, 1, control.ptr, control.len);
 	sz got;
 	while (true)
 	{
@@ -288,7 +290,8 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 		return errno_fault("recvmsg", libc::errno())~;
 	}
 	usz total = take_descriptors(control.ptr, msg.received_control_len(), fd_buffer);
-	usz stored = min(total, fd_buffer.len);
+	usz capacity = (usz)fd_buffer.len;
+	usz stored = min(total, capacity);
 	foreach (&fd : fd_buffer[:stored])
 	{
 		if (catch err = configure_received_fd(fd))
@@ -297,10 +300,10 @@ fn RecvResult? UnixSocket.recv(&self, char[] buffer, Fd[] fd_buffer)
 			return err~;
 		}
 	}
-	if (total > fd_buffer.len)
+	if (total > capacity)
 	{
 		close_stored(fd_buffer[:stored]);
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%d descriptors arrived, room for %d", total, fd_buffer.len)~;
+		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%d descriptors arrived, room for %d", total, capacity)~;
 	}
 	if ((msg.received_flags() & MSG_CTRUNC_FLAG) != 0)
 	{
@@ -360,7 +363,7 @@ fn usz take_descriptors(char* control, usz used, Fd[] out) @private
 			CInt* values = (CInt*)(control + offset + cmsg_align(CMSG_HEADER_SIZE));
 			for (usz i = 0; i < count; i++)
 			{
-				if (total < out.len)
+				if (total < (usz)out.len)
 				{
 					out[total] = { .value = values[i] };
 				}
