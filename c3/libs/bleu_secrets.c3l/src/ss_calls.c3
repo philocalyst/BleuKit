@@ -60,11 +60,11 @@ fn void? ensure_collection(SsBackend* b, Atomic{bool}* cancel, String service, S
 {
 	if (b.collection.len > 0) return;
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "ReadAlias")!;
-	Writer* w = call.body_writer("s")!;
+	Writer* w     = call.body_writer("s")!;
 	w.append_string(DEFAULT_ALIAS)!;
 	w.finish()!;
 	Value[] reply = invoke(b, call, tmem)!;
-	String path = reply[0].as_object_path()!;
+	String path   = reply[0].as_object_path()!;
 	if (path == NO_OBJECT)
 	{
 		path = create_collection(b, cancel, service, account)!;
@@ -77,7 +77,7 @@ fn void? ensure_collection(SsBackend* b, Atomic{bool}* cancel, String service, S
 fn String? create_collection(SsBackend* b, Atomic{bool}* cancel, String service, String account)
 {
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "CreateCollection")!;
-	Writer* w = call.body_writer("a{sv}s")!;
+	Writer* w     = call.body_writer("a{sv}s")!;
 	w.begin_array("a{sv}")!;
 	w.begin_dict_entry()!;
 	w.append_string(COLLECTION_LABEL)!;
@@ -89,7 +89,7 @@ fn String? create_collection(SsBackend* b, Atomic{bool}* cancel, String service,
 	w.append_string(DEFAULT_ALIAS)!;
 	w.finish()!;
 	Value[] reply = invoke(b, call, tmem)!;
-	String path = reply[0].as_object_path()!;
+	String path   = reply[0].as_object_path()!;
 	String prompt = reply[1].as_object_path()!;
 	if (prompt != NO_OBJECT) run_prompt(b, prompt, cancel, service, account)!;
 	return path.copy(tmem);
@@ -111,7 +111,7 @@ fn bool? read_locked(SsBackend* b)
 fn void? unlock_collection(SsBackend* b, Atomic{bool}* cancel, String service, String account)
 {
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "Unlock")!;
-	Writer* w = call.body_writer("ao")!;
+	Writer* w     = call.body_writer("ao")!;
 	w.begin_array("ao")!;
 	w.append_object_path(b.collection)!;
 	w.end_array()!;
@@ -170,6 +170,10 @@ fn void publish(SsBackend* b)
 fn void emit(SsBackend* b, EventKind kind, String service, String account)
 {
 	Packet{Event}* packet = b.hub.emit_begin();
-	packet.value = { .kind = kind, .service = service.copy(packet.allocator()), .account = account.copy(packet.allocator()) };
+	packet.value = {
+		.kind = kind,
+		.service = service.copy(packet.allocator()),
+		.account = account.copy(packet.allocator())
+	};
 	b.hub.emit(packet);
 }

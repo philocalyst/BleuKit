@@ -6,10 +6,7 @@
  objects, wlr-data-control's receive with a pipe, and a compositor protocol error.
 *>
 module bleu::wl::client_test @feat(POSIX);
-import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland,
-	bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control,
-	bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control,
-	bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem;
+import bleu::wl, bleu::wl::display, bleu::wl::testing, bleu::wl::wire, bleu::wl::proto::wayland, bleu::wl::proto::ext_idle_notify, bleu::wl::proto::wlr_gamma_control, bleu::wl::proto::wlr_output_management, bleu::wl::proto::wlr_data_control, bleu::rt, bleu::rt::unix, bleu::rt::foreign, bleu::error, std::core::test, std::thread, std::core::mem;
 
 // libc entry points for the pipes the gamma and data-control scenarios pass around.
 extern fn CInt sys_pipe(CInt* fds) @cname("pipe");
@@ -63,7 +60,7 @@ fn void answer_sync(testing::MockServer* s, uint callback)
 fn uint advertise_registry(testing::MockServer* s)
 {
 	testing::Message get = expect_request(s, display::DISPLAY_ID, 1);
-	uint registry = s.reader(get).get_new_id()!!;
+	uint registry        = s.reader(get).get_new_id()!!;
 	send_global(s, registry, 1, "wl_output", 4);
 	send_global(s, registry, 2, "zwlr_gamma_control_manager_v1", 1);
 	send_global(s, registry, 3, "ext_idle_notifier_v1", 1);
@@ -76,7 +73,7 @@ fn uint advertise_registry(testing::MockServer* s)
 // The first half of every scenario: the registry, then the client's first sync answered.
 fn uint serve_registry(testing::MockServer* s)
 {
-	uint registry = advertise_registry(s);
+	uint registry         = advertise_registry(s);
 	testing::Message sync = expect_request(s, display::DISPLAY_ID, 0);
 	answer_sync(s, s.reader(sync).get_new_id()!!);
 	return registry;
@@ -86,7 +83,7 @@ fn uint serve_registry(testing::MockServer* s)
 fn uint expect_bind(testing::MockServer* s, uint registry, uint name, String interface_name, uint version)
 {
 	testing::Message bind = expect_request(s, registry, 0);
-	wire::Reader r = s.reader(bind);
+	wire::Reader r        = s.reader(bind);
 	expect(r.get_uint()!! == name, "bind of the wrong global");
 	expect(r.get_string()!! == interface_name, "bind of the wrong interface");
 	expect(r.get_uint()!! == version, "bind at the wrong version");
@@ -100,15 +97,15 @@ fn int registry_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = advertise_registry(s);
+		uint registry          = advertise_registry(s);
 		testing::Message first = expect_request(s, display::DISPLAY_ID, 0);
-		uint first_callback = s.reader(first).get_new_id()!!;
+		uint first_callback    = s.reader(first).get_new_id()!!;
 		answer_sync(s, first_callback);
 		// Second roundtrip: the client reuses the freed callback id, and the gamma global goes away
 		// before the answer. The removal must follow the second sync, or the first roundtrip would
 		// deliver it along with its own `done`.
 		testing::Message second = expect_request(s, display::DISPLAY_ID, 0);
-		uint second_callback = s.reader(second).get_new_id()!!;
+		uint second_callback    = s.reader(second).get_new_id()!!;
 		expect(second_callback == first_callback, "the freed callback id was not reused");
 		wire::Writer removed;
 		removed.begin(registry, 1);
@@ -124,8 +121,8 @@ fn int output_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		uint output = expect_bind(s, registry, 1, "wl_output", 4);
+		uint registry          = serve_registry(s);
+		uint output            = expect_bind(s, registry, 1, "wl_output", 4);
 		expect_bind(s, registry, 4, "wl_seat", 7);
 		wire::Writer geometry;
 		geometry.begin(output, 0);
@@ -156,13 +153,13 @@ fn int idle_scenario(void* arg)
 {
 	foreign::@foreign_entry()
 	{
-		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		uint notifier = expect_bind(s, registry, 3, "ext_idle_notifier_v1", 1);
-		uint seat = expect_bind(s, registry, 4, "wl_seat", 7);
+		testing::MockServer* s   = (testing::MockServer*)arg;
+		uint registry            = serve_registry(s);
+		uint notifier            = expect_bind(s, registry, 3, "ext_idle_notifier_v1", 1);
+		uint seat                = expect_bind(s, registry, 4, "wl_seat", 7);
 		testing::Message request = expect_request(s, notifier, 1);
-		wire::Reader r = s.reader(request);
-		uint notification = r.get_new_id()!!;
+		wire::Reader r           = s.reader(request);
+		uint notification        = r.get_new_id()!!;
 		expect(r.get_uint()!! == 5000, "timeout");
 		expect(r.get_object()!! == seat, "idle notification on the wrong seat");
 		wire::Writer idled;
@@ -180,21 +177,21 @@ fn int gamma_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		uint output = expect_bind(s, registry, 1, "wl_output", 4);
-		uint manager = expect_bind(s, registry, 2, "zwlr_gamma_control_manager_v1", 1);
-		testing::Message get = expect_request(s, manager, 0);
-		wire::Reader g = s.reader(get);
-		uint control = g.get_new_id()!!;
+		uint registry          = serve_registry(s);
+		uint output            = expect_bind(s, registry, 1, "wl_output", 4);
+		uint manager           = expect_bind(s, registry, 2, "zwlr_gamma_control_manager_v1", 1);
+		testing::Message get   = expect_request(s, manager, 0);
+		wire::Reader g         = s.reader(get);
+		uint control           = g.get_new_id()!!;
 		expect(g.get_object()!! == output, "gamma control for the wrong output");
 		wire::Writer size;
 		size.begin(control, 0);
 		size.put_uint(256)!!;
 		s.send(&size)!!;
 		testing::Message set = expect_request(s, control, 0);
-		rt::Native fd = s.reader(set).get_fd()!!;
+		rt::Native fd        = s.reader(set).get_fd()!!;
 		char[6] ramp;
-		sz got = sys_read(fd, &ramp, 6);
+		sz got               = sys_read(fd, &ramp, 6);
 		expect(got == 6 && ramp[0] == 1 && ramp[5] == 6, "gamma ramp bytes did not arrive intact");
 		display::native_close(fd);
 	};
@@ -206,8 +203,8 @@ fn int output_management_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		uint manager = expect_bind(s, registry, 5, "zwlr_output_manager_v1", 4);
+		uint registry          = serve_registry(s);
+		uint manager           = expect_bind(s, registry, 5, "zwlr_output_manager_v1", 4);
 		wire::Writer head;
 		head.begin(manager, 0);
 		head.put_new_id(SERVER_OBJECT_A)!!;
@@ -230,12 +227,12 @@ fn int output_management_scenario(void* arg)
 		done.put_uint(7)!!;
 		s.send(&done)!!;
 		testing::Message create = expect_request(s, manager, 0);
-		wire::Reader c = s.reader(create);
-		uint configuration = c.get_new_id()!!;
+		wire::Reader c          = s.reader(create);
+		uint configuration      = c.get_new_id()!!;
 		expect(c.get_uint()!! == 7, "configuration for the wrong serial");
 		testing::Message enable = expect_request(s, configuration, 0);
-		wire::Reader e = s.reader(enable);
-		uint config_head = e.get_new_id()!!;
+		wire::Reader e          = s.reader(enable);
+		uint config_head        = e.get_new_id()!!;
 		expect(e.get_object()!! == SERVER_OBJECT_A, "enabled the wrong head");
 		testing::Message set_mode = expect_request(s, config_head, 0);
 		expect(s.reader(set_mode).get_object()!! == SERVER_OBJECT_B, "set the wrong mode");
@@ -252,12 +249,12 @@ fn int data_control_scenario(void* arg)
 	foreign::@foreign_entry()
 	{
 		testing::MockServer* s = (testing::MockServer*)arg;
-		uint registry = serve_registry(s);
-		uint seat = expect_bind(s, registry, 4, "wl_seat", 7);
-		uint manager = expect_bind(s, registry, 6, "zwlr_data_control_manager_v1", 2);
-		testing::Message get = expect_request(s, manager, 1);
-		wire::Reader g = s.reader(get);
-		uint device = g.get_new_id()!!;
+		uint registry          = serve_registry(s);
+		uint seat              = expect_bind(s, registry, 4, "wl_seat", 7);
+		uint manager           = expect_bind(s, registry, 6, "zwlr_data_control_manager_v1", 2);
+		testing::Message get   = expect_request(s, manager, 1);
+		wire::Reader g         = s.reader(get);
+		uint device            = g.get_new_id()!!;
 		expect(g.get_object()!! == seat, "device for the wrong seat");
 		wire::Writer offer;
 		offer.begin(device, 0);
@@ -272,10 +269,10 @@ fn int data_control_scenario(void* arg)
 		selection.put_object(SERVER_OBJECT_C)!!;
 		s.send(&selection)!!;
 		testing::Message receive = expect_request(s, SERVER_OBJECT_C, 0);
-		wire::Reader r = s.reader(receive);
+		wire::Reader r           = s.reader(receive);
 		expect(r.get_string()!! == "text/plain", "wrong mime type requested");
 		rt::Native fd = r.get_fd()!!;
-		char[] hello = "hello";
+		char[] hello  = "hello";
 		expect(sys_write(fd, hello.ptr, hello.len) == 5, "could not write the offer");
 		display::native_close(fd);
 	};
@@ -289,7 +286,7 @@ fn int protocol_error_scenario(void* arg)
 		testing::MockServer* s = (testing::MockServer*)arg;
 		advertise_registry(s);
 		testing::Message sync = expect_request(s, display::DISPLAY_ID, 0);
-		uint callback = s.reader(sync).get_new_id()!!;
+		uint callback         = s.reader(sync).get_new_id()!!;
 		wire::Writer failure;
 		failure.begin(display::DISPLAY_ID, 0);
 		failure.put_uint(callback)!!;
@@ -328,15 +325,32 @@ struct OutputState
 	uint width;
 }
 
-fn void on_geometry(void* context, wayland::WlOutput* target, int x, int y, int physical_width, int physical_height,
-	wayland::WlOutputSubpixel subpixel, String make, String model, wayland::WlOutputTransform transform)
+fn void on_geometry(
+	void* context,
+	wayland::WlOutput* target,
+	int x,
+	int y,
+	int physical_width,
+	int physical_height,
+	wayland::WlOutputSubpixel subpixel,
+	String make,
+	String model,
+	wayland::WlOutputTransform transform
+)
 {
 	OutputState* state = (OutputState*)context;
 	state.geometry_seen = true;
 	state.make_is_acme = make == "Acme";
 }
 
-fn void on_mode(void* context, wayland::WlOutput* target, wayland::WlOutputMode flags, int width, int height, int refresh)
+fn void on_mode(
+	void* context,
+	wayland::WlOutput* target,
+	wayland::WlOutputMode flags,
+	int width,
+	int height,
+	int refresh
+)
 {
 	OutputState* state = (OutputState*)context;
 	state.width = (uint)width;
@@ -348,7 +362,11 @@ fn void on_output_done(void* context, wayland::WlOutput* target)
 	state.done = true;
 }
 
-const wayland::WlOutputListener OUTPUT_LISTENER = { .geometry = &on_geometry, .mode = &on_mode, .done = &on_output_done };
+const wayland::WlOutputListener OUTPUT_LISTENER = {
+	.geometry = &on_geometry,
+	.mode = &on_mode,
+	.done = &on_output_done
+};
 
 struct IdleState
 {
@@ -393,7 +411,11 @@ struct OutputManagerState
 	bool head_named;
 }
 
-fn void on_head(void* context, wlr_output_management::ZwlrOutputManagerV1* target, wlr_output_management::ZwlrOutputHeadV1* head)
+fn void on_head(
+	void* context,
+	wlr_output_management::ZwlrOutputManagerV1* target,
+	wlr_output_management::ZwlrOutputHeadV1* head
+)
 {
 	OutputManagerState* state = (OutputManagerState*)context;
 	state.head = head;
@@ -407,7 +429,10 @@ fn void on_manager_done(void* context, wlr_output_management::ZwlrOutputManagerV
 	state.done = true;
 }
 
-const wlr_output_management::ZwlrOutputManagerV1Listener MANAGER_LISTENER = { .head = &on_head, .done = &on_manager_done };
+const wlr_output_management::ZwlrOutputManagerV1Listener MANAGER_LISTENER = {
+	.head = &on_head,
+	.done = &on_manager_done
+};
 
 fn void on_head_name(void* context, wlr_output_management::ZwlrOutputHeadV1* target, String name)
 {
@@ -415,7 +440,11 @@ fn void on_head_name(void* context, wlr_output_management::ZwlrOutputHeadV1* tar
 	state.head_named = name == "DP-1";
 }
 
-fn void on_head_mode(void* context, wlr_output_management::ZwlrOutputHeadV1* target, wlr_output_management::ZwlrOutputModeV1* mode)
+fn void on_head_mode(
+	void* context,
+	wlr_output_management::ZwlrOutputHeadV1* target,
+	wlr_output_management::ZwlrOutputModeV1* mode
+)
 {
 	OutputManagerState* state = (OutputManagerState*)context;
 	state.mode = mode;
@@ -437,19 +466,30 @@ struct OfferState
 	bool selected_seen;
 }
 
-fn void on_data_offer(void* context, wlr_data_control::ZwlrDataControlDeviceV1* target, wlr_data_control::ZwlrDataControlOfferV1* id)
+fn void on_data_offer(
+	void* context,
+	wlr_data_control::ZwlrDataControlDeviceV1* target,
+	wlr_data_control::ZwlrDataControlOfferV1* id
+)
 {
 	// The offer's own events are not needed here.
 }
 
-fn void on_selection(void* context, wlr_data_control::ZwlrDataControlDeviceV1* target, wlr_data_control::ZwlrDataControlOfferV1* id)
+fn void on_selection(
+	void* context,
+	wlr_data_control::ZwlrDataControlDeviceV1* target,
+	wlr_data_control::ZwlrDataControlOfferV1* id
+)
 {
 	OfferState* state = (OfferState*)context;
 	state.selected = id;
 	state.selected_seen = true;
 }
 
-const wlr_data_control::ZwlrDataControlDeviceV1Listener DEVICE_LISTENER = { .data_offer = &on_data_offer, .selection = &on_selection };
+const wlr_data_control::ZwlrDataControlDeviceV1Listener DEVICE_LISTENER = {
+	.data_offer = &on_data_offer,
+	.selection = &on_selection
+};
 
 // Shared client-side setup: a connected client and a scenario server on a socket pair.
 // The caller owns both and closes them with defer.
@@ -495,9 +535,9 @@ fn void bind_negotiates_the_lower_version() @test
 	Thread t;
 	t.create(&output_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals = client.globals_view();
+	Global[] globals       = client.globals_view();
 	display::Proxy* output = client.bind(globals[0], wayland::WL_OUTPUT)!!;
-	display::Proxy* seat = client.bind(globals[3], wayland::WL_SEAT)!!;
+	display::Proxy* seat   = client.bind(globals[3], wayland::WL_SEAT)!!;
 	test::eq(output.version, 4u);
 	test::eq(seat.version, 7u);
 	OutputState state;
@@ -531,9 +571,15 @@ fn void idle_notification_reports_idled_then_resumed() @test
 	Thread t;
 	t.create(&idle_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals = client.globals_view();
-	ext_idle_notify::ExtIdleNotifierV1* notifier = (ext_idle_notify::ExtIdleNotifierV1*)client.bind(globals[2], ext_idle_notify::EXT_IDLE_NOTIFIER_V1)!!;
-	wayland::WlSeat* seat = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
+	Global[] globals                                     = client.globals_view();
+	ext_idle_notify::ExtIdleNotifierV1* notifier         = (ext_idle_notify::ExtIdleNotifierV1*)client.bind(
+		globals[2],
+		ext_idle_notify::EXT_IDLE_NOTIFIER_V1
+	)!!;
+	wayland::WlSeat* seat                                = (wayland::WlSeat*)client.bind(
+		globals[3],
+		wayland::WL_SEAT
+	)!!;
 	ext_idle_notify::ExtIdleNotificationV1* notification = notifier.get_idle_notification(5000, seat)!!;
 	IdleState state;
 	notification.set_listener(&IDLE_LISTENER, &state);
@@ -553,10 +599,16 @@ fn void gamma_ramp_is_passed_as_a_descriptor() @test
 	Thread t;
 	t.create(&gamma_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals = client.globals_view();
-	wayland::WlOutput* output = (wayland::WlOutput*)client.bind(globals[0], wayland::WL_OUTPUT)!!;
-	wlr_gamma_control::ZwlrGammaControlManagerV1* manager = (wlr_gamma_control::ZwlrGammaControlManagerV1*)client.bind(globals[1], wlr_gamma_control::ZWLR_GAMMA_CONTROL_MANAGER_V1)!!;
-	wlr_gamma_control::ZwlrGammaControlV1* control = manager.get_gamma_control(output)!!;
+	Global[] globals                                      = client.globals_view();
+	wayland::WlOutput* output                             = (wayland::WlOutput*)client.bind(
+		globals[0],
+		wayland::WL_OUTPUT
+	)!!;
+	wlr_gamma_control::ZwlrGammaControlManagerV1* manager = (wlr_gamma_control::ZwlrGammaControlManagerV1*)client.bind(
+		globals[1],
+		wlr_gamma_control::ZWLR_GAMMA_CONTROL_MANAGER_V1
+	)!!;
+	wlr_gamma_control::ZwlrGammaControlV1* control        = manager.get_gamma_control(output)!!;
 	GammaState state;
 	control.set_listener(&GAMMA_LISTENER, &state);
 	client.flush()!!;
@@ -583,8 +635,11 @@ fn void output_configuration_round_trips_server_objects() @test
 	Thread t;
 	t.create(&output_management_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals = client.globals_view();
-	wlr_output_management::ZwlrOutputManagerV1* manager = (wlr_output_management::ZwlrOutputManagerV1*)client.bind(globals[4], wlr_output_management::ZWLR_OUTPUT_MANAGER_V1)!!;
+	Global[] globals                                    = client.globals_view();
+	wlr_output_management::ZwlrOutputManagerV1* manager = (wlr_output_management::ZwlrOutputManagerV1*)client.bind(
+		globals[4],
+		wlr_output_management::ZWLR_OUTPUT_MANAGER_V1
+	)!!;
 	OutputManagerState state;
 	manager.set_listener(&MANAGER_LISTENER, &state);
 	client.flush()!!;
@@ -611,10 +666,13 @@ fn void selected_offer_is_received_through_a_pipe() @test
 	Thread t;
 	t.create(&data_control_scenario, &server)!!;
 	client.roundtrip()!!;
-	Global[] globals = client.globals_view();
-	wayland::WlSeat* seat = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
-	wlr_data_control::ZwlrDataControlManagerV1* manager = (wlr_data_control::ZwlrDataControlManagerV1*)client.bind(globals[5], wlr_data_control::ZWLR_DATA_CONTROL_MANAGER_V1)!!;
-	wlr_data_control::ZwlrDataControlDeviceV1* device = manager.get_data_device(seat)!!;
+	Global[] globals                                    = client.globals_view();
+	wayland::WlSeat* seat                               = (wayland::WlSeat*)client.bind(globals[3], wayland::WL_SEAT)!!;
+	wlr_data_control::ZwlrDataControlManagerV1* manager = (wlr_data_control::ZwlrDataControlManagerV1*)client.bind(
+		globals[5],
+		wlr_data_control::ZWLR_DATA_CONTROL_MANAGER_V1
+	)!!;
+	wlr_data_control::ZwlrDataControlDeviceV1* device   = manager.get_data_device(seat)!!;
 	OfferState state;
 	device.set_listener(&DEVICE_LISTENER, &state);
 	client.flush()!!;

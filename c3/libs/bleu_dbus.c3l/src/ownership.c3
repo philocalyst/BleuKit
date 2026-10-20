@@ -100,11 +100,11 @@ fn OwnedName*? Connection.own_name(
 fn void? OwnedName.release(&self)
 {
 	Connection* c = self.connection;
-	bool was_held = self.held;
-	self.held = false;
 	defer free_owned(self);
 	self.unsubscribe_signals();
-	if (was_held) c.release_name(self.name.str_view())!;
+	// A queued request is withdrawn too, so the bus does not grant the name later.
+	// A closed connection has no names left to give back.
+	if (c.is_open) c.release_name(self.name.str_view())!;
 }
 
 // Subscribes to NameAcquired and NameLost for the name, sent to this connection by the bus.

@@ -35,7 +35,9 @@ fn void serve_local(void* state, KeyringHub* hub, Host{Command}* host, LocalExec
 				execute(state, hub, &commands[i]);
 			};
 		}
-		if (catch poller.wait(LOCAL_IDLE_TIMEOUT)) {}
+		if (catch poller.wait(LOCAL_IDLE_TIMEOUT))
+		{
+		}
 	}
 }
 
@@ -43,7 +45,11 @@ fn void serve_local(void* state, KeyringHub* hub, Host{Command}* host, LocalExec
 fn void emit_local(KeyringHub* hub, EventKind kind, String service, String account)
 {
 	Packet{Event}* packet = hub.emit_begin();
-	packet.value = { .kind = kind, .service = service.copy(packet.allocator()), .account = account.copy(packet.allocator()) };
+	packet.value = {
+		.kind = kind,
+		.service = service.copy(packet.allocator()),
+		.account = account.copy(packet.allocator())
+	};
 	hub.emit(packet);
 }
 

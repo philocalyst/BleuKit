@@ -8,7 +8,11 @@ import bleu::wl::proto::wayland;
  zwlr_data_control_manager_v1 version 2.
  This interface is a manager that allows creating per-seat data device controls.
 *>
-const display::Interface ZWLR_DATA_CONTROL_MANAGER_V1 = { .name = "zwlr_data_control_manager_v1", .version = 2, .dispatch = &zwlr_data_control_manager_v1_dispatch };
+const display::Interface ZWLR_DATA_CONTROL_MANAGER_V1 = {
+	.name = "zwlr_data_control_manager_v1",
+	.version = 2,
+	.dispatch = &zwlr_data_control_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_data_control_manager_v1 object. The proxy is the first field, so a
@@ -62,12 +66,23 @@ fn void? ZwlrDataControlManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_data_control_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_data_control_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_data_control_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_data_control_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -76,7 +91,11 @@ fn void? zwlr_data_control_manager_v1_dispatch(display::Display* conn, display::
  This interface allows a client to manage a seat's selection. When the seat is destroyed,
  this object becomes inert.
 *>
-const display::Interface ZWLR_DATA_CONTROL_DEVICE_V1 = { .name = "zwlr_data_control_device_v1", .version = 2, .dispatch = &zwlr_data_control_device_v1_dispatch };
+const display::Interface ZWLR_DATA_CONTROL_DEVICE_V1 = {
+	.name = "zwlr_data_control_device_v1",
+	.version = 2,
+	.dispatch = &zwlr_data_control_device_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_data_control_device_v1 object. The proxy is the first field, so a
@@ -104,7 +123,11 @@ constset ZwlrDataControlDeviceV1Error : uint
  object will send out wlr_data_control_offer.offer events to describe the MIME types it
  offers.
 *>
-alias ZwlrDataControlDeviceV1DataOfferFn = fn void(void* context, ZwlrDataControlDeviceV1* target, ZwlrDataControlOfferV1* id);
+alias ZwlrDataControlDeviceV1DataOfferFn = fn void(
+	void* context,
+	ZwlrDataControlDeviceV1* target,
+	ZwlrDataControlOfferV1* id
+);
 
 <*
  Event zwlr_data_control_device_v1.selection: The selection event is sent out to notify the
@@ -116,7 +139,11 @@ alias ZwlrDataControlDeviceV1DataOfferFn = fn void(void* context, ZwlrDataContro
  selection wlr_data_control_offer, if any, upon receiving this event. The first selection
  event is sent upon binding the wlr_data_control_device object.
 *>
-alias ZwlrDataControlDeviceV1SelectionFn = fn void(void* context, ZwlrDataControlDeviceV1* target, ZwlrDataControlOfferV1* id);
+alias ZwlrDataControlDeviceV1SelectionFn = fn void(
+	void* context,
+	ZwlrDataControlDeviceV1* target,
+	ZwlrDataControlOfferV1* id
+);
 
 <*
  Event zwlr_data_control_device_v1.finished: This data control object is no longer valid and
@@ -135,7 +162,11 @@ alias ZwlrDataControlDeviceV1FinishedFn = fn void(void* context, ZwlrDataControl
  receiving this event. If the compositor supports primary selection, the first
  primary_selection event is sent upon binding the wlr_data_control_device object.
 *>
-alias ZwlrDataControlDeviceV1PrimarySelectionFn = fn void(void* context, ZwlrDataControlDeviceV1* target, ZwlrDataControlOfferV1* id);
+alias ZwlrDataControlDeviceV1PrimarySelectionFn = fn void(
+	void* context,
+	ZwlrDataControlDeviceV1* target,
+	ZwlrDataControlOfferV1* id
+);
 
 <*
  Event handlers of zwlr_data_control_device_v1. A null field ignores its event. Strings and
@@ -202,57 +233,86 @@ fn void? ZwlrDataControlDeviceV1.set_primary_selection(&self, ZwlrDataControlSou
 	w.begin(self.base.id, 2);
 	if (self.base.version < 2)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_data_control_device_v1.set_primary_selection needs version 2, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_data_control_device_v1.set_primary_selection needs version 2, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_object(source == null ? 0 : source.base.id)!;
 	self.base.conn.send(&w)!;
 }
 
-fn void? zwlr_data_control_device_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_data_control_device_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrDataControlDeviceV1Listener* listener = (ZwlrDataControlDeviceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint id_id = args.get_new_id()!;
-			ZwlrDataControlOfferV1* id = (ZwlrDataControlOfferV1*)(conn.server_object(id_id, ZWLR_DATA_CONTROL_OFFER_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.data_offer != null)
+
 			{
-				listener.data_offer(proxy.context, (ZwlrDataControlDeviceV1*)proxy, id);
+				uint id_id                 = args.get_new_id()!;
+				ZwlrDataControlOfferV1* id = (ZwlrDataControlOfferV1*)(conn.server_object(
+					id_id,
+					ZWLR_DATA_CONTROL_OFFER_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.data_offer != null)
+				{
+					listener.data_offer(proxy.context, (ZwlrDataControlDeviceV1*)proxy, id);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint id = args.get_object()!;
-			display::Proxy* id_obj = conn.find(id);
-			if (!proxy.zombie && listener != null && listener.selection != null)
+
 			{
-				listener.selection(proxy.context, (ZwlrDataControlDeviceV1*)proxy, (ZwlrDataControlOfferV1*)id_obj);
+				uint id                = args.get_object()!;
+				display::Proxy* id_obj = conn.find(id);
+				if (!proxy.zombie && listener != null && listener.selection != null)
+				{
+					listener.selection(proxy.context, (ZwlrDataControlDeviceV1*)proxy, (ZwlrDataControlOfferV1*)id_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ZwlrDataControlDeviceV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ZwlrDataControlDeviceV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint id = args.get_object()!;
-			display::Proxy* id_obj = conn.find(id);
-			if (!proxy.zombie && listener != null && listener.primary_selection != null)
+
 			{
-				listener.primary_selection(proxy.context, (ZwlrDataControlDeviceV1*)proxy, (ZwlrDataControlOfferV1*)id_obj);
+				uint id                = args.get_object()!;
+				display::Proxy* id_obj = conn.find(id);
+				if (!proxy.zombie && listener != null && listener.primary_selection != null)
+				{
+					listener.primary_selection(
+						proxy.context,
+						(ZwlrDataControlDeviceV1*)proxy,
+						(ZwlrDataControlOfferV1*)id_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_data_control_device_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_data_control_device_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -262,7 +322,11 @@ fn void? zwlr_data_control_device_v1_dispatch(display::Display* conn, display::P
  created by the source client in a data transfer and provides a way to describe the offered
  data and a way to respond to requests to transfer the data.
 *>
-const display::Interface ZWLR_DATA_CONTROL_SOURCE_V1 = { .name = "zwlr_data_control_source_v1", .version = 1, .dispatch = &zwlr_data_control_source_v1_dispatch };
+const display::Interface ZWLR_DATA_CONTROL_SOURCE_V1 = {
+	.name = "zwlr_data_control_source_v1",
+	.version = 1,
+	.dispatch = &zwlr_data_control_source_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_data_control_source_v1 object. The proxy is the first field, so a
@@ -285,7 +349,12 @@ constset ZwlrDataControlSourceV1Error : uint
  Event zwlr_data_control_source_v1.send: Request for data from the client. Send the data as
  the specified MIME type over the passed file descriptor, then close it.
 *>
-alias ZwlrDataControlSourceV1SendFn = fn void(void* context, ZwlrDataControlSourceV1* target, String mime_type, Native fd);
+alias ZwlrDataControlSourceV1SendFn = fn void(
+	void* context,
+	ZwlrDataControlSourceV1* target,
+	String mime_type,
+	Native fd
+);
 
 <*
  Event zwlr_data_control_source_v1.cancelled: This data source is no longer valid. The data
@@ -341,35 +410,48 @@ fn void? ZwlrDataControlSourceV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_data_control_source_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_data_control_source_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrDataControlSourceV1Listener* listener = (ZwlrDataControlSourceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			Native fd = args.get_fd()!;
-			if (!proxy.zombie && listener != null && listener.send != null)
+
 			{
-				listener.send(proxy.context, (ZwlrDataControlSourceV1*)proxy, mime_type, fd);
+				String mime_type = args.get_string()!;
+				Native fd        = args.get_fd()!;
+				if (!proxy.zombie && listener != null && listener.send != null)
+				{
+					listener.send(proxy.context, (ZwlrDataControlSourceV1*)proxy, mime_type, fd);
+				}
+				else
+				{
+					conn.close_native(fd);
+				}
+				return;
 			}
-			else
-			{
-				conn.close_native(fd);
-			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.cancelled != null)
+
 			{
-				listener.cancelled(proxy.context, (ZwlrDataControlSourceV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.cancelled != null)
+				{
+					listener.cancelled(proxy.context, (ZwlrDataControlSourceV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_data_control_source_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_data_control_source_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -380,7 +462,11 @@ fn void? zwlr_data_control_source_v1_dispatch(display::Display* conn, display::P
  converted to and provides the mechanism for transferring the data directly from the source
  client.
 *>
-const display::Interface ZWLR_DATA_CONTROL_OFFER_V1 = { .name = "zwlr_data_control_offer_v1", .version = 1, .dispatch = &zwlr_data_control_offer_v1_dispatch };
+const display::Interface ZWLR_DATA_CONTROL_OFFER_V1 = {
+	.name = "zwlr_data_control_offer_v1",
+	.version = 1,
+	.dispatch = &zwlr_data_control_offer_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_data_control_offer_v1 object. The proxy is the first field, so a
@@ -447,21 +533,33 @@ fn void? ZwlrDataControlOfferV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_data_control_offer_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_data_control_offer_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrDataControlOfferV1Listener* listener = (ZwlrDataControlOfferV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.offer != null)
+
 			{
-				listener.offer(proxy.context, (ZwlrDataControlOfferV1*)proxy, mime_type);
+				String mime_type = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.offer != null)
+				{
+					listener.offer(proxy.context, (ZwlrDataControlOfferV1*)proxy, mime_type);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_data_control_offer_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_data_control_offer_v1",
+				opcode
+			)~;
 	}
 }

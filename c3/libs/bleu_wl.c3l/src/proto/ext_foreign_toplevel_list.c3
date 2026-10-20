@@ -15,7 +15,11 @@ import bleu::error, bleu::rt, bleu::wl::display, bleu::wl::wire;
  implementation sends the ext_foreign_toplevel_list_v1.finished event after the global is
  bound, the compositor must not send any ext_foreign_toplevel_list_v1.toplevel events.
 *>
-const display::Interface EXT_FOREIGN_TOPLEVEL_LIST_V1 = { .name = "ext_foreign_toplevel_list_v1", .version = 1, .dispatch = &ext_foreign_toplevel_list_v1_dispatch };
+const display::Interface EXT_FOREIGN_TOPLEVEL_LIST_V1 = {
+	.name = "ext_foreign_toplevel_list_v1",
+	.version = 1,
+	.dispatch = &ext_foreign_toplevel_list_v1_dispatch
+};
 
 <*
  Typed view of a ext_foreign_toplevel_list_v1 object. The proxy is the first field, so a
@@ -34,7 +38,11 @@ struct ExtForeignToplevelListV1
  ext_foreign_toplevel_handle_v1. The compositor will use the
  ext_foreign_toplevel_handle_v1.done event to indicate when all data has been sent.
 *>
-alias ExtForeignToplevelListV1ToplevelFn = fn void(void* context, ExtForeignToplevelListV1* target, ExtForeignToplevelHandleV1* toplevel);
+alias ExtForeignToplevelListV1ToplevelFn = fn void(
+	void* context,
+	ExtForeignToplevelListV1* target,
+	ExtForeignToplevelHandleV1* toplevel
+);
 
 <*
  Event ext_foreign_toplevel_list_v1.finished: This event indicates that the compositor is
@@ -95,31 +103,48 @@ fn void? ExtForeignToplevelListV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_foreign_toplevel_list_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? ext_foreign_toplevel_list_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ExtForeignToplevelListV1Listener* listener = (ExtForeignToplevelListV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint toplevel_id = args.get_new_id()!;
-			ExtForeignToplevelHandleV1* toplevel = (ExtForeignToplevelHandleV1*)(conn.server_object(toplevel_id, EXT_FOREIGN_TOPLEVEL_HANDLE_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.toplevel != null)
+
 			{
-				listener.toplevel(proxy.context, (ExtForeignToplevelListV1*)proxy, toplevel);
+				uint toplevel_id                     = args.get_new_id()!;
+				ExtForeignToplevelHandleV1* toplevel = (ExtForeignToplevelHandleV1*)(conn.server_object(
+					toplevel_id,
+					EXT_FOREIGN_TOPLEVEL_HANDLE_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.toplevel != null)
+				{
+					listener.toplevel(proxy.context, (ExtForeignToplevelListV1*)proxy, toplevel);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ExtForeignToplevelListV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ExtForeignToplevelListV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_foreign_toplevel_list_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of ext_foreign_toplevel_list_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -128,7 +153,11 @@ fn void? ext_foreign_toplevel_list_v1_dispatch(display::Display* conn, display::
  A ext_foreign_toplevel_handle_v1 object represents a mapped toplevel window. A single app
  may have multiple mapped toplevels.
 *>
-const display::Interface EXT_FOREIGN_TOPLEVEL_HANDLE_V1 = { .name = "ext_foreign_toplevel_handle_v1", .version = 1, .dispatch = &ext_foreign_toplevel_handle_v1_dispatch };
+const display::Interface EXT_FOREIGN_TOPLEVEL_HANDLE_V1 = {
+	.name = "ext_foreign_toplevel_handle_v1",
+	.version = 1,
+	.dispatch = &ext_foreign_toplevel_handle_v1_dispatch
+};
 
 <*
  Typed view of a ext_foreign_toplevel_handle_v1 object. The proxy is the first field, so a
@@ -186,7 +215,11 @@ alias ExtForeignToplevelHandleV1AppIdFn = fn void(void* context, ExtForeignTople
  compositor includes an opaque generation value in identifiers. How the generation value is
  used when generating the identifier is implementation dependent.
 *>
-alias ExtForeignToplevelHandleV1IdentifierFn = fn void(void* context, ExtForeignToplevelHandleV1* target, String identifier);
+alias ExtForeignToplevelHandleV1IdentifierFn = fn void(
+	void* context,
+	ExtForeignToplevelHandleV1* target,
+	String identifier
+);
 
 <*
  Event handlers of ext_foreign_toplevel_handle_v1. A null field ignores its event. Strings
@@ -231,55 +264,71 @@ fn void? ExtForeignToplevelHandleV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? ext_foreign_toplevel_handle_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? ext_foreign_toplevel_handle_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ExtForeignToplevelHandleV1Listener* listener = (ExtForeignToplevelHandleV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			if (!proxy.zombie && listener != null && listener.closed != null)
+
 			{
-				listener.closed(proxy.context, (ExtForeignToplevelHandleV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.closed != null)
+				{
+					listener.closed(proxy.context, (ExtForeignToplevelHandleV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.done != null)
+
 			{
-				listener.done(proxy.context, (ExtForeignToplevelHandleV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.done != null)
+				{
+					listener.done(proxy.context, (ExtForeignToplevelHandleV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			String title = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.title != null)
+
 			{
-				listener.title(proxy.context, (ExtForeignToplevelHandleV1*)proxy, title);
+				String title = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.title != null)
+				{
+					listener.title(proxy.context, (ExtForeignToplevelHandleV1*)proxy, title);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			String app_id = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.app_id != null)
+
 			{
-				listener.app_id(proxy.context, (ExtForeignToplevelHandleV1*)proxy, app_id);
+				String app_id = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.app_id != null)
+				{
+					listener.app_id(proxy.context, (ExtForeignToplevelHandleV1*)proxy, app_id);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			String identifier = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.identifier != null)
+
 			{
-				listener.identifier(proxy.context, (ExtForeignToplevelHandleV1*)proxy, identifier);
+				String identifier = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.identifier != null)
+				{
+					listener.identifier(proxy.context, (ExtForeignToplevelHandleV1*)proxy, identifier);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_foreign_toplevel_handle_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of ext_foreign_toplevel_handle_v1",
+				opcode
+			)~;
 	}
 }

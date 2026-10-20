@@ -13,7 +13,7 @@ import std::time, bleu::error, bleu::rt::poller, bleu::rt::worker, bleu::service
 <* The longest the loop sleeps when neither a command nor bus traffic arrives: 1 s. *>
 const Duration IDLE_TIMEOUT = (Duration)1_000_000;
 <* Poller tag of the bus connection; the wake-up has its own. *>
-const usz BUS_TAG = 1;
+const usz BUS_TAG           = 1;
 
 // The worker thread: serve commands and bus traffic until the service stops.
 fn void run(void* state, KeyringHub* hub, Host{Command}* host)
@@ -66,13 +66,19 @@ fn void wait_for_work(SsBackend* b, Poller* poller)
 		if (try fd = b.bus.fd())
 		{
 			watching = true;
-			if (catch poller.add({ .handle = (Native)fd, .interest = { .readable = true }, .tag = BUS_TAG })) watching = false;
+			if (catch poller.add(
+				{ .handle = (Native)fd, .interest = { .readable = true }, .tag = BUS_TAG }
+			)) watching = false;
 		}
 	}
-	if (catch poller.wait(IDLE_TIMEOUT)) {}
+	if (catch poller.wait(IDLE_TIMEOUT))
+	{
+	}
 	if (watching)
 	{
-		if (catch poller.remove(BUS_TAG)) {}
+		if (catch poller.remove(BUS_TAG))
+		{
+		}
 	}
 }
 

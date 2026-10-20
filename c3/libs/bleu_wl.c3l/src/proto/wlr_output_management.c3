@@ -22,7 +22,11 @@ import bleu::wl::proto::wayland;
  designed to be a generic output property advertisement protocol for regular clients.
  Instead, protocols such as xdg-output should be used.
 *>
-const display::Interface ZWLR_OUTPUT_MANAGER_V1 = { .name = "zwlr_output_manager_v1", .version = 4, .dispatch = &zwlr_output_manager_v1_dispatch };
+const display::Interface ZWLR_OUTPUT_MANAGER_V1 = {
+	.name = "zwlr_output_manager_v1",
+	.version = 4,
+	.dispatch = &zwlr_output_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_output_manager_v1 object. The proxy is the first field, so a pointer to
@@ -117,41 +121,59 @@ fn void ZwlrOutputManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_output_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_output_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrOutputManagerV1Listener* listener = (ZwlrOutputManagerV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint head_id = args.get_new_id()!;
-			ZwlrOutputHeadV1* head = (ZwlrOutputHeadV1*)(conn.server_object(head_id, ZWLR_OUTPUT_HEAD_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.head != null)
+
 			{
-				listener.head(proxy.context, (ZwlrOutputManagerV1*)proxy, head);
+				uint head_id           = args.get_new_id()!;
+				ZwlrOutputHeadV1* head = (ZwlrOutputHeadV1*)(conn.server_object(
+					head_id,
+					ZWLR_OUTPUT_HEAD_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.head != null)
+				{
+					listener.head(proxy.context, (ZwlrOutputManagerV1*)proxy, head);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint serial = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.done != null)
+
 			{
-				listener.done(proxy.context, (ZwlrOutputManagerV1*)proxy, serial);
+				uint serial = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.done != null)
+				{
+					listener.done(proxy.context, (ZwlrOutputManagerV1*)proxy, serial);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ZwlrOutputManagerV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ZwlrOutputManagerV1*)proxy);
+				}
+				conn.retire(proxy);
+				return;
 			}
-			conn.retire(proxy);
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_output_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -165,7 +187,11 @@ fn void? zwlr_output_manager_v1_dispatch(display::Display* conn, display::Proxy*
  applied atomically via the wlr_output_manager.done event. No guarantees are made regarding
  the order in which properties are sent.
 *>
-const display::Interface ZWLR_OUTPUT_HEAD_V1 = { .name = "zwlr_output_head_v1", .version = 4, .dispatch = &zwlr_output_head_v1_dispatch };
+const display::Interface ZWLR_OUTPUT_HEAD_V1 = {
+	.name = "zwlr_output_head_v1",
+	.version = 4,
+	.dispatch = &zwlr_output_head_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_output_head_v1 object. The proxy is the first field, so a pointer to
@@ -182,7 +208,7 @@ struct ZwlrOutputHeadV1
 constset ZwlrOutputHeadV1AdaptiveSyncState : uint
 {
 	DISABLED = 0,
-	ENABLED = 1,
+	ENABLED  = 1,
 }
 
 <*
@@ -249,7 +275,11 @@ alias ZwlrOutputHeadV1PositionFn = fn void(void* context, ZwlrOutputHeadV1* targ
  Event zwlr_output_head_v1.transform: This event describes the transformation currently
  applied to the head. It is only sent if the output is enabled.
 *>
-alias ZwlrOutputHeadV1TransformFn = fn void(void* context, ZwlrOutputHeadV1* target, wayland::WlOutputTransform transform);
+alias ZwlrOutputHeadV1TransformFn = fn void(
+	void* context,
+	ZwlrOutputHeadV1* target,
+	wayland::WlOutputTransform transform
+);
 
 <*
  Event zwlr_output_head_v1.scale: This events describes the scale of the head in the global
@@ -316,7 +346,11 @@ alias ZwlrOutputHeadV1SerialNumberFn = fn void(void* context, ZwlrOutputHeadV1* 
  currently enabled for the head or not. Adaptive sync is also known as Variable Refresh Rate
  or VRR.
 *>
-alias ZwlrOutputHeadV1AdaptiveSyncFn = fn void(void* context, ZwlrOutputHeadV1* target, ZwlrOutputHeadV1AdaptiveSyncState state);
+alias ZwlrOutputHeadV1AdaptiveSyncFn = fn void(
+	void* context,
+	ZwlrOutputHeadV1* target,
+	ZwlrOutputHeadV1AdaptiveSyncState state
+);
 
 <*
  Event handlers of zwlr_output_head_v1. A null field ignores its event. Strings and arrays
@@ -362,7 +396,13 @@ fn void? ZwlrOutputHeadV1.release(&self)
 	w.begin(self.base.id, 0);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_output_head_v1.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_output_head_v1.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -374,136 +414,160 @@ fn void? zwlr_output_head_v1_dispatch(display::Display* conn, display::Proxy* pr
 	switch (opcode)
 	{
 		case 0:
-		{
-			String name = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.name != null)
+
 			{
-				listener.name(proxy.context, (ZwlrOutputHeadV1*)proxy, name);
+				String name = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.name != null)
+				{
+					listener.name(proxy.context, (ZwlrOutputHeadV1*)proxy, name);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			String description = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.description != null)
+
 			{
-				listener.description(proxy.context, (ZwlrOutputHeadV1*)proxy, description);
+				String description = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.description != null)
+				{
+					listener.description(proxy.context, (ZwlrOutputHeadV1*)proxy, description);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			int width = args.get_int()!;
-			int height = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.physical_size != null)
+
 			{
-				listener.physical_size(proxy.context, (ZwlrOutputHeadV1*)proxy, width, height);
+				int width  = args.get_int()!;
+				int height = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.physical_size != null)
+				{
+					listener.physical_size(proxy.context, (ZwlrOutputHeadV1*)proxy, width, height);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			uint mode_id = args.get_new_id()!;
-			ZwlrOutputModeV1* mode = (ZwlrOutputModeV1*)(conn.server_object(mode_id, ZWLR_OUTPUT_MODE_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.mode != null)
+
 			{
-				listener.mode(proxy.context, (ZwlrOutputHeadV1*)proxy, mode);
+				uint mode_id           = args.get_new_id()!;
+				ZwlrOutputModeV1* mode = (ZwlrOutputModeV1*)(conn.server_object(
+					mode_id,
+					ZWLR_OUTPUT_MODE_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.mode != null)
+				{
+					listener.mode(proxy.context, (ZwlrOutputHeadV1*)proxy, mode);
+				}
+				return;
 			}
-			return;
-		}
 		case 4:
-		{
-			int enabled = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.enabled != null)
+
 			{
-				listener.enabled(proxy.context, (ZwlrOutputHeadV1*)proxy, enabled);
+				int enabled = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.enabled != null)
+				{
+					listener.enabled(proxy.context, (ZwlrOutputHeadV1*)proxy, enabled);
+				}
+				return;
 			}
-			return;
-		}
 		case 5:
-		{
-			uint mode = args.get_object()!;
-			display::Proxy* mode_obj = conn.find(mode);
-			if (!proxy.zombie && listener != null && listener.current_mode != null)
+
 			{
-				listener.current_mode(proxy.context, (ZwlrOutputHeadV1*)proxy, (ZwlrOutputModeV1*)mode_obj);
+				uint mode                = args.get_object()!;
+				display::Proxy* mode_obj = conn.find(mode);
+				if (!proxy.zombie && listener != null && listener.current_mode != null)
+				{
+					listener.current_mode(proxy.context, (ZwlrOutputHeadV1*)proxy, (ZwlrOutputModeV1*)mode_obj);
+				}
+				return;
 			}
-			return;
-		}
 		case 6:
-		{
-			int x = args.get_int()!;
-			int y = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.position != null)
+
 			{
-				listener.position(proxy.context, (ZwlrOutputHeadV1*)proxy, x, y);
+				int x = args.get_int()!;
+				int y = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.position != null)
+				{
+					listener.position(proxy.context, (ZwlrOutputHeadV1*)proxy, x, y);
+				}
+				return;
 			}
-			return;
-		}
 		case 7:
-		{
-			wayland::WlOutputTransform transform = (wayland::WlOutputTransform)((uint)args.get_int()!);
-			if (!proxy.zombie && listener != null && listener.transform != null)
+
 			{
-				listener.transform(proxy.context, (ZwlrOutputHeadV1*)proxy, transform);
+				wayland::WlOutputTransform transform = (wayland::WlOutputTransform)((uint)args.get_int()!);
+				if (!proxy.zombie && listener != null && listener.transform != null)
+				{
+					listener.transform(proxy.context, (ZwlrOutputHeadV1*)proxy, transform);
+				}
+				return;
 			}
-			return;
-		}
 		case 8:
-		{
-			wire::Fixed scale = args.get_fixed()!;
-			if (!proxy.zombie && listener != null && listener.scale != null)
+
 			{
-				listener.scale(proxy.context, (ZwlrOutputHeadV1*)proxy, scale);
+				wire::Fixed scale = args.get_fixed()!;
+				if (!proxy.zombie && listener != null && listener.scale != null)
+				{
+					listener.scale(proxy.context, (ZwlrOutputHeadV1*)proxy, scale);
+				}
+				return;
 			}
-			return;
-		}
 		case 9:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ZwlrOutputHeadV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ZwlrOutputHeadV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 10:
-		{
-			String make = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.make != null)
+
 			{
-				listener.make(proxy.context, (ZwlrOutputHeadV1*)proxy, make);
+				String make = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.make != null)
+				{
+					listener.make(proxy.context, (ZwlrOutputHeadV1*)proxy, make);
+				}
+				return;
 			}
-			return;
-		}
 		case 11:
-		{
-			String model = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.model != null)
+
 			{
-				listener.model(proxy.context, (ZwlrOutputHeadV1*)proxy, model);
+				String model = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.model != null)
+				{
+					listener.model(proxy.context, (ZwlrOutputHeadV1*)proxy, model);
+				}
+				return;
 			}
-			return;
-		}
 		case 12:
-		{
-			String serial_number = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.serial_number != null)
+
 			{
-				listener.serial_number(proxy.context, (ZwlrOutputHeadV1*)proxy, serial_number);
+				String serial_number = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.serial_number != null)
+				{
+					listener.serial_number(proxy.context, (ZwlrOutputHeadV1*)proxy, serial_number);
+				}
+				return;
 			}
-			return;
-		}
 		case 13:
-		{
-			ZwlrOutputHeadV1AdaptiveSyncState state = (ZwlrOutputHeadV1AdaptiveSyncState)(args.get_uint()!);
-			if (!proxy.zombie && listener != null && listener.adaptive_sync != null)
+
 			{
-				listener.adaptive_sync(proxy.context, (ZwlrOutputHeadV1*)proxy, state);
+				ZwlrOutputHeadV1AdaptiveSyncState state = (ZwlrOutputHeadV1AdaptiveSyncState)(args.get_uint()!);
+				if (!proxy.zombie && listener != null && listener.adaptive_sync != null)
+				{
+					listener.adaptive_sync(proxy.context, (ZwlrOutputHeadV1*)proxy, state);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_head_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_output_head_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -514,7 +578,11 @@ fn void? zwlr_output_head_v1_dispatch(display::Display* conn, display::Proxy* pr
  wlr_output_manager.done event. No guarantees are made regarding the order in which
  properties are sent.
 *>
-const display::Interface ZWLR_OUTPUT_MODE_V1 = { .name = "zwlr_output_mode_v1", .version = 3, .dispatch = &zwlr_output_mode_v1_dispatch };
+const display::Interface ZWLR_OUTPUT_MODE_V1 = {
+	.name = "zwlr_output_mode_v1",
+	.version = 3,
+	.dispatch = &zwlr_output_mode_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_output_mode_v1 object. The proxy is the first field, so a pointer to
@@ -584,7 +652,13 @@ fn void? ZwlrOutputModeV1.release(&self)
 	w.begin(self.base.id, 0);
 	if (self.base.version < 3)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_output_mode_v1.release needs version 3, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_output_mode_v1.release needs version 3, bound at version %d",
+			self.base.version
+		)~;
 	}
 	self.base.conn.send(&w)!;
 	self.base.conn.retire(&self.base);
@@ -596,42 +670,52 @@ fn void? zwlr_output_mode_v1_dispatch(display::Display* conn, display::Proxy* pr
 	switch (opcode)
 	{
 		case 0:
-		{
-			int width = args.get_int()!;
-			int height = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.size != null)
+
 			{
-				listener.size(proxy.context, (ZwlrOutputModeV1*)proxy, width, height);
+				int width  = args.get_int()!;
+				int height = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.size != null)
+				{
+					listener.size(proxy.context, (ZwlrOutputModeV1*)proxy, width, height);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			int refresh = args.get_int()!;
-			if (!proxy.zombie && listener != null && listener.refresh != null)
+
 			{
-				listener.refresh(proxy.context, (ZwlrOutputModeV1*)proxy, refresh);
+				int refresh = args.get_int()!;
+				if (!proxy.zombie && listener != null && listener.refresh != null)
+				{
+					listener.refresh(proxy.context, (ZwlrOutputModeV1*)proxy, refresh);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.preferred != null)
+
 			{
-				listener.preferred(proxy.context, (ZwlrOutputModeV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.preferred != null)
+				{
+					listener.preferred(proxy.context, (ZwlrOutputModeV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 3:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ZwlrOutputModeV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ZwlrOutputModeV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_mode_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_output_mode_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -644,7 +728,11 @@ fn void? zwlr_output_mode_v1_dispatch(display::Display* conn, display::Proxy* pr
  apply or test the configuration. The compositor will then reply with a succeeded, failed or
  cancelled event. Finally the client should destroy the configuration object.
 *>
-const display::Interface ZWLR_OUTPUT_CONFIGURATION_V1 = { .name = "zwlr_output_configuration_v1", .version = 4, .dispatch = &zwlr_output_configuration_v1_dispatch };
+const display::Interface ZWLR_OUTPUT_CONFIGURATION_V1 = {
+	.name = "zwlr_output_configuration_v1",
+	.version = 4,
+	.dispatch = &zwlr_output_configuration_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_output_configuration_v1 object. The proxy is the first field, so a
@@ -661,8 +749,8 @@ struct ZwlrOutputConfigurationV1
 constset ZwlrOutputConfigurationV1Error : uint
 {
 	ALREADY_CONFIGURED_HEAD = 1,
-	UNCONFIGURED_HEAD = 2,
-	ALREADY_USED = 3,
+	UNCONFIGURED_HEAD       = 2,
+	ALREADY_USED            = 3,
 }
 
 <*
@@ -783,37 +871,51 @@ fn void? ZwlrOutputConfigurationV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_output_configuration_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_output_configuration_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwlrOutputConfigurationV1Listener* listener = (ZwlrOutputConfigurationV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			if (!proxy.zombie && listener != null && listener.succeeded != null)
+
 			{
-				listener.succeeded(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.succeeded != null)
+				{
+					listener.succeeded(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.failed != null)
+
 			{
-				listener.failed(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.failed != null)
+				{
+					listener.failed(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 2:
-		{
-			if (!proxy.zombie && listener != null && listener.cancelled != null)
+
 			{
-				listener.cancelled(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.cancelled != null)
+				{
+					listener.cancelled(proxy.context, (ZwlrOutputConfigurationV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_configuration_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_output_configuration_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -822,7 +924,11 @@ fn void? zwlr_output_configuration_v1_dispatch(display::Display* conn, display::
  This object is used by the client to update a single head's configuration. It is a protocol
  error to set the same property twice.
 *>
-const display::Interface ZWLR_OUTPUT_CONFIGURATION_HEAD_V1 = { .name = "zwlr_output_configuration_head_v1", .version = 4, .dispatch = &zwlr_output_configuration_head_v1_dispatch };
+const display::Interface ZWLR_OUTPUT_CONFIGURATION_HEAD_V1 = {
+	.name = "zwlr_output_configuration_head_v1",
+	.version = 4,
+	.dispatch = &zwlr_output_configuration_head_v1_dispatch
+};
 
 <*
  Typed view of a zwlr_output_configuration_head_v1 object. The proxy is the first field, so a
@@ -838,11 +944,11 @@ struct ZwlrOutputConfigurationHeadV1
 *>
 constset ZwlrOutputConfigurationHeadV1Error : uint
 {
-	ALREADY_SET = 1,
-	INVALID_MODE = 2,
-	INVALID_CUSTOM_MODE = 3,
-	INVALID_TRANSFORM = 4,
-	INVALID_SCALE = 5,
+	ALREADY_SET                 = 1,
+	INVALID_MODE                = 2,
+	INVALID_CUSTOM_MODE         = 3,
+	INVALID_TRANSFORM           = 4,
+	INVALID_SCALE               = 5,
 	INVALID_ADAPTIVE_SYNC_STATE = 6,
 }
 
@@ -923,7 +1029,13 @@ fn void? ZwlrOutputConfigurationHeadV1.set_adaptive_sync(&self, ZwlrOutputHeadV1
 	w.begin(self.base.id, 5);
 	if (self.base.version < 4)
 	{
-		return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "zwlr_output_configuration_head_v1.set_adaptive_sync needs version 4, bound at version %d", self.base.version)~;
+		return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"zwlr_output_configuration_head_v1.set_adaptive_sync needs version 4, bound at version %d",
+			self.base.version
+		)~;
 	}
 	w.put_uint((uint)state)!;
 	self.base.conn.send(&w)!;
@@ -938,11 +1050,22 @@ fn void ZwlrOutputConfigurationHeadV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwlr_output_configuration_head_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwlr_output_configuration_head_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwlr_output_configuration_head_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwlr_output_configuration_head_v1",
+				opcode
+			)~;
 	}
 }

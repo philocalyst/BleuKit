@@ -95,7 +95,7 @@ fn Secret? open_value(SsBackend* b, WireSecret wire, Allocator allocator)
 fn void? find_items(SsBackend* b, Entry filter, List{String}* unlocked, List{String}* locked)
 {
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "SearchItems")!;
-	Writer* w = call.body_writer("a{ss}")!;
+	Writer* w     = call.body_writer("a{ss}")!;
 	write_lookup(w, filter)!;
 	w.finish()!;
 	Value[] reply = invoke(b, call, tmem)!;
@@ -143,8 +143,8 @@ fn Entry? store(SsBackend* b, Entry entry, Secret value, Atomic{bool}* cancel)
 	ensure_collection(b, cancel, entry.service, entry.account)!;
 	if (read_locked(b)!) unlock_collection(b, cancel, entry.service, entry.account)!;
 	WireSecret wire = seal(b, value.bytes, tmem)!;
-	Message* call = call_message(tmem, b.collection, COLLECTION_INTERFACE, "CreateItem")!;
-	Writer* w = call.body_writer("a{sv}(oayays)b")!;
+	Message* call   = call_message(tmem, b.collection, COLLECTION_INTERFACE, "CreateItem")!;
+	Writer* w       = call.body_writer("a{sv}(oayays)b")!;
 	write_item_properties(w, entry)!;
 	write_secret(w, wire)!;
 	w.append_bool(true)!;
@@ -161,12 +161,12 @@ fn Secret? read_value(SsBackend* b, Entry entry, Atomic{bool}* cancel, Allocator
 {
 	ensure_session(b)!;
 	ensure_collection(b, cancel, entry.service, entry.account)!;
-	String item = unlocked_item(b, entry, cancel)!;
+	String item   = unlocked_item(b, entry, cancel)!;
 	Message* call = call_message(tmem, item, ITEM_INTERFACE, "GetSecret")!;
-	Writer* w = call.body_writer("o")!;
+	Writer* w     = call.body_writer("o")!;
 	w.append_object_path(b.session)!;
 	w.finish()!;
-	Value[] reply = invoke(b, call, tmem)!;
+	Value[] reply   = invoke(b, call, tmem)!;
 	WireSecret wire = read_secret(reply[0], tmem)!;
 	return open_value(b, wire, allocator);
 }
@@ -224,7 +224,7 @@ fn Entry[]? search_entries(SsBackend* b, Entry filter, Allocator allocator)
 <* The entry an item stands for: its attributes, label and timestamps. *>
 fn Entry? item_entry(SsBackend* b, String path, Allocator allocator)
 {
-	Proxy item = proxy::for_object(&b.bus, BUS_NAME, path, ITEM_INTERFACE)!;
+	Proxy item       = proxy::for_object(&b.bus, BUS_NAME, path, ITEM_INTERFACE)!;
 	Value attributes = item.get_property("Attributes", tmem)!.unwrap();
 	List{Attribute} extra;
 	extra.init(allocator);
@@ -243,7 +243,10 @@ fn Entry? item_entry(SsBackend* b, String path, Allocator allocator)
 		.attributes = extra.array_view(),
 	};
 	if (try created = item.get_property("Created", tmem)) entry.created = maybe::value(unix_time(created.as_u64()!));
-	if (try modified = item.get_property("Modified", tmem)) entry.modified = maybe::value(unix_time(modified.as_u64()!));
+	if (try modified = item.get_property(
+		"Modified",
+		tmem
+	)) entry.modified = maybe::value(unix_time(modified.as_u64()!));
 	return entry;
 }
 
@@ -259,7 +262,9 @@ fn String text_of(Value* dict, String key, Allocator allocator)
 
 <* A timestamp given as seconds since the Unix epoch, as the Secret Service reports them. *>
 // std::time counts microseconds from the Unix epoch, which is where `time::now()` starts too.
-fn Time unix_time(ulong seconds) => ((Time)0).add_seconds((long)seconds);
+fn Time unix_time(
+	ulong seconds
+) => ((Time)0).add_seconds((long)seconds);
 
 <*
  Unlock the default collection if it is locked. Explicit unlock requests use this.

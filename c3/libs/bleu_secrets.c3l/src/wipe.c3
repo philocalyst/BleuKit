@@ -40,7 +40,7 @@ fn void*? WipingAllocator.acquire(&self, sz size, AllocInitType init_type, sz al
 {
 	if (alignment > MAX_ALIGNMENT) return mem::INVALID_ALLOC_SIZE~;
 	// The payload is zeroed on release anyway, so the inner block is always zeroed here.
-	char* base = (char*)self.inner.acquire(HEADER_SIZE + size, ZERO)!;
+	char* base     = (char*)self.inner.acquire(HEADER_SIZE + size, ZERO)!;
 	Header* header = (Header*)base;
 	header.size = size;
 	return base + HEADER_SIZE;

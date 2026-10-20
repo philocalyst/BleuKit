@@ -81,37 +81,40 @@ const uint FACILITY_SERVER = 0x0007;
 const uint FACILITY_CARD = 0x0009;
 
 <*
- Command numbers (native-common.h). Only the ones this library sends or reads.
+ Command numbers. native-common.h has one unnamed enum: the value of each name
+ is its position in it (ERROR 0, TIMEOUT 1, REPLY 2, ... AUTH 8). Checked
+ against the captured bytes of pactl (AUTH is 8 on PulseAudio 16.1) and against
+ the crate pulseaudio 0.3.2 src/protocol/command.rs (Auth = 8, GetServerInfo = 20).
 *>
 constset PulseCommand : uint
 {
 	ERROR = 0,
 	REPLY = 2,
-	AUTH = 45,
-	SET_CLIENT_NAME = 46,
-	GET_SERVER_INFO = 58,
-	GET_SINK_INFO_LIST = 60,
-	GET_SOURCE_INFO_LIST = 62,
-	GET_SINK_INPUT_INFO_LIST = 68,
-	GET_SOURCE_OUTPUT_INFO_LIST = 70,
-	SUBSCRIBE = 73,
-	SET_SINK_VOLUME = 75,
-	SET_SINK_INPUT_VOLUME = 76,
-	SET_SOURCE_VOLUME = 77,
-	SET_SINK_MUTE = 79,
-	SET_SOURCE_MUTE = 80,
-	SET_DEFAULT_SINK = 86,
-	SET_DEFAULT_SOURCE = 87,
-	SUBSCRIBE_EVENT = 116,
-	MOVE_SINK_INPUT = 121,
-	MOVE_SOURCE_OUTPUT = 122,
-	SET_SINK_INPUT_MUTE = 125,
-	GET_CARD_INFO_LIST = 159,
-	SET_CARD_PROFILE = 160,
-	SET_SINK_PORT = 171,
-	SET_SOURCE_PORT = 172,
-	SET_SOURCE_OUTPUT_VOLUME = 175,
-	SET_SOURCE_OUTPUT_MUTE = 176,
+	AUTH = 8,
+	SET_CLIENT_NAME = 9,
+	GET_SERVER_INFO = 20,
+	GET_SINK_INFO_LIST = 22,
+	GET_SOURCE_INFO_LIST = 24,
+	GET_SINK_INPUT_INFO_LIST = 30,
+	GET_SOURCE_OUTPUT_INFO_LIST = 32,
+	SUBSCRIBE = 35,
+	SET_SINK_VOLUME = 36,
+	SET_SINK_INPUT_VOLUME = 37,
+	SET_SOURCE_VOLUME = 38,
+	SET_SINK_MUTE = 39,
+	SET_SOURCE_MUTE = 40,
+	SET_DEFAULT_SINK = 44,
+	SET_DEFAULT_SOURCE = 45,
+	SUBSCRIBE_EVENT = 66,
+	MOVE_SINK_INPUT = 67,
+	MOVE_SOURCE_OUTPUT = 68,
+	SET_SINK_INPUT_MUTE = 69,
+	GET_CARD_INFO_LIST = 89,
+	SET_CARD_PROFILE = 90,
+	SET_SINK_PORT = 96,
+	SET_SOURCE_PORT = 97,
+	SET_SOURCE_OUTPUT_VOLUME = 98,
+	SET_SOURCE_OUTPUT_MUTE = 99,
 }
 
 <* Error codes of an ERROR reply (def.h:471-498, `pa_error_code`; PA_OK is 0). *>

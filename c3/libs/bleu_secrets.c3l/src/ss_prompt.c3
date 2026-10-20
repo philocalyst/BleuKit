@@ -46,7 +46,7 @@ fn void? run_prompt(SsBackend* b, String prompt, Atomic{bool}* cancel, String se
 	defer forget(b, id);
 	emit(b, PROMPT_SHOWN, service, account);
 	Message* show = call_message(tmem, prompt, PROMPT_INTERFACE, "Prompt")!;
-	Writer* w = show.body_writer("s")!;
+	Writer* w     = show.body_writer("s")!;
 	w.append_string("")!;
 	w.finish()!;
 	show.flags = message::FLAG_NO_REPLY_EXPECTED;
@@ -97,13 +97,17 @@ fn void dismiss(SsBackend* b, String prompt)
 	Message* message = call;
 	message.flags = message::FLAG_NO_REPLY_EXPECTED;
 	defer message.release();
-	if (catch b.bus.send(message)) {}
+	if (catch b.bus.send(message))
+	{
+	}
 }
 
 // Stop the Completed handler. The bus may already have dropped it with the connection, so a failure here is expected and harmless.
 fn void forget(SsBackend* b, SubscriptionId id)
 {
-	if (catch b.bus.unsubscribe(id)) {}
+	if (catch b.bus.unsubscribe(id))
+	{
+	}
 }
 
 // The Completed(dismissed, result) handler. A malformed signal counts as dismissed, so the operation does not proceed.

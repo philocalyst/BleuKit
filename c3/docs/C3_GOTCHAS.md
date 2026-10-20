@@ -90,3 +90,24 @@
 * `libc::Pid_t` needs `import libc`; `std::os::posix` does not re-export it.
 * Platform externs: names must start lower-case (`shell_execute_w` with `@cname("ShellExecuteW")`), and a `WIN32`-only module with `@link` still parses on every target, so keep its syntax clean.
 * A zero-initialised `unix::Fd` holds fd 0, not nothing: use `unix::no_fd()`.
+* `Time` (from `std::time`, wall clock) and `Duration` are distinct: cast both ways, `(Duration)now_unix_us`, never bare arithmetic across them.
+* A type named `Reader` clashes between `bleu::stream` and `bleu::dbus::marshal`: qualify (`stream::Reader{Event}*`).
+* A `typedef` numeric (`typedef PlaybackRate = double`) forces a cast on every literal; use `alias` when the type is only a documented name for a plain number.
+* `if (catch e = f()) {...} else {...}` needs braces around both branches.
+* `Anchor{ .x = ... }` is not a struct literal in 0.8.5: declare the variable and assign it.
+* No `+` on `String` and no adjacent literal concatenation: a multi-line script is one literal with `\n` escapes.
+* Cross-module enum members need qualifying even in `case` labels (`case CommandKind.PLAY:`); a local struct named like an imported enum (`Backend`) needs the module path (`media::Backend.SMTC`).
+* `c3c --sources "dir/*.c3"` does not expand the glob: pass the files through the shell (`compile-test libs/x/src/*.c3`).
+* `c3c compile-test` linking can fail with missing `build/obj` files when several engineers share the repo's `build/`: run it from a private working directory.
+* A Unix socket path is limited to 108 bytes: a dbus-daemon in a deep scratch directory fails with "Socket name too long"; use `mktemp -d /tmp/...`.
+* `c3fmt -i` and `c3fmt --check` can disagree on a declaration whose `=` is aligned with its neighbours; a blank line between them makes both agree.
+* `foreach (line : text.tokenize("\n"))` → "It's not possible to enumerate an expression of type 'Splitter'" → `Splitter s = text.tokenize("\n"); while (try line = s.next())`.
+* `alias` and `interface` are keywords: a struct field `alias` or a variable `interface` is a parse error → rename (`alias_name`, `link`).
+* `Type.sizeof` and `@sizeof(Type)` are rejected for types → `@sizeof(variable)`; `ulong.sizeof` → `ulong::size`.
+* `typedef Bytes = ulong;` is distinct: `Bytes + ulong` and `ulong` returns need casts everywhere → use `alias` for pure quantities that are summed.
+* `test::eq(a, b)` fails with "values must be equatable" for a typedef against its base type, and for `ulong` against an `int` expression → compare with the same type (`1UL`, `(ulong)x`).
+* `c3c --libdir libs` refuses to compile while any `libs/*.c3l` has no manifest.json (another agent's half-made library) → `c3c --libdir "$(tools/libdir.sh)" ...`.
+* `else if (...) x;` with a single statement after a chain that started with `if (...) x;` → "if-statements with an 'else' must use '{ }'" → brace every branch.
+* A `foreach` loop variable declared `&x` is a pointer; `(T)*x` is needed to read it as a value (`maybe::value(*average)`).
+* Function names from another module in the same library must be prefixed (`sysinfo::fill_cpu`), even inside a sub-module of that module.
+* A C symbol with `$` in its name (`getmntinfo$INODE64`) is bound with @cname like any other; to choose one of two bindings by arch, use `$if` inside the function body (top-level `$if` is not allowed).

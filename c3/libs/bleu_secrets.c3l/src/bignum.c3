@@ -16,11 +16,11 @@ module bleu::secrets::bignum;
 import bleu::error;
 
 <* Limbs in a `Num`: 1024 bits in 32-bit words. *>
-const sz LIMBS = 32;
+const sz LIMBS     = 32;
 <* Bytes in a `Num` written big-endian. *>
-const sz BYTES = 128;
+const sz BYTES     = 128;
 <* Bits in a `Num`. *>
-const sz BITS = 1024;
+const sz BITS      = 1024;
 <* Bits in one limb. *>
 const sz LIMB_BITS = 32;
 
@@ -39,7 +39,7 @@ struct Num
 fn Num? from_be(char[] bytes)
 {
 	if (bytes.len > BYTES) return error::INVALID_ARGUMENT~;
-	Num n = {};
+	Num n = { };
 	for (sz i = 0; i < bytes.len; i++)
 	{
 		sz from_low = bytes.len - 1 - i;
@@ -73,7 +73,7 @@ fn char[] Num.to_be_minimal(&self, Allocator allocator)
 	self.to_be(full[..]);
 	sz first = 0;
 	while (first < BYTES - 1 && full[first] == 0) first++;
-	return alloc::clone_slice(allocator, full[first : BYTES - first]);
+	return alloc::clone_slice(allocator, full[first:BYTES - first]);
 }
 
 <* True for zero. *>
@@ -156,7 +156,7 @@ struct Montgomery
 *>
 fn Montgomery? montgomery_for(Num modulus)
 {
-	Num two = {};
+	Num two = { };
 	two.limbs[0] = 2;
 	if (modulus.limbs[0] % 2 == 0 || modulus.compare(&two) <= 0) return error::INVALID_ARGUMENT~;
 	Montgomery m = { .modulus = modulus };
@@ -181,7 +181,7 @@ fn Montgomery? montgomery_for(Num modulus)
 *>
 fn Num Montgomery.mul(&self, Num* a, Num* b)
 {
-	uint[LIMBS + 2] t = {};
+	uint[LIMBS + 2] t = { };
 	for (sz i = 0; i < LIMBS; i++)
 	{
 		ulong carry = 0;
@@ -207,7 +207,7 @@ fn Num Montgomery.mul(&self, Num* a, Num* b)
 		t[LIMBS - 1] = (uint)top;
 		t[LIMBS] = t[LIMBS + 1] + (uint)(top >> 32);
 	}
-	Num result = {};
+	Num result = { };
 	for (sz i = 0; i < LIMBS; i++) result.limbs[i] = t[i];
 	// The result is below 2 * modulus, so one subtraction reduces it.
 	if (t[LIMBS] != 0 || result.compare(&self.modulus) >= 0) result.sub_assign(&self.modulus);
@@ -225,13 +225,13 @@ fn Num Montgomery.mul(&self, Num* a, Num* b)
 fn Num Montgomery.pow(&self, Num* base, Num* exponent)
 {
 	Num base_m = self.mul(base, &self.r2);
-	Num acc = self.one;
+	Num acc    = self.one;
 	for (sz i = BITS - 1; i >= 0; i--)
 	{
 		acc = self.mul(&acc, &acc);
 		if (exponent.bit(i)) acc = self.mul(&acc, &base_m);
 	}
-	Num plain_one = {};
+	Num plain_one = { };
 	plain_one.limbs[0] = 1;
 	return self.mul(&acc, &plain_one);
 }

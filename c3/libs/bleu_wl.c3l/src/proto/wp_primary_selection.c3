@@ -10,7 +10,11 @@ import bleu::wl::proto::wayland;
  the primary selection. It allows to create wp_primary_selection_source objects, as well as
  retrieving the per-seat wp_primary_selection_device objects.
 *>
-const display::Interface ZWP_PRIMARY_SELECTION_DEVICE_MANAGER_V1 = { .name = "zwp_primary_selection_device_manager_v1", .version = 1, .dispatch = &zwp_primary_selection_device_manager_v1_dispatch };
+const display::Interface ZWP_PRIMARY_SELECTION_DEVICE_MANAGER_V1 = {
+	.name = "zwp_primary_selection_device_manager_v1",
+	.version = 1,
+	.dispatch = &zwp_primary_selection_device_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwp_primary_selection_device_manager_v1 object. The proxy is the first
@@ -63,19 +67,34 @@ fn void? ZwpPrimarySelectionDeviceManagerV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwp_primary_selection_device_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_primary_selection_device_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_primary_selection_device_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_primary_selection_device_manager_v1",
+				opcode
+			)~;
 	}
 }
 
 <*
  zwp_primary_selection_device_v1 version 1.
 *>
-const display::Interface ZWP_PRIMARY_SELECTION_DEVICE_V1 = { .name = "zwp_primary_selection_device_v1", .version = 1, .dispatch = &zwp_primary_selection_device_v1_dispatch };
+const display::Interface ZWP_PRIMARY_SELECTION_DEVICE_V1 = {
+	.name = "zwp_primary_selection_device_v1",
+	.version = 1,
+	.dispatch = &zwp_primary_selection_device_v1_dispatch
+};
 
 <*
  Typed view of a zwp_primary_selection_device_v1 object. The proxy is the first field, so a
@@ -92,7 +111,11 @@ struct ZwpPrimarySelectionDeviceV1
  Immediately following this event, the new wp_primary_selection_offer object will send
  wp_primary_selection_offer.offer events to describe the offered mime types.
 *>
-alias ZwpPrimarySelectionDeviceV1DataOfferFn = fn void(void* context, ZwpPrimarySelectionDeviceV1* target, ZwpPrimarySelectionOfferV1* offer);
+alias ZwpPrimarySelectionDeviceV1DataOfferFn = fn void(
+	void* context,
+	ZwpPrimarySelectionDeviceV1* target,
+	ZwpPrimarySelectionOfferV1* offer
+);
 
 <*
  Event zwp_primary_selection_device_v1.selection: The wp_primary_selection_device.selection
@@ -102,7 +125,11 @@ alias ZwpPrimarySelectionDeviceV1DataOfferFn = fn void(void* context, ZwpPrimary
  until a new offer or NULL is received or until the client loses keyboard focus. The client
  must destroy the previous selection data_offer, if any, upon receiving this event.
 *>
-alias ZwpPrimarySelectionDeviceV1SelectionFn = fn void(void* context, ZwpPrimarySelectionDeviceV1* target, ZwpPrimarySelectionOfferV1* id);
+alias ZwpPrimarySelectionDeviceV1SelectionFn = fn void(
+	void* context,
+	ZwpPrimarySelectionDeviceV1* target,
+	ZwpPrimarySelectionOfferV1* id
+);
 
 <*
  Event handlers of zwp_primary_selection_device_v1. A null field ignores its event. Strings
@@ -151,33 +178,54 @@ fn void? ZwpPrimarySelectionDeviceV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwp_primary_selection_device_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_primary_selection_device_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwpPrimarySelectionDeviceV1Listener* listener = (ZwpPrimarySelectionDeviceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint offer_id = args.get_new_id()!;
-			ZwpPrimarySelectionOfferV1* offer = (ZwpPrimarySelectionOfferV1*)(conn.server_object(offer_id, ZWP_PRIMARY_SELECTION_OFFER_V1, proxy.version)!);
-			if (!proxy.zombie && listener != null && listener.data_offer != null)
+
 			{
-				listener.data_offer(proxy.context, (ZwpPrimarySelectionDeviceV1*)proxy, offer);
+				uint offer_id                     = args.get_new_id()!;
+				ZwpPrimarySelectionOfferV1* offer = (ZwpPrimarySelectionOfferV1*)(conn.server_object(
+					offer_id,
+					ZWP_PRIMARY_SELECTION_OFFER_V1,
+					proxy.version
+				)!);
+				if (!proxy.zombie && listener != null && listener.data_offer != null)
+				{
+					listener.data_offer(proxy.context, (ZwpPrimarySelectionDeviceV1*)proxy, offer);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			uint id = args.get_object()!;
-			display::Proxy* id_obj = conn.find(id);
-			if (!proxy.zombie && listener != null && listener.selection != null)
+
 			{
-				listener.selection(proxy.context, (ZwpPrimarySelectionDeviceV1*)proxy, (ZwpPrimarySelectionOfferV1*)id_obj);
+				uint id                = args.get_object()!;
+				display::Proxy* id_obj = conn.find(id);
+				if (!proxy.zombie && listener != null && listener.selection != null)
+				{
+					listener.selection(
+						proxy.context,
+						(ZwpPrimarySelectionDeviceV1*)proxy,
+						(ZwpPrimarySelectionOfferV1*)id_obj
+					);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_primary_selection_device_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_primary_selection_device_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -188,7 +236,11 @@ fn void? zwp_primary_selection_device_v1_dispatch(display::Display* conn, displa
  mime types that the data can be converted to and provides the mechanisms for transferring
  the data directly to the client.
 *>
-const display::Interface ZWP_PRIMARY_SELECTION_OFFER_V1 = { .name = "zwp_primary_selection_offer_v1", .version = 1, .dispatch = &zwp_primary_selection_offer_v1_dispatch };
+const display::Interface ZWP_PRIMARY_SELECTION_OFFER_V1 = {
+	.name = "zwp_primary_selection_offer_v1",
+	.version = 1,
+	.dispatch = &zwp_primary_selection_offer_v1_dispatch
+};
 
 <*
  Typed view of a zwp_primary_selection_offer_v1 object. The proxy is the first field, so a
@@ -256,22 +308,34 @@ fn void? ZwpPrimarySelectionOfferV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwp_primary_selection_offer_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_primary_selection_offer_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwpPrimarySelectionOfferV1Listener* listener = (ZwpPrimarySelectionOfferV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			if (!proxy.zombie && listener != null && listener.offer != null)
+
 			{
-				listener.offer(proxy.context, (ZwpPrimarySelectionOfferV1*)proxy, mime_type);
+				String mime_type = args.get_string()!;
+				if (!proxy.zombie && listener != null && listener.offer != null)
+				{
+					listener.offer(proxy.context, (ZwpPrimarySelectionOfferV1*)proxy, mime_type);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_primary_selection_offer_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_primary_selection_offer_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -281,7 +345,11 @@ fn void? zwp_primary_selection_offer_v1_dispatch(display::Display* conn, display
  data and respond to requests to transfer the requested contents of the primary selection
  clipboard.
 *>
-const display::Interface ZWP_PRIMARY_SELECTION_SOURCE_V1 = { .name = "zwp_primary_selection_source_v1", .version = 1, .dispatch = &zwp_primary_selection_source_v1_dispatch };
+const display::Interface ZWP_PRIMARY_SELECTION_SOURCE_V1 = {
+	.name = "zwp_primary_selection_source_v1",
+	.version = 1,
+	.dispatch = &zwp_primary_selection_source_v1_dispatch
+};
 
 <*
  Typed view of a zwp_primary_selection_source_v1 object. The proxy is the first field, so a
@@ -297,7 +365,12 @@ struct ZwpPrimarySelectionSourceV1
  contents from the client. Send the specified mime type over the passed file descriptor, then
  close it.
 *>
-alias ZwpPrimarySelectionSourceV1SendFn = fn void(void* context, ZwpPrimarySelectionSourceV1* target, String mime_type, Native fd);
+alias ZwpPrimarySelectionSourceV1SendFn = fn void(
+	void* context,
+	ZwpPrimarySelectionSourceV1* target,
+	String mime_type,
+	Native fd
+);
 
 <*
  Event zwp_primary_selection_source_v1.cancelled: This primary selection source is no longer
@@ -351,34 +424,47 @@ fn void? ZwpPrimarySelectionSourceV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwp_primary_selection_source_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_primary_selection_source_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ZwpPrimarySelectionSourceV1Listener* listener = (ZwpPrimarySelectionSourceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			String mime_type = args.get_string()!;
-			Native fd = args.get_fd()!;
-			if (!proxy.zombie && listener != null && listener.send != null)
+
 			{
-				listener.send(proxy.context, (ZwpPrimarySelectionSourceV1*)proxy, mime_type, fd);
+				String mime_type = args.get_string()!;
+				Native fd        = args.get_fd()!;
+				if (!proxy.zombie && listener != null && listener.send != null)
+				{
+					listener.send(proxy.context, (ZwpPrimarySelectionSourceV1*)proxy, mime_type, fd);
+				}
+				else
+				{
+					conn.close_native(fd);
+				}
+				return;
 			}
-			else
-			{
-				conn.close_native(fd);
-			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.cancelled != null)
+
 			{
-				listener.cancelled(proxy.context, (ZwpPrimarySelectionSourceV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.cancelled != null)
+				{
+					listener.cancelled(proxy.context, (ZwpPrimarySelectionSourceV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_primary_selection_source_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_primary_selection_source_v1",
+				opcode
+			)~;
 	}
 }

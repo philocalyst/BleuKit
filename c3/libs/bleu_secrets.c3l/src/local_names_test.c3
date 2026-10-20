@@ -46,8 +46,20 @@ fn void keychain_codes_map_to_excuses() @test
 fn void attributes_round_trip_and_damage_is_refused() @test
 {
 	Attribute[] attributes = { { .key = "ssid", .value = "home" }, { .key = "empty", .value = "" } };
-	char[] blob = local::encode_attributes(tmem, attributes);
-	Attribute[] back = local::decode_attributes(tmem, (String)blob)!!;
+	char[] blob            = local::encode_attributes(tmem, attributes);
+	Attribute[] back       = local::decode_attributes(tmem, (String)blob)!!;
 	assert(back.len == 2 && back[0].key == "ssid" && back[0].value == "home" && back[1].value == "");
-	assert(@catch(local::decode_attributes(tmem, (String)blob[0 : blob.len - 1])) == error::PROTOCOL, "a cut blob is refused");
+	assert(@catch(
+		local::decode_attributes(tmem, (String)blob[0:blob.len - 1])
+	) == error::PROTOCOL, "a cut blob is refused");
+}
+
+fn void hex_round_trips_and_rejects_junk() @test
+{
+	String text = local::hex_encode(tmem, { 0x00, 0x7F, 0x80, 0xFF });
+	assert(text == "007f80ff");
+	char[] back = local::hex_decode(tmem, "007F80ff")!!;
+	assert(back == { 0x00, 0x7F, 0x80, 0xFF }, "upper and lower case decode alike");
+	assert(@catch(local::hex_decode(tmem, "abc")) == error::PROTOCOL);
+	assert(@catch(local::hex_decode(tmem, "zz")) == error::PROTOCOL);
 }

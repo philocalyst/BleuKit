@@ -39,7 +39,7 @@ const uint SERVER_ID_START = 0xFF000000;
 const usz INBOX_CAPACITY = 4 * wire::MAX_MESSAGE_SIZE;
 
 <* `wl_display.error` codes (wayland.xml, enum wl_display.error). *>
-const uint ERROR_NO_MEMORY = 2;
+const uint ERROR_NO_MEMORY      = 2;
 const uint ERROR_IMPLEMENTATION = 3;
 
 <*
@@ -156,7 +156,7 @@ fn void Display.close(&self)
 	self.free_ids.free();
 	self.outbox.free();
 	alloc::free(self.allocator, self.inbox.ptr);
-	self.inbox = {};
+	self.inbox = { };
 }
 
 <* The descriptor the owner waits on with a poller: read-ready for `dispatch`, write-ready for `flush`. *>
@@ -203,7 +203,13 @@ fn Proxy*? Display.server_object(&self, uint id, Interface iface, uint version)
 {
 	if (id < SERVER_ID_START)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "server created object %d below the server range", id)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"server created object %d below the server range",
+			id
+		)~;
 	}
 	if (self.find(id) != null)
 	{
@@ -264,10 +270,10 @@ fn void? Display.send(&self, wire::Writer* writer)
 {
 	self.require_open()!;
 	char[] source = writer.finish();
-	char[] copy = alloc::new_array(self.allocator, char, (sz)source.len);
+	char[] copy   = alloc::new_array(self.allocator, char, (sz)source.len);
 	mem::copy(copy.ptr, source.ptr, copy.len);
 	Outgoing out = { .bytes = copy };
-	bool queued = false;
+	bool queued  = false;
 	defer if (!queued) self.release_outgoing(&out);
 	foreach (fd : writer.descriptors())
 	{
@@ -291,9 +297,9 @@ fn bool? Display.flush(&self)
 	while (self.outbox.len() > 0)
 	{
 		Outgoing* head = self.outbox.get_ref(0);
-		char[] rest = head.bytes[head.sent : (usz)head.bytes.len - head.sent];
+		char[] rest    = head.bytes[head.sent:(usz)head.bytes.len - head.sent];
 		usz accepted;
-		if (catch err = native_send(self.socket, rest, head.fds[0 : head.fd_count], &accepted))
+		if (catch err = native_send(self.socket, rest, head.fds[0:head.fd_count], &accepted))
 		{
 			if (err == error::BUSY) return false;
 			self.failed = true;
@@ -335,7 +341,7 @@ fn usz? Display.dispatch(&self)
 	usz handled = 0;
 	while (true)
 	{
-		char[] available = self.inbox[0 : self.inbox_len];
+		char[] available  = self.inbox[0:self.inbox_len];
 		wire::Frame frame = wire::read_frame(available)!;
 		if (!frame.complete) break;
 		if (catch err = self.deliver(frame, available))
@@ -376,7 +382,12 @@ fn void? Display.require_open(&self)
 	}
 	if (self.failed)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "the display failed with a protocol error")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"the display failed with a protocol error"
+		)~;
 	}
 }
 
@@ -403,7 +414,7 @@ fn uint? Display.allocate_id(&self)
 // Close the descriptors of a queued message and forget them.
 fn void Display.drop_fds(&self, Outgoing* out)
 {
-	foreach (fd : out.fds[0 : out.fd_count]) native_close(fd);
+	foreach (fd : out.fds[0:out.fd_count]) native_close(fd);
 	out.fd_count = 0;
 }
 
@@ -412,7 +423,7 @@ fn void Display.release_outgoing(&self, Outgoing* out)
 {
 	self.drop_fds(out);
 	if (out.bytes.len > 0) alloc::free(self.allocator, out.bytes.ptr);
-	out.bytes = {};
+	out.bytes = { };
 }
 
 // Read what is available into the inbox, queueing any descriptors that came with it.
@@ -422,7 +433,7 @@ fn void? Display.receive(&self)
 	rt::Native[wire::MAX_FDS_PER_MESSAGE] arrived;
 	Received got;
 	usz room = INBOX_CAPACITY - self.inbox_len;
-	if (catch err = native_recv(self.socket, self.inbox[self.inbox_len : room], arrived[..], &got))
+	if (catch err = native_recv(self.socket, self.inbox[self.inbox_len:room], arrived[..], &got))
 	{
 		if (err == error::BUSY) return;
 		return err~;
@@ -431,7 +442,7 @@ fn void? Display.receive(&self)
 	{
 		if (catch err = self.incoming.push(arrived[i]))
 		{
-			foreach (fd : arrived[i : got.fds - i]) native_close(fd);
+			foreach (fd : arrived[i:got.fds - i]) native_close(fd);
 			return err~;
 		}
 	}

@@ -16,8 +16,13 @@ fn void encrypted_round_trip_with_events() @test
 	Reader{Event}* events = keyring.subscribe()!!;
 	defer events.release();
 
-	Entry key = { .service = "bleu.wifi", .account = "home", .label = "Home Wi-Fi", .attributes = { { .key = "ssid", .value = "home" } } };
-	String password = "correct horse battery";
+	Entry key                = {
+		.service = "bleu.wifi",
+		.account = "home",
+		.label = "Home Wi-Fi",
+		.attributes = { { .key = "ssid", .value = "home" } }
+	};
+	String password          = "correct horse battery";
 	Operation{Entry}* stored = keyring.store(key, (char[])password)!!;
 	defer stored.release();
 	Entry saved = stored.wait(time::sec(10))!!;
@@ -44,7 +49,11 @@ fn void search_finds_by_attribute_and_delete_removes() @test
 {
 	Keyring* keyring = open_keyring();
 	defer keyring.close();
-	Entry key = { .service = "bleu.vpn", .account = "work", .attributes = { { .key = "profile", .value = "office" } } };
+	Entry key                = {
+		.service = "bleu.vpn",
+		.account = "work",
+		.attributes = { { .key = "profile", .value = "office" } }
+	};
 	Operation{Entry}* stored = keyring.store(key, (char[])"s3cret")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;
@@ -80,7 +89,7 @@ fn void unknown_entries_read_as_not_found() @test
 {
 	Keyring* keyring = open_keyring();
 	defer keyring.close();
-	Entry key = { .service = "bleu.none", .account = "nobody" };
+	Entry key               = { .service = "bleu.none", .account = "nobody" };
 	Operation{Secret}* read = keyring.read(key)!!;
 	defer read.release();
 	assert(@catch(read.wait(time::sec(10))) == NOT_FOUND);

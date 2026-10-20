@@ -60,3 +60,21 @@ fn void malformed_modalias_is_no_identity() @test
 	assert(bleu::bluetooth::parse_modalias("usb:v1D6Bp02").has_value == false);
 	assert(bleu::bluetooth::parse_modalias("usb:v1D6Bp02G6d0533").has_value == false);
 }
+
+fn void mac_addresses_convert_both_ways() @test
+{
+	@pool()
+	{
+		if (try text = bleu::bluetooth::address_from_dashes("00-1a-7d-da-71-13", tmem))
+		{
+			assert(text == "00:1A:7D:DA:71:13");
+		}
+		else
+		{
+			assert(false, "a 17-character dashed address converts");
+		}
+		assert(bleu::bluetooth::dashes_from_address("AA:BB:CC:DD:EE:01", tmem) == "AA-BB-CC-DD-EE-01");
+		assert(@catch(bleu::bluetooth::address_from_dashes("00-1a-7d-da-71-1", tmem)) == NOT_FOUND);
+		assert(@catch(bleu::bluetooth::address_from_dashes("00:1a:7d:da:71:13", tmem)) == NOT_FOUND);
+	};
+}

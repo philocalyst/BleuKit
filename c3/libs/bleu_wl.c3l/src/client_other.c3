@@ -6,7 +6,14 @@ module bleu::wl @feat(!POSIX);
 import bleu::error, bleu::rt;
 
 <* Not available on this system: the compositor socket cannot be reached. *>
-fn void? Client.connect(&self, Allocator allocator, String path) => error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Wayland needs Unix sockets")~;
+fn void? Client.connect(
+	&self,
+	Allocator allocator,
+	String path
+) => error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Wayland needs Unix sockets")~;
 
 <* Not available on this system: the compositor socket cannot be reached. *>
-fn void? Client.connect_env(&self, Allocator allocator) => error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Wayland needs Unix sockets")~;
+fn void? Client.connect_env(
+	&self,
+	Allocator allocator
+) => error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "Wayland needs Unix sockets")~;

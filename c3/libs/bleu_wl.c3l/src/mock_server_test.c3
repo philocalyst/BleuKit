@@ -60,7 +60,7 @@ fn Message? MockServer.receive(&self)
 {
 	while (true)
 	{
-		wire::Frame frame = wire::read_frame(self.inbox[0 : self.inbox_len])!;
+		wire::Frame frame = wire::read_frame(self.inbox[0:self.inbox_len])!;
 		if (frame.complete)
 		{
 			usz payload_len = frame.size - wire::HEADER_SIZE;
@@ -68,7 +68,7 @@ fn Message? MockServer.receive(&self)
 			usz rest = self.inbox_len - frame.size;
 			mem::move(&self.inbox[0], &self.inbox[frame.size], (sz)rest);
 			self.inbox_len = rest;
-			return { .object = frame.object, .opcode = frame.opcode, .payload = self.last[0 : payload_len] };
+			return { .object = frame.object, .opcode = frame.opcode, .payload = self.last[0:payload_len] };
 		}
 		self.fill()!;
 	}
@@ -87,15 +87,15 @@ fn void? MockServer.send(&self, wire::Writer* writer)
 	unix::Fd[wire::MAX_FDS_PER_MESSAGE] wrapped;
 	rt::Native[] fds = writer.descriptors();
 	for (usz i = 0; i < fds.len; i++) wrapped[i] = { .value = fds[i] };
-	self.peer.send_all(writer.finish(), wrapped[0 : fds.len])!;
+	self.peer.send_all(writer.finish(), wrapped[0:fds.len])!;
 }
 
 // Read whatever the client has sent so far and queue its descriptors.
 fn void? MockServer.fill(&self)
 {
 	unix::Fd[wire::MAX_FDS_PER_MESSAGE] arrived;
-	usz room = MOCK_INBOX_CAPACITY - self.inbox_len;
-	unix::RecvResult got = self.peer.recv(self.inbox[self.inbox_len : room], arrived[..])!;
+	usz room             = MOCK_INBOX_CAPACITY - self.inbox_len;
+	unix::RecvResult got = self.peer.recv(self.inbox[self.inbox_len:room], arrived[..])!;
 	for (usz i = 0; i < got.fds; i++) self.fds.push(arrived[i].value)!;
 	self.inbox_len += got.bytes;
 }

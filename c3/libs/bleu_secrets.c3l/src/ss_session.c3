@@ -93,7 +93,12 @@ fn void? ensure_session(SsBackend* b)
 		if (!refused_algorithm()) return err~;
 		if (!b.allow_plain)
 		{
-			return error::raise(error::UNSUPPORTED, error::Domain.INTERNAL, 0, "the keyring refuses the encrypted session; set Options.allow_plain_transport to send values unencrypted over the bus")~;
+			return error::raise(
+				error::UNSUPPORTED,
+				error::Domain.INTERNAL,
+				0,
+				"the keyring refuses the encrypted session; set Options.allow_plain_transport to send values unencrypted over the bus"
+			)~;
 		}
 		open_plain(b)!;
 	}
@@ -103,7 +108,8 @@ fn void? ensure_session(SsBackend* b)
 fn bool refused_algorithm()
 {
 	Detail* detail = error::last();
-	return detail.domain == error::Domain.DBUS && detail.message().starts_with("org.freedesktop.DBus.Error.NotSupported");
+	return detail.domain == error::Domain.DBUS && detail.message()
+		.starts_with("org.freedesktop.DBus.Error.NotSupported");
 }
 
 <*
@@ -112,13 +118,13 @@ fn bool refused_algorithm()
 *>
 fn void? open_encrypted(SsBackend* b)
 {
-	Montgomery group = dh::group()!;
-	Num exponent = dh::random_private()!;
-	Num public_key = dh::dh_public(&group, &exponent);
+	Montgomery group     = dh::group()!;
+	Num exponent         = dh::random_private()!;
+	Num public_key       = dh::dh_public(&group, &exponent);
 	char[] client_public = public_key.to_be_minimal(tmem);
 
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "OpenSession")!;
-	Writer* w = call.body_writer("sv")!;
+	Writer* w     = call.body_writer("sv")!;
 	w.append_string(ALGORITHM_DH)!;
 	w.begin_variant("ay")!;
 	write_bytes(w, client_public)!;
@@ -127,7 +133,7 @@ fn void? open_encrypted(SsBackend* b)
 	Value[] reply = invoke(b, call, tmem)!;
 
 	char[] server_bytes = bytes_of(reply[0], tmem)!;
-	Num server_public = bignum::from_be(server_bytes)!;
+	Num server_public   = bignum::from_be(server_bytes)!;
 	char[dh::ELEMENT_BYTES] secret;
 	dh::dh_shared(&group, &exponent, &server_public, secret[..])!;
 	char[session::KEY_BYTES] key = session::hkdf_sha256_key(secret[..]);
@@ -141,14 +147,14 @@ fn void? open_encrypted(SsBackend* b)
 fn void? open_plain(SsBackend* b)
 {
 	Message* call = call_message(tmem, SERVICE_PATH, SERVICE_INTERFACE, "OpenSession")!;
-	Writer* w = call.body_writer("sv")!;
+	Writer* w     = call.body_writer("sv")!;
 	w.append_string(ALGORITHM_PLAIN)!;
 	w.begin_variant("s")!;
 	w.append_string("")!;
 	w.end_variant()!;
 	w.finish()!;
-	Value[] reply = invoke(b, call, tmem)!;
-	char[session::KEY_BYTES] no_key = {};
+	Value[] reply                   = invoke(b, call, tmem)!;
+	char[session::KEY_BYTES] no_key = { };
 	set_session(b, reply[1].as_object_path()!, PLAIN, no_key[..]);
 }
 

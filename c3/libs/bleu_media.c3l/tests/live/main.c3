@@ -193,13 +193,8 @@ fn String? ctl_calls(Connection* bus, String name)
 
 fn void? run_scenario(Media* media, Connection* bus)
 {
-	Want first            = {
-		.id = ID_A,
-		.title = "Alpha",
-		.has_status = true,
-		.status = Playback.PLAYING,
-		.active = true
-	};
+	Want first = { .id = ID_A, .title = "Alpha", .has_status = true, .status = Playback.PLAYING, .active = true };
+
 	bool first_ok         = wait_for(media, &first);
 	Snapshot{State}* snap = media.latest()!;
 	defer snap.release();

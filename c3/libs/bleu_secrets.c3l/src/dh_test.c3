@@ -4,7 +4,7 @@ import bleu::error, bleu::secrets::bignum, bleu::secrets::dh, bleu::secrets::big
 fn void exponentiation_of_the_generator() @test
 {
 	Montgomery g = dh::group()!!;
-	Num five = {};
+	Num five     = { };
 	five.limbs[0] = 5;
 	// 2^5 = 32.
 	Num public = dh::dh_public(&g, &five);
@@ -16,9 +16,9 @@ fn void exponentiation_of_the_generator() @test
 fn void both_sides_agree_on_the_secret() @test
 {
 	Montgomery g = dh::group()!!;
-	Num a = {};
+	Num a        = { };
 	a.limbs[0] = 5;
-	Num b = {};
+	Num b = { };
 	b.limbs[0] = 7;
 	Num pub_a = dh::dh_public(&g, &a);
 	Num pub_b = dh::dh_public(&g, &b);
@@ -34,11 +34,11 @@ fn void both_sides_agree_on_the_secret() @test
 fn void peers_outside_the_group_are_refused() @test
 {
 	Montgomery g = dh::group()!!;
-	Num a = {};
+	Num a        = { };
 	a.limbs[0] = 5;
 	char[128] out;
-	Num zero = {};
-	Num one = {};
+	Num zero = { };
+	Num one  = { };
 	one.limbs[0] = 1;
 	Num p_minus_one = g.modulus;
 	p_minus_one.sub_assign(&one);
@@ -50,7 +50,12 @@ fn void peers_outside_the_group_are_refused() @test
 fn void the_prime_in_the_module_is_the_rfc_prime() @test
 {
 	Num from_module = bignum::from_be(dh::PRIME_BE[..])!!;
-	Num from_test = bignum::from_be(bignum_test::unhex(tmem, "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF")!!)!!;
+	Num from_test   = bignum::from_be(
+		bignum_test::unhex(
+			tmem,
+			"FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF"
+		)!!
+	)!!;
 	assert(from_module.compare(&from_test) == 0);
 }
 

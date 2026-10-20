@@ -194,16 +194,13 @@ enum Backend : char
 
  `bus_address` is a D-Bus address of the bus that carries org.bluez; "" means
  the system bus. `root` is a prefix for kernel pseudo-files (rfkill), "" for the
- real system; tests use it to substitute a fake tree. `private_api` allows the
- undocumented IOBluetooth calls (power, discoverability, unpair) on macOS; it is
- off by default because those calls are not part of any public API.
+ real system; tests use it to substitute a fake tree.
 *>
 struct Options
 {
 	Backend backend;
 	String bus_address;
 	String root;
-	bool private_api;
 }
 
 <* What happened, for subscribers. Re-read `latest()` for the values. *>

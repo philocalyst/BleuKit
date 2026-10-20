@@ -3,7 +3,6 @@
  two states. Everything here runs on the worker thread.
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::io;
 import std::collections::list, std::collections::maybe, bleu::bluetooth, bleu::dbus::connection,
 	bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::value, bleu::equal, bleu::error, bleu::observe, bleu::unit;
 
@@ -22,91 +21,7 @@ fn void refresh(Bluez* self, BluetoothHub* hub)
 	{
 		snapshot.value = { };
 	}
-	publish_changes(hub, snapshot);
-}
-
-// Publishes `snapshot` if it differs from the latest, emitting the events of the difference. Consumes `snapshot`.
-fn void publish_changes(BluetoothHub* hub, Snapshot{State}* snapshot)
-{
-	Snapshot{State}* previous = null;
-	if (try latest = hub.latest()) previous = latest;
-	if (previous != null && equal::deep(previous.value, snapshot.value))
-	{
-		previous.release();
-		snapshot.release();
-		return;
-	}
-	Snapshot{State}* kept = snapshot.retain();
-	hub.publish(snapshot);
-	State empty;
-	State before = previous ? previous.value : empty;
-	emit_differences(hub, &before, &kept.value);
-	if (previous) previous.release();
-	kept.release();
-}
-
-// Events for every adapter and device that appeared, changed or vanished between two states.
-fn void emit_differences(BluetoothHub* hub, State* before, State* after) @private
-{
-	foreach (&adapter : after.adapters)
-	{
-		sz old = find_adapter(before.adapters, adapter.address);
-		if (old < 0)
-		{
-			emit(hub, bluetooth::EventKind.ADAPTER_ADDED, adapter.address, "");
-		}
-		else if (!equal::deep(before.adapters[old], *adapter))
-		{
-			emit(hub, bluetooth::EventKind.ADAPTER_CHANGED, adapter.address, "");
-		}
-	}
-	foreach (&adapter : before.adapters)
-	{
-		if (find_adapter(after.adapters, adapter.address) < 0) emit(hub, bluetooth::EventKind.ADAPTER_REMOVED, adapter.address, "");
-	}
-	foreach (&device : after.devices)
-	{
-		sz old = find_device(before.devices, device.address);
-		if (old < 0)
-		{
-			emit(hub, bluetooth::EventKind.DEVICE_ADDED, device.address, "");
-		}
-		else if (!equal::deep(before.devices[old], *device))
-		{
-			emit(hub, bluetooth::EventKind.DEVICE_CHANGED, device.address, "");
-		}
-	}
-	foreach (&device : before.devices)
-	{
-		if (find_device(after.devices, device.address) < 0) emit(hub, bluetooth::EventKind.DEVICE_REMOVED, device.address, "");
-	}
-}
-
-fn sz find_adapter(Adapter[] adapters, String address) @private
-{
-	foreach (i, &adapter : adapters)
-	{
-		if (adapter.address == address) return (sz)i;
-	}
-	return -1;
-}
-
-fn sz find_device(Device[] devices, String address) @private
-{
-	foreach (i, &device : devices)
-	{
-		if (device.address == address) return (sz)i;
-	}
-	return -1;
-}
-
-<* Send one event. The strings are copied into the event's own arena. *>
-fn void emit(BluetoothHub* hub, EventKind kind, String address, String text)
-{
-	Snapshot{Event}* packet = hub.emit_begin();
-	Allocator arena = packet.allocator();
-	packet.value = { .kind = kind, .address = bluetooth::copy_text(address, arena), .text = bluetooth::copy_text(text, arena) };
-	hub.emit(packet);
+	bluetooth::publish_changes(hub, snapshot);
 }
 
 <*
@@ -124,15 +39,10 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 		links.init(tmem);
 		List{Adapter} adapters;
 		adapters.init(tmem);
-		io::printfn("DBG tree items=%d", tree.items.len);
 		foreach (object : tree.items)
 		{
-			io::printfn("DBG object path='%s' ifaces=%d", object.items[0].text, object.items[1].items.len);
-			foreach (iface : object.items[1].items) io::printfn("DBG   iface='%s'", iface.items[0].text);
 			if (try props = interface_props(object, ADAPTER_IFACE))
 			{
-				io::printfn("DBG props kind=%d sig='%s' items=%d", props.kind.ordinal, props.sig, props.items.len);
-				if (props.items.len > 0) io::printfn("DBG first key kind=%d text='%s' sig='%s'", props.items[0].kind.ordinal, props.items[0].items[0].text, props.items[0].sig);
 				Adapter adapter = read_adapter(props, kill_switch, allocator);
 				links.push({ .path = object.items[0].text, .address = adapter.address });
 				adapters.push(adapter);
@@ -149,8 +59,8 @@ fn void? read_tree(Bluez* self, Allocator allocator, State* state) @private
 		}
 		state.adapters = alloc::clone_slice(allocator, adapters.array_view());
 		state.devices = alloc::clone_slice(allocator, devices.array_view());
-		sort_adapters(state.adapters);
-		sort_devices(state.devices);
+		bluetooth::sort_adapters(state.adapters);
+		bluetooth::sort_devices(state.devices);
 	};
 }
 
@@ -303,35 +213,4 @@ fn ushort u16_prop(Value props, String name) @private
 		if (try n = v.as_u16()) return n;
 	}
 	return 0;
-}
-
-// Adapters by address, so that the state order does not depend on BlueZ's object order.
-fn void sort_adapters(Adapter[] adapters) @private
-{
-	for (sz i = 1; i < adapters.len; i++)
-	{
-		Adapter key = adapters[i];
-		sz j = i - 1;
-		while (j >= 0 && adapters[j].address.compare_to(key.address) > 0)
-		{
-			adapters[j + 1] = adapters[j];
-			j--;
-		}
-		adapters[j + 1] = key;
-	}
-}
-
-fn void sort_devices(Device[] devices) @private
-{
-	for (sz i = 1; i < devices.len; i++)
-	{
-		Device key = devices[i];
-		sz j = i - 1;
-		while (j >= 0 && devices[j].address.compare_to(key.address) > 0)
-		{
-			devices[j + 1] = devices[j];
-			j--;
-		}
-		devices[j + 1] = key;
-	}
 }

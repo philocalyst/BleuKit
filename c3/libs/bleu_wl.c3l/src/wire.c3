@@ -117,13 +117,13 @@ fn void Writer.begin(&self, uint object, ushort opcode)
 *>
 fn char[] Writer.finish(&self)
 {
-	store_u32(self.buf[0 : 4], self.object);
-	store_u32(self.buf[4 : 4], ((uint)self.len << SIZE_SHIFT) | ((uint)self.opcode & OPCODE_MASK));
-	return self.buf[0 : self.len];
+	store_u32(self.buf[0:4], self.object);
+	store_u32(self.buf[4:4], ((uint)self.len << SIZE_SHIFT) | ((uint)self.opcode & OPCODE_MASK));
+	return self.buf[0:self.len];
 }
 
 <* The descriptors attached to the finished message, in order. *>
-fn rt::Native[] Writer.descriptors(&self) => self.fds[0 : self.fd_count];
+fn rt::Native[] Writer.descriptors(&self) => self.fds[0:self.fd_count];
 
 <*
  Reserve `n` bytes at the end of the message.
@@ -156,7 +156,7 @@ fn usz? Writer.reserve(&self, usz n)
 fn void? Writer.put_uint(&self, uint value)
 {
 	usz at = self.reserve(WORD_SIZE)!;
-	store_u32(self.buf[at : WORD_SIZE], value);
+	store_u32(self.buf[at:WORD_SIZE], value);
 }
 
 <* Append a signed 32-bit word. *>
@@ -214,7 +214,7 @@ fn void? Writer.put_array_with_nul(&self, char[] bytes, usz count)
 {
 	self.put_uint((uint)count)!;
 	usz padded = pad_word(count);
-	usz at = self.reserve(padded)!;
+	usz at     = self.reserve(padded)!;
 	for (usz i = 0; i < padded; i++)
 	{
 		self.buf[at + i] = i < bytes.len ? bytes[i] : 0;
@@ -264,7 +264,13 @@ fn void? FdQueue.push(&self, rt::Native fd)
 {
 	if (self.count == MAX_QUEUED_FDS)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "more than %d descriptors in flight", MAX_QUEUED_FDS)~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"more than %d descriptors in flight",
+			MAX_QUEUED_FDS
+		)~;
 	}
 	self.fds[(self.head + self.count) % MAX_QUEUED_FDS] = fd;
 	self.count++;
@@ -279,7 +285,12 @@ fn rt::Native? FdQueue.pop(&self)
 {
 	if (self.count == 0)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message expects a descriptor that did not arrive")~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"message expects a descriptor that did not arrive"
+		)~;
 	}
 	rt::Native fd = self.fds[self.head];
 	self.head = (self.head + 1) % MAX_QUEUED_FDS;
@@ -311,14 +322,14 @@ struct Frame
 fn Frame? read_frame(char[] available)
 {
 	if (available.len < HEADER_SIZE) return { .complete = false };
-	uint word = load_u32(available[4 : 4]);
-	usz size = (usz)(word >> SIZE_SHIFT);
+	uint word = load_u32(available[4:4]);
+	usz size  = (usz)(word >> SIZE_SHIFT);
 	if (size < HEADER_SIZE || size > MAX_MESSAGE_SIZE || size % WORD_SIZE != 0)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, (int)size, "message size %d is invalid", size)~;
 	}
 	return {
-		.object = load_u32(available[0 : 4]),
+		.object = load_u32(available[0:4]),
 		.opcode = (ushort)(word & OPCODE_MASK),
 		.size = size,
 		.complete = (usz)available.len >= size,
@@ -326,7 +337,7 @@ fn Frame? read_frame(char[] available)
 }
 
 <* The argument bytes of a complete message whose header was read from `available`. *>
-fn char[] Frame.payload(self, char[] available) => available[HEADER_SIZE : self.size - HEADER_SIZE];
+fn char[] Frame.payload(self, char[] available) => available[HEADER_SIZE:self.size - HEADER_SIZE];
 
 <*
  Decodes the arguments of one message, in wire order. Every read checks the bytes that
@@ -354,7 +365,7 @@ fn uint? Reader.get_uint(&self)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "message ends before an argument")~;
 	}
-	uint value = load_u32(self.data[self.pos : WORD_SIZE]);
+	uint value = load_u32(self.data[self.pos:WORD_SIZE]);
 	self.pos += WORD_SIZE;
 	return value;
 }
@@ -393,7 +404,7 @@ fn String? Reader.get_string(&self)
 			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "string holds an interior NUL")~;
 		}
 	}
-	return (String)raw[0 : length - 1];
+	return (String)raw[0:length - 1];
 }
 
 <*
@@ -424,7 +435,13 @@ fn void? Reader.expect_end(&self)
 {
 	if (self.remaining() != 0)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%d bytes after the last argument", self.remaining())~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"%d bytes after the last argument",
+			self.remaining()
+		)~;
 	}
 }
 
@@ -436,7 +453,7 @@ fn char[]? Reader.take(&self, uint length)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%d bytes run past the message", length)~;
 	}
-	char[] view = self.data[self.pos : length];
+	char[] view = self.data[self.pos:length];
 	self.pos += padded;
 	return view;
 }

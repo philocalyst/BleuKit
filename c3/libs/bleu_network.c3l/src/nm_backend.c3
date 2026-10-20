@@ -6,7 +6,7 @@
 // thread. Signal handlers only record what happened (a flag, a transition);
 // the loop acts on it after `process()` returns, so no handler calls the bus.
 module bleu::network::networkmanager @feat(LINUX);
-import std::io::path, std::time, std::collections::list, bleu::availability, bleu::equal, bleu::error, bleu::network, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value;
+import std::io::path, std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value;
 
 <* The backend's state. Allocated by `create`, released by `destroy`. *>
 struct Backend
@@ -242,14 +242,6 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	abandon_pending(b);
 }
 
-<* Publish an empty picture: the backend cannot read anything. *>
-fn void publish_empty(NetworkHub* hub) @local
-{
-	Snapshot{State}* snapshot = hub.begin();
-	snapshot.value = {};
-	hub.publish_if_changed(snapshot);
-}
-
 <*
  One read, one settle, one publication. Runs inside a pool that the loop owns.
  An unreadable bus publishes an empty picture: nothing is known about it.
@@ -271,7 +263,7 @@ fn void refresh(Backend* b, NetworkHub* hub)
 	}
 	remember(b, &reading);
 	settle(b, &reading);
-	publish(b, hub, snapshot);
+	publish_snapshot(hub, snapshot);
 }
 
 // Keep what the commands need from this read.
@@ -284,31 +276,4 @@ fn void remember(Backend* b, Reading* r) @local
 	drop_text(b.allocator, b.wifi_name);
 	b.wifi_path = own_text(b.allocator, r.wifi_found ? r.wifi_path : "");
 	b.wifi_name = own_text(b.allocator, r.wifi_found ? r.wifi_name : "");
-}
-
-// Publish the snapshot if it differs from the last one, and emit what changed.
-fn void publish(Backend* b, NetworkHub* hub, Snapshot{State}* snapshot) @local
-{
-	if (try previous = hub.latest())
-	{
-		defer previous.release();
-		if (!equal::deep(previous.value, snapshot.value)) emit_changes(hub, &previous.value, &snapshot.value);
-	}
-	hub.publish_if_changed(snapshot);
-}
-
-fn void emit_changes(NetworkHub* hub, State* before, State* after) @local
-{
-	Ssid none = { };
-	if (!equal::deep(before.wifi.networks, after.wifi.networks)) emit(hub, NETWORKS_CHANGED, none);
-	bool connection_moved = before.wifi.phase != after.wifi.phase || !network::same_ssid(before.wifi.connected_ssid.bytes, after.wifi.connected_ssid.bytes);
-	if (connection_moved) emit(hub, CONNECTION_CHANGED, after.wifi.connected_ssid);
-	if (!equal::deep(before.interfaces, after.interfaces)) emit(hub, INTERFACES_CHANGED, none);
-}
-
-fn void emit(NetworkHub* hub, EventKind kind, Ssid ssid) @local
-{
-	Snapshot{Event}* packet = hub.emit_begin();
-	packet.value = { .kind = kind, .ssid = network::make_ssid(packet.allocator(), ssid.bytes) };
-	hub.emit(packet);
 }

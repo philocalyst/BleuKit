@@ -147,7 +147,7 @@ fn Operation{Secret}*? Keyring.read(&self, Entry entry)
 {
 	check_key(entry)!;
 	Operation{Secret}* op = operation::begin{Secret}(&self.operations);
-	Command command = { .kind = READ, .entry = copy_entry(op.allocator(), entry) };
+	Command command       = { .kind = READ, .entry = copy_entry(op.allocator(), entry) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -168,7 +168,7 @@ fn Operation{bool}*? Keyring.delete(&self, Entry entry)
 {
 	check_key(entry)!;
 	Operation{bool}* op = operation::begin{bool}(&self.operations);
-	Command command = { .kind = DELETE, .entry = copy_entry(op.allocator(), entry) };
+	Command command     = { .kind = DELETE, .entry = copy_entry(op.allocator(), entry) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -190,7 +190,7 @@ fn Operation{Entry[]}*? Keyring.search(&self, Entry filter)
 {
 	check_attributes(filter.attributes)!;
 	Operation{Entry[]}* op = operation::begin{Entry[]}(&self.operations);
-	Command command = { .kind = SEARCH, .entry = copy_entry(op.allocator(), filter) };
+	Command command        = { .kind = SEARCH, .entry = copy_entry(op.allocator(), filter) };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{
@@ -209,7 +209,7 @@ fn Operation{Entry[]}*? Keyring.search(&self, Entry filter)
 fn Operation{Lock}*? Keyring.unlock(&self)
 {
 	Operation{Lock}* op = operation::begin{Lock}(&self.operations);
-	Command command = { .kind = UNLOCK };
+	Command command     = { .kind = UNLOCK };
 	command.operation = (void*)op.retain();
 	if (catch err = self.hub.post(command))
 	{

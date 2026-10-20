@@ -286,3 +286,39 @@ fn String? address_of_device_path(String path, Allocator allocator)
 	}
 	return ((String)text[..]).copy(allocator);
 }
+
+<*
+ The address in the form IOBluetooth uses, "00-1a-7d-da-71-13" (lower case,
+ dashes), as Bleu's "00:1A:7D:DA:71:13". Returns an excuse for any other shape.
+
+ @param allocator : "Allocator for the returned address"
+*>
+fn String? address_from_dashes(String text, Allocator allocator)
+{
+	if (text.len != ADDRESS_TEXT_LENGTH) return NOT_FOUND~;
+	char[ADDRESS_TEXT_LENGTH] out;
+	for (sz i = 0; i < ADDRESS_TEXT_LENGTH; i++)
+	{
+		char c = text[i];
+		if (i % 3 == 2)
+		{
+			if (c != '-') return NOT_FOUND~;
+			out[i] = ':';
+			continue;
+		}
+		if (hex_digit(c) < 0) return NOT_FOUND~;
+		out[i] = (c >= 'a' && c <= 'f') ? (char)(c - 32) : c;
+	}
+	return ((String)out[..]).copy(allocator);
+}
+
+<* The IOBluetooth spelling ("00-1A-7D-DA-71-13") of a Bleu address. Allocated in `allocator`. *>
+fn String dashes_from_address(String address, Allocator allocator)
+{
+	char[ADDRESS_TEXT_LENGTH] out;
+	for (sz i = 0; i < ADDRESS_TEXT_LENGTH && i < address.len; i++)
+	{
+		out[i] = address[i] == ':' ? '-' : address[i];
+	}
+	return ((String)out[..]).copy(allocator);
+}

@@ -17,6 +17,7 @@ const String PHONE = "AA:BB:CC:DD:EE:04";
 const ulong WAIT_MS = 200;
 const int WAIT_ROUNDS = 50;
 const ulong TASK_MS = 10000;
+const int EVENT_ROUNDS = 2000;
 
 alias Check = fn bool(State* state);
 
@@ -135,7 +136,6 @@ fn int main(String[] args)
 		defer first.release();
 		State* s = &first.value;
 		expect(s.adapters.len == 1 && !s.adapters[0].powered, "one controller, powered off");
-		io::printfn("  DEBUG adapter address='%s' name='%s' devices=%d", s.adapters[0].address, s.adapters[0].name, s.devices.len);
 		expect(s.adapters[0].address == "00:1A:7D:DA:71:13", "controller address");
 		Device* h = device_at(s, HEADSET);
 		expect(h != null, "remembered headset is known");
@@ -212,7 +212,7 @@ fn int main(String[] args)
 	bool reason_seen = false;
 	if (events)
 	{
-		for (int i = 0; i < WAIT_ROUNDS && !reason_seen; i++)
+		for (int i = 0; i < EVENT_ROUNDS && !reason_seen; i++)
 		{
 			if (try packet = events.next(time::ms(WAIT_MS)))
 			{

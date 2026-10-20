@@ -67,6 +67,12 @@ fn void make_second_sample(String root) @local
 		"Inter-|   Receive\n face |bytes\n  eth0: 1500 0 0 0 0 0 0 0 2000 0 0 0 0 0 0 0\n"
 	);
 	write_file(root, "/proc/100/stat", "100 (fake) S 1 100 100 0 -1 0 0 0 0 0 101 0 0 0 20 0 1 0 5000\n");
+	write_file(
+		root,
+		"/proc/mounts",
+		"proc /proc proc rw 0 0\n/dev/fake /mnt/fake ext4 rw 0 0\n/dev/fake2 /mnt/fake2 ext4 rw 0 0\n"
+	);
+	path::mkdir((Path)string::tformat("%s/mnt/fake2", root), true)!!;
 }
 
 fn void reads_the_whole_machine_from_a_fake_root() @test
@@ -156,7 +162,10 @@ fn void reads_the_whole_machine_from_a_fake_root() @test
 		test::@check(done, "a sample with deltas arrived");
 		Snapshot{Event}* announced = events.next(time::sec(2))!!;
 		defer announced.release();
-		test::@check(announced.value.kind == MOUNT_ADDED && announced.value.name == "/mnt/fake2", "a new volume is announced as an event");
+		test::@check(
+			announced.value.kind == MOUNT_ADDED && announced.value.name == "/mnt/fake2",
+			"a new volume is announced as an event"
+		);
 	};
 }
 

@@ -66,7 +66,7 @@ enum Cap : char
 	READ,
 	DELETE,
 	SEARCH,
-	UNLOCK, // explicit unlock, and unlock prompts shown by the keyring
+	UNLOCK,              // explicit unlock, and unlock prompts shown by the keyring
 	ENCRYPTED_TRANSPORT, // the DH session is available (secrets are encrypted on the bus)
 }
 
@@ -116,9 +116,9 @@ struct Command
 enum Backend : char
 {
 	AUTO,
-	SECRET_SERVICE, // Linux: org.freedesktop.secrets over D-Bus
+	SECRET_SERVICE,     // Linux: org.freedesktop.secrets over D-Bus
 	CREDENTIAL_MANAGER, // Windows: Credential Manager (CredWriteW and friends)
-	KEYCHAIN, // macOS: generic passwords in the login keychain
+	KEYCHAIN,           // macOS: generic passwords in the login keychain
 }
 
 <*

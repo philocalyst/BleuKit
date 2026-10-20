@@ -27,7 +27,6 @@ struct Service
 	uint count;
 	ReplyToken pending;
 	bool quit;
-	ObjectServer* server;
 	String[1] echo_in;
 	String[1] echo_out;
 	String[2] add_in;
@@ -238,7 +237,6 @@ fn int main()
 	server.init(mem);
 	defer server.free();
 	service.describe();
-	service.server = &server;
 	server.export(OBJECT_PATH, service.interfaces[..])!!;
 	server.make_object_manager(OBJECT_PATH)!!;
 	server.attach(&bus);

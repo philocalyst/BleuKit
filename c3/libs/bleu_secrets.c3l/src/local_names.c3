@@ -10,14 +10,14 @@ import std::time, bleu::error;
  names and keychain service names begin with it, which is how the search tells
  this library's entries from other applications'.
 *>
-const NAME_PREFIX = "bleu:";
+const NAME_PREFIX    = "bleu:";
 <* Separator between service and account in a Credential Manager target name. *>
 const char SEPARATOR = ':';
 <* Escape introducer: "%25" stands for '%' and "%3A" for the separator. *>
-const char ESCAPE = '%';
+const char ESCAPE    = '%';
 
 <* The Windows FILETIME of the Unix epoch, in 100 ns units (Windows epoch 1601 to 1970). *>
-const ulong FILETIME_UNIX_EPOCH = 116444736000000000;
+const ulong FILETIME_UNIX_EPOCH      = 116444736000000000;
 <* 100 ns units per microsecond. *>
 const ulong FILETIME_TICKS_PER_MICRO = 10;
 
@@ -66,8 +66,13 @@ fn String? unescape_part(Allocator allocator, String text)
 			i++;
 			continue;
 		}
-		if (i + 2 >= text.len) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "truncated escape in a name")~;
-		String code = text[i + 1 : 2];
+		if (i + 2 >= text.len) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"truncated escape in a name"
+		)~;
+		String code = text[i + 1:2];
 		if (code == "25")
 		{
 			out.append_char(ESCAPE);
@@ -90,7 +95,14 @@ fn String? target_name(Allocator allocator, String service, String account)
 {
 	@pool()
 	{
-		return string::tformat("%s%s%c%s", NAME_PREFIX, escape_part(tmem, service), SEPARATOR, escape_part(tmem, account)).copy(allocator);
+		return string::tformat(
+			"%s%s%c%s",
+			NAME_PREFIX,
+			escape_part(tmem, service),
+			SEPARATOR,
+			escape_part(tmem, account)
+		)
+			.copy(allocator);
 	};
 }
 
@@ -103,11 +115,11 @@ fn String? target_name(Allocator allocator, String service, String account)
 fn void? split_target(Allocator allocator, String target, String* service, String* account)
 {
 	if (!target.starts_with(NAME_PREFIX)) return NOT_FOUND~;
-	String body = target[NAME_PREFIX.len : target.len - NAME_PREFIX.len];
-	sz at = body.index_of_char(SEPARATOR) ?? -1;
+	String body = target[NAME_PREFIX.len:target.len - NAME_PREFIX.len];
+	sz at       = body.index_of_char(SEPARATOR) ?? -1;
 	if (at < 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "a target name has no account part")~;
-	*service = unescape_part(allocator, body[0 : at])!;
-	*account = unescape_part(allocator, body[at + 1 : body.len - at - 1])!;
+	*service = unescape_part(allocator, body[0:at])!;
+	*account = unescape_part(allocator, body[at + 1:body.len - at - 1])!;
 }
 
 <*

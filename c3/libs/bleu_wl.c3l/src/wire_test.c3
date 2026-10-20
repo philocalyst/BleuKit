@@ -26,9 +26,38 @@ fn void golden_global_with_padded_string() @test
 	w.put_string("wl_output")!!;
 	w.put_uint(4)!!;
 	char[32] expected = {
-		2, 0, 0, 0, 0, 0, 32, 0, 1, 0, 0, 0, 10, 0, 0, 0,
-		'w', 'l', '_', 'o', 'u', 't', 'p', 'u', 't', 0, 0, 0,
-		4, 0, 0, 0,
+		2,
+		0,
+		0,
+		0,
+		0,
+		0,
+		32,
+		0,
+		1,
+		0,
+		0,
+		0,
+		10,
+		0,
+		0,
+		0,
+		'w',
+		'l',
+		'_',
+		'o',
+		'u',
+		't',
+		'p',
+		'u',
+		't',
+		0,
+		0,
+		0,
+		4,
+		0,
+		0,
+		0,
 	};
 	expect_bytes(w.finish(), expected[..]);
 }
@@ -43,12 +72,42 @@ fn void golden_scalars() @test
 	w.put_nullable_string("")!!;
 	w.put_string("")!!;
 	char[36] expected = {
-		7, 0, 0, 0, 3, 0, 36, 0,
-		0x80, 1, 0, 0,
-		0xFF, 0xFF, 0xFF, 0xFF,
-		3, 0, 0, 0, 1, 2, 3, 0,
-		0, 0, 0, 0,
-		1, 0, 0, 0, 0, 0, 0, 0,
+		7,
+		0,
+		0,
+		0,
+		3,
+		0,
+		36,
+		0,
+		0x80,
+		1,
+		0,
+		0,
+		0xFF,
+		0xFF,
+		0xFF,
+		0xFF,
+		3,
+		0,
+		0,
+		0,
+		1,
+		2,
+		3,
+		0,
+		0,
+		0,
+		0,
+		0,
+		1,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
 	};
 	expect_bytes(w.finish(), expected[..]);
 }
@@ -56,9 +115,38 @@ fn void golden_scalars() @test
 fn void reader_decodes_golden_global() @test
 {
 	char[32] bytes = {
-		2, 0, 0, 0, 0, 0, 32, 0, 1, 0, 0, 0, 10, 0, 0, 0,
-		'w', 'l', '_', 'o', 'u', 't', 'p', 'u', 't', 0, 0, 0,
-		4, 0, 0, 0,
+		2,
+		0,
+		0,
+		0,
+		0,
+		0,
+		32,
+		0,
+		1,
+		0,
+		0,
+		0,
+		10,
+		0,
+		0,
+		0,
+		'w',
+		'l',
+		'_',
+		'o',
+		'u',
+		't',
+		'p',
+		'u',
+		't',
+		0,
+		0,
+		0,
+		4,
+		0,
+		0,
+		0,
 	};
 	wire::FdQueue fds;
 	wire::Frame frame = wire::read_frame(bytes[..])!!;
@@ -81,11 +169,11 @@ fn void reader_rejects_malformed_strings() @test
 	test::@error(a.get_string(), error::PROTOCOL);
 	// Interior NUL: "a\0b" with its terminator.
 	char[8] interior = { 4, 0, 0, 0, 'a', 0, 'b', 0 };
-	wire::Reader b = { .data = interior[..], .pos = 0, .fds = &fds };
+	wire::Reader b   = { .data = interior[..], .pos = 0, .fds = &fds };
 	test::@error(b.get_string(), error::PROTOCOL);
 	// Length runs past the message.
 	char[8] overrun = { 100, 0, 0, 0, 'a', 0, 0, 0 };
-	wire::Reader c = { .data = overrun[..], .pos = 0, .fds = &fds };
+	wire::Reader c  = { .data = overrun[..], .pos = 0, .fds = &fds };
 	test::@error(c.get_string(), error::PROTOCOL);
 }
 
@@ -93,10 +181,10 @@ fn void reader_rejects_short_and_trailing_data() @test
 {
 	wire::FdQueue fds;
 	char[2] short_bytes = { 1, 0 };
-	wire::Reader a = { .data = short_bytes[..], .pos = 0, .fds = &fds };
+	wire::Reader a      = { .data = short_bytes[..], .pos = 0, .fds = &fds };
 	test::@error(a.get_uint(), error::PROTOCOL);
 	char[8] trailing = { 1, 0, 0, 0, 9, 9, 9, 9 };
-	wire::Reader b = { .data = trailing[..], .pos = 0, .fds = &fds };
+	wire::Reader b   = { .data = trailing[..], .pos = 0, .fds = &fds };
 	test::eq(b.get_uint()!!, 1u);
 	test::@error(b.expect_end(), error::PROTOCOL);
 }
@@ -191,14 +279,14 @@ fn bool decode_arguments(wire::Reader* r)
 
 fn void fuzz_random_buffers() @test
 {
-	ulong state = 0x9E3779B97F4A7C15;
+	ulong state  = 0x9E3779B97F4A7C15;
 	char[64] buf;
 	usz accepted = 0;
 	for (usz round = 0; round < 20000; round++)
 	{
 		usz length = (usz)(next_random(&state) % 65);
 		for (usz i = 0; i < length; i++) buf[i] = (char)next_random(&state);
-		if (decode_attempt(buf[0 : length])) accepted++;
+		if (decode_attempt(buf[0:length])) accepted++;
 	}
 	// Random bytes almost never form a valid message; a handful may by chance.
 	test::eq(accepted < 200, true);
@@ -207,22 +295,51 @@ fn void fuzz_random_buffers() @test
 fn void fuzz_mutated_valid_message() @test
 {
 	char[32] golden = {
-		2, 0, 0, 0, 0, 0, 32, 0, 1, 0, 0, 0, 10, 0, 0, 0,
-		'w', 'l', '_', 'o', 'u', 't', 'p', 'u', 't', 0, 0, 0,
-		4, 0, 0, 0,
+		2,
+		0,
+		0,
+		0,
+		0,
+		0,
+		32,
+		0,
+		1,
+		0,
+		0,
+		0,
+		10,
+		0,
+		0,
+		0,
+		'w',
+		'l',
+		'_',
+		'o',
+		'u',
+		't',
+		'p',
+		'u',
+		't',
+		0,
+		0,
+		0,
+		4,
+		0,
+		0,
+		0,
 	};
 	test::eq(decode_attempt(golden[..]), true);
 	ulong state = 0xD1B54A32D192ED03;
 	for (usz round = 0; round < 20000; round++)
 	{
 		char[32] buf = golden;
-		usz flips = 1 + (usz)(next_random(&state) % 3);
+		usz flips    = 1 + (usz)(next_random(&state) % 3);
 		for (usz k = 0; k < flips; k++)
 		{
 			usz at = (usz)(next_random(&state) % 32);
 			buf[at] = (char)next_random(&state);
 		}
 		usz length = (usz)(next_random(&state) % 33);
-		decode_attempt(buf[0 : length]);
+		decode_attempt(buf[0:length]);
 	}
 }

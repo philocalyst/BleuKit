@@ -83,7 +83,13 @@ fn rt::Native? parse_descriptor(String text) @private
 	{
 		if (c < '0' || c > '9' || value > (MAX_INHERITED_FD - 9) / 10)
 		{
-			return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "WAYLAND_SOCKET is not a descriptor: %s", text)~;
+			return error::raise(
+				error::INVALID_ARGUMENT,
+				error::Domain.INTERNAL,
+				0,
+				"WAYLAND_SOCKET is not a descriptor: %s",
+				text
+			)~;
 		}
 		value = value * 10 + (int)(c - '0');
 	}

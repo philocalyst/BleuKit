@@ -229,7 +229,7 @@ fn void? remove_device(Bluez* self, Request* r) @private
 	String adapter_object = adapter_value.as_object_path()!;
 	Proxy adapter = object_proxy(self, adapter_object, ADAPTER_IFACE)!;
 	Message* call = adapter.new_call(tmem, "RemoveDevice")!;
-	call.body_writer("o")!.append_string(path)!;
+	call.body_writer("o")!.append_object_path(path)!;
 	call_sync(self, call)!;
 }
 

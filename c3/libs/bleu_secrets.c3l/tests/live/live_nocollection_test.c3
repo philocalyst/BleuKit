@@ -6,7 +6,7 @@ fn void the_default_collection_is_created_when_missing() @test
 {
 	Keyring* keyring = secrets::open(mem)!!;
 	defer keyring.close();
-	Entry key = { .service = "bleu.new", .account = "h" };
+	Entry key                = { .service = "bleu.new", .account = "h" };
 	Operation{Entry}* stored = keyring.store(key, (char[])"made fresh")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;

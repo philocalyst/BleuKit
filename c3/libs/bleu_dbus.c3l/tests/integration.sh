@@ -137,5 +137,60 @@ grep -q '^DISCONNECTED' "$work/disconnect.out" || { say "no DISCONNECTED report"
 grep -q '^REOPEN error::UNAVAILABLE' "$work/disconnect.out" || { say "reopen while down did not fail with UNAVAILABLE"; failed=1; }
 grep -q '^REOPENED as :1.' "$work/disconnect.out" || { say "no successful reopen after restart"; failed=1; }
 
+# 3. The object server. This library exports org.bleu.Test at /org/bleu/ServerTest
+#    (server_main.c3); the Python dbus-next client checks it (server_client.py),
+#    then the C3 client does, and calls Quit, which ends the server with status 0.
+compile "$here/integration/server_main.c3" "$work/server_main"
+compile "$here/integration/server_client.c3" "$work/server_client"
+for listen in "unix:tmpdir=$work" "unix:path=$work/server-bus"; do
+  say "== suite: object server on $listen"
+  start_bus "$listen"
+  timeout 300 "$work/server_main" >"$work/server.out" 2>"$work/server.err" &
+  server=$!
+  pids+=("$server")
+  for _ in $(seq 1 200); do
+    grep -q READY "$work/server.out" 2>/dev/null && break
+    sleep 0.05
+  done
+  if ! grep -q READY "$work/server.out"; then
+    say "the object server did not start:"; cat "$work/server.out" "$work/server.err"; failed=1
+    kill "$server" "$BUS_PID" 2>/dev/null; wait 2>/dev/null; continue
+  fi
+  timeout 120 "$PYTHON" -I "$here/integration/server_client.py" >"$work/server_py.out" 2>&1
+  py_status=$?
+  cat "$work/server_py.out"
+  timeout 120 "$work/server_client" >"$work/server_c3.out" 2>&1
+  c3_status=$?
+  cat "$work/server_c3.out"
+  wait "$server"
+  server_status=$?
+  say "python client: $py_status, C3 client: $c3_status, server: $server_status"
+  { [ "$py_status" -eq 0 ] && [ "$c3_status" -eq 0 ] && [ "$server_status" -eq 0 ]; } || failed=1
+  kill "$BUS_PID" 2>/dev/null
+  wait "$BUS_PID" 2>/dev/null
+done
+
+# 4. The worked example: a notification server (examples/notifications_server_sketch.c3)
+#    exporting org.freedesktop.Notifications, checked by notifications_client.py.
+compile "$repo/libs/bleu_dbus.c3l/examples/notifications_server_sketch.c3" "$work/notifications"
+say "== suite: notifications example"
+start_bus "unix:tmpdir=$work"
+timeout 300 "$work/notifications" >"$work/notifications.out" 2>&1 &
+notifier=$!
+pids+=("$notifier")
+for _ in $(seq 1 200); do
+  grep -q READY "$work/notifications.out" 2>/dev/null && break
+  sleep 0.05
+done
+timeout 120 "$PYTHON" -I "$here/integration/notifications_client.py" >"$work/notifications_py.out" 2>&1
+notify_status=$?
+cat "$work/notifications_py.out"
+kill "$notifier" 2>/dev/null
+wait "$notifier" 2>/dev/null
+say "notifications client: $notify_status"
+[ "$notify_status" -eq 0 ] || failed=1
+kill "$BUS_PID" 2>/dev/null
+wait "$BUS_PID" 2>/dev/null
+
 if [ "$failed" -eq 0 ]; then say "INTEGRATION OK"; else say "INTEGRATION FAILED"; fi
 exit "$failed"

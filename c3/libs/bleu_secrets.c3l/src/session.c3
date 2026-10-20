@@ -18,9 +18,9 @@ module bleu::secrets::session;
 import bleu::error, std::hash::sha256, std::crypto::aes, std::crypto::entropy;
 
 <* AES block and key size in bytes (FIPS 197); also the IV size. *>
-const sz AES_BLOCK = 16;
+const sz AES_BLOCK  = 16;
 <* Length of the AES-128 key derived by HKDF. *>
-const sz KEY_BYTES = 16;
+const sz KEY_BYTES  = 16;
 <* HMAC-SHA-256 output size, which is the HKDF hash length (RFC 5869 section 2.2). *>
 const sz HASH_BYTES = 32;
 
@@ -33,11 +33,11 @@ const sz HASH_BYTES = 32;
 *>
 fn char[KEY_BYTES] hkdf_sha256_key(char[] ikm)
 {
-	char[HASH_BYTES] zero_salt = {};
-	char[HASH_BYTES] prk = sha256::hmac(zero_salt[..], ikm);
+	char[HASH_BYTES] zero_salt = { };
+	char[HASH_BYTES] prk       = sha256::hmac(zero_salt[..], ikm);
 	// Expand: T(1) = HMAC(PRK, info || 0x01), with an empty info string.
-	char[1] counter = { 0x01 };
-	char[HASH_BYTES] okm = sha256::hmac(prk[..], counter[..]);
+	char[1] counter            = { 0x01 };
+	char[HASH_BYTES] okm       = sha256::hmac(prk[..], counter[..]);
 	char[KEY_BYTES] key;
 	for (sz i = 0; i < KEY_BYTES; i++) key[i] = okm[i];
 	return key;
@@ -54,7 +54,7 @@ fn char[KEY_BYTES] hkdf_sha256_key(char[] ikm)
 *>
 fn char[]? encrypt_cbc(Allocator allocator, char[] key, char[] iv, char[] plain)
 {
-	sz padding = AES_BLOCK - plain.len % AES_BLOCK;
+	sz padding    = AES_BLOCK - plain.len % AES_BLOCK;
 	sz padded_len = plain.len + padding;
 	@pool()
 	{
@@ -102,9 +102,14 @@ fn char[]? decrypt_cbc(Allocator allocator, char[] key, char[] iv, char[] cipher
 		}
 		for (sz i = plain.len - padding; i < plain.len; i++)
 		{
-			if (plain[i] != (char)padding) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid PKCS#7 padding bytes")~;
+			if (plain[i] != (char)padding) return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"invalid PKCS#7 padding bytes"
+			)~;
 		}
-		return alloc::clone_slice(allocator, plain[0 : plain.len - padding]);
+		return alloc::clone_slice(allocator, plain[0:plain.len - padding]);
 	};
 }
 

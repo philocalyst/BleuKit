@@ -137,7 +137,7 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	self.dirty = true;
 	if (catch open_bus(&self.bus, self.bus_address))
 	{
-		publish_empty(hub);
+		bluetooth::publish_empty(hub);
 		return;
 	}
 	Poller poller;
@@ -145,7 +145,7 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	defer poller.free();
 	if (catch subscribe(self))
 	{
-		publish_empty(hub);
+		bluetooth::publish_empty(hub);
 		return;
 	}
 	Request[COMMAND_BATCH] commands;
@@ -156,6 +156,9 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 			self.dirty = false;
 			refresh(self, hub);
 		}
+		// Replies that a synchronous call read while it waited are queued; deliver them before sleeping,
+		// because no socket event may follow.
+		if (catch self.bus.process()) break;
 		if (!wait_for_bus(self, &poller)) break;
 		if (catch self.bus.process()) break;
 		usz count = host.mailbox().take_all(commands[..]);
@@ -165,13 +168,12 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 			self.dirty = true;
 			count = host.mailbox().take_all(commands[..]);
 		}
-		// Replies that arrived during a synchronous call are queued; deliver them now, since no socket event may follow.
-		if (catch self.bus.process()) break;
+
 	}
 	// Finish what the bus still owes (pending replies fail as the bus closes), then say the service is gone.
 	fail_queued(host);
 	self.bus.close();
-	publish_empty(hub);
+	bluetooth::publish_empty(hub);
 }
 
 // Waits until the bus socket is readable (or writable, while output waits) or a command arrives.
@@ -244,16 +246,8 @@ fn void on_disconnected(void* context, dbus::message::Message* signal)
 			if (try reason = r.read_string())
 			{
 				String address = bluetooth::address_of_device_path(signal.path, tmem) ?? "";
-				emit(self.hub, bluetooth::EventKind.DEVICE_DISCONNECTED, address, reason);
+				bluetooth::emit(self.hub, bluetooth::EventKind.DEVICE_DISCONNECTED, address, reason);
 			}
 		}
 	};
-}
-
-// Publishes an empty state: the service has no adapters or devices now.
-fn void publish_empty(BluetoothHub* hub) @private
-{
-	Snapshot{State}* snapshot = hub.begin();
-	snapshot.value = { };
-	publish_changes(hub, snapshot);
 }

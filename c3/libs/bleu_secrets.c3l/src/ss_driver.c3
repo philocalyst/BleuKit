@@ -53,14 +53,21 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	if (catch err = open_encrypted(&trial))
 	{
 		if (!refused_algorithm()) return err~;
-		capabilities.values[Cap.ENCRYPTED_TRANSPORT.ordinal] = availability::no(UNSUPPORTED_BACKEND, "the keyring refuses the encrypted session; secrets cross the bus unencrypted only when Options.allow_plain_transport is set");
+		capabilities.values[Cap.ENCRYPTED_TRANSPORT.ordinal] = availability::no(
+			UNSUPPORTED_BACKEND,
+			"the keyring refuses the encrypted session; secrets cross the bus unencrypted only when Options.allow_plain_transport is set"
+		);
 	}
-	SsBackend* self = alloc::new(allocator, SsBackend, {
-		.allocator = allocator,
-		.bus_address = options.bus_address.len > 0 ? options.bus_address.copy(allocator) : "",
-		.prompt_timeout = options.prompt_timeout,
-		.allow_plain = options.allow_plain_transport,
-	});
+	SsBackend* self = alloc::new(
+		allocator,
+		SsBackend,
+		{
+			.allocator = allocator,
+			.bus_address = options.bus_address.len > 0 ? options.bus_address.copy(allocator) : "",
+			.prompt_timeout = options.prompt_timeout,
+			.allow_plain = options.allow_plain_transport,
+		}
+	);
 	return self;
 }
 

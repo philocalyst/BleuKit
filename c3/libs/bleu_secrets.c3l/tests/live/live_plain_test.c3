@@ -17,7 +17,7 @@ fn void plain_transport_round_trips_when_allowed() @test
 {
 	Keyring* keyring = secrets::open(mem, { .allow_plain_transport = true })!!;
 	defer keyring.close();
-	Entry key = { .service = "bleu.plain", .account = "c" };
+	Entry key                = { .service = "bleu.plain", .account = "c" };
 	Operation{Entry}* stored = keyring.store(key, (char[])"plain value")!!;
 	defer stored.release();
 	stored.wait(time::sec(10))!!;

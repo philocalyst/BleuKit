@@ -51,9 +51,9 @@ fn void Recorder.release(&self, void* ptr, bool aligned) @dynamic
 
 fn void payload_is_zero_when_released() @test
 {
-	Recorder recorder = { .inner = mem };
+	Recorder recorder      = { .inner = mem };
 	WipingAllocator wiping = { .inner = &recorder };
-	char* payload = (char*)wiping.acquire(40, ZERO, 0)!!;
+	char* payload          = (char*)wiping.acquire(40, ZERO, 0)!!;
 	for (int i = 0; i < 40; i++) payload[i] = (char)(0xA5 ^ i);
 	wiping.release(payload, false);
 	assert(recorder.payloads_checked == 1, "the released block was seen");
@@ -62,7 +62,7 @@ fn void payload_is_zero_when_released() @test
 
 fn void arena_pages_are_wiped_on_free() @test
 {
-	Recorder recorder = { .inner = mem };
+	Recorder recorder      = { .inner = mem };
 	WipingAllocator wiping = { .inner = &recorder };
 	DynamicArenaAllocator arena;
 	arena.init(&wiping, 256);
@@ -77,7 +77,7 @@ fn void arena_pages_are_wiped_on_free() @test
 fn void resize_keeps_the_prefix() @test
 {
 	WipingAllocator wiping = { .inner = mem };
-	char* p = (char*)wiping.acquire(4, NO_ZERO, 0)!!;
+	char* p                = (char*)wiping.acquire(4, NO_ZERO, 0)!!;
 	p[0] = 'a';
 	p[3] = 'd';
 	char* q = (char*)wiping.resize(p, 8, 0)!!;

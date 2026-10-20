@@ -10,6 +10,7 @@
 #
 # Needs dbus-daemon, c3c, python3. Set BLEU_MEDIA_PYTHON to a python with
 # dbus-next; otherwise a venv is created in the work directory (pypi access).
+# BLEU_MEDIA_LIBDIR overrides the library directory (default: tools/libdir.sh).
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
@@ -54,7 +55,7 @@ export DBUS_SESSION_BUS_ADDRESS
 echo "bus: $DBUS_SESSION_BUS_ADDRESS"
 
 # 2. The C3 driver (built first, so the mock is not old when the test starts), built against the libraries in this checkout.
-libdir="$(bash "$repo/tools/libdir.sh")"
+libdir="${BLEU_MEDIA_LIBDIR:-$(bash "$repo/tools/libdir.sh")}"
 c3c --libdir "$libdir" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus \
   --lib bleu_win --lib bleu_objc --lib bleu_media compile "$here/live/main.c3" -o "$work/live" \
   >"$work/compile.log" 2>&1 || { echo "compile failed:"; cat "$work/compile.log"; exit 2; }

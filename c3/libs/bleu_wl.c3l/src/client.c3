@@ -126,7 +126,9 @@ fn void? Client.roundtrip(&self)
 	self.sync_done = false;
 	wayland::WlCallback* callback = self.root.sync()!;
 	callback.set_listener(&SYNC_LISTENER, &self.sync_done);
-	while (!(self.conn.flush()!)) {}
+	while (!(self.conn.flush()!))
+	{
+	}
 	while (!self.sync_done) self.conn.dispatch()!;
 }
 
@@ -152,7 +154,7 @@ fn display::Proxy*? Client.bind(&self, Global global, display::Interface iface)
 			iface.name
 		)~;
 	}
-	uint version = min(global.version, iface.version);
+	uint version           = min(global.version, iface.version);
 	display::Proxy* object = self.conn.new_object(iface, version)!;
 	self.registry.bind(global.name, iface.name, version, object)!;
 	return object;
@@ -164,7 +166,7 @@ const wayland::WlRegistryListener REGISTRY_LISTENER = { .global = &on_global, .g
 fn void on_global(void* context, wayland::WlRegistry* target, uint name, String interface_name, uint version)
 {
 	Client* client = (Client*)context;
-	Global global = { .name = name, .version = version, .interface_name = interface_name.copy(client.allocator) };
+	Global global  = { .name = name, .version = version, .interface_name = interface_name.copy(client.allocator) };
 	client.globals.push(global);
 	if (client.listener != null && client.listener.global_added != null)
 	{

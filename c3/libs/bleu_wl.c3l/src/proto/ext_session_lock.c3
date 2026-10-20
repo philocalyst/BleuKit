@@ -8,7 +8,11 @@ import bleu::wl::proto::wayland;
  ext_session_lock_manager_v1 version 1.
  This interface is used to request that the session be locked.
 *>
-const display::Interface EXT_SESSION_LOCK_MANAGER_V1 = { .name = "ext_session_lock_manager_v1", .version = 1, .dispatch = &ext_session_lock_manager_v1_dispatch };
+const display::Interface EXT_SESSION_LOCK_MANAGER_V1 = {
+	.name = "ext_session_lock_manager_v1",
+	.version = 1,
+	.dispatch = &ext_session_lock_manager_v1_dispatch
+};
 
 <*
  Typed view of a ext_session_lock_manager_v1 object. The proxy is the first field, so a
@@ -49,12 +53,23 @@ fn ExtSessionLockV1*? ExtSessionLockManagerV1.lock(&self)
 	return (ExtSessionLockV1*)created;
 }
 
-fn void? ext_session_lock_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? ext_session_lock_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_session_lock_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of ext_session_lock_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -90,7 +105,11 @@ fn void? ext_session_lock_manager_v1_dispatch(display::Display* conn, display::P
  responsibility for unlocking the session, they may even start a new lock client instance
  automatically.
 *>
-const display::Interface EXT_SESSION_LOCK_V1 = { .name = "ext_session_lock_v1", .version = 1, .dispatch = &ext_session_lock_v1_dispatch };
+const display::Interface EXT_SESSION_LOCK_V1 = {
+	.name = "ext_session_lock_v1",
+	.version = 1,
+	.dispatch = &ext_session_lock_v1_dispatch
+};
 
 <*
  Typed view of a ext_session_lock_v1 object. The proxy is the first field, so a pointer to
@@ -106,10 +125,10 @@ struct ExtSessionLockV1
 *>
 constset ExtSessionLockV1Error : uint
 {
-	INVALID_DESTROY = 0,
-	INVALID_UNLOCK = 1,
-	ROLE = 2,
-	DUPLICATE_OUTPUT = 3,
+	INVALID_DESTROY     = 0,
+	INVALID_UNLOCK      = 1,
+	ROLE                = 2,
+	DUPLICATE_OUTPUT    = 3,
 	ALREADY_CONSTRUCTED = 4,
 }
 
@@ -187,7 +206,11 @@ fn void? ExtSessionLockV1.destroy(&self)
  Attempting to create more than one lock surface for a given output is a duplicate_output
  protocol error.
 *>
-fn ExtSessionLockSurfaceV1*? ExtSessionLockV1.get_lock_surface(&self, wayland::WlSurface* surface, wayland::WlOutput* output)
+fn ExtSessionLockSurfaceV1*? ExtSessionLockV1.get_lock_surface(
+	&self,
+	wayland::WlSurface* surface,
+	wayland::WlOutput* output
+)
 {
 	wire::Writer w;
 	w.begin(self.base.id, 1);
@@ -230,23 +253,31 @@ fn void? ext_session_lock_v1_dispatch(display::Display* conn, display::Proxy* pr
 	switch (opcode)
 	{
 		case 0:
-		{
-			if (!proxy.zombie && listener != null && listener.locked != null)
+
 			{
-				listener.locked(proxy.context, (ExtSessionLockV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.locked != null)
+				{
+					listener.locked(proxy.context, (ExtSessionLockV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		case 1:
-		{
-			if (!proxy.zombie && listener != null && listener.finished != null)
+
 			{
-				listener.finished(proxy.context, (ExtSessionLockV1*)proxy);
+				if (!proxy.zombie && listener != null && listener.finished != null)
+				{
+					listener.finished(proxy.context, (ExtSessionLockV1*)proxy);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_session_lock_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of ext_session_lock_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -262,7 +293,11 @@ fn void? ext_session_lock_v1_dispatch(display::Display* conn, display::Proxy* pr
  would be to give the first lock surface created keyboard focus and change keyboard focus if
  the user clicks on other surfaces.
 *>
-const display::Interface EXT_SESSION_LOCK_SURFACE_V1 = { .name = "ext_session_lock_surface_v1", .version = 1, .dispatch = &ext_session_lock_surface_v1_dispatch };
+const display::Interface EXT_SESSION_LOCK_SURFACE_V1 = {
+	.name = "ext_session_lock_surface_v1",
+	.version = 1,
+	.dispatch = &ext_session_lock_surface_v1_dispatch
+};
 
 <*
  Typed view of a ext_session_lock_surface_v1 object. The proxy is the first field, so a
@@ -279,9 +314,9 @@ struct ExtSessionLockSurfaceV1
 constset ExtSessionLockSurfaceV1Error : uint
 {
 	COMMIT_BEFORE_FIRST_ACK = 0,
-	NULL_BUFFER = 1,
-	DIMENSIONS_MISMATCH = 2,
-	INVALID_SERIAL = 3,
+	NULL_BUFFER             = 1,
+	DIMENSIONS_MISMATCH     = 2,
+	INVALID_SERIAL          = 3,
 }
 
 <*
@@ -291,7 +326,13 @@ constset ExtSessionLockSurfaceV1Error : uint
  requirements. Failing to match these surface dimensions in the next commit after acking a
  configure is a protocol error.
 *>
-alias ExtSessionLockSurfaceV1ConfigureFn = fn void(void* context, ExtSessionLockSurfaceV1* target, uint serial, uint width, uint height);
+alias ExtSessionLockSurfaceV1ConfigureFn = fn void(
+	void* context,
+	ExtSessionLockSurfaceV1* target,
+	uint serial,
+	uint width,
+	uint height
+);
 
 <*
  Event handlers of ext_session_lock_surface_v1. A null field ignores its event. Strings and
@@ -353,23 +394,35 @@ fn void? ExtSessionLockSurfaceV1.ack_configure(&self, uint serial)
 	self.base.conn.send(&w)!;
 }
 
-fn void? ext_session_lock_surface_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? ext_session_lock_surface_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	ExtSessionLockSurfaceV1Listener* listener = (ExtSessionLockSurfaceV1Listener*)proxy.listener;
 	switch (opcode)
 	{
 		case 0:
-		{
-			uint serial = args.get_uint()!;
-			uint width = args.get_uint()!;
-			uint height = args.get_uint()!;
-			if (!proxy.zombie && listener != null && listener.configure != null)
+
 			{
-				listener.configure(proxy.context, (ExtSessionLockSurfaceV1*)proxy, serial, width, height);
+				uint serial = args.get_uint()!;
+				uint width  = args.get_uint()!;
+				uint height = args.get_uint()!;
+				if (!proxy.zombie && listener != null && listener.configure != null)
+				{
+					listener.configure(proxy.context, (ExtSessionLockSurfaceV1*)proxy, serial, width, height);
+				}
+				return;
 			}
-			return;
-		}
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of ext_session_lock_surface_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of ext_session_lock_surface_v1",
+				opcode
+			)~;
 	}
 }

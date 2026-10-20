@@ -15,7 +15,11 @@ import bleu::wl::proto::wayland;
  version. Once the protocol is to be declared stable, the 'z' prefix and the version number
  in the protocol and interface names are removed and the interface version number is reset.
 *>
-const display::Interface ZWP_IDLE_INHIBIT_MANAGER_V1 = { .name = "zwp_idle_inhibit_manager_v1", .version = 1, .dispatch = &zwp_idle_inhibit_manager_v1_dispatch };
+const display::Interface ZWP_IDLE_INHIBIT_MANAGER_V1 = {
+	.name = "zwp_idle_inhibit_manager_v1",
+	.version = 1,
+	.dispatch = &zwp_idle_inhibit_manager_v1_dispatch
+};
 
 <*
  Typed view of a zwp_idle_inhibit_manager_v1 object. The proxy is the first field, so a
@@ -54,12 +58,23 @@ fn ZwpIdleInhibitorV1*? ZwpIdleInhibitManagerV1.create_inhibitor(&self, wayland:
 	return (ZwpIdleInhibitorV1*)created;
 }
 
-fn void? zwp_idle_inhibit_manager_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_idle_inhibit_manager_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_idle_inhibit_manager_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_idle_inhibit_manager_v1",
+				opcode
+			)~;
 	}
 }
 
@@ -75,7 +90,11 @@ fn void? zwp_idle_inhibit_manager_v1_dispatch(display::Display* conn, display::P
  idled at the time the inhibitor was established, although if the system later de-idles and
  re-idles the inhibitor will take effect.
 *>
-const display::Interface ZWP_IDLE_INHIBITOR_V1 = { .name = "zwp_idle_inhibitor_v1", .version = 1, .dispatch = &zwp_idle_inhibitor_v1_dispatch };
+const display::Interface ZWP_IDLE_INHIBITOR_V1 = {
+	.name = "zwp_idle_inhibitor_v1",
+	.version = 1,
+	.dispatch = &zwp_idle_inhibitor_v1_dispatch
+};
 
 <*
  Typed view of a zwp_idle_inhibitor_v1 object. The proxy is the first field, so a pointer to
@@ -99,11 +118,22 @@ fn void? ZwpIdleInhibitorV1.destroy(&self)
 	self.base.conn.retire(&self.base);
 }
 
-fn void? zwp_idle_inhibitor_v1_dispatch(display::Display* conn, display::Proxy* proxy, ushort opcode, wire::Reader* args)
+fn void? zwp_idle_inhibitor_v1_dispatch(
+	display::Display* conn,
+	display::Proxy* proxy,
+	ushort opcode,
+	wire::Reader* args
+)
 {
 	switch (opcode)
 	{
 		default:
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "opcode %d is not an event of zwp_idle_inhibitor_v1", opcode)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				0,
+				"opcode %d is not an event of zwp_idle_inhibitor_v1",
+				opcode
+			)~;
 	}
 }

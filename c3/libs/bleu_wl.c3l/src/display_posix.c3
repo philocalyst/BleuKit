@@ -10,7 +10,7 @@ import bleu::rt, bleu::rt::unix, bleu::error, bleu::wl::wire;
 fn rt::Native? native_dup(rt::Native fd)
 {
 	unix::Fd source = { .value = fd };
-	unix::Fd copy = source.dup_cloexec()!;
+	unix::Fd copy   = source.dup_cloexec()!;
 	return copy.release();
 }
 
@@ -33,7 +33,7 @@ fn void? native_send(rt::Native fd, char[] bytes, rt::Native[] fds, usz* accepte
 	unix::UnixSocket socket = { .fd = { .value = fd }, .kind = unix::SocketKind.STREAM };
 	unix::Fd[wire::MAX_FDS_PER_MESSAGE] wrapped;
 	for (usz i = 0; i < fds.len; i++) wrapped[i] = { .value = fds[i] };
-	*accepted = socket.send(bytes, wrapped[0 : fds.len])!;
+	*accepted = socket.send(bytes, wrapped[0:fds.len])!;
 }
 
 <*
@@ -48,7 +48,7 @@ fn void? native_recv(rt::Native fd, char[] buffer, rt::Native[] fds, Received* o
 {
 	unix::UnixSocket socket = { .fd = { .value = fd }, .kind = unix::SocketKind.STREAM };
 	unix::Fd[wire::MAX_FDS_PER_MESSAGE] wrapped;
-	unix::RecvResult got = socket.recv(buffer, wrapped[..])!;
+	unix::RecvResult got    = socket.recv(buffer, wrapped[..])!;
 	for (usz i = 0; i < got.fds; i++) fds[i] = wrapped[i].value;
 	*out = { .bytes = got.bytes, .fds = got.fds };
 }
