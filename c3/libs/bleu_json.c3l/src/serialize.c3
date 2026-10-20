@@ -115,6 +115,45 @@ macro bool is_maybe($Type) @const
 }
 
 <*
+ Compile-time walk over a type: refuses, with the member path in the error,
+ every part that is not plain data. Run once per `write` call site, so the
+ generic writer below is only instantiated for types that pass.
+
+ @param $Type : "The type to check"
+ @param $path : "Where the type sits, as written in the error: `value.inner.items[]`"
+*>
+macro check_plain_data($Type, $path) @private
+{
+	$if !is_plain_kind($Type):
+		$error "not plain data at " +++ $path +++ ": pointers, unions, optionals, functions, interfaces, any, faults, void and integers wider than 64 bits have no JSON form";
+	$endif
+	$switch $Type::kind:
+		$case STRUCT:
+			$foreach $member : $Type::members:
+				check_plain_data($member.type, $path +++ "." +++ $member.name);
+			$endforeach
+		$case BITSTRUCT:
+			$foreach $member : $Type::members:
+				$if $member.type != bool:
+					$error "not plain data at " +++ $path +++ "." +++ $member.name +++ ": a bitstruct serialises as an object of booleans, so every field must be a bool";
+				$endif
+			$endforeach
+		$case ARRAY:
+		$case VECTOR:
+		$case SLICE:
+			check_plain_data($Type::inner, $path +++ "[]");
+		$case TYPEDEF:
+			$if $Type != String:
+				check_plain_data($Type::inner, $path);
+			$endif
+		$case CONSTDEF:
+			check_plain_data($Type::inner, $path);
+		$default:
+			// Scalars and enums have no members to check.
+	$endswitch
+}
+
+<*
  Serialise a value of type `TypeElement`. Generic over the type: the body is
  instantiated per type, so an unsupported type is a compile error.
 *>
@@ -124,14 +163,8 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
 		$case BOOL:
 			return writer.put_bool(value);
 		$case SIGNED_INT:
-			$if TypeElement::size > 8:
-				$error "128-bit integers have no JSON number form: store them as strings in plain data";
-			$endif
 			return writer.put_int((long)value);
 		$case UNSIGNED_INT:
-			$if TypeElement::size > 8:
-				$error "128-bit integers have no JSON number form: store them as strings in plain data";
-			$endif
 			return writer.put_uint((ulong)value);
 		$case FLOAT:
 			$if TypeElement == float:
@@ -145,9 +178,6 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
 		$case BITSTRUCT:
 			writer.begin_object()!;
 			$foreach $member : TypeElement::members:
-				$if $member.type != bool:
-					$error "a bitstruct serialises as an object of booleans: every field must be a bool";
-				$endif
 				write_member{bool}(writer, options, $member.name, false, false, value.$member)!;
 			$endforeach
 			return writer.end_object();
@@ -159,10 +189,6 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
 			$else
 				writer.begin_object()!;
 				$foreach $member : TypeElement::members:
-					$if !is_plain_kind($member.type):
-						$error "not plain data: a struct member must be a scalar, enum, bitstruct, struct, String, slice, array, typedef or Maybe{T}; the member is named next";
-						$error $member.name;
-					$endif
 					$if json_tag($member) != "-":
 						write_member{$member.type}(writer, options, json_name($member), json_renamed($member), json_omits_empty($member), value.$member)!;
 					$endif
@@ -283,6 +309,7 @@ fn bool is_empty(TypeElement value) <TypeElement> @private
 *>
 macro void? write(JsonWriter* writer, value, Options options = DEFAULT_OPTIONS)
 {
+	check_plain_data($Typeof(value), "value");
 	return write_value{$Typeof(value)}(writer, options, value);
 }
 
