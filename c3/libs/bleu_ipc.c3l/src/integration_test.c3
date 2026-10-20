@@ -1,7 +1,7 @@
 // In-process tests: a real server on a real socket, with the C3 client and raw
 // sockets as peers. Each test owns its server and its socket path.
 module bleu::ipc::integration_test @feat(POSIX);
-import bleu::ipc, bleu::ipc::client, bleu::ipc::wire, bleu::error, bleu::rt::unix, bleu::rt::foreign, std::core::test, std::thread, std::time, std::os::posix, std::atomic;
+import bleu::ipc, bleu::ipc::client, bleu::ipc::wire, bleu::error, bleu::rt::unix, bleu::rt::foreign, std::core::test, std::thread, std::time, std::os::posix, std::atomic, std::io;
 
 <* How long a test waits for something that should happen promptly. *>
 const Duration WAIT = (Duration)5_000_000;
@@ -32,6 +32,8 @@ fn String socket_path(String tag)
 	{
 		path = string::tformat("/tmp/bleu-ipc-%d-%s.sock", posix::getpid(), tag).copy(mem);
 	};
+	// A socket file left by an earlier run that died would make bind fail.
+	if (catch io::path::delete((io::path::Path)path)) {}
 	return path;
 }
 

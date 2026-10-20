@@ -486,6 +486,12 @@ fn unix::UnixSocket? bind_socket(String path, bool owned) @private
 		if (catch io::path::delete((io::path::Path)path)) {}
 	}
 	unix::UnixSocket socket = unix::listen(path, unix::SocketKind.STREAM, LISTEN_BACKLOG)!;
+	// accept() is called until it reports BUSY, so it must never block (the I/O thread would hang).
+	if (catch err = socket.fd.set_nonblocking(true))
+	{
+		socket.close();
+		return err~;
+	}
 	if (chmod_owner_only(path) != 0)
 	{
 		CInt code = libc::errno();
