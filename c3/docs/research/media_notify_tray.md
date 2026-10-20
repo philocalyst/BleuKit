@@ -28,6 +28,10 @@ Source short names:
 * `MS-*` = https://learn.microsoft.com/... (URL given per claim).
 * `windows-rs` = crate `windows` 0.62.2, `src/Windows/Media/Control/mod.rs` and `src/Windows/UI/Notifications/Management/mod.rs`.
 * `ungive-adapter` = https://github.com/ungive/mediaremote-adapter (raw files via raw.githubusercontent.com, branch master, fetched 2026-10-20).
+* `MS-manager` = https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager; `MS-session` = same path ending `...controls.globalsystemmediatransportcontrolssession`; `MS-playbackinfo` = `...globalsystemmediatransportcontrolssessionplaybackinfo`; `MS-timeline` = `...globalsystemmediatransportcontrolssessiontimelineproperties`; `MS-media` = `...globalsystemmediatransportcontrolssessionmediaproperties`; `MS-controls` = `...globalsystemmediatransportcontrolssessionplaybackcontrols`; all under https://learn.microsoft.com/en-us/uwp/api/windows.media.control.
+* `MS-listener` = https://learn.microsoft.com/en-us/uwp/api/windows.ui.notifications.management.usernotificationlistener; `MS-listener-status` = `...usernotificationlisteneraccessstatus` (same host, `/en-us/uwp/api/`); `MS-listener-guide` = https://learn.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/notification-listener.
+* `MS-toast-manager` = https://learn.microsoft.com/en-us/uwp/api/windows.ui.notifications.toastnotificationmanager.createtoastnotifier; `MS-appids` = https://learn.microsoft.com/en-us/windows/win32/shell/appids.
+* `MS-shellapi-nim` = https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shell_notifyiconw; `MS-notifyicondataw` = https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataw.
 
 ---
 
@@ -101,8 +105,8 @@ instances run). Interfaces `org.mpris.MediaPlayer2` (root), `.Player`, optional
 `org.mpris.MediaPlayer2.` (exact prefix, including the trailing dot), then track
 additions and removals with `org.freedesktop.DBus.NameOwnerChanged`. The `mpris`
 crate does exactly the ListNames filter with a 500 ms timeout and sorts by
-lowercase name `[read: mpris-2.0.1 src/find.rs]`. Quickshell uses a
-`QDBusServiceWatcher` per player `[read: quickshell-mirror src/services/mpris/player.cpp]`.
+lowercase name `[read: mpris-2.0.1 src/find.rs]`. Quickshell's
+player-level code was read for position only, not for discovery.
 A bus name containing `.instance<n>` is a second instance of the same player
 (`MPRIS-2.2` "Bus Name Policy"). Two instances of one player must be two players.
 Match rules: `NameOwnerChanged` with `arg0namespace='org.mpris.MediaPlayer2'`
@@ -225,11 +229,12 @@ may hide their files from us; that is a player-side limit.
 * Players that register the name but do not implement Player (CanControl false).
 * Players that send no PropertiesChanged for Metadata until a second later
   (Jellyfin, YouTube per Quickshell comments) `[read quickshell player.cpp 311-313, 378-385]`.
-* Players that export `Position` but never update it (Quickshell detects with
-  `Position` = 0 on Playing). Do not assume `CanSeek` implies a live Position.
-* `mpris:trackid` may be missing or non-unique on bad players; Quickshell falls back to
-  `xesam:url` hashing `[read player.cpp line ~292]`. Avoid using trackid as the only
-  identity for the player-level state.
+* Players that export `Position` but never update it. The `mpris` crate documents a probe:
+  query `initial_position` twice while Playing; if both are 0, the client probably has no
+  position support (`progress.rs` docs `[read]`). Do not assume `CanSeek` implies a live Position.
+* `mpris:trackid` may be missing or non-unique on bad players. Quickshell's comments
+  note players that set `xesam:url` or `mpris:trackid` inconsistently `[read player.cpp ~line 292]`.
+  Avoid using trackid as the only identity for the player-level state.
 
 **Publishing our own session (cut line).** Export `org.mpris.MediaPlayer2.<app>`
 with the root and Player interfaces. Reference implementation: `mpris-server` 0.8.1
@@ -254,7 +259,7 @@ and `MPNowPlayingSession` for several players, all for the app's own media.
 `CFBundleCreate(NULL, "/System/Library/PrivateFrameworks/MediaRemote.framework")`
 then `CFBundleGetFunctionPointerForName(bundle, CFSTR("<symbol>"))`. This is
 exactly the "resolve at run time, never link" rule of `docs/ARCHITECTURE.md`
-`[read: ungive-adapter src/private/MediaRemote.m lines 84-105 region and init]`.
+`[read: ungive-adapter src/private/MediaRemote.m, the init method]`.
 Symbols (typedefs in `src/private/MediaRemote.h` `[read]`):
 
 * `bool MRMediaRemoteSendCommand(MRCommand command, id userInfo)`
@@ -747,8 +752,8 @@ Ids are unique for the session and not reused until uint32 overflow `[NOTIF-1.3]
 2. Export `/org/freedesktop/Notifications` with the interface above.
 3. `Notify`: validate the type signature; allocate id (or reuse on replace); copy
    fields into the store; convert `image-data` to a cached file or an in-memory
-   image (Astal writes a cache file and sets `image-path`, lines 88-101
-   `[read]`); set expiry timer unless `resident`, `urgency=critical`, or
+   image (Astal's `Notify` is lines 74-100 and writes a cache file via `cache_image`
+   (line 166) and sets `image-path` `[read]`); set expiry timer unless `resident`, `urgency=critical`, or
    `expire==0`; publish state; return id.
 4. On click or button: emit `ActivationToken` (if we have one), then
    `ActionInvoked(id, key)`. If not resident, close with a reason (see below).
@@ -756,7 +761,7 @@ Ids are unique for the session and not reused until uint32 overflow `[NOTIF-1.3]
 6. `CloseNotification`: remove, emit `NotificationClosed(id, 3)`.
 
 Reason to use after an action: the spec defines no "action" reason. Astal uses
-`CLOSED` (3) after `ActionInvoked` when not resident `[read: astal daemon.vala lines 60-64]`.
+`CLOSED` (3) after `ActionInvoked` when not resident `[read: astal daemon.vala lines 60-64; enums.vala lines 7-11 CLOSED = 3]`.
 dunst uses its own reason enum `[read]`. Choose reason 2 (dismissed) and document it,
 or 3; the spec does not say `(UNVERIFIED: which convention clients expect)`.
 
@@ -898,7 +903,7 @@ capability. Toast sending: none beyond the AUMID shortcut.
 | claim | source A | source B | status |
 | --- | --- | --- | --- |
 | Notify signature `susssasa{sv}i` returns `u` | `NOTIF-1.3` | dunst `dbus.c` `dbus_message_to_notification` requires `(susssasa{sv}i)` | confirmed |
-| CloseNotification emits NotificationClosed reason 3 | `NOTIF-1.3` | Astal `close_notification` resolves with `ClosedReason.CLOSED` | confirmed (Astal's enum value is the spec's 3 by its name) `(single-source for numeric mapping)` |
+| CloseNotification emits NotificationClosed reason 3 | `NOTIF-1.3` | Astal `close_notification` resolves with `ClosedReason.CLOSED` | Astal `enums.vala` lines 7-11: EXPIRED=1, DISMISSED_BY_USER=2, CLOSED=3, UNDEFINED=4 | confirmed |
 | Reason 1 expired, 2 dismissed, 4 undefined | `NOTIF-1.3` | dunst reason strings `time`, `user`, `signal` (dbus.c 1143-1152) | confirmed |
 | `image-data` (iiibiiay), 8 bits, channels 3/4 | `NOTIF-1.3` | notify-rust `image.rs` (`from_raw_data` with `bits_per_sample=8`, channels from alpha) | confirmed |
 | `expire_timeout` -1 server default, 0 never | `NOTIF-1.3` | Astal `Notify` (`expire_timeout < 0` -> default setting) | confirmed |

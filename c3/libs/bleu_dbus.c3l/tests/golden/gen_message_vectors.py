@@ -38,14 +38,58 @@ error = message(message_type=MessageType.ERROR, error_name='org.freedesktop.DBus
 method_return = message(message_type=MessageType.METHOD_RETURN, reply_serial=2, destination=':1.5',
                         signature='s', body=[':1.9'], serial=5)
 
-# Big-endian Hello: flag 'B', then the body length, serial and field array length
-# (offsets 4, 8 and 12) swapped to big-endian. Nothing else in the Hello is an integer.
-hello_be = bytearray(hello)
-hello_be[0] = ord('B')
-for offset in (4, 8, 12):
-    value = struct.unpack_from('<I', hello, offset)[0]
-    struct.pack_into('>I', hello_be, offset, value)
-hello_be = bytes(hello_be)
+class BigEndianBuffer:
+    """Just enough of the wire format to write a big-endian Hello by hand.
+
+    Every integer is big-endian; each value is aligned to its natural boundary
+    counted from the start of the buffer, with NUL padding (spec "Byte order and
+    alignment").
+    """
+
+    def __init__(self):
+        self.data = bytearray()
+
+    def align(self, n):
+        self.data += b"\0" * ((n - len(self.data) % n) % n)
+
+    def byte(self, v):
+        self.data.append(v)
+
+    def u32(self, v):
+        self.align(4)
+        self.data += struct.pack(">I", v)
+
+    def text(self, s):
+        self.u32(len(s.encode()))
+        self.data += s.encode() + b"\0"
+
+    def signature(self, s):
+        self.byte(len(s))
+        self.data += s.encode() + b"\0"
+
+
+def big_endian_hello(path, interface, member, destination, serial):
+    fields = BigEndianBuffer()
+    for code, sig, value in ((1, 'o', path), (2, 's', interface), (3, 's', member), (6, 's', destination)):
+        fields.align(8)
+        fields.byte(code)
+        fields.signature(sig)
+        fields.text(value)
+    buf = BigEndianBuffer()
+    buf.byte(ord('B'))
+    buf.byte(1)
+    buf.byte(0)
+    buf.byte(1)
+    buf.u32(0)            # body length
+    buf.u32(serial)
+    buf.u32(len(fields.data))  # length of the field array, excluding its padding
+    buf.align(8)          # the field array starts on an 8-byte boundary
+    buf.data += fields.data
+    buf.align(8)          # the body (empty) starts on an 8-byte boundary
+    return bytes(buf.data)
+
+
+hello_be = big_endian_hello('/org/freedesktop/DBus', 'org.freedesktop.DBus', 'Hello', 'org.freedesktop.DBus', 1)
 
 # A header whose PATH field is a STRING instead of an OBJECT_PATH.
 bad_fields = [[1, Variant('s', '/org/freedesktop/DBus')], [3, Variant('s', 'Hello')]]

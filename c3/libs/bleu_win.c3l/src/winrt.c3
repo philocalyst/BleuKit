@@ -152,7 +152,8 @@ fn AsyncStatus? status_of(IAsyncInfo* info)
 }
 
 <* How long each wait for messages lasts before the status is read again. *>
-const Duration ASYNC_POLL_SLICE = time::ms(10);
+// Ten milliseconds, in the microseconds that `Duration` counts.
+const time::Duration ASYNC_POLL_SLICE = (time::Duration)10_000;
 
 <*
  Wait for an asynchronous operation to leave `STARTED` and return the status it

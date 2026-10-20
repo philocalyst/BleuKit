@@ -52,7 +52,6 @@ const ZString DISTRIBUTED_SCREEN_LOCKED = "com.apple.screenIsLocked";
 <*
  Distributed notification posted when the screen is unlocked. Same verification status as `DISTRIBUTED_SCREEN_LOCKED`.
 *>
-const ZString DISTRIBUTED_SCREEN_UNLOCKED = "com.apple.screenIsUnlocked";
 
 <*
  The notification center of `kind`, borrowed.

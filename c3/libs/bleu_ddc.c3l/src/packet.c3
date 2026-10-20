@@ -67,11 +67,10 @@ const usz MAX_FRAGMENT = 32;
 <*
  Opcodes of the DDC/CI and MCCS messages.
 
- The request and reply values are the ones in ddcutil `src/base/ddc_packets.h`
- (`DDC_PACKET_TYPE_*`). `GET_VCP_REQUEST`, `SET_VCP`, `SAVE_CURRENT_SETTINGS`,
- `CAPABILITIES_REQUEST`, `TABLE_READ_REQUEST` and `TABLE_WRITE` are also in the
- ddc crate `commands.rs`. `ID_REQUEST`, `ID_REPLY` and `TABLE_READ_REPLY`
- have only the ddcutil source.
+ The values are ddcutil's `DDC_PACKET_TYPE_*` (`src/base/ddc_packets.h`). Every
+ value except the two identification opcodes is also in the ddc crate
+ (`ddc-0.2.2/src/commands.rs`, the `data[0] = ...` and `data[0] != ...` lines),
+ so the identification pair rests on ddcutil alone.
 *>
 constset Opcode : char
 {

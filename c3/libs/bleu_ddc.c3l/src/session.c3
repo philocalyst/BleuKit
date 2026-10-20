@@ -41,8 +41,9 @@ struct Options
 	// Wait before a retry. The `ddc` crate `DELAY_COMMAND_FAILED_MS` is 40 ms, and
 	// Lunar `DDCReadIntel` sleeps 40 ms before each retry (DDC/CI 4.4.1).
 	Duration retry_delay;
-	// Wait after Save Current Settings. `ddc` crate: 200 ms. ddcutil: 200 ms
-	// (`DDC_TIMEOUT_MILLIS_POST_SAVE_SETTINGS`, "per DDC spec").
+	// Wait after Save Current Settings. The `ddc` crate `SaveCurrentSettings` uses
+	// 200 ms. ddcutil `tuned_sleep.c` says "The host should wait at least 200 ms
+	// before sending the next message to the display".
 	Duration save_settle;
 	// Wait between a Set VCP and the read-back in `set_vcp_verified`. No source
 	// gives a figure: this is this library's choice, chosen to exceed the command
