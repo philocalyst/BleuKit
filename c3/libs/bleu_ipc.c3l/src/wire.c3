@@ -5,10 +5,10 @@
  This module is the only place that writes envelopes. It has no state and no
  I/O, so every rule in it is unit-tested directly. The envelopes are:
 
-   handshake   {"apiVersion":N,"capabilities":[...]}      (no id)
-   result      {"id":N,"result":<json>}
-   error       {"id":N,"error":"<text>"}
-   service     {"id":N,"result":{"service":"<name>","data":<json>}}
+ handshake   {"apiVersion":N,"capabilities":[...]}      (no id)
+ result      {"id":N,"result":<json>}
+ error       {"id":N,"error":"<text>"}
+ service     {"id":N,"result":{"service":"<name>","data":<json>}}
 
  `id` is left out when it is 0: dankgo declares it `int` with `omitempty`, so
  Go drops a zero id. Sources, with line numbers, are in docs/research/bleu_ipc.md.
@@ -58,7 +58,7 @@ fn void reserve(Writer* w, usz extra) @private
 {
 	usz needed = w.len + extra;
 	if (needed <= (usz)w.buffer.len) return;
-	usz size = max_of(needed, (usz)w.buffer.len * 2);
+	usz size      = max_of(needed, (usz)w.buffer.len * 2);
 	char[] bigger = alloc::new_array(w.allocator, char, (sz)size);
 	if (w.len > 0) mem::copy(bigger.ptr, w.buffer.ptr, (sz)w.len);
 	alloc::free(w.allocator, w.buffer.ptr);
@@ -86,14 +86,13 @@ fn void Writer.put_char(&self, char c)
 fn void Writer.put_long(&self, long value)
 {
 	char[20] digits;
-	sz count = 0;
+	sz count        = 0;
 	ulong magnitude = value < 0 ? (ulong)(-(value + 1)) + 1 : (ulong)value;
 	do
 	{
 		digits[count++] = (char)('0' + (int)(magnitude % 10));
 		magnitude /= 10;
-	}
-	while (magnitude > 0);
+	} while (magnitude > 0);
 	if (value < 0) self.put_char('-');
 	while (count > 0) self.put_char(digits[--count]);
 }
@@ -198,8 +197,8 @@ fn bool valid_utf8(String bytes)
 			i++;
 			continue;
 		}
-		sz width = 0;
-		char low_second = 0x80;
+		sz width         = 0;
+		char low_second  = 0x80;
 		char high_second = 0xBF;
 		if (lead >= 0xC2 && lead <= 0xDF)
 		{

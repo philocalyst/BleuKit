@@ -35,7 +35,7 @@ fn ParsedRequest? parse_request(String line, Allocator arena)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "invalid json: malformed JSON")~;
 	}
-	Object* root = parsed;
+	Object* root          = parsed;
 	ParsedRequest request = { .id = 0, .method = "", .params = object::new_obj(arena) };
 	if (root.is_null()) return request;
 	if (!root.is_map())

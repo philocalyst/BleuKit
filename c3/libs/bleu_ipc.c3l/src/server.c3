@@ -6,14 +6,14 @@
 
  Threads:
  * one I/O thread owns the listener, every connection, every outbox and every
-   subscription. Nothing else touches them, so no lock guards them.
+ subscription. Nothing else touches them, so no lock guards them.
  * `workers` handler threads run the registered methods, one request each. A
-   blocking handler stalls only its own thread: ping, subscribe and the I/O of
-   other clients keep working.
+ blocking handler stalls only its own thread: ping, subscribe and the I/O of
+ other clients keep working.
  * publishers (`Topic.publish`) may run on any thread. They store the snapshot
-   under the topic's mutex and post the fan-out to the I/O thread inside the same
-   critical section, so the I/O thread sees publications in the order they were
-   made.
+ under the topic's mutex and post the fan-out to the I/O thread inside the same
+ critical section, so the I/O thread sees publications in the order they were
+ made.
 
  Life cycle: `init`, then `register_method` and `register_topic`, then `start`,
  then `stop`, then `free`. Registration is refused once the server has started,
@@ -178,11 +178,21 @@ fn void? Server.init(&self, Allocator allocator, Config config)
 {
 	if (config.app_name.len == 0 && config.socket_path.len == 0)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "server needs an app name or a socket path")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"server needs an app name or a socket path"
+		)~;
 	}
 	if (config.workers < 0)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "server needs a non-negative worker count")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"server needs a non-negative worker count"
+		)~;
 	}
 	self.allocator = allocator;
 	self.config = resolve_defaults(config);
@@ -231,7 +241,12 @@ fn void? Server.register_method(&self, String name, Handler handler, void* conte
 {
 	if (self.state != NEW)
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "methods must be registered before start")~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"methods must be registered before start"
+		)~;
 	}
 	if (name.len == 0 || name == "ping" || name == "subscribe")
 	{
@@ -268,7 +283,7 @@ fn Method* Server.find_method(&self, String name)
  @return? error::INVALID_STATE : "The server has started"
  @return? error::INVALID_ARGUMENT : "Empty name, the reserved name `server`, or a name already registered"
 *>
-fn Topic*? Server.register_topic(&self, String name, TopicOptions options = {})
+fn Topic*? Server.register_topic(&self, String name, TopicOptions options = { })
 {
 	if (self.state != NEW)
 	{
@@ -276,7 +291,12 @@ fn Topic*? Server.register_topic(&self, String name, TopicOptions options = {})
 	}
 	if (name.len == 0 || name == "server" || self.find_topic(name) != null)
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "topic name is empty, reserved or taken")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"topic name is empty, reserved or taken"
+		)~;
 	}
 	Topic* topic = alloc::new(self.allocator, Topic);
 	topic.server = self;
@@ -353,7 +373,9 @@ fn void? Server.start_threads(&self)
 		return err~;
 	}
 	self.io_poller_ready = true;
-	if (catch err = self.io_poller.add({ .handle = self.listener.fd.raw(), .interest = connection_interest(false), .tag = LISTENER_TAG }))
+	if (catch err = self.io_poller.add(
+		{ .handle = self.listener.fd.raw(), .interest = connection_interest(false), .tag = LISTENER_TAG }
+	))
 	{
 		self.stop_slots((sz)self.config.workers);
 		self.release_poller();
@@ -391,7 +413,9 @@ fn void Server.release_listener(&self)
 	if (self.listening)
 	{
 		self.listener.close();
-		if (catch io::path::delete((io::path::Path)self.socket_path)) {}
+		if (catch io::path::delete((io::path::Path)self.socket_path))
+		{
+		}
 		self.listening = false;
 	}
 	if (self.socket_path.len > 0) alloc::free(self.allocator, self.socket_path.ptr);
@@ -483,7 +507,9 @@ fn unix::UnixSocket? bind_socket(String path, bool owned) @private
 {
 	if (owned)
 	{
-		if (catch io::path::delete((io::path::Path)path)) {}
+		if (catch io::path::delete((io::path::Path)path))
+		{
+		}
 	}
 	unix::UnixSocket socket = unix::listen(path, unix::SocketKind.STREAM, LISTEN_BACKLOG)!;
 	// accept() is called until it reports BUSY, so it must never block (the I/O thread would hang).

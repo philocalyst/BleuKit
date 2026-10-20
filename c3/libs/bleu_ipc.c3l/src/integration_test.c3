@@ -33,7 +33,9 @@ fn String socket_path(String tag)
 		path = string::tformat("/tmp/bleu-ipc-%d-%s.sock", posix::getpid(), tag).copy(mem);
 	};
 	// A socket file left by an earlier run that died would make bind fail.
-	if (catch io::path::delete((io::path::Path)path)) {}
+	if (catch io::path::delete((io::path::Path)path))
+	{
+	}
 	return path;
 }
 
@@ -285,7 +287,10 @@ fn void the_first_subscription_frame_is_the_server_info() @test
 	String path = socket_path("serverinfo");
 	defer release(path);
 	ipc::Server server;
-	server.init(mem, { .app_name = APP, .api_version = 38, .socket_path = path, .capabilities = { "network", "bluetooth" } })!!;
+	server.init(
+		mem,
+		{ .app_name = APP, .api_version = 38, .socket_path = path, .capabilities = { "network", "bluetooth" } }
+	)!!;
 	defer server.free();
 	server.start()!!;
 	defer server.stop();
@@ -294,11 +299,14 @@ fn void the_first_subscription_frame_is_the_server_info() @test
 	c.connect(mem, path, WAIT)!!;
 	defer c.free();
 	test::eq(c.handshake, "{\"apiVersion\":38,\"capabilities\":[\"network\",\"bluetooth\"]}");
-	long id = c.subscribe({}, WAIT)!!;
+	long id = c.subscribe({ }, WAIT)!!;
 	test::eq(id, (long)1);
 	// The server frame was consumed by subscribe; a notification is the next frame.
 	server.notify_capabilities_changed()!!;
-	expect_line(&c, "{\"id\":1,\"result\":{\"service\":\"server\",\"data\":{\"apiVersion\":38,\"capabilities\":[\"network\",\"bluetooth\"]}}}");
+	expect_line(
+		&c,
+		"{\"id\":1,\"result\":{\"service\":\"server\",\"data\":{\"apiVersion\":38,\"capabilities\":[\"network\",\"bluetooth\"]}}}"
+	);
 }
 
 fn void all_leaves_out_explicit_topics_but_naming_one_includes_it() @test
@@ -308,7 +316,7 @@ fn void all_leaves_out_explicit_topics_but_naming_one_includes_it() @test
 	ipc::Server server;
 	server.init(mem, config_for(path))!!;
 	defer server.free();
-	ipc::Topic* state = server.register_topic("state")!!;
+	ipc::Topic* state    = server.register_topic("state")!!;
 	ipc::Topic* commands = server.register_topic("commands", { .explicit_only = true })!!;
 	server.start()!!;
 	defer server.stop();
@@ -403,7 +411,10 @@ fn int storm_publisher(void* arg)
 		{
 			storm.order.lock()!!;
 			String json;
-			@pool() { json = string::tformat("{\"v\":%d}", storm.first + i).copy(mem); };
+			@pool()
+			{
+				json = string::tformat("{\"v\":%d}", storm.first + i).copy(mem);
+			};
 			storm.topic.publish(json)!!;
 			release(json);
 			*storm.last = storm.first + i;
@@ -450,7 +461,10 @@ fn void concurrent_publishers_leave_every_subscriber_on_the_last_value() @test
 
 	// The server's final state must be the value the last publication under the lock carried.
 	String expected;
-	@pool() { expected = string::tformat("{\"id\":1,\"result\":{\"service\":\"storm\",\"data\":{\"v\":%d}}}", last).copy(mem); };
+	@pool()
+	{
+		expected = string::tformat("{\"id\":1,\"result\":{\"service\":\"storm\",\"data\":{\"v\":%d}}}", last).copy(mem);
+	};
 	defer release(expected);
 	for (int i = 0; i < 3; i++)
 	{
@@ -488,13 +502,13 @@ fn void a_client_that_stops_reading_is_disconnected_after_the_write_stall() @tes
 	test::eq(server.subscriber_count(big), 1);
 
 	// A payload far larger than the socket buffers, published repeatedly. The client never reads.
-	usz size = 512 * 1024;
+	usz size       = 512 * 1024;
 	char[] payload = alloc::new_array(mem, char, (sz)size);
 	defer alloc::free(mem, payload.ptr);
 	mem::set(payload.ptr, 'a', (sz)size);
 	for (int i = 0; i < 8; i++)
 	{
-		String wrapped = wrap_blob((String)payload[0 : (sz)size]);
+		String wrapped = wrap_blob((String)payload[0:(sz)size]);
 		big.publish(wrapped)!!;
 		release(wrapped);
 	}
@@ -535,7 +549,7 @@ fn void a_line_longer_than_the_limit_closes_the_connection() @test
 	bool closed = false;
 	for (int i = 0; i < 1000 && !closed; i++)
 	{
-		RecvResult? got = raw.recv(buffer[..], {});
+		RecvResult? got = raw.recv(buffer[..], { });
 		if (catch err = got)
 		{
 			closed = err != error::BUSY;
@@ -575,7 +589,7 @@ fn String read_raw_line(unix::UnixSocket* socket)
 	char[1] one;
 	while (true)
 	{
-		RecvResult got = socket.recv(one[..], {})!!;
+		RecvResult got = socket.recv(one[..], { })!!;
 		if (got.bytes == 0) break;
 		if (one[0] == '\n') break;
 		line.append_char(one[0]);

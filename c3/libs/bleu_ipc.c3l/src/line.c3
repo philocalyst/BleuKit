@@ -76,7 +76,7 @@ fn char[] LineBuffer.reserve(&self)
 			self.data = bigger;
 		}
 	}
-	return self.data[(sz)self.end : (sz)wire::READ_CHUNK];
+	return self.data[(sz)self.end:(sz)wire::READ_CHUNK];
 }
 
 <*
@@ -113,16 +113,28 @@ fn String? LineBuffer.next_line(&self)
 		self.scan = self.end;
 		if (self.end - self.start > self.max_line)
 		{
-			return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request line exceeds %d bytes", self.max_line)~;
+			return error::raise(
+				error::OUT_OF_RANGE,
+				error::Domain.INTERNAL,
+				0,
+				"request line exceeds %d bytes",
+				self.max_line
+			)~;
 		}
 		return NO_MORE_ELEMENT~;
 	}
 	if (newline - self.start > self.max_line)
 	{
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request line exceeds %d bytes", self.max_line)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"request line exceeds %d bytes",
+			self.max_line
+		)~;
 	}
-	String line = (String)self.data[(sz)self.start : (sz)(newline - self.start)];
-	if (line.len > 0 && line[line.len - 1] == '\r') line = line[0 : line.len - 1];
+	String line = (String)self.data[(sz)self.start:(sz)(newline - self.start)];
+	if (line.len > 0 && line[line.len - 1] == '\r') line = line[0:line.len - 1];
 	self.start = newline + 1;
 	self.scan = self.start;
 	return line;

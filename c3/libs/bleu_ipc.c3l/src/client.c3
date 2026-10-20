@@ -64,7 +64,7 @@ fn void? Client.open(&self, String path, Duration timeout)
 	self.input.init(self.allocator, wire::DEFAULT_MAX_LINE);
 	self.stash.init(self.allocator, 4);
 	Deadline limit = deadline::after(timeout);
-	String hello = self.wait_line(limit)!;
+	String hello   = self.wait_line(limit)!;
 	self.handshake = hello.copy(self.allocator);
 	DynamicArenaAllocator arena;
 	arena.init(self.allocator, 1024);
@@ -146,7 +146,7 @@ fn String? Client.next_line(&self, Duration timeout)
 fn String? Client.request(&self, String method, String params_json, Duration timeout)
 {
 	self.next_id++;
-	long id = self.next_id;
+	long id      = self.next_id;
 	String frame = wire::request_frame(self.allocator, id, method, params_json);
 	defer alloc::free(self.allocator, frame.ptr);
 	self.socket.send_all((char[])frame)!;
@@ -222,8 +222,8 @@ fn String? Client.wait_line(&self, Deadline limit)
 		if (limit.expired()) return error::raise(TIMEOUT, error::Domain.INTERNAL, 0, "no line from the server")~;
 		poller::Ready[]? ready = self.waiter.wait(limit.remaining());
 		if (catch err = ready) return err~;
-		char[] room = self.input.reserve();
-		RecvResult? got = self.socket.recv(room, {});
+		char[] room     = self.input.reserve();
+		RecvResult? got = self.socket.recv(room, { });
 		if (catch err = got)
 		{
 			if (err == error::BUSY) continue;

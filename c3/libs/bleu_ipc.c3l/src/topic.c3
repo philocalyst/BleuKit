@@ -22,7 +22,12 @@ fn void? Topic.publish(&self, String json_data) @maydiscard
 {
 	if (!wire::is_single_line(json_data))
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "state must be one non-empty line of JSON")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"state must be one non-empty line of JSON"
+		)~;
 	}
 	Allocator allocator = self.server.allocator;
 	self.mutex.lock()!!;
@@ -52,7 +57,14 @@ fn void? Topic.publish_event(&self, String json_data) @maydiscard
 {
 	if (!wire::is_single_line(json_data))
 	{
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "event must be one non-empty line of JSON")~;
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"event must be one non-empty line of JSON"
+		)~;
 	}
-	return self.server.post_io({ .kind = PUBLISH_EVENT, .topic = self, .bytes = json_data.copy(self.server.allocator) });
+	return self.server.post_io(
+		{ .kind = PUBLISH_EVENT, .topic = self, .bytes = json_data.copy(self.server.allocator) }
+	);
 }

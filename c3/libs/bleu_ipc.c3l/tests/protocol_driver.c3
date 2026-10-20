@@ -1,6 +1,6 @@
 // Protocol driver: runs a real server in this process and runs the raw-socket
 // Python checks (raw_protocol.py) against it. Exit code: the Python script's.
-//
+// 
 //   protocol_driver <socket path> <raw_protocol.py>
 module protocol_driver;
 import bleu::ipc, bleu::ipc::wire, std::io, std::os::process, std::time;
@@ -20,7 +20,7 @@ fn void answer_ok(void* context, ipc::Call* call)
 // Publishes `params.value` on the `live` topic, then answers.
 fn void publish_value(void* context, ipc::Call* call)
 {
-	Context* ctx = (Context*)context;
+	Context* ctx  = (Context*)context;
 	String? value = call.params.get_string("value");
 	if (catch err = value)
 	{
@@ -53,11 +53,20 @@ fn int main(String[] args)
 		io::printn("usage: protocol_driver <socket path> <raw_protocol.py>");
 		return 2;
 	}
-	String path = args[1];
+	String path   = args[1];
 	String script = args[2];
 	ipc::Server server;
-	server.init(mem, { .app_name = "driver", .api_version = 38, .socket_path = path,
-		.capabilities = { "network", "bluetooth" }, .max_line = 4096, .write_stall = (Duration)2_000_000 })!!;
+	server.init(
+		mem,
+		{
+			.app_name = "driver",
+			.api_version = 38,
+			.socket_path = path,
+			.capabilities = { "network", "bluetooth" },
+			.max_line = 4096,
+			.write_stall = (Duration)2_000_000
+		}
+	)!!;
 	defer server.free();
 	ipc::Topic* live = server.register_topic("live")!!;
 	ipc::Topic* snap = server.register_topic("snap")!!;
@@ -70,7 +79,14 @@ fn int main(String[] args)
 	defer server.stop();
 
 	String[] command = { "python3", "-I", script, path };
-	int code = process::run(command, process::SpawnOptions.INHERIT_ENV, {}, process::INHERIT, process::INHERIT, process::INHERIT)!!;
+	int code         = process::run(
+		command,
+		process::SpawnOptions.INHERIT_ENV,
+		{ },
+		process::INHERIT,
+		process::INHERIT,
+		process::INHERIT
+	)!!;
 	io::printfn("raw protocol checks exited with %d", code);
 	return code;
 }

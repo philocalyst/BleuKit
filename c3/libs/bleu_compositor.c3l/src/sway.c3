@@ -217,12 +217,31 @@ fn compositor::Window window_of(
 		.workspace_id = workspace.copy(allocator),
 		.output = output.copy(allocator),
 		.focused = focus.has_window && focus.window_id == id,
-		.floating = type == "floating_con" || wire::present(node, "floating"),
-		.fullscreen = { .value = wire::integer_member(node, "fullscreen_mode") > 0, .has_value = true },
+		.floating = is_floating(node),
+		.fullscreen = fullscreen_of(node),
 		.maximized = { },
 		.urgent = wire::optional_flag(node, "urgent"),
 		.geometry = rect_member(node, "rect"),
 	};
+}
+
+// sway writes `floating` on every node: "auto_on" or "user_on" for a floating one,
+// "auto_off" or "user_off" for a tiled one (sway/ipc-json.c). A floating container
+// has type "floating_con".
+fn bool is_floating(Object* node) @private
+{
+	if ((wire::peek(node, "type")) == "floating_con") return true;
+	String state = wire::peek(node, "floating");
+	return state == "auto_on" || state == "user_on";
+}
+
+// sway's `fullscreen_mode`: 0 is not fullscreen, 1 is fullscreen on its output and 2 is
+// fullscreen on every output. Absent when the node does not report it.
+fn Maybe{bool} fullscreen_of(Object* node) @private
+{
+	Maybe{long} mode = wire::optional_integer(node, "fullscreen_mode");
+	if (!mode.has_value) return { };
+	return { .value = mode.value > 0, .has_value = true };
 }
 
 // The X11 class of a window, from `window_properties` when there is no app_id.
@@ -325,6 +344,7 @@ fn compositor::KeyboardLayouts keyboard_layouts(Object* input, Object* names, Al
 	String[] copies = alloc::new_array(allocator, String, wire::length(names));
 	for (sz i = 0; i < wire::length(names); i++) copies[i] = wire::text_element(names, i, allocator);
 	return {
+		.keyboard = wire::text_member(input, "identifier", allocator),
 		.names = copies,
 		.current = optional_index(input),
 		.current_name = wire::text_member(input, "xkb_active_layout_name", allocator),
@@ -384,14 +404,12 @@ fn backend::Refresh window_event(compositor::Model* model, Allocator allocator, 
 			return UPDATED;
 		case change == "floating":
 			if (target < 0) return REFRESH_NEEDED;
-			model.windows[target].floating = (wire::peek(container, "type")) == "floating_con";
+			model.windows[target].floating = is_floating(container);
 			return UPDATED;
 		case change == "fullscreen_mode":
-			if (target < 0) return REFRESH_NEEDED;
-			model.windows[target].fullscreen = {
-				.value = wire::integer_member(container, "fullscreen_mode") > 0,
-				.has_value = true
-			};
+			Maybe{bool} fullscreen = fullscreen_of(container);
+			if (target < 0 || !fullscreen.has_value) return REFRESH_NEEDED;
+			model.windows[target].fullscreen = fullscreen;
 			return UPDATED;
 		case change == "new" || change == "move":
 			return REFRESH_NEEDED;
@@ -418,6 +436,8 @@ fn backend::Refresh workspace_event(compositor::Model* model, Allocator allocato
 				other.focused = other.name == name;
 				if (other.output == output) other.active = other.name == name;
 			}
+			// The shown workspace of each output and the focused output follow the new focus.
+			model.sync_outputs(allocator);
 			return UPDATED;
 		case change == "urgent":
 			if (target < 0) return REFRESH_NEEDED;
@@ -430,8 +450,8 @@ fn backend::Refresh workspace_event(compositor::Model* model, Allocator allocato
 	}
 }
 
-// Keyboard layout changes. The model holds one keyboard, the first with layouts;
-// a layout change on any keyboard updates it, so the last one to change wins.
+// Keyboard layout changes. The model holds one keyboard, the first with layouts, by
+// its identifier; a layout change on any other keyboard leaves it alone.
 fn backend::Refresh input_event(compositor::Model* model, Allocator allocator, Object* root) @private
 {
 	String change  = wire::peek(root, "change");
@@ -439,6 +459,9 @@ fn backend::Refresh input_event(compositor::Model* model, Allocator allocator, O
 	if (catch err = input) return REFRESH_NEEDED;
 	if (change == "xkb_layout")
 	{
+		String keyboard = wire::text_member(input, "identifier", allocator);
+		if (keyboard.len == 0 || model.layouts.keyboard.len == 0) return REFRESH_NEEDED;
+		if (keyboard != model.layouts.keyboard) return NONE;
 		model.layouts.current = optional_index(input);
 		model.layouts.current_name = wire::text_member(input, "xkb_active_layout_name", allocator);
 		return UPDATED;

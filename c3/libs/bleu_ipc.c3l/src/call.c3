@@ -57,19 +57,41 @@ fn void? reply_to(Pending* pending, String payload, bool as_error) @private
 	bool expected = false;
 	if (!pending.answered.compare_exchange(&expected, true))
 	{
-		return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "request %d was already answered", pending.request_id)~;
+		return error::raise(
+			error::INVALID_STATE,
+			error::Domain.INTERNAL,
+			0,
+			"request %d was already answered",
+			pending.request_id
+		)~;
 	}
 	if (as_error)
 	{
-		return pending.server.post_reply(pending.conn_id, wire::error_frame(pending.allocator, pending.request_id, payload));
+		return pending.server.post_reply(
+			pending.conn_id,
+			wire::error_frame(pending.allocator, pending.request_id, payload)
+		);
 	}
 	if (!wire::is_single_line(payload))
 	{
 		// The client must still get an answer: an error reply in place of the bad result.
-		if (catch pending.server.post_reply(pending.conn_id, wire::error_frame(pending.allocator, pending.request_id, "result is empty or spans lines"))) {}
-		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "result must be one non-empty line of JSON")~;
+		if (catch pending.server.post_reply(
+			pending.conn_id,
+			wire::error_frame(pending.allocator, pending.request_id, "result is empty or spans lines")
+		))
+		{
+		}
+		return error::raise(
+			error::INVALID_ARGUMENT,
+			error::Domain.INTERNAL,
+			0,
+			"result must be one non-empty line of JSON"
+		)~;
 	}
-	return pending.server.post_reply(pending.conn_id, wire::result_frame(pending.allocator, pending.request_id, payload));
+	return pending.server.post_reply(
+		pending.conn_id,
+		wire::result_frame(pending.allocator, pending.request_id, payload)
+	);
 }
 
 // Give up the reference a Deferred holds, once: the first completion clears the flag.
@@ -153,7 +175,12 @@ struct Deferred
 *>
 fn void? Deferred.respond_raw(self, String json_fragment) @maydiscard
 {
-	if (self.pending == null) return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "deferred request is already answered")~;
+	if (self.pending == null) return error::raise(
+		error::INVALID_STATE,
+		error::Domain.INTERNAL,
+		0,
+		"deferred request is already answered"
+	)~;
 	defer release_hold(self.pending);
 	return reply_to(self.pending, json_fragment, false);
 }
@@ -165,7 +192,12 @@ fn void? Deferred.respond_raw(self, String json_fragment) @maydiscard
 *>
 fn void? Deferred.respond_error(self, String message) @maydiscard
 {
-	if (self.pending == null) return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "deferred request is already answered")~;
+	if (self.pending == null) return error::raise(
+		error::INVALID_STATE,
+		error::Domain.INTERNAL,
+		0,
+		"deferred request is already answered"
+	)~;
 	defer release_hold(self.pending);
 	return reply_to(self.pending, message, true);
 }

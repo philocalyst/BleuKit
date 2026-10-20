@@ -9,7 +9,7 @@ fn void feed(line::LineBuffer* buffer, String text)
 	while (offset < (usz)text.len)
 	{
 		char[] room = buffer.reserve();
-		usz count = min_of((usz)room.len, (usz)text.len - offset);
+		usz count   = min_of((usz)room.len, (usz)text.len - offset);
 		mem::copy(room.ptr, &text[(sz)offset], (sz)count);
 		buffer.commit(count);
 		offset += count;
@@ -51,11 +51,11 @@ fn void a_line_longer_than_the_chunk_size_is_reassembled() @test
 	line::LineBuffer buffer;
 	buffer.init(mem, wire::DEFAULT_MAX_LINE);
 	defer buffer.free();
-	usz size = wire::READ_CHUNK * 3 + 17;
+	usz size    = wire::READ_CHUNK * 3 + 17;
 	char[] body = alloc::new_array(mem, char, (sz)size);
 	defer alloc::free(mem, body.ptr);
 	mem::set(body.ptr, 'x', (sz)size);
-	feed(&buffer, (String)body[0 : (sz)size]);
+	feed(&buffer, (String)body[0:(sz)size]);
 	test::@error(buffer.next_line(), NO_MORE_ELEMENT);
 	feed(&buffer, "\n");
 	String line = buffer.next_line()!!;

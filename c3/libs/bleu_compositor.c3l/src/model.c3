@@ -89,11 +89,15 @@ struct Output
 <*
  The keyboard layouts of the main keyboard.
 
+ `keyboard` is the name (Hyprland) or identifier (sway) of the keyboard these
+ layouts belong to, "" when unknown. A layout event names its keyboard, and only
+ an event for this one changes `current_name`.
  `names` is empty when the compositor reports only the active layout's name
  (Hyprland). `current` is the index into `names`, absent when unknown.
 *>
 struct KeyboardLayouts
 {
+	String keyboard;
 	String[] names;
 	Maybe{int} current;
 	String current_name;
@@ -125,6 +129,31 @@ fn Model Model.clone(&self, Allocator allocator)
 		.outputs = clone_outputs(self.outputs, allocator),
 		.layouts = clone_layouts(self.layouts, allocator),
 	};
+}
+
+<*
+ Recompute each output's `active_workspace` and `focused` from the workspace list.
+ An output shows its own workspace that is `active`, and holds focus when one of
+ its workspaces is `focused`. Workspace events change the workspaces but not the
+ outputs, so a backend calls this after applying one.
+
+ @param allocator : "Long-lived allocator for the new workspace ids (not tmem)"
+*>
+fn void Model.sync_outputs(&self, Allocator allocator)
+{
+	for (sz i = 0; i < self.outputs.len; i++)
+	{
+		Output* output = &self.outputs[i];
+		output.active_workspace = "";
+		output.focused = false;
+		for (sz j = 0; j < self.workspaces.len; j++)
+		{
+			Workspace* workspace = &self.workspaces[j];
+			if (workspace.output != output.name) continue;
+			if (workspace.active) output.active_workspace = workspace.id.copy(allocator);
+			if (workspace.focused) output.focused = true;
+		}
+	}
 }
 
 fn Workspace[] clone_workspaces(Workspace[] source, Allocator allocator) @private
@@ -188,6 +217,7 @@ fn KeyboardLayouts clone_layouts(KeyboardLayouts source, Allocator allocator) @p
 	String[] names = alloc::new_array(allocator, String, source.names.len);
 	foreach (i, name : source.names) names[i] = name.copy(allocator);
 	return {
+		.keyboard = source.keyboard.copy(allocator),
 		.names = names,
 		.current = source.current,
 		.current_name = source.current_name.copy(allocator),

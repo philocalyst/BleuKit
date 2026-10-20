@@ -76,11 +76,11 @@ fn void service_frame_carries_the_id_and_the_data_verbatim() @test
 fn void server_info_lists_capabilities_in_order() @test
 {
 	String[2] caps = { "network", "bluetooth" };
-	String info = wire::server_info(mem, 38, caps[..]);
+	String info    = wire::server_info(mem, 38, caps[..]);
 	test::eq(info, "{\"apiVersion\":38,\"capabilities\":[\"network\",\"bluetooth\"]}");
 	release(info);
 
-	String none = wire::server_info(mem, 1, {});
+	String none = wire::server_info(mem, 1, { });
 	test::eq(none, "{\"apiVersion\":1,\"capabilities\":[]}");
 	release(none);
 }
@@ -96,25 +96,25 @@ fn void utf8_accepts_well_formed_sequences() @test
 {
 	// ASCII, two-, three- and four-byte sequences, and the edges of each range.
 	test::@check(wire::valid_utf8("plain ascii"));
-	test::@check(wire::valid_utf8("\xc2\x80"));              // U+0080
-	test::@check(wire::valid_utf8("\xdf\xbf"));              // U+07FF
-	test::@check(wire::valid_utf8("\xe0\xa0\x80"));          // U+0800
-	test::@check(wire::valid_utf8("\xed\x9f\xbf"));          // U+D7FF
-	test::@check(wire::valid_utf8("\xee\x80\x80"));          // U+E000
-	test::@check(wire::valid_utf8("\xf0\x90\x80\x80"));      // U+10000
-	test::@check(wire::valid_utf8("\xf4\x8f\xbf\xbf"));      // U+10FFFF
+	test::@check(wire::valid_utf8("\xc2\x80")); // U+0080
+	test::@check(wire::valid_utf8("\xdf\xbf")); // U+07FF
+	test::@check(wire::valid_utf8("\xe0\xa0\x80")); // U+0800
+	test::@check(wire::valid_utf8("\xed\x9f\xbf")); // U+D7FF
+	test::@check(wire::valid_utf8("\xee\x80\x80")); // U+E000
+	test::@check(wire::valid_utf8("\xf0\x90\x80\x80")); // U+10000
+	test::@check(wire::valid_utf8("\xf4\x8f\xbf\xbf")); // U+10FFFF
 }
 
 fn void utf8_rejects_overlong_surrogate_and_out_of_range_forms() @test
 {
-	test::@check(!wire::valid_utf8("\x80"));                 // lone continuation byte
-	test::@check(!wire::valid_utf8("\xc0\x80"));             // overlong NUL
-	test::@check(!wire::valid_utf8("\xe0\x80\x80"));         // overlong three-byte
-	test::@check(!wire::valid_utf8("\xf0\x80\x80\x80"));     // overlong four-byte
-	test::@check(!wire::valid_utf8("\xed\xa0\x80"));         // U+D800, a surrogate
-	test::@check(!wire::valid_utf8("\xf4\x90\x80\x80"));     // U+110000
-	test::@check(!wire::valid_utf8("\xf5\x80\x80\x80"));     // lead byte above F4
+	test::@check(!wire::valid_utf8("\x80")); // lone continuation byte
+	test::@check(!wire::valid_utf8("\xc0\x80")); // overlong NUL
+	test::@check(!wire::valid_utf8("\xe0\x80\x80")); // overlong three-byte
+	test::@check(!wire::valid_utf8("\xf0\x80\x80\x80")); // overlong four-byte
+	test::@check(!wire::valid_utf8("\xed\xa0\x80")); // U+D800, a surrogate
+	test::@check(!wire::valid_utf8("\xf4\x90\x80\x80")); // U+110000
+	test::@check(!wire::valid_utf8("\xf5\x80\x80\x80")); // lead byte above F4
 	test::@check(!wire::valid_utf8("\xff"));
-	test::@check(!wire::valid_utf8("\xe2\x82"));             // truncated three-byte
-	test::@check(!wire::valid_utf8("\xe2\x41\xac"));         // continuation missing
+	test::@check(!wire::valid_utf8("\xe2\x82")); // truncated three-byte
+	test::@check(!wire::valid_utf8("\xe2\x41\xac")); // continuation missing
 }

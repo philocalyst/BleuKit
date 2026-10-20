@@ -5,8 +5,8 @@
  Two kinds of frame share the queue:
 
  * state frames carry a coalescing key (the topic, or the `server` service).
-   A new state frame for the same subscription and key replaces the queued one,
-   so a client that falls behind receives only the latest value of each state.
+ A new state frame for the same subscription and key replaces the queued one,
+ so a client that falls behind receives only the latest value of each state.
  * every other frame (replies, events) has `NO_KEY` and is never replaced.
 
  The frame the socket is part-way through is never replaced: its bytes are
@@ -93,12 +93,18 @@ fn void? Outbox.put(&self, String bytes, long request_id, usz key) @maydiscard
 		sz index = find_coalescible(self, request_id, key);
 		if (index >= 0)
 		{
-			Frame* old = self.frames.get_ref(index);
+			Frame* old       = self.frames.get_ref(index);
 			usz next_pending = self.pending - (usz)old.bytes.len + (usz)bytes.len;
 			if (next_pending > self.max_pending)
 			{
 				alloc::free(self.allocator, bytes.ptr);
-				return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "outbox would exceed %d bytes", self.max_pending)~;
+				return error::raise(
+					error::OUT_OF_RANGE,
+					error::Domain.INTERNAL,
+					0,
+					"outbox would exceed %d bytes",
+					self.max_pending
+				)~;
 			}
 			self.pending = next_pending;
 			alloc::free(self.allocator, old.bytes.ptr);
@@ -109,7 +115,13 @@ fn void? Outbox.put(&self, String bytes, long request_id, usz key) @maydiscard
 	if (!self.frames.is_empty() && self.pending + (usz)bytes.len > self.max_pending)
 	{
 		alloc::free(self.allocator, bytes.ptr);
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "outbox would exceed %d bytes", self.max_pending)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"outbox would exceed %d bytes",
+			self.max_pending
+		)~;
 	}
 	self.frames.push({ .bytes = bytes, .sent = 0, .request_id = request_id, .key = key });
 	self.pending += (usz)bytes.len;

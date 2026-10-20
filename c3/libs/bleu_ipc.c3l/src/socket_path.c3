@@ -39,7 +39,7 @@ fn String? resolve_socket_path(Allocator allocator, Config config) @private
 	String? dir = runtime_dir(allocator);
 	if (catch err = dir) return err~;
 	String directory = dir;
-	long pid = (long)posix::getpid();
+	long pid         = (long)posix::getpid();
 	remove_stale_sockets(directory, config.app_name, pid);
 	String path;
 	@pool()
@@ -56,13 +56,23 @@ fn String? runtime_dir(Allocator allocator) @private
 	String? value = env::get_var(allocator, "XDG_RUNTIME_DIR");
 	if (catch err = value)
 	{
-		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "XDG_RUNTIME_DIR is not set; pass a socket path")~;
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"XDG_RUNTIME_DIR is not set; pass a socket path"
+		)~;
 	}
 	String dir = value;
 	if (dir.len == 0)
 	{
 		alloc::free(allocator, dir.ptr);
-		return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "XDG_RUNTIME_DIR is empty; pass a socket path")~;
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.INTERNAL,
+			0,
+			"XDG_RUNTIME_DIR is empty; pass a socket path"
+		)~;
 	}
 	return dir;
 }
@@ -77,9 +87,11 @@ fn void remove_stale_sockets(String dir, String app, long own_pid) @private
 			for (sz i = 0; i < entries.len(); i++)
 			{
 				String name = (String)entries.get(i);
-				long pid = socket_owner(name, app);
+				long pid    = socket_owner(name, app);
 				if (pid <= 0 || pid == own_pid || process_exists(pid)) continue;
-				if (catch io::path::delete((io::path::Path)string::tformat("%s/%s", dir, name))) {}
+				if (catch io::path::delete((io::path::Path)string::tformat("%s/%s", dir, name)))
+				{
+				}
 			}
 		}
 	};
@@ -94,8 +106,8 @@ fn long socket_owner(String name, String app) @private
 	usz suffix = SOCKET_SUFFIX.len;
 	if (name.len <= prefix + suffix) return -1;
 	if (!name.starts_with(app) || name[app.len] != '-' || !name.ends_with(SOCKET_SUFFIX)) return -1;
-	String digits = name[prefix : name.len - prefix - suffix];
-	long pid = 0;
+	String digits = name[prefix:name.len - prefix - suffix];
+	long pid      = 0;
 	for (sz i = 0; i < digits.len; i++)
 	{
 		char c = digits[i];

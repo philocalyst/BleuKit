@@ -4,11 +4,11 @@
      "nodes":[
        {"id":10,"type":"con","name":"~/src","app_id":"foot","pid":4242,"window":null,
         "focused":false,"focus":[],"nodes":[],"floating_nodes":[],
-        "rect":{"x":0,"y":0,"width":1280,"height":1417},"fullscreen_mode":0,"urgent":false,"floating":null},
+        "rect":{"x":0,"y":0,"width":1280,"height":1417},"fullscreen_mode":0,"urgent":false,"floating":"auto_off"},
        {"id":11,"type":"con","name":"Browser","app_id":null,"pid":null,"window":12345,
         "window_properties":{"class":"Firefox","instance":"Navigator","title":"Browser","window_role":null,"window_type":null,"transient_for":null},
         "focused":true,"focus":[],"nodes":[],"floating_nodes":[],
-        "rect":{"x":1280,"y":0,"width":1280,"height":1417},"fullscreen_mode":0,"urgent":true,"floating":null}
+        "rect":{"x":1280,"y":0,"width":1280,"height":1417},"fullscreen_mode":0,"urgent":true,"floating":"auto_off"}
      ],
      "floating_nodes":[
        {"id":20,"type":"floating_con","name":"float","focus":[21],"nodes":[

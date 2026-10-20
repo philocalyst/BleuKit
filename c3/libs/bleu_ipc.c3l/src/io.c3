@@ -2,10 +2,10 @@
  The I/O thread: the one thread that reads requests, writes replies and frames,
  and accepts connections. It loops over four steps:
 
-   1. apply the commands other threads posted (publications, replies, capability changes),
-   2. write what the sockets accept now,
-   3. wait for readiness (bounded by the nearest write-stall deadline) and handle it,
-   4. disconnect clients whose stall deadline has passed.
+ 1. apply the commands other threads posted (publications, replies, capability changes),
+ 2. write what the sockets accept now,
+ 3. wait for readiness (bounded by the nearest write-stall deadline) and handle it,
+ 4. disconnect clients whose stall deadline has passed.
 
  Requests are parsed here, so `ping`, `subscribe` and protocol errors never wait
  behind a handler; only registered methods go to the handler threads.
@@ -202,8 +202,8 @@ fn bool Server.flush(&self, Connection* conn)
 	while (!conn.output.is_empty())
 	{
 		outbox::Frame* frame = conn.output.front();
-		String rest = frame.bytes[(sz)frame.sent : (sz)((usz)frame.bytes.len - frame.sent)];
-		usz? accepted = conn.socket.send((char[])rest);
+		String rest          = frame.bytes[(sz)frame.sent:(sz)((usz)frame.bytes.len - frame.sent)];
+		usz? accepted        = conn.socket.send((char[])rest);
 		if (catch err = accepted)
 		{
 			if (err == error::BUSY)
@@ -238,8 +238,8 @@ fn bool Server.sync_interest(&self, Connection* conn)
 // Read what the socket has now and handle every complete line. False when the client must close.
 fn bool Server.read_from(&self, Connection* conn)
 {
-	char[] room = conn.input.reserve();
-	RecvResult? got = conn.socket.recv(room, {});
+	char[] room     = conn.input.reserve();
+	RecvResult? got = conn.socket.recv(room, { });
 	if (catch err = got)
 	{
 		// Nothing to read yet keeps the client; a closed or broken connection does not.
@@ -400,7 +400,7 @@ fn void Server.add_connection(&self, unix::UnixSocket socket)
 		self.close_connection(conn);
 		return;
 	}
-	String[] caps = self.capabilities_now();
+	String[] caps    = self.capabilities_now();
 	String handshake = wire::handshake_frame(self.allocator, self.config.api_version, caps);
 	if (!self.enqueue(conn, handshake, 0, outbox::NO_KEY)) self.close_connection(conn);
 }
@@ -436,7 +436,7 @@ fn bool Server.fan_out_to(&self, Connection* conn, Topic* topic, String data, bo
 		Subscription* sub = conn.subscriptions.get(s);
 		if (!sub.wants[topic.index]) continue;
 		String frame = wire::service_frame(self.allocator, sub.request_id, topic.name, data);
-		usz key = state ? topic.index : outbox::NO_KEY;
+		usz key      = state ? topic.index : outbox::NO_KEY;
 		if (catch conn.output.put(frame, sub.request_id, key)) return false;
 	}
 	return true;
@@ -460,7 +460,7 @@ fn bool Server.server_frames_to(&self, Connection* conn, String info)
 	for (sz s = 0; s < conn.subscriptions.len(); s++)
 	{
 		Subscription* sub = conn.subscriptions.get(s);
-		String frame = wire::service_frame(self.allocator, sub.request_id, "server", info);
+		String frame      = wire::service_frame(self.allocator, sub.request_id, "server", info);
 		if (catch conn.output.put(frame, sub.request_id, SERVER_KEY)) return false;
 	}
 	return true;
@@ -489,7 +489,9 @@ fn Connection* Server.find_connection(&self, usz id)
 *>
 fn void Server.close_connection(&self, Connection* conn)
 {
-	if (catch self.io_poller.remove(conn.id)) {}
+	if (catch self.io_poller.remove(conn.id))
+	{
+	}
 	for (sz s = 0; s < conn.subscriptions.len(); s++)
 	{
 		Subscription* sub = conn.subscriptions.get(s);

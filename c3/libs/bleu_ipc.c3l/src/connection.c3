@@ -60,7 +60,7 @@ fn void? Server.subscribe(&self, Connection* conn, long request_id, Object* para
 		if (sub.wants[(sz)t]) self.topics.get((sz)t).subscribers.add(1);
 	}
 
-	String info = self.server_info_json(self.allocator);
+	String info  = self.server_info_json(self.allocator);
 	String first = wire::service_frame(self.allocator, request_id, "server", info);
 	alloc::free(self.allocator, info.ptr);
 	conn.output.put(first, request_id, outbox::NO_KEY)!;
@@ -86,7 +86,7 @@ fn void? Server.subscribe(&self, Connection* conn, long request_id, Object* para
 // Set `wants` for the topics named in a subscribe request's `services`.
 fn void Server.choose_topics(&self, bool[] wants, Object* params)
 {
-	bool all = false;
+	bool all   = false;
 	bool named = false;
 	if (try services = params.get("services"))
 	{
