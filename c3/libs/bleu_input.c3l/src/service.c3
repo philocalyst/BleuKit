@@ -56,7 +56,14 @@ fn Input*? open(Allocator allocator, Options options = { })
 		return err~;
 	}
 	self.driver_state = state;
-	if (catch err = self.hub.start(allocator, "input", driver.info.name, driver.run, self.driver_state))
+	if (catch err = self.hub.start(
+		allocator,
+		"input",
+		driver.info.name,
+		driver.run,
+		self.driver_state,
+		abandon: &abandon_command
+	))
 	{
 		driver.destroy(allocator, self.driver_state);
 		alloc::free(allocator, self);
@@ -118,21 +125,15 @@ fn Reader{Event}*? Input.subscribe(&self) => self.hub.events.subscribe();
 
  @param layout_id : "A `Layout.id` from the current state"
  @return? error::UNSUPPORTED, error::UNAVAILABLE : "This backend cannot switch here (see `capability(SWITCH)`)"
- @return? error::INVALID_ARGUMENT : "The id is empty or longer than ID_CAPACITY"
+ @return? error::INVALID_ARGUMENT : "The id is empty"
  @return? NOT_FOUND : "No layout in the current state has that id"
  @return? error::BUSY : "The worker's queue is full"
 *>
 fn SwitchOperation*? Input.switch_to(&self, String layout_id)
 {
-	if (layout_id.len == 0 || layout_id.len > ID_CAPACITY)
+	if (layout_id.len == 0)
 	{
-		return error::raise(
-			error::INVALID_ARGUMENT,
-			error::Domain.INTERNAL,
-			0,
-			"layout id must be 1 to %d bytes",
-			ID_CAPACITY
-		)~;
+		return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "the layout id is empty")~;
 	}
 	Availability switch_ok = self.capability(Cap.SWITCH);
 	if (!switch_ok.ok()) return switch_ok.refusal()~;
@@ -175,12 +176,12 @@ fn SwitchOperation*? Input.next(&self)
 	return self.post_switch(snapshot.value.layouts[target].id);
 }
 
-// Queue a switch to `layout_id` for the worker. The id is copied into the command.
+// Queue a switch to `layout_id` for the worker. The id is copied into the operation's arena, which lives
+// until the worker completes the operation.
 fn SwitchOperation*? Input.post_switch(&self, String layout_id)
 {
 	SwitchOperation* operation = operation::begin{SwitchOutcome}(self.allocator);
-	Command command            = { .kind = SWITCH_TO, .id_len = (usz)layout_id.len, .operation = operation };
-	mem::copy(&command.id, layout_id.ptr, layout_id.len);
+	Command command = { .kind = SWITCH_TO, .id = layout_id.copy(operation.allocator()), .operation = operation };
 	// The worker holds its own reference until it completes the operation.
 	operation.retain();
 	if (catch err = self.hub.post(command))

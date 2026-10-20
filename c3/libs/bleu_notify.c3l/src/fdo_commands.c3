@@ -25,20 +25,20 @@ fn void stopped(Session* s)
 }
 
 // A notification's timeout passed.
-fn void expire(Session* s, notify::NoteId id)
+fn void? expire(Session* s, notify::NoteId id)
 {
 	if (!s.store.close(id)) return;
-	announce_closed(s, id, notify::CloseReason.EXPIRED);
+	announce_closed(s, id, notify::CloseReason.EXPIRED)!;
 	publish(s);
 }
 
 // Run one command from the mailbox and complete its operation, if it has one.
-fn void execute(Session* s, notify::Command* command)
+fn void? execute(Session* s, notify::Command* command)
 {
 	switch (command.kind)
 	{
-		case notify::CommandKind.CLOSE: close_by_request(s, command);
-		case notify::CommandKind.INVOKE_ACTION: invoke(s, command);
+		case notify::CommandKind.CLOSE: close_by_request(s, command)!;
+		case notify::CommandKind.INVOKE_ACTION: invoke(s, command)!;
 		case notify::CommandKind.SET_DO_NOT_DISTURB:
 			s.store.set_do_not_disturb(command.flag);
 			publish(s);
@@ -48,7 +48,7 @@ fn void execute(Session* s, notify::Command* command)
 	}
 }
 
-fn void close_by_request(Session* s, notify::Command* command)
+fn void? close_by_request(Session* s, notify::Command* command)
 {
 	Operation{bool}* operation = command.operation;
 	if (!s.store.close(command.id))
@@ -57,13 +57,17 @@ fn void close_by_request(Session* s, notify::Command* command)
 		return;
 	}
 	cancel(s, command.id);
-	announce_closed(s, command.id, command.reason);
+	if (catch err = announce_closed(s, command.id, command.reason))
+	{
+		finish(operation, err);
+		return err~;
+	}
 	publish(s);
 	finish_ok(operation, true);
 }
 
 // Invoke an action: announce it, then close the notification unless it is resident.
-fn void invoke(Session* s, notify::Command* command)
+fn void? invoke(Session* s, notify::Command* command)
 {
 	Operation{bool}* operation = command.operation;
 	store::Entry* e            = s.store.open(command.id);
@@ -89,12 +93,20 @@ fn void invoke(Session* s, notify::Command* command)
 		return;
 	}
 	bool resident = e.note.resident;
-	announce_action(s, command.id, key);
+	if (catch err = announce_action(s, command.id, key))
+	{
+		finish(operation, err);
+		return err~;
+	}
 	if (!resident)
 	{
 		s.store.close(command.id);
 		cancel(s, command.id);
-		announce_closed(s, command.id, notify::CloseReason.CLOSED_BY_CALL);
+		if (catch err = announce_closed(s, command.id, notify::CloseReason.CLOSED_BY_CALL))
+		{
+			finish(operation, err);
+			return err~;
+		}
 	}
 	publish(s);
 	finish_ok(operation, true);
@@ -181,8 +193,8 @@ fn void cancel(Session* s, notify::NoteId id)
 	}
 }
 
-// Tell the bus that `id` closed, and why. The id is never used again by the spec.
-fn void announce_closed(Session* s, notify::NoteId id, notify::CloseReason reason)
+// Tell the bus that `id` closed, and why. A failed signal is returned: the bus is gone, and the server stops.
+fn void? announce_closed(Session* s, notify::NoteId id, notify::CloseReason reason)
 {
 	@pool()
 	{
@@ -191,17 +203,17 @@ fn void announce_closed(Session* s, notify::NoteId id, notify::CloseReason reaso
 			INTERFACE,
 			"NotificationClosed",
 			{ value::u32(id), value::u32((uint)reason) }
-		)!!;
+		)!;
 	};
 	emit(s, { .kind = notify::EventKind.CLOSED, .id = id, .reason = reason });
 }
 
 // Tell the bus that the user invoked `key` on `id`, and tell the shell.
-fn void announce_action(Session* s, notify::NoteId id, String key)
+fn void? announce_action(Session* s, notify::NoteId id, String key)
 {
 	@pool()
 	{
-		s.objects.emit_signal(OBJECT_PATH, INTERFACE, "ActionInvoked", { value::u32(id), value::str(tmem, key)!! })!!;
+		s.objects.emit_signal(OBJECT_PATH, INTERFACE, "ActionInvoked", { value::u32(id), value::str(tmem, key)!! })!;
 	};
 	emit(s, { .kind = notify::EventKind.ACTION_INVOKED, .id = id, .action_key = key });
 }

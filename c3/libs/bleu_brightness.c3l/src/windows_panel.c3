@@ -15,7 +15,7 @@
  (`DISPLAY_BRIGHTNESS`), as cited in docs/research/display.md section 2.3.
 *>
 module bleu::brightness::windows_panel @feat(WIN32);
-import bleu::error, bleu::unit;
+import std::os::win32, bleu::error, bleu::unit;
 
 const uint GENERIC_READ                         =  0x80000000;
 const uint GENERIC_WRITE                        =  0x40000000;
@@ -91,7 +91,13 @@ fn Panel? open_panel()
 	);
 	if ((long)handle == INVALID_HANDLE || handle == null)
 	{
-		return error::raise(error::UNAVAILABLE, error::Domain.WIN32, 0, "cannot open %s", PANEL_PATH)~;
+		return error::raise(
+			error::UNAVAILABLE,
+			error::Domain.WIN32,
+			(int)win32::getLastError(),
+			"cannot open %s",
+			PANEL_PATH
+		)~;
 	}
 	return { .handle = handle };
 }
@@ -121,7 +127,7 @@ fn DisplayBrightness? Panel.query(&self)
 		return error::raise(
 			error::BACKEND_FAILURE,
 			error::Domain.WIN32,
-			0,
+			(int)win32::getLastError(),
 			"the panel did not answer the brightness query"
 		)~;
 	}
@@ -143,8 +149,8 @@ fn long? Panel.write(&self, Level level)
 {
 	DisplayBrightness value = self.query()!;
 	long raw                = level.to_raw(0, PANEL_STEPS);
+	// Only the AC byte (mains power) is set. The DC byte is the battery setting, which this request does not own.
 	value.ac = (char)raw;
-	value.dc = (char)raw;
 	uint returned = 0;
 	if (!deviceIoControl(
 		self.handle,
@@ -157,7 +163,12 @@ fn long? Panel.write(&self, Level level)
 		null
 	))
 	{
-		return error::raise(error::BACKEND_FAILURE, error::Domain.WIN32, 0, "the panel refused the brightness set")~;
+		return error::raise(
+			error::BACKEND_FAILURE,
+			error::Domain.WIN32,
+			(int)win32::getLastError(),
+			"the panel refused the brightness set"
+		)~;
 	}
 	return raw;
 }

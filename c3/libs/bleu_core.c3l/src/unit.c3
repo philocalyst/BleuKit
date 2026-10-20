@@ -49,7 +49,8 @@ fn long Level.to_raw(self, long min, long max)
 *>
 fn Level from_raw(long raw, long min, long max)
 {
-	return level((float)(raw - min) / (float)(max - min));
+	// Double: a float is exact only up to 2^24, which a wide device range exceeds.
+	return level((float)((double)(raw - min) / (double)(max - min)));
 }
 
 <* Linear interpolation between two levels. *>

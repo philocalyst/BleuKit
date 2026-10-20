@@ -14,6 +14,7 @@ struct Reading
 	uint device_reason; // Wi-Fi device StateReason
 	long last_scan; // Wireless.LastScan: changes when a scan finishes
 	bool radio_enabled; // WirelessEnabled
+	bool wifi_known; // the Wi-Fi part of this read succeeded: the fields above are this read's, not guesses
 }
 
 <* The Wi-Fi part of one read: the visible networks and the one in use. *>
@@ -31,13 +32,16 @@ struct Device
 }
 
 <*
- Read everything once. The state is complete even when some parts are absent
- (no Wi-Fi device, NetworkManager without a primary connection).
+ Read everything once. A sub-read that fails keeps the previous picture's value of
+ its part (flagged in `Stale`), so one failed read does not blank the state. The
+ root properties and the device list are the spine of the picture: when either
+ fails, the whole read fails and the caller falls back to the previous picture.
 
  @param out : "Allocator for the snapshot's contents"
+ @param previous : "The last published picture, the source of the parts a failed read keeps"
  @return? error::DISCONNECTED : "The bus closed during the read"
 *>
-fn State? read_state(Backend* b, Allocator out, Reading* r)
+fn State? read_state(Backend* b, Allocator out, State* previous, Reading* r)
 {
 	@pool()
 	{
@@ -50,11 +54,22 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 		List{Interface} interfaces;
 		interfaces.init(tmem);
 		WifiScan wifi_scan;
+		Stale stale;
+		r.wifi_known = true;
 		for (usz i = 0; i < paths.count(); i++)
 		{
 			String path  = paths.at(i)!.as_object_path()!;
 			Proxy device = object_proxy(&b.bus, path, NM_DEVICE_IFACE)!;
-			Value props  = device.get_all_properties(tmem)!;
+			Value? props_or = device.get_all_properties(tmem);
+			if (catch err = props_or)
+			{
+				// A device that cannot be read might be the Wi-Fi one: both parts stay as they were.
+				stale.interfaces = true;
+				stale.wifi = true;
+				r.wifi_known = false;
+				continue;
+			}
+			Value props = props_or;
 			InterfaceKind kind;
 			if (try k = nm_convert::kind_from_device_type(uint_of(props, "DeviceType")))
 			{
@@ -76,16 +91,36 @@ fn State? read_state(Backend* b, Allocator out, Reading* r)
 				r.wifi_name = name.copy(out);
 				r.device_state = uint_of(props, "State");
 				r.device_reason = reason_of(props, "StateReason");
-				wifi_scan = read_networks(b, path, out, r)!;
+				if (try scan = read_networks(b, path, out, r))
+				{
+					wifi_scan = scan;
+				}
+				else
+				{
+					stale.wifi = true;
+					r.wifi_known = false;
+				}
 			}
 		}
-		String primary_name = primary_interface(b, primary, devices.array_view(), out)!;
+		String primary_name;
+		if (try name = primary_interface(b, primary, devices.array_view(), out))
+		{
+			primary_name = name;
+		}
+		else
+		{
+			stale.primary = true;
+			primary_name = network::copy_text(out, previous.primary_interface);
+		}
 		return {
 			.connectivity = nm_convert::connectivity_from(uint_of(root, "Connectivity")),
 			.location = NOT_APPLICABLE,
 			.primary_interface = primary_name,
-			.wifi = wifi_state(b, r, bool_of(root, "WirelessHardwareEnabled"), wifi_scan, out),
-			.interfaces = clone_interfaces(out, interfaces.array_view()),
+			.wifi = stale.wifi ? network::clone_wifi(out, &previous.wifi)
+				: wifi_state(b, r, bool_of(root, "WirelessHardwareEnabled"), wifi_scan, out),
+			.interfaces = stale.interfaces ? network::clone_interfaces(out, previous.interfaces)
+				: network::clone_interfaces(out, interfaces.array_view()),
+			.stale = stale,
 		};
 	};
 }
@@ -213,6 +248,12 @@ fn Wifi wifi_state(Backend* b, Reading* r, bool hardware_enabled, WifiScan scan,
 		wifi.failure = nm_convert::failure_from_reason(r.device_reason);
 		if (wifi.failure == NO_SECRETS && b.last_supplied) wifi.failure = AUTH_REJECTED;
 	}
+	else if (r.device_state == nm_convert::DEVICE_STATE_NEED_AUTH && b.agent_registered)
+	{
+		// The agent is asked again (a prompt waits, the phase stays AUTH_REQUIRED); the failure says
+		// whether the last passphrase was the one refused.
+		wifi.failure = b.last_supplied ? AUTH_REJECTED : AUTH_REQUIRED;
+	}
 	else if (r.device_state == nm_convert::DEVICE_STATE_NEED_AUTH && b.last_supplied)
 	{
 		wifi.phase = FAILED;
@@ -227,16 +268,4 @@ fn Wifi wifi_state(Backend* b, Reading* r, bool hardware_enabled, WifiScan scan,
 		wifi.phase = CONNECTING;
 	}
 	return wifi;
-}
-
-fn Interface[] clone_interfaces(Allocator out, Interface[] source) @local
-{
-	if (source.len == 0) return { };
-	return alloc::clone_slice(out, source);
-}
-
-fn AccessPoint[] clone_networks(Allocator out, AccessPoint[] source) @local
-{
-	if (source.len == 0) return { };
-	return alloc::clone_slice(out, source);
 }

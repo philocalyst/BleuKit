@@ -119,10 +119,9 @@ fn State? read_state(void* context, Allocator allocator)
 			// Without the display API there are no external monitors; the panel still stands.
 		}
 		defer windows_monitors::release_chunks(&chunks);
-		usz index = 0;
 		foreach (chunk : chunks)
 		{
-			foreach (&monitor : chunk)
+			foreach (i, &monitor : chunk.monitors)
 			{
 				List{Control} controls;
 				controls.init(tmem);
@@ -130,7 +129,7 @@ fn State? read_state(void* context, Allocator allocator)
 				brightness::add_device(
 					allocator,
 					&devices,
-					string::tformat("monitor-%d", index++),
+					windows_monitors::monitor_id(chunk.display, i),
 					"external monitor",
 					DeviceKind.EXTERNAL,
 					controls.array_view()
@@ -169,6 +168,7 @@ fn Applied? write_panel(String device_id, Level level) @local
 	long raw               = panel.write(level)!;
 	Maybe{Level} read_back = { };
 	if (try confirmed = panel.level()) read_back = maybe::value(confirmed);
+	brightness::confirm_read_back(device_id, raw, 0, windows_panel::PANEL_STEPS, read_back)!;
 	return brightness::applied_at(Mechanism.BACKLIGHT, level, raw, 0, windows_panel::PANEL_STEPS, read_back);
 }
 
@@ -180,15 +180,15 @@ fn Applied? write_external(String device_id, Level level) @local
 		chunks.init(tmem);
 		windows_monitors::enumerate(&chunks)!;
 		defer windows_monitors::release_chunks(&chunks);
-		usz index = 0;
 		foreach (chunk : chunks)
 		{
-			foreach (&monitor : chunk)
+			foreach (i, &monitor : chunk.monitors)
 			{
-				if (string::tformat(
-					"monitor-%d",
-					index++
-				) == device_id) return windows_monitors::write_monitor(monitor, level);
+				// The id is checked against the monitors enumerated now: a monitor that moved is not written.
+				if (windows_monitors::monitor_id(chunk.display, i) == device_id)
+				{
+					return windows_monitors::write_monitor(monitor, level);
+				}
 			}
 		}
 		return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "no external monitor '%s'", device_id)~;

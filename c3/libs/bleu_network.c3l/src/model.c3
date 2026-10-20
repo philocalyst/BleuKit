@@ -135,7 +135,7 @@ enum FailureReason : char
 *>
 struct Stale
 {
-	bool connectivity; // `connectivity` and `primary_interface`
+	bool primary; // `primary_interface`
 	bool interfaces; // `interfaces`
 	bool wifi; // everything under `wifi`
 }

@@ -65,7 +65,7 @@ fn void? notify_call(void* context, server::Call* call)
 {
 	Session* session  = (Session*)context;
 	marshal::Reader r = call.reader()!;
-	store::Entry* e   = session.store.new_entry();
+	store::Entry* e   = session.store.new_entry(call.sender);
 	if (catch err = wire::read_notify(&r, (Allocator)&e.arena, &e.incoming))
 	{
 		store::release_entry(e);
@@ -76,7 +76,7 @@ fn void? notify_call(void* context, server::Call* call)
 	if (posted.evicted)
 	{
 		cancel(session, posted.evicted_id);
-		announce_closed(session, posted.evicted_id, notify::CloseReason.UNDEFINED);
+		announce_closed(session, posted.evicted_id, notify::CloseReason.UNDEFINED)!;
 	}
 	if (posted.timeout.has_value) session.timers.schedule((usz)posted.id, posted.timeout.value)!!;
 	if (posted.shown) emit(session, { .kind = notify::EventKind.POSTED, .id = posted.id, .replaced = posted.replaced });
@@ -85,15 +85,16 @@ fn void? notify_call(void* context, server::Call* call)
 	return call.reply(out);
 }
 
-// CloseNotification(id): close it, announce NotificationClosed(id, CLOSED_BY_CALL); an unknown id is an error.
+// CloseNotification(id): close it when the caller posted it, announce NotificationClosed(id, CLOSED_BY_CALL).
+// Another sender's notification is reported like an unknown id: an error.
 fn void? close_call(void* context, server::Call* call)
 {
 	Session* session  = (Session*)context;
 	marshal::Reader r = call.reader()!;
 	notify::NoteId id = r.read_u32()!;
-	if (!session.store.close(id)) return call.reply_error(ERROR_NOT_FOUND, "");
+	if (!session.store.close_owned(id, call.sender)) return call.reply_error(ERROR_NOT_FOUND, "");
 	cancel(session, id);
-	announce_closed(session, id, notify::CloseReason.CLOSED_BY_CALL);
+	announce_closed(session, id, notify::CloseReason.CLOSED_BY_CALL)!;
 	publish(session);
 	return call.reply({ });
 }

@@ -128,6 +128,6 @@ fn State stale_picture(Allocator out, State* previous)
 		.primary_interface = copy_text(out, previous.primary_interface),
 		.wifi = clone_wifi(out, &previous.wifi),
 		.interfaces = clone_interfaces(out, previous.interfaces),
-		.stale = { .connectivity = true, .interfaces = true, .wifi = true },
+		.stale = { .primary = true, .interfaces = true, .wifi = true },
 	};
 }

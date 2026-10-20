@@ -247,7 +247,9 @@ fn void apply_transitions(Backend* b)
 
 <*
  Complete what the latest read and the transitions allow, and fail what has
- run out of time. Called once per read, on the worker thread.
+ run out of time. Called once per read, on the worker thread. A read whose Wi-Fi
+ part failed (`r.wifi_known` false) completes nothing from its values (a radio or a
+ scan that did not change is not "done"), but the deadlines and the transitions still count.
 *>
 fn void settle(Backend* b, Reading* r)
 {
@@ -272,19 +274,23 @@ fn void settle(Backend* b, Reading* r)
 			}
 			continue;
 		}
+		// Only a read that succeeded says anything about the device: a failed one keeps the request waiting.
 		bool done = false;
-		switch (p.kind)
+		if (r.wifi_known)
 		{
-			case SCAN:
-				done = r.wifi_found && r.wifi_path == p.device && r.last_scan != p.last_scan;
-			case RADIO:
-				done = r.radio_enabled == p.target;
-			case DISCONNECT:
-				done = r.wifi_found && r.wifi_path == p.device
-					&& (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED
-						|| r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE);
-			case CONNECT:
-				done = false;
+			switch (p.kind)
+			{
+				case SCAN:
+					done = r.wifi_found && r.wifi_path == p.device && r.last_scan != p.last_scan;
+				case RADIO:
+					done = r.radio_enabled == p.target;
+				case DISCONNECT:
+					done = r.wifi_found && r.wifi_path == p.device
+						&& (r.device_state == nm_convert::DEVICE_STATE_DISCONNECTED
+							|| r.device_state == nm_convert::DEVICE_STATE_UNAVAILABLE);
+				case CONNECT:
+					done = false;
+			}
 		}
 		if (done)
 		{

@@ -43,15 +43,26 @@ fn void Stream.init(&self, Allocator allocator)
 
 <*
  Close every reader (their `next` returns `DISCONNECTED` once drained).
- Readers must still be released by their owners.
+ Readers must still be released by their owners. Idempotent.
 *>
 fn void Stream.close(&self)
 {
 	self.mutex.lock()!!;
 	defer self.mutex.unlock();
+	if (self.closed) return;
 	self.closed = true;
 	foreach (reader : self.readers) shutdown(reader);
 	self.readers.free();
+}
+
+<*
+ Release the stream's lock and list. Call once, after `close` and after every reader
+ has been released, when no other thread can reach the stream.
+*>
+fn void Stream.destroy(&self)
+{
+	self.close();
+	self.mutex.destroy();
 }
 
 <*
@@ -133,10 +144,15 @@ fn Packet*? Reader.next(&self, Duration timeout = time::FOREVER)
 	Deadline deadline = deadline::after(timeout);
 	self.mutex.lock()!!;
 	defer self.mutex.unlock();
-	while (self.count == 0)
+	while (self.count == 0 && !self.closed)
+	{
+		// A false means the deadline passed; an event that raced with it is still delivered.
+		if (!deadline.wait(&self.ready, &self.mutex)) break;
+	}
+	if (self.count == 0)
 	{
 		if (self.closed) return error::DISCONNECTED~;
-		if (!deadline.wait(&self.ready, &self.mutex)) return TIMEOUT~;
+		return TIMEOUT~;
 	}
 	Packet* packet = self.ring[self.head];
 	self.head = (self.head + 1) % self.ring.len;

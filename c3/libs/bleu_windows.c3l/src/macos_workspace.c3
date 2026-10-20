@@ -142,11 +142,17 @@ fn void*? create(Allocator allocator, Options options, Capabilities* capabilitie
 	{
 		capabilities.set(
 			Cap.CLOSE_WINDOW,
-			availability::no(availability::Reason.DEGRADED, "closes the owning application's focused window")
+			availability::no(
+				availability::Reason.DEGRADED,
+				"closes the window only when it is its application's focused window; other windows are refused"
+			)
 		);
 		capabilities.set(
 			Cap.MINIMIZE_WINDOW,
-			availability::no(availability::Reason.DEGRADED, "minimizes the owning application's focused window")
+			availability::no(
+				availability::Reason.DEGRADED,
+				"minimizes the window only when it is its application's focused window; other windows are refused"
+			)
 		);
 	}
 	else
@@ -219,7 +225,6 @@ fn void run(void* state, WindowsHub* hub, Host{Command}* host)
 		}
 		refresh(session, hub);
 	}
-	windows::fail_queued(host, batch[..]);
 }
 
 // Notification callback. It runs on the posting thread and only enqueues.
@@ -289,17 +294,21 @@ fn void fill_state(Session* session, State* state, Allocator allocator) @private
 }
 
 // The workspace list: the Space on the focused screen when SkyLight is open, otherwise none.
+// The Space is read once: a second read could fail and name a Space that was never read.
 fn windows::Workspace[] spaces_of(Session* session, Allocator allocator) @private
 {
 	if (!session.has_spaces) return { };
-	if (catch err = macos_spaces_private::active_space(&session.spaces))
-	{
-		return { };
-	}
+	ulong? space = macos_spaces_private::active_space(&session.spaces);
+	if (catch err = space) return { };
 	windows::Workspace[] spaces = alloc::new_array(allocator, windows::Workspace, 1);
 	spaces[0] = {
-		.id = string::tformat("%d", (long)macos_spaces_private::active_space(&session.spaces) ?? 0)
-		.copy(allocator), .name = "", .output_id = "", .active = true, .visible = true, .window_count = 0, };
+		.id = string::tformat("%d", (long)space).copy(allocator),
+		.name = "",
+		.output_id = "",
+		.active = true,
+		.visible = true,
+		.window_count = 0,
+	};
 	return spaces;
 }
 
@@ -458,7 +467,8 @@ fn void? act(Session* session, Command* command) @private
 	}
 }
 
-// Activate the owning application and, when trusted, raise its focused window.
+// Activate the owning application and, when trusted, raise the window. Accessibility reaches the
+// application's focused window only, so the raise is refused for a window that is not the topmost.
 fn void? focus(Session* session, long number) @private
 {
 	int pid = pid_of(number)!;
@@ -481,32 +491,70 @@ fn void? focus(Session* session, long number) @private
 	}
 	if (session.trusted)
 	{
+		if (topmost_window_of(pid) != number) return error::raise(
+			error::UNSUPPORTED,
+			error::Domain.INTERNAL,
+			0,
+			"window %d is not the topmost window of process %d, so it cannot be raised",
+			number,
+			pid
+		)~;
 		cf::Ref window = macos_ax::focused_window(pid)!;
 		defer window.close();
 		macos_ax::perform(window.ptr, macos_ax::ACTION_RAISE)!;
 	}
 }
 
-// Press the close button of the owning application's focused window.
+// Press the close button of window `number`, which must be its application's focused window.
 fn void? close_window(Session* session, long number) @private
 {
 	accessibility_granted(session)!;
-	int pid        = pid_of(number)!;
-	cf::Ref window = macos_ax::focused_window(pid)!;
+	cf::Ref window = named_focused_window(number)!;
 	defer window.close();
 	cf::Ref button = macos_ax::copy_attribute(window.ptr, macos_ax::ATTRIBUTE_CLOSE_BUTTON)!;
 	defer button.close();
 	macos_ax::perform(button.ptr, macos_ax::ACTION_PRESS)!;
 }
 
-// Set AXMinimized on the owning application's focused window.
+// Set AXMinimized on window `number`, which must be its application's focused window.
 fn void? minimize(Session* session, long number) @private
 {
 	accessibility_granted(session)!;
-	int pid        = pid_of(number)!;
-	cf::Ref window = macos_ax::focused_window(pid)!;
+	cf::Ref window = named_focused_window(number)!;
 	defer window.close();
 	macos_ax::set_flag(window.ptr, macos_ax::ATTRIBUTE_MINIMIZED, true)!;
+}
+
+// The Accessibility element of window `number`, but only when that window is the frontmost
+// application's focused window. Accessibility reaches just the focused window, so any other
+// window is refused instead of the focused one being acted on in its place (W-3).
+fn cf::Ref? named_focused_window(long number) @private
+{
+	int pid = pid_of(number)!;
+	if (pid != frontmost_pid() || topmost_window_of(pid) != number) return error::raise(
+		error::UNSUPPORTED,
+		error::Domain.INTERNAL,
+		0,
+		"window %d is not the focused window of its application; only that window can be acted on",
+		number
+	)~;
+	return macos_ax::focused_window(pid);
+}
+
+// The number of the topmost normal window of process `pid` in the window server's list, or -1.
+// This is the rule `fill_state` uses for the focused window of the frontmost application.
+fn long topmost_window_of(int pid) @private
+{
+	cf::Ref list = macos_cg::window_list();
+	defer list.close();
+	for (sz i = 0; i < cf::array_count(list.ptr); i++)
+	{
+		cf::CFTypeRef record = cf::array_at(list.ptr, i);
+		if (record_long(record, macos_cg::KCG_WINDOW_LAYER, -1) != NORMAL_WINDOW_LAYER) continue;
+		if ((int)record_long(record, macos_cg::KCG_WINDOW_OWNER_PID, 0) != pid) continue;
+		return record_long(record, macos_cg::KCG_WINDOW_NUMBER, -1);
+	}
+	return -1;
 }
 
 fn void? accessibility_granted(Session* session) @private

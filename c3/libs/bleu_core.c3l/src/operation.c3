@@ -187,9 +187,11 @@ fn Phase Operation.phase(&self)
 
 <*
  The native code and message behind a failed operation, when the worker recorded
- them with `error::raise`. Valid after `wait` returned a fault.
+ them with `error::raise` on its thread. Valid after `wait` returned a fault. If
+ nothing was recorded the detail carries the status only, with no text. For an
+ operation that did not fail it is an empty `OK` detail.
 *>
-fn Detail* Operation.detail(&self) => self.has_detail ? &self.failure_detail : error::last();
+fn Detail* Operation.detail(&self) => &self.failure_detail;
 
 <*
  Wait for the operation to finish and return its value.
@@ -205,8 +207,10 @@ fn Value? Operation.wait(&self, Duration timeout = time::FOREVER)
 	defer self.mutex.unlock();
 	while (self.state < SUCCEEDED)
 	{
-		if (!deadline.wait(&self.finished, &self.mutex)) return TIMEOUT~;
+		// A false means the deadline passed; a completion that raced with it still counts.
+		if (!deadline.wait(&self.finished, &self.mutex)) break;
 	}
+	if (self.state < SUCCEEDED) return TIMEOUT~;
 	if (self.state != SUCCEEDED) return self.failure~;
 	return self.value;
 }

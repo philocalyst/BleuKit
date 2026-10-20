@@ -71,6 +71,9 @@ fn bool is_connector_name(String name)
 	return digits > 0 && i + 1 < name.len && name[i] == '-';
 }
 
+<* The most digits an I2C adapter number may have: nine keep it within an `int`. *>
+const sz MAX_BUS_DIGITS = 9;
+
 <*
  The I2C adapter number named by a `ddc` link target, such as
  `../../../../bus/i2c/devices/i2c-7`: the last path element must be `i2c-<N>`.
