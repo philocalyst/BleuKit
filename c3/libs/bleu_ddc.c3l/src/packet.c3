@@ -69,8 +69,9 @@ const usz MAX_REPLY_PAYLOAD = 35;
 const usz MAX_FRAGMENT      = 32;
 <*
  Bytes a reply may carry ahead of its frame: one extra leading 0x6E. Some monitors
- send the destination byte twice (ddcutil `ddc_packet_io.c`, "Quirk: response packet
- starts with double 0x6e"), and `parse_reply` skips it, so every read buffer needs room for it.
+ send the destination byte twice (ddcutil `src/base/ddc_packets.c`, "Quirk: response
+ packet starts with double 0x6e"), and `parse_reply` skips it, so every read buffer needs room
+ for it (ddcutil `src/ddc/ddc_packet_io.c` adds one byte to its read size for the same reason).
 *>
 const usz LEADING_DUPLICATE_BYTES = 1;
 
@@ -276,7 +277,7 @@ struct Reply
  Parse one reply from the bytes read from the monitor, starting at its leading 0x6E.
 
  A single leading duplicate 0x6E is skipped, because some monitors send it twice
- (ddcutil `ddc_packet_io.c`, "Quirk: response packet starts with double 0x6e").
+ (ddcutil `src/base/ddc_packets.c`, "Quirk: response packet starts with double 0x6e").
 
  @param bytes : "Bytes read from the monitor; may be longer than the reply"
  @return "The reply; a null message is `NULL_MESSAGE`"

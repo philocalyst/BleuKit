@@ -33,7 +33,7 @@ struct Options
 	// Zero is refused with INVALID_ARGUMENT, because no attempt would be made.
 	uint max_tries;
 	// Null replies tolerated before the operation is refused as UNSUPPORTED.
-	// ddcutil `ddc_packet_io.c` (`ddcrc_null_response_max = 3`). ddcutil notes that
+	// ddcutil `src/ddc/ddc_packet_io.c` (`ddcrc_null_response_max = 3`). ddcutil notes that
 	// some monitors answer unsupported codes with a null message.
 	uint max_null_replies;
 	// Wait between writing a request and reading its reply. The DDC/CI spec (section 4.3, as ddcutil cites it) says at

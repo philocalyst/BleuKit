@@ -17,7 +17,8 @@ the URLs given.
 | --- | --- | --- |
 | ddcutil `ddc_packets.c` | https://raw.githubusercontent.com/rockowitz/ddcutil/master/src/base/ddc_packets.c | checksum, request builders, reply interpretation, test vectors |
 | ddcutil `ddc_packets.h` | …/src/base/ddc_packets.h | `DDC_PACKET_TYPE_*` opcodes |
-| ddcutil `ddc_packet_io.c` | …/src/ddc/ddc_packet_io.c | source address check, altmode reply checksum, double-0x6E quirk, null retry |
+| ddcutil `ddc_packet_io.c` | …/src/ddc/ddc_packet_io.c | source address check, altmode reply checksum, read size widened for the double-0x6E quirk, null retry |
+| ddcutil `ddc_packets.c` (quirk) | …/src/base/ddc_packets.c (`interpret_*` quirk check, ~line 663) | the double-0x6E quirk itself: a second leading 0x6E is skipped |
 | ddcutil `tuned_sleep.c` | …/src/base/tuned_sleep.c | timing comments per DDC/CI section, null-response adjustment |
 | ddcutil `ddc_try_data.c` | …/src/ddc/ddc_try_data.c | retry type names (values not reachable, see below) |
 | ddcutil `vcp_feature_codes.c` | …/src/vcp/vcp_feature_codes.c | MCCS code names, flags, value tables |

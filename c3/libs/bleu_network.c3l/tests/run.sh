@@ -9,6 +9,9 @@
 # Needs dbus-daemon, c3c and python3. BLEU_NETWORK_PYTHON may name a python that
 # has dbus-next; otherwise a virtual environment is created and dbus-next is
 # installed into it (pypi.org access needed).
+#
+# Everything c3c writes (out/, obj/, the test binary) goes into a private work
+# directory, never the checkout, so two runs at once do not collide.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
@@ -57,7 +60,12 @@ bus="$(head -n1 "$work/address")"
 say "bus: $bus"
 
 # 2. The NetworkManager mock on that bus.
-DBUS_SYSTEM_BUS_ADDRESS="$bus" "$PYTHON" -I "$here/nm_mock.py" >"$work/mock.out" 2>"$work/mock.err" &
+# The fault switches the scenario turns on and off (see nm_mock.py); all start off.
+faults="$work/faults"
+mkdir -p "$faults"
+for name in wifi-fail vanish-ap no-agent; do printf '0\n' >"$faults/$name"; done
+
+DBUS_SYSTEM_BUS_ADDRESS="$bus" BLEU_NETWORK_TEST_FAULTS="$faults" "$PYTHON" -I -B "$here/nm_mock.py" >"$work/mock.out" 2>"$work/mock.err" &
 pids+=("$!")
 for _ in $(seq 1 200); do grep -q READY "$work/mock.out" 2>/dev/null && break; sleep 0.05; done
 grep -q READY "$work/mock.out" || { say "the mock did not start:"; cat "$work/mock.err"; exit 2; }
@@ -77,18 +85,21 @@ printf '%s\n' -1 >"$root/sys/class/net/wlan0/speed"
 printf '1000\n' >"$root/sys/class/net/wlan0/statistics/rx_bytes"
 printf '2000\n' >"$root/sys/class/net/wlan0/statistics/tx_bytes"
 
-# 4. The C3 tests against the fakes. The scenario reads its bus and root from the environment.
-export BLEU_NETWORK_TEST_BUS="$bus" BLEU_NETWORK_TEST_ROOT="$root"
+# 4. The C3 tests against the fakes. The scenario reads its bus, root and fault directory from the environment.
+export BLEU_NETWORK_TEST_BUS="$bus" BLEU_NETWORK_TEST_ROOT="$root" BLEU_NETWORK_TEST_FAULTS="$faults"
 # BLEU_LIBDIR may name a libdir built by the caller (for example with a committed bleu_dbus).
 if [ -n "${BLEU_LIBDIR:-}" ]; then ld="$BLEU_LIBDIR"; else ld="$(cd "$repo" && tools/libdir.sh)"; fi
 cleanup_all() { cleanup; [ -n "${BLEU_LIBDIR:-}" ] || rm -rf "$ld"; }
 trap cleanup_all EXIT
-cd "$repo" || exit 2
-src="libs/bleu_network.c3l/src"
+src="$repo/libs/bleu_network.c3l/src"
+# c3c runs in the private directory; the sources and the libdir are absolute paths.
+cd "$work" || exit 2
 c3c --libdir "$ld" \
   --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_dbus --lib bleu_objc --lib bleu_win --lib bleu_network \
-  compile-test "$src"/nm_convert_test.c3 "$src"/nm_settings_test.c3 "$src"/sysfs_test.c3 "$src"/ssid_test.c3 \
-    "$src"/corewlan_convert_test.c3 "$src"/wlan_profile_test.c3 "$here/nm_scenario_test.c3"
+  -o "$work/testrun" compile-test "$src"/nm_convert_test.c3 "$src"/nm_settings_test.c3 "$src"/sysfs_test.c3 \
+    "$src"/ssid_test.c3 "$src"/corewlan_convert_test.c3 "$src"/wlan_profile_test.c3 "$src"/scan_test.c3 \
+    "$src"/publish_test.c3 "$src"/service_test.c3 "$src"/access_points_test.c3 "$src"/nm_backend_test.c3 \
+    "$here/nm_scenario_test.c3"
 status=$?
 say "compile-test exit status: $status"
 exit "$status"
