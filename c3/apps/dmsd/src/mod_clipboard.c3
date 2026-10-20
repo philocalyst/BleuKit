@@ -238,7 +238,7 @@ fn char[]? fetch_bytes(clipboard::Clipboard* service, clipboard::Entry entry, St
 }
 
 // Remove one history entry. True when it was there.
-fn bool remove_entry(clipboard::Clipboard* service, ulong id) @private
+fn bool? remove_entry(clipboard::Clipboard* service, ulong id) @private
 {
 	clipboard::Entry entry = { .id = id };
 	operation::Operation{bool}* op = service.delete(entry)!;
@@ -460,8 +460,9 @@ fn void handle_delete_entry(void* context, ipc::Call* call)
 
 fn void? delete_entry(ClipboardModule* m, ipc::Call* call) @private
 {
-	ulong id = entry_id(call.params)!;
-	if (!remove_entry(m.service, id)) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "entry not found: %d", id)~;
+	ulong id    = entry_id(call.params)!;
+	bool removed = remove_entry(m.service, id)!;
+	if (!removed) return error::raise(NOT_FOUND, error::Domain.INTERNAL, 0, "entry not found: %d", id)~;
 	wire::respond_success(call, "entry deleted")!;
 }
 
@@ -520,8 +521,13 @@ fn void handle_get_config(void* context, ipc::Call* call)
 {
 	@pool()
 	{
-		if (catch call.respond_raw(render_config(tmem))) call.respond_error(contract::failure_text("failed to read the config"));
+		if (catch get_config(call)) call.respond_error(contract::failure_text("failed to read the config"));
 	};
+}
+
+fn void? get_config(ipc::Call* call) @private
+{
+	call.respond_raw(render_config(tmem)!);
 }
 
 fn void handle_set_config(void* context, ipc::Call* call)
