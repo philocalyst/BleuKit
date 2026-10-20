@@ -154,6 +154,8 @@ fn int worker_main(void* arg) @private
 	{
 		Host host = { .worker = worker };
 		worker.run(worker.context, &host);
+		// The function returned (stop or early exit): nothing serves the mailbox any more, so refuse new commands.
+		worker.mailbox.close();
 	};
 	return 0;
 }
