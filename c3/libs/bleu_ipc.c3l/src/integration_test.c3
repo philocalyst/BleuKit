@@ -272,11 +272,12 @@ fn void a_snapshot_published_before_start_is_the_first_state_a_subscriber_sees()
 	client::Client c;
 	c.connect(mem, path, WAIT)!!;
 	defer c.free();
+	// The subscribe is this client's first request, so its id is 1.
 	long id = c.subscribe({ "network" }, WAIT)!!;
-	test::eq(id, (long)2);
-	expect_line(&c, "{\"id\":2,\"result\":{\"service\":\"network\",\"data\":{\"wifi\":false}}}");
+	test::eq(id, (long)1);
+	expect_line(&c, "{\"id\":1,\"result\":{\"service\":\"network\",\"data\":{\"wifi\":false}}}");
 	network.publish("{\"wifi\":true}")!!;
-	expect_line(&c, "{\"id\":2,\"result\":{\"service\":\"network\",\"data\":{\"wifi\":true}}}");
+	expect_line(&c, "{\"id\":1,\"result\":{\"service\":\"network\",\"data\":{\"wifi\":true}}}");
 }
 
 fn void the_first_subscription_frame_is_the_server_info() @test
@@ -379,13 +380,18 @@ fn void subscriber_counts_follow_connections() @test
 	second.free();
 }
 
-<* Publishes `count` values, each under the shared order lock, so the last one is well defined. *>
+<*
+ Publishes `count` values starting at `first`. Each publication happens under the
+ shared order lock, which also records the value in `last`, so the final value
+ the server must deliver is known.
+*>
 struct Storm
 {
 	ipc::Topic* topic;
 	Mutex* order;
 	int count;
 	int first;
+	int* last;
 }
 
 fn int storm_publisher(void* arg)
@@ -400,6 +406,7 @@ fn int storm_publisher(void* arg)
 			@pool() { json = string::tformat("{\"v\":%d}", storm.first + i).copy(mem); };
 			storm.topic.publish(json)!!;
 			release(json);
+			*storm.last = storm.first + i;
 			storm.order.unlock();
 		}
 	};
@@ -431,17 +438,17 @@ fn void concurrent_publishers_leave_every_subscriber_on_the_last_value() @test
 	Mutex order;
 	order.init()!!;
 	defer order.destroy();
+	int last = -1;
 	Storm[3] storms;
 	Thread[3] threads;
 	for (int i = 0; i < 3; i++)
 	{
-		storms[i] = { .topic = storm_topic, .order = &order, .count = 400, .first = 1000 * i };
+		storms[i] = { .topic = storm_topic, .order = &order, .count = 400, .first = 1000 * i, .last = &last };
 		threads[i].create(&storm_publisher, &storms[i])!!;
 	}
 	for (int i = 0; i < 3; i++) threads[i].join()!!;
 
-	// The last value published is the one the last publication under the lock carried.
-	int last = 2000 + 399;
+	// The server's final state must be the value the last publication under the lock carried.
 	String expected;
 	@pool() { expected = string::tformat("{\"id\":1,\"result\":{\"service\":\"storm\",\"data\":{\"v\":%d}}}", last).copy(mem); };
 	defer release(expected);
