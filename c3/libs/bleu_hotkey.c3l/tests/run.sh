@@ -72,7 +72,7 @@ start_mock() {
 sources=()
 for f in "$lib"/src/*.c3; do
   case "$f" in
-    *_test.c3|*_macos*|*_windows*|*/carbon*.c3|*/windows.c3|*/driver_macos.c3|*/driver_windows.c3) ;;
+    *_test.c3|*/carbon.c3|*/windows.c3|*/driver_macos.c3|*/driver_windows.c3) ;;
     *) sources+=("$f") ;;
   esac
 done

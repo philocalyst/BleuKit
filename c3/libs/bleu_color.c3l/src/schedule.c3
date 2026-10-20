@@ -167,7 +167,7 @@ fn void sort_edges(Edge[] edges)
 <*
  The daylight fraction at `unix_us` for a SCHEDULE or TIMES schedule, in 0.0..1.0.
 
- @param utc_offset : "The local time zone's offset from UTC in effect at `unix_us`; used by TIMES"
+ @param utc_offset_us : "The local time zone's offset from UTC in effect at `unix_us`, in microseconds; used by TIMES"
 *>
 fn float daylight_at(Schedule schedule, long unix_us, long utc_offset_us)
 {
