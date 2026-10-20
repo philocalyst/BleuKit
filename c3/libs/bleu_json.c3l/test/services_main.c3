@@ -2,7 +2,7 @@
 // reflective writer, one line per state: "<service> <json>". The lines are
 // checked by check_services.py with python3's json module.
 module services_main;
-import std::io, std::collections::maybe, std::time;
+import std::io, std::collections::maybe, std::time, std::encoding::json;
 import bleu::json, bleu::unit, bleu::availability, bleu::battery, bleu::brightness, bleu::network;
 
 // Fixed arrays are returned by value; the slices that point at them are made in
@@ -113,21 +113,32 @@ fn network::State network_state(network::AccessPoint[] points, network::Interfac
 	};
 }
 
+// Print one line, after checking that std's own parser reads it back.
+fn void print_state(String service, String text)
+{
+	json::tparse(text, json::JsonFlavor.JSON)!!;
+	io::printfn("%s %s", service, text);
+}
+
 fn void main()
 {
 	battery::Source[2] sources = battery_sources();
-	battery::State battery_state = { .on_mains = true, .sources = sources[..], .adapter_watts = maybe::value{uint}((uint)65) };
-	io::printfn("battery %s", json::to_json(mem, battery_state)!!);
+	battery::State battery_state = {
+		.on_mains = true,
+		.sources = sources[..],
+		.adapter_watts = maybe::value{uint}((uint)65)
+	};
+	print_state("battery", bleu::json::to_json(mem, battery_state)!!);
 
 	brightness::Control[2] controls = brightness_controls();
 	brightness::Device[1] devices = {
 		{ .id = "eDP-1", .name = "Built-in panel", .kind = brightness::DeviceKind.PANEL, .controls = controls[..] },
 	};
 	brightness::State brightness_state = { .devices = devices[..] };
-	io::printfn("brightness %s", json::to_json(mem, brightness_state)!!);
+	print_state("brightness", bleu::json::to_json(mem, brightness_state)!!);
 
-	char[] home = (char[])"Home";
-	network::AccessPoint[1] points = network_points(home);
+	char[] home                      = (char[])"Home";
+	network::AccessPoint[1] points   = network_points(home);
 	network::Interface[1] interfaces = network_interfaces();
-	io::printfn("network %s", json::to_json(mem, network_state(points[..], interfaces[..], home))!!);
+	print_state("network", bleu::json::to_json(mem, network_state(points[..], interfaces[..], home))!!);
 }

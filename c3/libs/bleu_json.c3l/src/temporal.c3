@@ -19,10 +19,7 @@ const usz TIMESTAMP_CAPACITY = 27;
 
 <* Year range that RFC 3339 can express. *>
 const long FIRST_YEAR = 0;
-const long LAST_YEAR = 9999;
-
-<* Microseconds per second, the scale of a `DateTime.usec` fraction. *>
-const int MICROS_PER_SECOND = 1_000_000;
+const long LAST_YEAR  = 9999;
 
 <* Digits of the microsecond fraction. *>
 const int FRACTION_DIGITS = 6;
@@ -48,10 +45,16 @@ fn sz put_padded(char[] buffer, sz at, long value, int width) @inline
 *>
 fn void? JsonWriter.put_fields(&self, long year, long month, long day, long hour, long minute, long second, long micros)
 {
-	if (year < FIRST_YEAR || year > LAST_YEAR) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "year %d has no RFC 3339 form", year)~;
+	if (year < FIRST_YEAR || year > LAST_YEAR) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"year %d has no RFC 3339 form",
+		year
+	)~;
 	char[TIMESTAMP_CAPACITY] text;
 	char[] out = text[..];
-	sz at = put_padded(out, 0, year, 4);
+	sz at      = put_padded(out, 0, year, 4);
 	out[at] = '-';
 	at = put_padded(out, at + 1, month, 2);
 	out[at] = '-';
@@ -68,7 +71,7 @@ fn void? JsonWriter.put_fields(&self, long year, long month, long day, long hour
 		out[at] = '.';
 		at++;
 		long fraction = micros;
-		int digits = FRACTION_DIGITS;
+		int digits    = FRACTION_DIGITS;
 		while (fraction % 10 == 0)
 		{
 			fraction /= 10;
@@ -85,13 +88,29 @@ fn void? JsonWriter.put_fields(&self, long year, long month, long day, long hour
 fn void? JsonWriter.put_time(&self, Time instant)
 {
 	DateTime d = datetime::from_time(instant);
-	return self.put_fields((long)d.year, (long)d.month.ordinal + 1, (long)d.day, (long)d.hour, (long)d.min, (long)d.sec, (long)d.usec);
+	return self.put_fields(
+		(long)d.year,
+		(long)d.month.ordinal + 1,
+		(long)d.day,
+		(long)d.hour,
+		(long)d.min,
+		(long)d.sec,
+		(long)d.usec
+	);
 }
 
 <* Write a `DateTime` as a quoted RFC 3339 string. Its fields are taken to be UTC. *>
 fn void? JsonWriter.put_datetime(&self, DateTime d)
 {
-	return self.put_fields((long)d.year, (long)d.month.ordinal + 1, (long)d.day, (long)d.hour, (long)d.min, (long)d.sec, (long)d.usec);
+	return self.put_fields(
+		(long)d.year,
+		(long)d.month.ordinal + 1,
+		(long)d.day,
+		(long)d.hour,
+		(long)d.min,
+		(long)d.sec,
+		(long)d.usec
+	);
 }
 
 <* Write a `TzDateTime` as a quoted RFC 3339 string, converted to UTC first. *>

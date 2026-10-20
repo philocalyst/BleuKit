@@ -21,8 +21,23 @@ const usz INTEGER_DIGITS = 20;
 
 <* `%.Ng` formats, indexed by N - 1, from one to seventeen significant digits. *>
 const String[DOUBLE_DIGITS] PRECISION_FORMATS = {
-	"%.1g", "%.2g", "%.3g", "%.4g", "%.5g", "%.6g", "%.7g", "%.8g", "%.9g",
-	"%.10g", "%.11g", "%.12g", "%.13g", "%.14g", "%.15g", "%.16g", "%.17g",
+	"%.1g",
+	"%.2g",
+	"%.3g",
+	"%.4g",
+	"%.5g",
+	"%.6g",
+	"%.7g",
+	"%.8g",
+	"%.9g",
+	"%.10g",
+	"%.11g",
+	"%.12g",
+	"%.13g",
+	"%.14g",
+	"%.15g",
+	"%.16g",
+	"%.17g",
 };
 
 <*
@@ -38,8 +53,7 @@ fn void? JsonWriter.put_integer(&self, bool negative, ulong magnitude)
 		start--;
 		digits[start] = '0' + (char)(magnitude % 10);
 		magnitude /= 10;
-	}
-	while (magnitude > 0);
+	} while (magnitude > 0);
 	self.begin_value()!;
 	if (negative) self.emit("-")!;
 	self.emit((String)digits[start:INTEGER_DIGITS - start])!;

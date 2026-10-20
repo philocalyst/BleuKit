@@ -33,7 +33,7 @@ struct Options
 }
 
 <* The default options, for parameter defaults. *>
-const Options DEFAULT_OPTIONS = {};
+const Options DEFAULT_OPTIONS = { };
 
 <*
  Longest name written in a non-default style. Member and enum names of Bleu
@@ -57,7 +57,7 @@ const char CASE_OFFSET = 'a' - 'A';
 *>
 fn String? camel_case(String name, char[] scratch)
 {
-	sz written = 0;
+	sz written      = 0;
 	bool upper_next = false;
 	for (sz i = 0; i < name.len; i++)
 	{
@@ -69,7 +69,14 @@ fn String? camel_case(String name, char[] scratch)
 		}
 		if (upper_next && c >= 'a' && c <= 'z') c = (char)(c - CASE_OFFSET);
 		upper_next = false;
-		if (written >= scratch.len) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "name '%s' is longer than %d bytes", name, scratch.len)~;
+		if (written >= scratch.len) return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"name '%s' is longer than %d bytes",
+			name,
+			scratch.len
+		)~;
 		scratch[written] = c;
 		written++;
 	}
@@ -99,7 +106,14 @@ fn String? key_text(String name, KeyStyle style, char[] scratch)
 fn String? enum_text(String name, EnumStyle style, char[] scratch)
 {
 	if (style == UPPER_SNAKE) return name;
-	if (name.len > scratch.len) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "enum value '%s' is longer than %d bytes", name, scratch.len)~;
+	if (name.len > scratch.len) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"enum value '%s' is longer than %d bytes",
+		name,
+		scratch.len
+	)~;
 	for (sz i = 0; i < name.len; i++)
 	{
 		char c = name[i];

@@ -27,7 +27,10 @@ fn void valid_utf8_is_copied_unchanged() @test
 	defer out.free();
 	// U+00E9, U+20AC, U+1F600, and the boundary code points U+0800, U+FFFD, U+10FFFF.
 	assert(quoted_for_test(&out, "\xC3\xA9\xE2\x82\xAC\xF0\x9F\x98\x80") == "\"\xC3\xA9\xE2\x82\xAC\xF0\x9F\x98\x80\"");
-	assert(quoted_for_test(&out, "\xE0\xA0\x80\xEF\xBF\xBD\xF4\x8F\xBF\xBF") == "\"\xE0\xA0\x80\xEF\xBF\xBD\xF4\x8F\xBF\xBF\"");
+	assert(quoted_for_test(
+		&out,
+		"\xE0\xA0\x80\xEF\xBF\xBD\xF4\x8F\xBF\xBF"
+	) == "\"\xE0\xA0\x80\xEF\xBF\xBD\xF4\x8F\xBF\xBF\"");
 }
 
 fn void invalid_utf8_becomes_one_replacement_per_maximal_subpart() @test

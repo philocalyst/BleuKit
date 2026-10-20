@@ -3,9 +3,22 @@ import std::collections::maybe;
 import std::time;
 import bleu::unit;
 
-enum Phase : char { UNKNOWN, NOT_CHARGING, FULL }
-bitstruct Caps : uint { bool charge : 0; bool power : 1; }
-struct Leaf { Level level; Phase phase; }
+enum Phase : char
+{
+	UNKNOWN,
+	NOT_CHARGING,
+	FULL
+}
+bitstruct Caps : uint
+{
+	bool charge : 0;
+	bool power : 1;
+}
+struct Leaf
+{
+	Level level;
+	Phase phase;
+}
 struct Sample
 {
 	String id;
@@ -55,28 +68,32 @@ fn Sample full_sample(Leaf[] leaves)
 fn void default_options_golden() @test
 {
 	Leaf[1] leaves = { { (Level)0.5f, FULL } };
-	Sample s = full_sample(leaves[..]);
-	String json = to_json(mem, s)!!;
+	Sample s       = full_sample(leaves[..]);
+	String json    = to_json(mem, s)!!;
 	defer json.free(mem);
-	assert(json == `{"id":"bat-0","phase":"full","caps":{"charge":true,"power":false},"charge":0.5,"power":-1200,"time_to_empty":3600000000,"label":"ok","raw":"AQL/","leaves":[{"level":0.5,"phase":"full"}],"pair":[{"level":0.25,"phase":"not_charging"},{"level":1,"phase":"unknown"}],"numbers":[1,2,3],"optional":7,"note":"hi","count":4,"wire_flag":true,"ratio":0.7,"unknown":null}`);
+	assert(json
+		== `{"id":"bat-0","phase":"full","caps":{"charge":true,"power":false},"charge":0.5,"power":-1200,"time_to_empty":3600000000,"label":"ok","raw":"AQL/","leaves":[{"level":0.5,"phase":"full"}],"pair":[{"level":0.25,"phase":"not_charging"},{"level":1,"phase":"unknown"}],"numbers":[1,2,3],"optional":7,"note":"hi","count":4,"wire_flag":true,"ratio":0.7,"unknown":null}`);
 }
 
 fn void camel_case_and_upper_enums_golden() @test
 {
-	Sample s = { .phase = NOT_CHARGING, .time_to_empty = (Duration)5, .unknown = 1.5 };
-	Options o = { .enum_style = UPPER_SNAKE, .key_style = CAMEL_CASE };
+	Sample s    = { .phase = NOT_CHARGING, .time_to_empty = (Duration)5, .unknown = 1.5 };
+	Options o   = { .enum_style = UPPER_SNAKE, .key_style = CAMEL_CASE };
 	String json = to_json(mem, s, o)!!;
 	defer json.free(mem);
-	assert(json.starts_with(`{"id":"","phase":"NOT_CHARGING","caps":{"charge":false,"power":false},"charge":null,"power":null,"timeToEmpty":5,"label":"","raw":"","leaves":[],"pair":[{"level":0,"phase":"UNKNOWN"},{"level":0,"phase":"UNKNOWN"}],"numbers":[0,0,0],"wire_flag":false,"ratio":0,"unknown":1.5}`));
+	assert(json.starts_with(
+		`{"id":"","phase":"NOT_CHARGING","caps":{"charge":false,"power":false},"charge":null,"power":null,"timeToEmpty":5,"label":"","raw":"","leaves":[],"pair":[{"level":0,"phase":"UNKNOWN"},{"level":0,"phase":"UNKNOWN"}],"numbers":[0,0,0],"wire_flag":false,"ratio":0,"unknown":1.5}`
+	));
 }
 
 fn void omitempty_drops_only_empty_members() @test
 {
-	Sample s = { .phase = UNKNOWN };
+	Sample s    = { .phase = UNKNOWN };
 	String json = to_json(mem, s)!!;
 	defer json.free(mem);
 	// `optional`, `note` and `count` are empty and tagged omitempty; `flag` is a rename, never omitted.
-	assert(json == `{"id":"","phase":"unknown","caps":{"charge":false,"power":false},"charge":null,"power":null,"time_to_empty":0,"label":"","raw":"","leaves":[],"pair":[{"level":0,"phase":"unknown"},{"level":0,"phase":"unknown"}],"numbers":[0,0,0],"wire_flag":false,"ratio":0,"unknown":0}`);
+	assert(json
+		== `{"id":"","phase":"unknown","caps":{"charge":false,"power":false},"charge":null,"power":null,"time_to_empty":0,"label":"","raw":"","leaves":[],"pair":[{"level":0,"phase":"unknown"},{"level":0,"phase":"unknown"}],"numbers":[0,0,0],"wire_flag":false,"ratio":0,"unknown":0}`);
 }
 
 fn void enum_names_and_bitstructs() @test
@@ -86,7 +103,7 @@ fn void enum_names_and_bitstructs() @test
 	defer out.free();
 	JsonWriter w;
 	w.init_dstring(&out);
-	write(&w, (Caps){ .charge = true, .power = true })!!;
+	write(&w, (Caps) { .charge = true, .power = true })!!;
 	assert(out.str_view() == `{"charge":true,"power":true}`);
 	out.clear();
 	w.init_dstring(&out, 0);
@@ -115,18 +132,18 @@ alias OptionalLong = Maybe{long};
 fn void maybe_empty_is_null_and_nests() @test
 {
 	Maybe{Leaf} none;
-	Maybe{OptionalLong} nested = maybe::value{OptionalLong}({});
+	Maybe{OptionalLong} nested = maybe::value{OptionalLong}({ });
 	@pool()
 	{
-	assert(to_json(tmem, none)!! == "null");
+		assert(to_json(tmem, none)!! == "null");
 	};
 	@pool()
 	{
-	assert(to_json(tmem, nested)!! == "null");
+		assert(to_json(tmem, nested)!! == "null");
 	};
 	@pool()
 	{
-	assert(to_json(tmem, maybe::value{OptionalLong}(maybe::value{long}(3)))!! == "3");
+		assert(to_json(tmem, maybe::value{OptionalLong}(maybe::value{long}(3)))!! == "3");
 	};
 }
 
@@ -135,11 +152,11 @@ fn void durations_are_integers_in_their_unit() @test
 	NanoDuration nanos = (NanoDuration)1_500;
 	@pool()
 	{
-	assert(to_json(tmem, (Duration)1_500_000)!! == "1500000");
+		assert(to_json(tmem, (Duration)1_500_000)!! == "1500000");
 	};
 	@pool()
 	{
-	assert(to_json(tmem, nanos)!! == "1500");
+		assert(to_json(tmem, nanos)!! == "1500");
 	};
 }
 
@@ -155,7 +172,7 @@ fn void tagged_names_are_exact_wire_names() @test
 	Options o = { .key_style = CAMEL_CASE };
 	@pool()
 	{
-	assert(to_json(tmem, r, o)!! == `{"timeToEmpty":2,"plainName":3}`);
+		assert(to_json(tmem, r, o)!! == `{"timeToEmpty":2,"plainName":3}`);
 	};
 }
 
@@ -164,6 +181,6 @@ fn void to_json_reports_nothing_it_cannot_write() @test
 	// Nothing in this module is refused at run time: the refusals are compile errors (see README).
 	@pool()
 	{
-	assert(to_json(tmem, (uint)7)!! == "7");
+		assert(to_json(tmem, (uint)7)!! == "7");
 	};
 }

@@ -39,7 +39,7 @@ fn sz utf8_unit(String text, sz i, bool* valid)
 	char lead = text[i];
 	*valid = true;
 	if (lead < 0x80) return 1;
-	char low = 0x80;
+	char low  = 0x80;
 	char high = 0xBF;
 	sz continuation;
 	switch
@@ -75,7 +75,7 @@ fn sz utf8_unit(String text, sz i, bool* valid)
 			*valid = false;
 			return k;
 		}
-		char b = text[i + k];
+		char b  = text[i + k];
 		char lo = k == 1 ? low : 0x80;
 		char hi = k == 1 ? high : 0xBF;
 		if (b < lo || b > hi)
@@ -102,7 +102,7 @@ fn void? JsonWriter.emit_quoted(&self, String text)
 		return;
 	}
 	sz run = 0; // start of the bytes not yet written
-	sz i = 0;
+	sz i   = 0;
 	while (i < text.len)
 	{
 		char c = text[i];
@@ -120,18 +120,18 @@ fn void? JsonWriter.emit_quoted(&self, String text)
 				i += width;
 				continue;
 			}
-			self.emit(text[run : i - run])!;
+			self.emit(text[run:i - run])!;
 			self.emit(REPLACEMENT)!;
 			i += width;
 			run = i;
 			continue;
 		}
-		self.emit(text[run : i - run])!;
+		self.emit(text[run:i - run])!;
 		self.emit_escape(c)!;
 		i++;
 		run = i;
 	}
-	self.emit(text[run : text.len - run])!;
+	self.emit(text[run:text.len - run])!;
 	self.emit("\"")!;
 }
 

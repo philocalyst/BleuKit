@@ -89,7 +89,7 @@ fn void a_non_object_parent_is_an_error_not_a_crash() @test
 	{
 		assert(false);
 	}
-	Params none = {};
+	Params none = { };
 	assert(none.int_or("step", 9)!! == 9);
 	assert(!none.optional_string("password")!!.has_value);
 	if (catch none.string("ssid"))

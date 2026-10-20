@@ -10,11 +10,26 @@ import bleu::unit;
  make `tools/check.sh bleu_core bleu_json` type-check every branch of
  `write_value`, `is_empty` and the tag handling on all six targets.
 *>
-
-constset GateFlags : uint { ONE = 1, FOUR = 4 }
-enum GateKind : char { FIRST, SECOND }
-bitstruct GateBits : uint { bool low : 0; bool high : 1; }
-struct GateLeaf { Level level; GateKind kind; }
+constset GateFlags : uint
+{
+	ONE  = 1,
+	FOUR = 4
+}
+enum GateKind : char
+{
+	FIRST,
+	SECOND
+}
+bitstruct GateBits : uint
+{
+	bool low : 0;
+	bool high : 1;
+}
+struct GateLeaf
+{
+	Level level;
+	GateKind kind;
+}
 struct GateTree
 {
 	String name;
@@ -47,7 +62,7 @@ fn void? gate_every_branch_of_the_writer(JsonWriter* writer, Options options) @p
 	GateTree tree;
 	write(writer, tree, options)!;
 	write(writer, GateKind.SECOND, options)!;
-	write(writer, (Maybe{long}){}, options)!;
+	write(writer, (Maybe{long}) { }, options)!;
 	write(writer, GateFlags.FOUR, options)!;
 	write(writer, (uint)1, options)!;
 	write(writer, (ulong)2, options)!;

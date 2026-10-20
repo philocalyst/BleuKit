@@ -7,13 +7,13 @@
  tabulated in the library README. In short:
 
  - `Maybe{T}`: its value, or `null` when empty. Recognised by its shape (a
-   struct of exactly `value` and `has_value`).
+ struct of exactly `value` and `has_value`).
  - `typedef`: the underlying type. `Level`, `Gain` are floats; `Duration` and
-   `NanoDuration` are integers in microseconds and nanoseconds.
+ `NanoDuration` are integers in microseconds and nanoseconds.
  - `enum`: its name as a string, spelled per `Options.enum_style`.
  - `bitstruct`: an object of booleans, one per bool member.
  - `struct`: an object, one member per field, spelled per `Options.key_style`
-   unless a `@tag("json", ...)` says otherwise.
+ unless a `@tag("json", ...)` says otherwise.
  - `String`: a string. `char[N]`: a string up to the first NUL.
  - `char[]`: base64, because a byte slice is not text.
  - other slices and fixed arrays: arrays.
@@ -23,8 +23,8 @@
  Member tags, read with `@tag("json", value)`:
  - `"-"`: the member is left out.
  - `"omitempty"`: the member is left out when it is empty (an empty `Maybe`,
-   an empty string, slice or text, a zero number or `false`, an enum's first
-   value, an empty struct-free array).
+ an empty string, slice or text, a zero number or `false`, an enum's first
+ value, an empty struct-free array).
  - any other value: the member's exact wire name, not restyled.
 *>
 module bleu::json;
@@ -125,7 +125,8 @@ macro bool is_maybe($Type) @const
 macro check_plain_data($Type, $path) @private
 {
 	$if !is_plain_kind($Type):
-		$error "not plain data at " +++ $path +++ ": pointers, unions, optionals, functions, interfaces, any, faults, void and integers wider than 64 bits have no JSON form";
+		$error "not plain data at " +++ $path
+			+++ ": pointers, unions, optionals, functions, interfaces, any, faults, void and integers wider than 64 bits have no JSON form";
 	$endif
 	$switch $Type::kind:
 		$case STRUCT:
@@ -135,7 +136,8 @@ macro check_plain_data($Type, $path) @private
 		$case BITSTRUCT:
 			$foreach $member : $Type::members:
 				$if $member.type != bool:
-					$error "not plain data at " +++ $path +++ "." +++ $member.name +++ ": a bitstruct serialises as an object of booleans, so every field must be a bool";
+					$error "not plain data at " +++ $path +++ "." +++ $member.name
+						+++ ": a bitstruct serialises as an object of booleans, so every field must be a bool";
 				$endif
 			$endforeach
 		$case ARRAY:
@@ -149,7 +151,7 @@ macro check_plain_data($Type, $path) @private
 		$case CONSTDEF:
 			check_plain_data($Type::inner, $path);
 		$default:
-			// Scalars and enums have no members to check.
+		// Scalars and enums have no members to check.
 	$endswitch
 }
 
@@ -157,7 +159,7 @@ macro check_plain_data($Type, $path) @private
  Serialise a value of type `TypeElement`. Generic over the type: the body is
  instantiated per type, so an unsupported type is a compile error.
 *>
-fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <TypeElement> @private
+fn void? write_value(JsonWriter* writer, Options options, TypeElement value)<TypeElement> @private
 {
 	$switch TypeElement::kind:
 		$case BOOL:
@@ -190,7 +192,14 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
 				writer.begin_object()!;
 				$foreach $member : TypeElement::members:
 					$if json_tag($member) != "-":
-						write_member{$member.type}(writer, options, json_name($member), json_renamed($member), json_omits_empty($member), value.$member)!;
+						write_member{$member.type}(
+							writer,
+							options,
+							json_name($member),
+							json_renamed($member),
+							json_omits_empty($member),
+							value.$member
+						)!;
 					$endif
 				$endforeach
 				return writer.end_object();
@@ -233,6 +242,7 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
 			var $Inner = TypeElement::inner;
 			return write_value{$Inner}(writer, options, ($Inner)value);
 		$default:
+			// Backstop: check_plain_data has already refused every other kind.
 			$error "not plain data: only bool, integers, floats, enums, bitstructs, structs, String, slices, arrays, typedefs and Maybe{T} can be serialised";
 	$endswitch
 }
@@ -245,7 +255,14 @@ fn void? write_value(JsonWriter* writer, Options options, TypeElement value) <Ty
  @param writer : "The writer receiving the member"
  @return? error::OUT_OF_RANGE, error::INVALID_STATE : "A name is too long for the style, or the writer refused the token"
 *>
-fn void? write_member(JsonWriter* writer, Options options, String name, bool renamed, bool omits_empty, TypeElement value) <TypeElement> @private
+fn void? write_member(
+	JsonWriter* writer,
+	Options options,
+	String name,
+	bool renamed,
+	bool omits_empty,
+	TypeElement value
+)<TypeElement> @private
 {
 	if (omits_empty && is_empty{TypeElement}(value)) return;
 	char[NAME_CAPACITY] scratch;
@@ -260,7 +277,7 @@ fn void? write_member(JsonWriter* writer, Options options, String name, bool ren
  text; a zero number or `false`; an enum's first value. Other values are never
  empty.
 *>
-fn bool is_empty(TypeElement value) <TypeElement> @private
+fn bool is_empty(TypeElement value)<TypeElement> @private
 {
 	$switch TypeElement::kind:
 		$case BOOL:
@@ -319,7 +336,7 @@ macro void? write(JsonWriter* writer, value, Options options = DEFAULT_OPTIONS)
  #### Example:
  ```
  struct User { String name; uint age; }
- String json = json::to_json(mem, User { "Ada", 36 })!;
+ String json = json::to_json(mem, (User){ "Ada", 36 })!;
  ```
 
  @param allocator : "Owner of the result"

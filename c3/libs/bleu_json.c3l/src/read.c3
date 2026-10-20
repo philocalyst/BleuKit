@@ -40,7 +40,13 @@ fn fault wrong_member(String key, String problem) @inline
 fn Object*? present(Object* obj, String key)
 {
 	if (!obj || obj.is_null()) return null;
-	if (!obj.is_map()) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "member '%s' is looked up in a value that is not an object", key)~;
+	if (!obj.is_map()) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' is looked up in a value that is not an object",
+		key
+	)~;
 	if (try found = obj.get(key))
 	{
 		if (found.is_null()) return null;
@@ -72,13 +78,25 @@ fn long? integer_value(Object* value, String key)
 {
 	if (value.is_int())
 	{
-		if (value.i > long::max || value.i < long::min) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "member '%s' does not fit in 64 bits", key)~;
+		if (value.i > long::max || value.i < long::min) return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"member '%s' does not fit in 64 bits",
+			key
+		)~;
 		return (long)value.i;
 	}
 	if (!value.is_float()) return wrong_member(key, "is not a number")~;
 	double f = value.f;
 	if (math::is_nan(f) || math::is_inf(f)) return wrong_member(key, "is not finite")~;
-	if (f < (double)long::min || f >= (double)long::max) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "member '%s' does not fit in 64 bits", key)~;
+	if (f < (double)long::min || f >= (double)long::max) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"member '%s' does not fit in 64 bits",
+		key
+	)~;
 	long truncated = (long)f;
 	if ((double)truncated != f) return wrong_member(key, "is not an integer")~;
 	return truncated;
@@ -92,7 +110,10 @@ fn String? get_string(Object* obj, String key)
 	return value.s;
 }
 
-<* The member `key` as an integer, integral floats accepted. @return? error::INVALID_ARGUMENT, error::OUT_OF_RANGE : "Missing, not an integer, or out of range" *>
+<*
+ The member `key` as an integer, integral floats accepted. @return? error::INVALID_ARGUMENT, error::OUT_OF_RANGE :
+ "Missing, not an integer, or out of range"
+*>
 fn long? get_int(Object* obj, String key)
 {
 	Object* value = required(obj, key)!;
@@ -145,7 +166,10 @@ struct Params
 <* The required string member `key`. @return? error::INVALID_ARGUMENT : "Missing, null, or not a string" *>
 fn String? Params.string(self, String key) => get_string(self.object, key);
 
-<* The required integer member `key`, integral floats accepted. @return? error::INVALID_ARGUMENT, error::OUT_OF_RANGE : "Missing or not an integer" *>
+<*
+ The required integer member `key`, integral floats accepted. @return? error::INVALID_ARGUMENT, error::OUT_OF_RANGE :
+ "Missing or not an integer"
+*>
 fn long? Params.integer(self, String key) => get_int(self.object, key);
 
 <* The required boolean member `key`. @return? error::INVALID_ARGUMENT : "Missing or not a boolean" *>
@@ -163,7 +187,7 @@ fn double? Params.number(self, String key) => get_double(self.object, key);
 fn Maybe{String}? Params.optional_string(self, String key)
 {
 	Object* value = present(self.object, key)!;
-	if (!value) return {};
+	if (!value) return { };
 	if (!value.is_string()) return wrong_member(key, "is not a string")~;
 	return maybe::value{String}(value.s);
 }

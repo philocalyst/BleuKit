@@ -39,6 +39,6 @@ fn void key_text_keeps_the_declared_name_by_default() @test
 	char[NAME_CAPACITY] scratch;
 	assert(key_text("time_to_empty", AS_DECLARED, scratch[..])!! == "time_to_empty");
 	assert(key_text("time_to_empty", CAMEL_CASE, scratch[..])!! == "timeToEmpty");
-	Options defaults = {};
+	Options defaults = { };
 	assert(defaults.enum_style == LOWER_SNAKE && defaults.key_style == AS_DECLARED);
 }

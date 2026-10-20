@@ -141,7 +141,13 @@ fn void? JsonWriter.emit(&self, String text)
 	if (text.len > self.buffer.len - self.used)
 	{
 		self.failed = true;
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "json buffer of %d bytes is full", self.buffer.len)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"json buffer of %d bytes is full",
+			self.buffer.len
+		)~;
 	}
 	mem::copy(&self.buffer[self.used], text.ptr, text.len);
 	self.used += text.len;
@@ -158,7 +164,13 @@ fn void? JsonWriter.emit_char(&self, char c)
 	if (self.used >= self.buffer.len)
 	{
 		self.failed = true;
-		return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "json buffer of %d bytes is full", self.buffer.len)~;
+		return error::raise(
+			error::OUT_OF_RANGE,
+			error::Domain.INTERNAL,
+			0,
+			"json buffer of %d bytes is full",
+			self.buffer.len
+		)~;
 	}
 	self.buffer[self.used] = c;
 	self.used++;
@@ -231,7 +243,13 @@ fn void? JsonWriter.put_bool(&self, bool value) => self.put_token(value ? "true"
 fn void? open_container(JsonWriter* writer, bool is_object)
 {
 	writer.ready()!;
-	if (writer.depth == (int)MAX_DEPTH) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "json nesting deeper than %d", (int)MAX_DEPTH)~;
+	if (writer.depth == (int)MAX_DEPTH) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"json nesting deeper than %d",
+		(int)MAX_DEPTH
+	)~;
 	writer.begin_value()!;
 	writer.emit(is_object ? "{" : "[")!;
 	writer.frames[writer.depth] = { .is_object = is_object };
@@ -244,7 +262,9 @@ fn void? close_container(JsonWriter* writer, bool is_object)
 	writer.ready()!;
 	if (writer.depth == 0) return misuse("no container is open")~;
 	Frame* frame = &writer.frames[writer.depth - 1];
-	if (frame.is_object != is_object) return misuse(is_object ? "end_object closes an array" : "end_array closes an object")~;
+	if (frame.is_object != is_object) return misuse(
+		is_object ? "end_object closes an array" : "end_array closes an object"
+	)~;
 	if (frame.key_open) return misuse("a key has no value")~;
 	writer.depth--;
 	if (frame.has_items) writer.newline(writer.depth)!;
@@ -275,7 +295,9 @@ fn void? JsonWriter.end_array(&self) => close_container(self, false);
 fn void? JsonWriter.key(&self, String name)
 {
 	self.ready()!;
-	if (self.depth == 0 || !self.frames[self.depth - 1].is_object) return misuse("a key is only allowed inside an object")~;
+	if (self.depth == 0 || !self.frames[self.depth - 1].is_object) return misuse(
+		"a key is only allowed inside an object"
+	)~;
 	Frame* frame = &self.frames[self.depth - 1];
 	if (frame.key_open) return misuse("a key follows a key with no value")~;
 	if (frame.has_items) self.emit(",")!;
@@ -309,7 +331,15 @@ fn bool is_json_value(String text)
 fn void? JsonWriter.put_raw(&self, String fragment)
 {
 	String value = fragment.trim(JSON_WHITESPACE);
-	if (!is_json_value(value)) return error::raise(error::INVALID_ARGUMENT, error::Domain.INTERNAL, 0, "raw JSON fragment of %d bytes is not one JSON value", fragment.len)~;
+	if (!is_json_value(
+		value
+	)) return error::raise(
+		error::INVALID_ARGUMENT,
+		error::Domain.INTERNAL,
+		0,
+		"raw JSON fragment of %d bytes is not one JSON value",
+		fragment.len
+	)~;
 	self.begin_value()!;
 	self.emit(value)!;
 	self.end_value();

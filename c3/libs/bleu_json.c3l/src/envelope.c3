@@ -48,18 +48,41 @@ struct Request
 *>
 fn Request? parse_request(Allocator allocator, String line)
 {
-	if (line.len > MAX_FRAME) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request of %d bytes exceeds the %d byte limit", line.len, MAX_FRAME)~;
+	if (line.len > MAX_FRAME) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"request of %d bytes exceeds the %d byte limit",
+		line.len,
+		MAX_FRAME
+	)~;
 	Object*? parsed = json::parse(allocator, line, json::JsonFlavor.JSON);
 	if (catch parsed) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not strict JSON")~;
-	Object* root = parsed;
+	Object* root     = parsed;
 	bool handed_over = false;
 	defer if (!handed_over) root.free();
-	if (!root.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request is not a JSON object")~;
+	if (!root.is_map()) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"request is not a JSON object"
+	)~;
 	long id = read::get_int(root, "id")!;
-	if (id > read::MAX_EXACT_INTEGER || id < -read::MAX_EXACT_INTEGER) return error::raise(error::OUT_OF_RANGE, error::Domain.INTERNAL, 0, "request id %d is not an exact JavaScript integer", id)~;
-	String method = read::get_string(root, "method")!;
+	if (id > read::MAX_EXACT_INTEGER || id < -read::MAX_EXACT_INTEGER) return error::raise(
+		error::OUT_OF_RANGE,
+		error::Domain.INTERNAL,
+		0,
+		"request id %d is not an exact JavaScript integer",
+		id
+	)~;
+	String method  = read::get_string(root, "method")!;
 	Object* params = read::present(root, "params")!;
-	if (params && !params.is_map()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "request params is not an object")~;
+	if (params && !params.is_map()) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"request params is not an object"
+	)~;
 	handed_over = true;
 	return { id, method, params, root };
 }
@@ -73,7 +96,12 @@ fn void Request.free(&self) => self.root.free();
 *>
 fn void? begin_frame(json::JsonWriter* writer, long id, String name)
 {
-	if (writer.indent != 0) return error::raise(error::INVALID_STATE, error::Domain.INTERNAL, 0, "line frames need a compact writer")~;
+	if (writer.indent != 0) return error::raise(
+		error::INVALID_STATE,
+		error::Domain.INTERNAL,
+		0,
+		"line frames need a compact writer"
+	)~;
 	writer.restart()!;
 	writer.begin_object()!;
 	writer.key("id")!;
@@ -134,7 +162,13 @@ fn void? write_error(json::JsonWriter* writer, long id, String message)
  @param service : "The service that produced the event"
  @param value : "A plain-data value; see bleu::json::write"
 *>
-macro void? write_event(json::JsonWriter* writer, long id, String service, value, json::Options options = json::DEFAULT_OPTIONS)
+macro void? write_event(
+	json::JsonWriter* writer,
+	long id,
+	String service,
+	value,
+	json::Options options = json::DEFAULT_OPTIONS
+)
 {
 	begin_frame(writer, id, "result")!;
 	writer.begin_object()!;
