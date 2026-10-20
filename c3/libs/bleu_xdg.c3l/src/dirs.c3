@@ -19,17 +19,17 @@
 
  Platform notes (one logic everywhere, so the layout is identical on every OS):
  * The home directory is `$HOME`, and when that is not set (typical on
-   Windows) `%USERPROFILE%`. A drive-letter path such as `C:\Users\me` counts as
-   absolute.
+ Windows) `%USERPROFILE%`. A drive-letter path such as `C:\Users\me` counts as
+ absolute.
  * macOS and Windows use the XDG defaults below, not `~/Library` or `%APPDATA%`
-   (GLib uses `LocalAppData` on Windows). Code that needs native locations must
-   not use this module for them.
+ (GLib uses `LocalAppData` on Windows). Code that needs native locations must
+ not use this module for them.
 *>
 module bleu::xdg::dirs;
 import bleu::error, std::os::env, std::collections::list;
 
 const String PATH_LIST_SEPARATOR = ":";
-const String DEFAULT_DATA_DIRS = "/usr/local/share/:/usr/share/";
+const String DEFAULT_DATA_DIRS   = "/usr/local/share/:/usr/share/";
 const String DEFAULT_CONFIG_DIRS = "/etc/xdg";
 
 <*
@@ -205,8 +205,8 @@ fn String? absolute_variable(Environment env, Allocator allocator, String name) 
 fn String join(Allocator allocator, String base, String relative) @local
 {
 	bool has_separator = base[^1] == '/' || base[^1] == '\\';
-	return has_separator ? string::tformat("%s%s", base, relative).copy(allocator)
-	                     : string::tformat("%s/%s", base, relative).copy(allocator);
+	return has_separator ? string::tformat("%s%s", base, relative)
+		.copy(allocator) : string::tformat("%s/%s", base, relative).copy(allocator);
 }
 
 // Split a colon-separated variable, keeping only absolute entries.

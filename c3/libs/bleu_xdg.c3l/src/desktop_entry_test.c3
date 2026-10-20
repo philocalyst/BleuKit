@@ -69,7 +69,7 @@ fn void show_in_follows_only_and_not_lists() @test
 	test::@check(entry.show_in({ "GNOME" }), "GNOME is listed");
 	test::@check(!entry.show_in({ "XFCE" }), "an OnlyShowIn list hides everything else");
 	test::@check(entry.show_in({ "XFCE", "KDE" }), "the first matching name decides");
-	test::@check(!entry.show_in({}), "no desktop names: default is hidden with OnlyShowIn");
+	test::@check(!entry.show_in({ }), "no desktop names: default is hidden with OnlyShowIn");
 
 	DesktopEntry* open = parse(mem, "[Desktop Entry]\nType=Application\nName=A\nExec=a\nNotShowIn=KDE;\n", "")!!;
 	defer open.release();
@@ -123,7 +123,9 @@ fn void? record(void* context, DesktopFile file)
 fn String make_tree(String name) @local
 {
 	String root = string::tformat("%s/bleu-xdg-%s", io::path::temp_directory(tmem)!!, name);
-	if (catch io::path::rmtree((Path)root)) {}
+	if (catch io::path::rmtree((Path)root))
+	{
+	}
 	io::path::mkdir((Path)string::tformat("%s/one/applications/foo", root), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/two/applications", root), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/three", root), true)!!;
@@ -140,7 +142,11 @@ fn void scan_applies_precedence_and_ids() @test
 {
 	String root = make_tree("scan");
 	defer (void)io::path::rmtree((Path)root);
-	String[] dirs = { string::tformat("%s/one", root), string::tformat("%s/two", root), string::tformat("%s/three", root) };
+	String[] dirs = {
+		string::tformat("%s/one", root),
+		string::tformat("%s/two", root),
+		string::tformat("%s/three", root)
+	};
 	Visits visits;
 	visits.ids.tinit();
 	visits.paths.tinit();
@@ -148,9 +154,12 @@ fn void scan_applies_precedence_and_ids() @test
 	test::eq(3, visits.ids.len());
 	for (sz i = 0; i < visits.ids.len(); i++)
 	{
-		String id = visits.ids[i];
+		String id   = visits.ids[i];
 		String path = visits.paths[i];
-		if (id == "foo-bar.desktop") test::@check(path.contains("/one/applications/foo/bar.desktop"), "first directory wins");
+		if (id == "foo-bar.desktop") test::@check(
+			path.contains("/one/applications/foo/bar.desktop"),
+			"first directory wins"
+		);
 		if (id == "baz.desktop") test::@check(path.contains("/one/applications/baz.desktop"), "precedence for baz");
 		if (id == "qux.desktop") test::@check(path.contains("/two/applications/qux.desktop"), "unique IDs are kept");
 		test::@check(id != "notes.txt", "non-desktop files are ignored");

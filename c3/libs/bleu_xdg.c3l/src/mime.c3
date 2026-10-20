@@ -20,14 +20,14 @@
 module bleu::xdg::mime;
 import bleu::error, bleu::xdg::keyfile, bleu::xdg::dirs, bleu::xdg::desktop_entry, std::io, std::collections::list, std::collections::set;
 
-const String MIMEAPPS_FILE = "mimeapps.list";
+const String MIMEAPPS_FILE          = "mimeapps.list";
 const String APPLICATIONS_DIRECTORY = "applications";
-const String DEFAULT_GROUP = "Default Applications";
-const String ADDED_GROUP = "Added Associations";
-const String REMOVED_GROUP = "Removed Associations";
-const String CACHE_GROUP = "MIME Cache";
-const String DESKTOP_FILE_SUFFIX = "-mimeapps.list";
-const String MIMEINFO_CACHE_FILE = "mimeinfo.cache";
+const String DEFAULT_GROUP          = "Default Applications";
+const String ADDED_GROUP            = "Added Associations";
+const String REMOVED_GROUP          = "Removed Associations";
+const String CACHE_GROUP            = "MIME Cache";
+const String DESKTOP_FILE_SUFFIX    = "-mimeapps.list";
+const String MIMEINFO_CACHE_FILE    = "mimeinfo.cache";
 
 <*
  One `mimeapps.list` location, in lookup order. `data_directory` is the XDG data
@@ -57,10 +57,22 @@ fn Source[] sources(Environment env, Allocator allocator)
 	add_location(&found, dirs::config_home(env, tmem) ?? "", "", &desktops, allocator);
 	foreach (config : dirs::config_dirs(env, tmem)) add_location(&found, config, "", &desktops, allocator);
 	String data_home = dirs::data_home(env, tmem) ?? "";
-	add_location(&found, string::tformat("%s/%s", data_home.trim_right("/"), APPLICATIONS_DIRECTORY), data_home, &desktops, allocator);
+	add_location(
+		&found,
+		string::tformat("%s/%s", data_home.trim_right("/"), APPLICATIONS_DIRECTORY),
+		data_home,
+		&desktops,
+		allocator
+	);
 	foreach (data : dirs::data_dirs(env, tmem))
 	{
-		add_location(&found, string::tformat("%s/%s", data.trim_right("/"), APPLICATIONS_DIRECTORY), data, &desktops, allocator);
+		add_location(
+			&found,
+			string::tformat("%s/%s", data.trim_right("/"), APPLICATIONS_DIRECTORY),
+			data,
+			&desktops,
+			allocator
+		);
 	}
 	return found.to_aligned_array(allocator);
 }
@@ -76,8 +88,8 @@ fn Source[] sources(Environment env, Allocator allocator)
 *>
 fn String? default_application(Environment env, Allocator allocator, String mime)
 {
-	String[] associated = {};
-	bool computed = false;
+	String[] associated = { };
+	bool computed       = false;
 	foreach (source : sources(env, tmem))
 	{
 		foreach (id : defaults_in(source, mime))
@@ -139,9 +151,9 @@ fn String[] associated_applications(Environment env, Allocator allocator, String
 fn String[] cached_applications(String cache_text, Allocator allocator, String mime)
 {
 	KeyFile? file = keyfile::parse_with(tmem, cache_text, PERMISSIVE);
-	if (catch err = file) return {};
+	if (catch err = file) return { };
 	String[]? ids = file.get_strings(tmem, CACHE_GROUP, mime);
-	if (catch err = ids) return {};
+	if (catch err = ids) return { };
 	return copy_all(allocator, ids);
 }
 
@@ -177,13 +189,13 @@ fn String[] defaults_in(Source source, String mime) @local
 // The IDs listed for `mime` under `group` in `source`; none when the file or entry is absent or malformed.
 fn String[] association_list(Source source, String group, String mime) @local
 {
-	if (!io::file::is_file(source.path)) return {};
+	if (!io::file::is_file(source.path)) return { };
 	char[]? bytes = io::file::load(tmem, source.path);
-	if (catch err = bytes) return {};
+	if (catch err = bytes) return { };
 	KeyFile? file = keyfile::parse_with(tmem, (String)bytes, PERMISSIVE);
-	if (catch err = file) return {};
+	if (catch err = file) return { };
 	String[]? ids = file.get_strings(tmem, group, mime);
-	if (catch err = ids) return {};
+	if (catch err = ids) return { };
 	return ids;
 }
 
@@ -211,23 +223,27 @@ fn String desktop_file_path(Environment env, String id) @local
 }
 
 // Appends the mimeapps.list locations of one base directory, desktop-specific first.
-fn void add_location(List{Source}* found, String base, String data_directory, String[]* desktops, Allocator allocator) @local
+fn void add_location(
+	List{Source}* found,
+	String base,
+	String data_directory,
+	String[]* desktops,
+	Allocator allocator
+) @local
 {
 	if (base.len == 0) return;
 	String trimmed = base.trim_right("/");
 	foreach (desktop : *desktops)
 	{
-		found.push({
-			.path = string::tformat("%s/%s%s", trimmed, desktop, DESKTOP_FILE_SUFFIX).copy(allocator),
-			.data_directory = data_directory.copy(allocator),
-			.desktop_specific = true,
-		});
+		found.push(
+			{
+				.path = string::tformat("%s/%s%s", trimmed, desktop, DESKTOP_FILE_SUFFIX)
+			.copy(allocator), .data_directory = data_directory.copy(allocator), .desktop_specific = true, });
 	}
-	found.push({
-		.path = string::tformat("%s/%s", trimmed, MIMEAPPS_FILE).copy(allocator),
-		.data_directory = data_directory.copy(allocator),
-		.desktop_specific = false,
-	});
+	found.push(
+		{
+			.path = string::tformat("%s/%s", trimmed, MIMEAPPS_FILE)
+		.copy(allocator), .data_directory = data_directory.copy(allocator), .desktop_specific = false, });
 }
 
 // Lower-cases each name, in `allocator`.

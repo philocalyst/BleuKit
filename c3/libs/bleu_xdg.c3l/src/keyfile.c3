@@ -35,19 +35,19 @@
 module bleu::xdg::keyfile;
 import bleu::error, std::collections::list;
 
-const char LIST_SEPARATOR = ';';
-const char ESCAPE = '\\';
-const char COMMENT_START = '#';
-const char GROUP_OPEN = '[';
-const char GROUP_CLOSE = ']';
+const char LIST_SEPARATOR      = ';';
+const char ESCAPE              = '\\';
+const char COMMENT_START       = '#';
+const char GROUP_OPEN          = '[';
+const char GROUP_CLOSE         = ']';
 const char KEY_VALUE_SEPARATOR = '=';
-const char CARRIAGE_RETURN = '\r';
-const char LINE_FEED = '\n';
-const char FIRST_PRINTABLE = ' ';
-const char LAST_PRINTABLE = '~';
-const String UTF8_BOM = "\xEF\xBB\xBF";
-const String BLANKS = " \t";
-const int LOCALE_FORMS = 4;
+const char CARRIAGE_RETURN     = '\r';
+const char LINE_FEED           = '\n';
+const char FIRST_PRINTABLE     = ' ';
+const char LAST_PRINTABLE      = '~';
+const String UTF8_BOM          = "\xEF\xBB\xBF";
+const String BLANKS            = " \t";
+const int LOCALE_FORMS         = 4;
 
 <*
  One `Key[locale]=Value` line. `raw` is the value as written, with escapes
@@ -235,7 +235,7 @@ fn double? KeyFile.get_numeric(&self, String group, String key)
 *>
 fn Locale parse_locale(String value)
 {
-	String rest = value;
+	String rest     = value;
 	String modifier = "";
 	if (try at = rest.index_of_char('@'))
 	{
@@ -245,7 +245,11 @@ fn Locale parse_locale(String value)
 	if (try dot = rest.index_of_char('.')) rest = rest[:dot];
 	if (try underscore = rest.index_of_char('_'))
 	{
-		return { .lang = rest[:underscore], .country = rest[underscore + 1:rest.len - underscore - 1], .modifier = modifier };
+		return {
+			.lang = rest[:underscore],
+			.country = rest[underscore + 1:rest.len - underscore - 1],
+			.modifier = modifier
+		};
 	}
 	return { .lang = rest, .modifier = modifier };
 }
@@ -255,7 +259,7 @@ fn Locale parse_locale(String value)
 // a part `wanted` lacks do not exist.
 fn Locale? candidate(Locale wanted, int form) @local
 {
-	bool has_country = wanted.country.len > 0;
+	bool has_country  = wanted.country.len > 0;
 	bool has_modifier = wanted.modifier.len > 0;
 	switch (form)
 	{
@@ -298,7 +302,8 @@ fn Entry* KeyFile.find_entry_in_locale(&self, String group, String key, Locale w
 	{
 		if (entry.key != key || entry.locale.len == 0) continue;
 		Locale have = parse_locale(entry.locale);
-		if (have.lang == wanted.lang && have.country == wanted.country && have.modifier == wanted.modifier) return entry;
+		if (have.lang == wanted.lang && have.country == wanted.country
+			&& have.modifier == wanted.modifier) return entry;
 	}
 	return null;
 }
@@ -328,17 +333,44 @@ fn Entry* KeyFile.find_entry(&self, String group, String key)
 // Begin a `[name]` group. Rejects an empty, non-printable or duplicate name.
 fn void? open_group(KeyFile* file, String line, int line_no) @local
 {
-	if (line[^1] != GROUP_CLOSE) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: group header is not closed", line_no)~;
+	if (line[^1] != GROUP_CLOSE) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		line_no,
+		"line %d: group header is not closed",
+		line_no
+	)~;
 	String name = line[1:line.len - 2];
-	if (name.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: empty group name", line_no)~;
+	if (name.len == 0) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		line_no,
+		"line %d: empty group name",
+		line_no
+	)~;
 	foreach (c : name)
 	{
 		if (c < FIRST_PRINTABLE || c > LAST_PRINTABLE || c == GROUP_OPEN || c == GROUP_CLOSE)
 		{
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: group name holds a character outside printable ASCII", line_no)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				line_no,
+				"line %d: group name holds a character outside printable ASCII",
+				line_no
+			)~;
 		}
 	}
-	if (file.find_group(name)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: duplicate group '%s'", line_no, name)~;
+	if (file.find_group(
+		name
+	)) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		line_no,
+		"line %d: duplicate group '%s'",
+		line_no,
+		name
+	)~;
 	Group group = { .name = name };
 	group.entries.init(file.allocator);
 	file.groups.push(group);
@@ -348,10 +380,18 @@ fn void? open_group(KeyFile* file, String line, int line_no) @local
 // Add `Key[locale]=Value` to the current group.
 fn void? add_entry(KeyFile* file, String line, int line_no, KeySyntax syntax) @local
 {
-	if (file.groups.is_empty()) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: entry before the first group", line_no)~;
-	if (!line.contains_char(KEY_VALUE_SEPARATOR)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: missing '='", line_no)~;
+	if (file.groups.is_empty()) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		line_no,
+		"line %d: entry before the first group",
+		line_no
+	)~;
+	if (!line.contains_char(
+		KEY_VALUE_SEPARATOR
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: missing '='", line_no)~;
 	sz delimiter = line.index_of_char(KEY_VALUE_SEPARATOR)!!;
-	Entry entry = split_key(blank_trim(line[:delimiter]), line_no, syntax)!;
+	Entry entry  = split_key(blank_trim(line[:delimiter]), line_no, syntax)!;
 	entry.raw = blank_trim(line[delimiter + 1:line.len - delimiter - 1]);
 	validate_escapes(entry.raw, line_no)!;
 	Group* current = file.groups.get_ref(file.groups.len() - 1);
@@ -359,7 +399,14 @@ fn void? add_entry(KeyFile* file, String line, int line_no, KeySyntax syntax) @l
 	{
 		if (existing.key == entry.key && existing.locale == entry.locale)
 		{
-			return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: duplicate key '%s'", line_no, entry.key)~;
+			return error::raise(
+				error::PROTOCOL,
+				error::Domain.INTERNAL,
+				line_no,
+				"line %d: duplicate key '%s'",
+				line_no,
+				entry.key
+			)~;
 		}
 	}
 	current.entries.push(entry);
@@ -369,19 +416,43 @@ fn void? add_entry(KeyFile* file, String line, int line_no, KeySyntax syntax) @l
 // Split `Key` or `Key[locale]` into an entry whose value is still empty.
 fn Entry? split_key(String name, int line_no, KeySyntax syntax) @local
 {
-	String key = name;
+	String key    = name;
 	String locale = "";
 	if (try open = name.index_of_char('['))
 	{
-		if (name[^1] != ']') return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: locale of a key is not closed", line_no)~;
+		if (name[^1] != ']') return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			line_no,
+			"line %d: locale of a key is not closed",
+			line_no
+		)~;
 		key = name[:open];
 		locale = name[open + 1:name.len - open - 2];
-		if (locale.len == 0 || locale.contains_char(GROUP_OPEN)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: malformed locale", line_no)~;
+		if (locale.len == 0 || locale.contains_char(
+			GROUP_OPEN
+		)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: malformed locale", line_no)~;
 	}
-	if (key.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: empty key name", line_no)~;
+	if (key.len == 0) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		line_no,
+		"line %d: empty key name",
+		line_no
+	)~;
 	foreach (c : key)
 	{
-		if (!is_key_char(c, syntax)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: key name holds '%c'", line_no, c)~;
+		if (!is_key_char(
+			c,
+			syntax
+		)) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			line_no,
+			"line %d: key name holds '%c'",
+			line_no,
+			c
+		)~;
 	}
 	return { .key = key, .locale = locale };
 }
@@ -399,7 +470,7 @@ fn bool is_key_char(char c, KeySyntax syntax) @inline
 fn String next_line(String text, sz* position) @local
 {
 	sz start = *position;
-	sz end = start;
+	sz end   = start;
 	while (end < text.len && text[end] != LINE_FEED) end++;
 	*position = end < text.len ? end + 1 : end;
 	String line = text[start:end - start];
@@ -420,7 +491,16 @@ fn void? validate_escapes(String raw, int line_no) @local
 			i++;
 			continue;
 		}
-		if (catch decode_escape(raw, &i)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, line_no, "line %d: invalid escape sequence", line_no)~;
+		if (catch decode_escape(
+			raw,
+			&i
+		)) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			line_no,
+			"line %d: invalid escape sequence",
+			line_no
+		)~;
 	}
 	return;
 }
@@ -438,13 +518,13 @@ fn char? decode_escape(String raw, sz* index) @local
 	*index = i + 2;
 	switch (raw[i + 1])
 	{
-		case 's':  return ' ';
-		case 'n':  return '\n';
-		case 't':  return '\t';
-		case 'r':  return '\r';
+		case 's': return ' ';
+		case 'n': return '\n';
+		case 't': return '\t';
+		case 'r': return '\r';
 		case '\\': return '\\';
-		case ';':  return ';';
-		default:   return error::PROTOCOL~;
+		case ';': return ';';
+		default: return error::PROTOCOL~;
 	}
 }
 
@@ -478,7 +558,7 @@ fn String[]? decode_list(String raw, Allocator allocator) @local
 	DString current;
 	current.init(tmem, raw.len);
 	bool has_characters = false;
-	sz i = 0;
+	sz i                = 0;
 	while (i < raw.len)
 	{
 		char c = raw[i];

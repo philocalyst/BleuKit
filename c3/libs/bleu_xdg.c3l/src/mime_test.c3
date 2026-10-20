@@ -28,12 +28,17 @@ fn void write_desktop(String path, String mime) @local
 fn String make_tree(String name) @local
 {
 	String root = string::tformat("%s/bleu-xdg-mime-%s", io::path::temp_directory(tmem)!!, name);
-	if (catch io::path::rmtree((Path)root)) {}
+	if (catch io::path::rmtree((Path)root))
+	{
+	}
 	io::path::mkdir((Path)string::tformat("%s/config", root), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/data/applications/sub", root), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/sys/applications", root), true)!!;
 	io::file::save(string::tformat("%s/config/mimeapps.list", root), (char[])GENERIC_CONFIG)!!;
-	io::file::save(string::tformat("%s/config/gnome-mimeapps.list", root), (char[])"[Default Applications]\ntext/plain=a.desktop;\n")!!;
+	io::file::save(
+		string::tformat("%s/config/gnome-mimeapps.list", root),
+		(char[])"[Default Applications]\ntext/plain=a.desktop;\n"
+	)!!;
 	String apps = string::tformat("%s/data/applications", root);
 	write_desktop(string::tformat("%s/a.desktop", apps), "text/plain;");
 	write_desktop(string::tformat("%s/b.desktop", apps), "text/plain;text/markdown;");
@@ -51,13 +56,24 @@ fn void defaults_follow_desktop_specific_then_generic_files() @test
 	defer (void)io::path::rmtree((Path)root);
 	Variables env = {
 		.names = { "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_HOME", "XDG_DATA_DIRS", "XDG_CURRENT_DESKTOP" },
-		.values = { string::tformat("%s/config", root), string::tformat("%s/none", root), string::tformat("%s/data", root), string::tformat("%s/sys", root), "GNOME" },
+		.values = {
+			string::tformat("%s/config", root),
+			string::tformat("%s/none", root),
+			string::tformat("%s/data", root),
+			string::tformat("%s/sys", root),
+			"GNOME"
+		},
 	};
 	// The GNOME-specific file names a.desktop, which precedes the generic file's b.desktop.
 	test::eq("a.desktop", default_application(&env, tmem, "text/plain")!!);
 	Variables no_desktop = {
 		.names = { "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_HOME", "XDG_DATA_DIRS" },
-		.values = { string::tformat("%s/config", root), string::tformat("%s/none", root), string::tformat("%s/data", root), string::tformat("%s/sys", root) },
+		.values = {
+			string::tformat("%s/config", root),
+			string::tformat("%s/none", root),
+			string::tformat("%s/data", root),
+			string::tformat("%s/sys", root)
+		},
 	};
 	// Without a desktop the generic file applies: b.desktop, then missing.desktop (skipped as it does not exist).
 	test::eq("b.desktop", default_application(&no_desktop, tmem, "text/plain")!!);
@@ -71,7 +87,12 @@ fn void associations_add_scan_and_remove() @test
 	defer (void)io::path::rmtree((Path)root);
 	Variables env = {
 		.names = { "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_HOME", "XDG_DATA_DIRS" },
-		.values = { string::tformat("%s/config", root), string::tformat("%s/none", root), string::tformat("%s/data", root), string::tformat("%s/sys", root) },
+		.values = {
+			string::tformat("%s/config", root),
+			string::tformat("%s/none", root),
+			string::tformat("%s/data", root),
+			string::tformat("%s/sys", root)
+		},
 	};
 	String[] plain = associated_applications(&env, tmem, "text/plain");
 	test::@check(has_id(plain, "a.desktop"), "a.desktop declares text/plain");
@@ -98,7 +119,12 @@ fn void default_falls_back_to_the_first_association() @test
 	defer (void)io::path::rmtree((Path)root);
 	Variables env = {
 		.names = { "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_HOME", "XDG_DATA_DIRS" },
-		.values = { string::tformat("%s/config", root), string::tformat("%s/none", root), string::tformat("%s/data", root), string::tformat("%s/sys", root) },
+		.values = {
+			string::tformat("%s/config", root),
+			string::tformat("%s/none", root),
+			string::tformat("%s/data", root),
+			string::tformat("%s/sys", root)
+		},
 	};
 	// No default is listed for application/x-bar: the added association is used.
 	test::eq("bar.desktop", default_application(&env, tmem, "application/x-bar")!!);

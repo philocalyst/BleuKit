@@ -10,15 +10,23 @@ fn String make_bundle(String root, String name) @local
 	io::path::mkdir((Path)string::tformat("%s/Contents/Resources/de.lproj", bundle), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/Contents/Resources/en.lproj", bundle), true)!!;
 	io::file::save(string::tformat("%s/Contents/Info.plist", bundle), (char[])$embed("../fixtures/info.plist"))!!;
-	io::file::save(string::tformat("%s/Contents/Resources/de.lproj/InfoPlist.strings", bundle), (char[])$embed("../fixtures/InfoPlist-de.strings"))!!;
-	io::file::save(string::tformat("%s/Contents/Resources/en.lproj/InfoPlist.strings", bundle), (char[])$embed("../fixtures/InfoPlist-en.strings"))!!;
+	io::file::save(
+		string::tformat("%s/Contents/Resources/de.lproj/InfoPlist.strings", bundle),
+		(char[])$embed("../fixtures/InfoPlist-de.strings")
+	)!!;
+	io::file::save(
+		string::tformat("%s/Contents/Resources/en.lproj/InfoPlist.strings", bundle),
+		(char[])$embed("../fixtures/InfoPlist-en.strings")
+	)!!;
 	return bundle;
 }
 
 fn String make_root(String name) @local
 {
 	String root = string::tformat("%s/bleu-plist-%s", io::path::temp_directory(tmem)!!, name);
-	if (catch io::path::rmtree((Path)root)) {}
+	if (catch io::path::rmtree((Path)root))
+	{
+	}
 	io::path::mkdir((Path)root, true)!!;
 	return root;
 }
@@ -28,7 +36,7 @@ fn void reads_the_typed_model() @test
 	String root = make_root("typed");
 	defer (void)io::path::rmtree((Path)root);
 	String bundle = make_bundle(root, "Example.app");
-	AppBundle app = read(tmem, bundle, {})!!;
+	AppBundle app = read(tmem, bundle, { })!!;
 	test::eq("com.example.Example", app.bundle_id);
 	test::eq("Example", app.executable);
 	test::eq("Example.icns", app.icon_file);
@@ -66,15 +74,15 @@ fn void missing_and_malformed_bundles() @test
 {
 	String root = make_root("missing");
 	defer (void)io::path::rmtree((Path)root);
-	test::@error(read(tmem, string::tformat("%s/Absent.app", root), {}), NOT_FOUND);
+	test::@error(read(tmem, string::tformat("%s/Absent.app", root), { }), NOT_FOUND);
 	String broken = string::tformat("%s/Broken.app", root);
 	io::path::mkdir((Path)string::tformat("%s/Contents", broken), true)!!;
 	io::file::save(string::tformat("%s/Contents/Info.plist", broken), (char[])"not a plist")!!;
-	test::@error(read(tmem, broken, {}), error::PROTOCOL);
+	test::@error(read(tmem, broken, { }), error::PROTOCOL);
 	String array_root = string::tformat("%s/Array.app", root);
 	io::path::mkdir((Path)string::tformat("%s/Contents", array_root), true)!!;
 	io::file::save(string::tformat("%s/Contents/Info.plist", array_root), (char[])"<plist><array/></plist>")!!;
-	test::@error(read(tmem, array_root, {}), error::PROTOCOL);
+	test::@error(read(tmem, array_root, { }), error::PROTOCOL);
 }
 
 fn void application_directories_are_listed_in_search_order() @test

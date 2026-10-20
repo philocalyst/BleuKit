@@ -4,10 +4,10 @@
 module bleu::plist;
 import bleu::error, std::core::test;
 
-const ulong LCG_MULTIPLIER = 6364136223846793005;
-const ulong LCG_INCREMENT = 1442695040888963407;
-const int LCG_SHIFT = 33;
-const int MUTATION_ROUNDS = 4000;
+const ulong LCG_MULTIPLIER    = 6364136223846793005;
+const ulong LCG_INCREMENT     = 1442695040888963407;
+const int LCG_SHIFT           = 33;
+const int MUTATION_ROUNDS     = 4000;
 const int MAX_EDITS_PER_ROUND = 4;
 
 // A small linear congruential generator with a fixed seed, so failures reproduce.
@@ -28,7 +28,9 @@ fn void attempt(char[] input) @local
 	@pool()
 	{
 		// The outcome is irrelevant here: only that the call returns without faulting.
-		if (catch read(tmem, input)) {}
+		if (catch read(tmem, input))
+		{
+		}
 	};
 }
 
@@ -64,7 +66,7 @@ fn void random_corruptions_are_handled() @test
 	for (int round = 0; round < MUTATION_ROUNDS; round++)
 	{
 		String original = fixtures[random.next() % fixtures.len];
-		char[] buffer = alloc::new_array(tmem, char, original.len);
+		char[] buffer   = alloc::new_array(tmem, char, original.len);
 		mem::copy(buffer.ptr, original.ptr, original.len);
 		int edits = 1 + (int)(random.next() % MAX_EDITS_PER_ROUND);
 		for (int edit = 0; edit < edits; edit++)
@@ -80,6 +82,6 @@ fn void random_corruptions_are_handled() @test
 fn void a_valid_fixture_still_decodes_after_the_fuzzing_helpers() @test
 {
 	String text = $embed("../fixtures/sample.plist");
-	Value root = read(tmem, text)!!;
+	Value root  = read(tmem, text)!!;
 	test::eq(Kind.DICT, root.kind);
 }

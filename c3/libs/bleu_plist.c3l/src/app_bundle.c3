@@ -10,15 +10,19 @@
  CFBundleURLSchemes), "Localized Information Property List Keys" (the
  `<language>.lproj/InfoPlist.strings` lookup), and the "Bundle Programming
  Guide" (the bundle layout, `Contents/Info.plist` and `Contents/Resources`).
- Application directories follow the Finder's search list.
+ The key names were written from that reference, not re-fetched; the readers
+ they depend on are verified (see `plist.c3`).
+ The application directories are the four the project's brief names.
 
  Localization: for each preferred language (most preferred first), the bundle's
  `<language>.lproj` is tried, then its base language (`de` for `de_DE`), and
  finally `Base.lproj`. The first `InfoPlist.strings` that holds the key wins;
  otherwise the value in `Info.plist` is used.
 
- `LSUIElement` and `LSBackgroundOnly` accept a boolean, or the strings `1`, `YES`,
- `yes`, `true` or `TRUE`, which launch services also accepts.
+ `LSUIElement` and `LSBackgroundOnly` accept a boolean, and also the strings `1`,
+ `YES`, `yes`, `true` and `TRUE`, which bundles in the wild use. Apple's key
+ reference describes the boolean only; the string forms were not verified against
+ LaunchServices.
 
  Not done: the bundle's icon file is only named, never read or located (the
  `.icns` decoding is out of scope); flat (iOS-style) bundles without `Contents/`
@@ -27,33 +31,33 @@
 module bleu::plist::app_bundle;
 import bleu::error, bleu::plist, bleu::plist::value, std::io, std::collections::list;
 
-const String CONTENTS_DIRECTORY = "Contents";
-const String INFO_PLIST_FILE = "Info.plist";
-const String RESOURCES_DIRECTORY = "Resources";
-const String STRINGS_FILE = "InfoPlist.strings";
-const String LPROJ_SUFFIX = ".lproj";
-const String BASE_LOCALIZATION = "Base";
-const String APPLICATION_SUFFIX = ".app";
+const String CONTENTS_DIRECTORY      = "Contents";
+const String INFO_PLIST_FILE         = "Info.plist";
+const String RESOURCES_DIRECTORY     = "Resources";
+const String STRINGS_FILE            = "InfoPlist.strings";
+const String LPROJ_SUFFIX            = ".lproj";
+const String BASE_LOCALIZATION       = "Base";
+const String APPLICATION_SUFFIX      = ".app";
 const char LANGUAGE_REGION_SEPARATOR = '_';
 const char LANGUAGE_SCRIPT_SEPARATOR = '-';
-const String KEY_IDENTIFIER = "CFBundleIdentifier";
-const String KEY_NAME = "CFBundleName";
-const String KEY_DISPLAY_NAME = "CFBundleDisplayName";
-const String KEY_EXECUTABLE = "CFBundleExecutable";
-const String KEY_ICON_FILE = "CFBundleIconFile";
-const String KEY_ICON_NAME = "CFBundleIconName";
-const String KEY_SHORT_VERSION = "CFBundleShortVersionString";
-const String KEY_CATEGORY = "LSApplicationCategoryType";
-const String KEY_UI_ELEMENT = "LSUIElement";
-const String KEY_BACKGROUND_ONLY = "LSBackgroundOnly";
-const String KEY_URL_TYPES = "CFBundleURLTypes";
-const String KEY_URL_NAME = "CFBundleURLName";
-const String KEY_URL_SCHEMES = "CFBundleURLSchemes";
-const String[5] TRUE_STRINGS = { "1", "YES", "yes", "true", "TRUE" };
-const String SYSTEM_APPLICATIONS = "/System/Applications";
-const String APPLICATIONS = "/Applications";
-const String USER_APPLICATIONS = "Applications";
-const String SYSTEM_UTILITIES = "/System/Applications/Utilities";
+const String KEY_IDENTIFIER          = "CFBundleIdentifier";
+const String KEY_NAME                = "CFBundleName";
+const String KEY_DISPLAY_NAME        = "CFBundleDisplayName";
+const String KEY_EXECUTABLE          = "CFBundleExecutable";
+const String KEY_ICON_FILE           = "CFBundleIconFile";
+const String KEY_ICON_NAME           = "CFBundleIconName";
+const String KEY_SHORT_VERSION       = "CFBundleShortVersionString";
+const String KEY_CATEGORY            = "LSApplicationCategoryType";
+const String KEY_UI_ELEMENT          = "LSUIElement";
+const String KEY_BACKGROUND_ONLY     = "LSBackgroundOnly";
+const String KEY_URL_TYPES           = "CFBundleURLTypes";
+const String KEY_URL_NAME            = "CFBundleURLName";
+const String KEY_URL_SCHEMES         = "CFBundleURLSchemes";
+const String[5] TRUE_STRINGS         = { "1", "YES", "yes", "true", "TRUE" };
+const String SYSTEM_APPLICATIONS     = "/System/Applications";
+const String APPLICATIONS            = "/Applications";
+const String USER_APPLICATIONS       = "Applications";
+const String SYSTEM_UTILITIES        = "/System/Applications/Utilities";
 
 <* A URL scheme a bundle handles (`CFBundleURLTypes`). *>
 struct UrlType
@@ -96,14 +100,16 @@ struct AppBundle
 fn AppBundle? read(Allocator allocator, String bundle_path, String[] languages)
 {
 	String info_path = string::tformat("%s/%s/%s", bundle_path.trim_right("/"), CONTENTS_DIRECTORY, INFO_PLIST_FILE);
-	char[]? bytes = io::file::load(tmem, info_path);
+	char[]? bytes    = io::file::load(tmem, info_path);
 	if (catch err = bytes)
 	{
 		if (err == io::FILE_NOT_FOUND) return NOT_FOUND~;
 		return error::PERMISSION_DENIED~;
 	}
 	Value info = plist::read(tmem, bytes)!;
-	if (!info.is(DICT)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "Info.plist root is not a dictionary")~;
+	if (!info.is(
+		DICT
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "Info.plist root is not a dictionary")~;
 	return {
 		.path = bundle_path.copy(allocator),
 		.bundle_id = plain_string(&info, allocator, KEY_IDENTIFIER),
@@ -134,7 +140,8 @@ fn String[] applications_directories(String home, Allocator allocator)
 	directories.init(allocator);
 	directories.push(APPLICATIONS.copy(allocator));
 	directories.push(SYSTEM_APPLICATIONS.copy(allocator));
-	if (home.len > 0) directories.push(string::tformat("%s/%s", home.trim_right("/"), USER_APPLICATIONS).copy(allocator));
+	if (home.len > 0) directories.push(string::tformat("%s/%s", home.trim_right("/"), USER_APPLICATIONS)
+		.copy(allocator));
 	directories.push(SYSTEM_UTILITIES.copy(allocator));
 	return directories.to_aligned_array(allocator);
 }
@@ -210,8 +217,15 @@ fn String localized_string(Allocator allocator, String bundle_path, String[] lan
 // The string `key` of `<language>.lproj/InfoPlist.strings`, when that file exists and holds it.
 fn String? strings_value(String bundle_path, String language, String key, Allocator allocator) @local
 {
-	String path = string::tformat("%s/%s/%s/%s%s/%s", bundle_path.trim_right("/"), CONTENTS_DIRECTORY,
-		RESOURCES_DIRECTORY, language, LPROJ_SUFFIX, STRINGS_FILE);
+	String path = string::tformat(
+		"%s/%s/%s/%s%s/%s",
+		bundle_path.trim_right("/"),
+		CONTENTS_DIRECTORY,
+		RESOURCES_DIRECTORY,
+		language,
+		LPROJ_SUFFIX,
+		STRINGS_FILE
+	);
 	if (!io::file::is_file(path)) return NOT_FOUND~;
 	char[]? bytes = io::file::load(tmem, path);
 	if (catch err = bytes) return NOT_FOUND~;
@@ -247,10 +261,12 @@ fn UrlType[] url_types(Value* info, Allocator allocator) @local
 			foreach (&entry : list.items)
 			{
 				if (!entry.is(DICT)) continue;
-				types.push({
-					.name = plain_string(entry, allocator, KEY_URL_NAME),
-					.schemes = schemes(entry, allocator),
-				});
+				types.push(
+					{
+						.name = plain_string(entry, allocator, KEY_URL_NAME),
+						.schemes = schemes(entry, allocator),
+					}
+				);
 			}
 		}
 	}

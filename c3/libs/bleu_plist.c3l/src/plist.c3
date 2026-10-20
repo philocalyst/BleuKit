@@ -1,8 +1,9 @@
 <*
  Property lists in any of their three encodings, read into one `Value` tree.
 
- Source: Apple "Property List Programming Guide" and CoreFoundation's
- `CFOldStylePList.c` and `CFBinaryPList.c` (https://github.com/apple-oss-distributions/CF).
+ Source: Apple "Property List Programming Guide", and CoreFoundation's
+ `CFPropertyList.c` (XML) and `CFBinaryPList.c` (binary) in
+ https://github.com/apple-oss-distributions/CF.
  A file is binary when it starts with `bplist0`; XML when it starts with a UTF-8
  or UTF-16 byte-order mark or with `<`. Apple's `InfoPlist.strings` files are
  often UTF-16 XML, so that form is accepted as well.
@@ -26,7 +27,10 @@ const String BINARY_MAGIC = "bplist";
 *>
 fn Value? read(Allocator allocator, char[] bytes)
 {
-	if (bytes.len >= BINARY_MAGIC.len && (String)bytes[0:BINARY_MAGIC.len] == BINARY_MAGIC) return binary::parse(allocator, bytes);
+	if (bytes.len >= BINARY_MAGIC.len && (String)bytes[0:BINARY_MAGIC.len] == BINARY_MAGIC) return binary::parse(
+		allocator,
+		bytes
+	);
 	if (text::has_utf16_mark(bytes))
 	{
 		String utf8 = text::from_utf16_with_mark(tmem, bytes)!;

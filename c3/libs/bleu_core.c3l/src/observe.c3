@@ -110,7 +110,7 @@ fn void Observable.close(&self)
 	self.closed = true;
 	old = self.current;
 	self.current = null;
-	self.watchers.clear();
+	self.watchers.free();
 	self.changed.broadcast()!!;
 	self.mutex.unlock();
 	if (old) old.release();

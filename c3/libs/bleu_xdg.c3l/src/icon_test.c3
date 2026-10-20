@@ -28,7 +28,15 @@ Scale=2
 
 fn Directory dir(DirectoryType type, int size, int scale, int threshold = 2) @inline
 {
-	return { .path = "d", .type = type, .size = size, .scale = scale, .min_size = size, .max_size = size, .threshold = threshold };
+	return {
+		.path = "d",
+		.type = type,
+		.size = size,
+		.scale = scale,
+		.min_size = size,
+		.max_size = size,
+		.threshold = threshold
+	};
 }
 
 fn void index_defaults_and_types() @test
@@ -53,7 +61,10 @@ fn void index_needs_its_group_and_sizes() @test
 	test::@error(parse_index(tmem, "t", "[Other]\nName=x\n"), error::PROTOCOL);
 	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nContext=Apps\n"), error::PROTOCOL);
 	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=ten\n"), error::PROTOCOL);
-	test::@error(parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=4\nType=Stretchy\n"), error::PROTOCOL);
+	test::@error(
+		parse_index(tmem, "t", "[Icon Theme]\nDirectories=a/b\n[a/b]\nSize=4\nType=Stretchy\n"),
+		error::PROTOCOL
+	);
 	// A listed directory with no section is skipped, not an error.
 	Theme theme = parse_index(tmem, "t", "[Icon Theme]\nDirectories=missing/apps\n")!!;
 	test::eq(0, theme.directories.len);
@@ -77,7 +88,15 @@ fn void fixed_and_scalable_rules() @test
 	Directory fixed = dir(DirectoryType.FIXED, 32, 1);
 	test::@check(fixed.matches(32, 1) && !fixed.matches(33, 1), "fixed is exact");
 	test::eq(8, fixed.distance(24, 1));
-	Directory scalable = { .path = "s", .type = DirectoryType.SCALABLE, .size = 64, .scale = 1, .min_size = 8, .max_size = 256, .threshold = 2 };
+	Directory scalable = {
+		.path = "s",
+		.type = DirectoryType.SCALABLE,
+		.size = 64,
+		.scale = 1,
+		.min_size = 8,
+		.max_size = 256,
+		.threshold = 2
+	};
 	test::@check(scalable.matches(100, 1) && !scalable.matches(4, 1), "scalable range");
 	test::eq(4, scalable.distance(4, 1));
 	test::eq(44, scalable.distance(300, 1));
@@ -89,9 +108,11 @@ fn void fixed_and_scalable_rules() @test
 fn String make_tree(String name) @local
 {
 	String root = string::tformat("%s/bleu-xdg-icons-%s", io::path::temp_directory(tmem)!!, name);
-	if (catch io::path::rmtree((Path)root)) {}
-	String a = string::tformat("%s/base/theme-a", root);
-	String parent = string::tformat("%s/base/parent", root);
+	if (catch io::path::rmtree((Path)root))
+	{
+	}
+	String a       = string::tformat("%s/base/theme-a", root);
+	String parent  = string::tformat("%s/base/parent", root);
 	String hicolor = string::tformat("%s/base/hicolor", root);
 	io::path::mkdir((Path)string::tformat("%s/48x48/apps", a), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/32x32/apps", a), true)!!;
@@ -100,8 +121,14 @@ fn String make_tree(String name) @local
 	io::path::mkdir((Path)string::tformat("%s/16x16/apps", parent), true)!!;
 	io::path::mkdir((Path)string::tformat("%s/24x24/apps", hicolor), true)!!;
 	io::file::save(string::tformat("%s/index.theme", a), (char[])INDEX_A)!!;
-	io::file::save(string::tformat("%s/index.theme", parent), (char[])"[Icon Theme]\nName=Parent\nDirectories=16x16/apps\n[16x16/apps]\nSize=16\n")!!;
-	io::file::save(string::tformat("%s/index.theme", hicolor), (char[])"[Icon Theme]\nName=hicolor\nDirectories=24x24/apps\n[24x24/apps]\nSize=24\n")!!;
+	io::file::save(
+		string::tformat("%s/index.theme", parent),
+		(char[])"[Icon Theme]\nName=Parent\nDirectories=16x16/apps\n[16x16/apps]\nSize=16\n"
+	)!!;
+	io::file::save(
+		string::tformat("%s/index.theme", hicolor),
+		(char[])"[Icon Theme]\nName=hicolor\nDirectories=24x24/apps\n[24x24/apps]\nSize=24\n"
+	)!!;
 	io::file::save(string::tformat("%s/48x48/apps/foo.png", a), (char[])"x")!!;
 	io::file::save(string::tformat("%s/32x32/apps/bar.svg", a), (char[])"x")!!;
 	io::file::save(string::tformat("%s/scalable/apps/baz.svg", a), (char[])"x")!!;

@@ -6,13 +6,16 @@ import bleu::error, std::core::test;
 
 fn void syntax_comments_blanks_and_spacing() @test
 {
-	KeyFile file = parse(mem, `# leading comment
+	KeyFile file = parse(
+		mem,
+		`# leading comment
 
 [Desktop Entry]
   Name = Spaced Name  
 # comment between entries
 Type=Application
-`)!!;
+`
+	)!!;
 	defer file.free();
 	test::@check(file.has_group("Desktop Entry"), "group found");
 	test::eq("Spaced Name", file.get_string(tmem, "Desktop Entry", "Name")!!);
@@ -92,13 +95,16 @@ Word=half
 
 fn void localized_values_follow_the_specification_order() @test
 {
-	KeyFile file = parse(mem, `[Desktop Entry]
+	KeyFile file = parse(
+		mem,
+		`[Desktop Entry]
 Name=Base
 Name[de]=German
 Name[de_DE]=German (Germany)
 Name[de_DE@euro]=German (Euro)
 Name[sr@latin]=Serbian Latin
-`)!!;
+`
+	)!!;
 	defer file.free();
 	const String GROUP = "Desktop Entry";
 	// lang_COUNTRY@MODIFIER is tried first, then lang_COUNTRY, lang@MODIFIER, lang.
@@ -144,7 +150,11 @@ fn void duplicates_and_structure_are_rejected() @test
 
 fn void permissive_keys_accept_mime_types() @test
 {
-	KeyFile file = parse_with(mem, "[Default Applications]\ntext/plain=a.desktop;\nimage/x-foo+bar=b.desktop;\n", PERMISSIVE)!!;
+	KeyFile file = parse_with(
+		mem,
+		"[Default Applications]\ntext/plain=a.desktop;\nimage/x-foo+bar=b.desktop;\n",
+		PERMISSIVE
+	)!!;
 	defer file.free();
 	test::eq("a.desktop", file.get_strings(tmem, "Default Applications", "text/plain")!![0]);
 	test::eq("b.desktop", file.get_strings(tmem, "Default Applications", "image/x-foo+bar")!![0]);

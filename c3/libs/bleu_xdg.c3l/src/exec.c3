@@ -19,51 +19,51 @@
  here, then field codes are expanded. The rules, as implemented:
 
  * Arguments are separated by spaces or tabs. Double quotes group an argument;
-   inside them `\"`, `` \` ``, `\$` and `\\` stand for the character after the
-   backslash, and `%%` is a literal percent.
+ inside them `\"`, `` \` ``, `\$` and `\\` stand for the character after the
+ backslash, and `%%` is a literal percent.
  * Outside quotes a backslash is an ordinary character. The specification
-   requires reserved characters to be quoted; an unquoted one is passed through
-   rather than rejected, as GLib does.
+ requires reserved characters to be quoted; an unquoted one is passed through
+ rather than rejected, as GLib does.
  * `%f`/`%u` take one file or URL per invocation: with N files the command runs
-   N times, and with none the code is removed. `%F`/`%U` take all of them in one
-   invocation. At most one of the four may appear per command line.
+ N times, and with none the code is removed. `%F`/`%U` take all of them in one
+ invocation. At most one of the four may appear per command line.
  * `%i` becomes `--icon <icon>`, or nothing when there is no icon. `%c` is the
-   translated name and `%k` the desktop file location (empty when unknown).
+ translated name and `%k` the desktop file location (empty when unknown).
  * `%i`, `%F` and `%U` must be an argument of their own. A field code inside
-   double quotes is refused, because the specification leaves its result
-   undefined; the command is not guessed at.
+ double quotes is refused, because the specification leaves its result
+ undefined; the command is not guessed at.
  * Deprecated codes (`%d %D %n %N %v %m`) are removed. Any other code is
-   invalid, and the whole command line is refused.
+ invalid, and the whole command line is refused.
  * A field code's value is inserted once and never expanded again.
 *>
 module bleu::xdg::exec;
 import bleu::error, std::collections::list;
 
-const char QUOTE = '"';
-const char ESCAPE = '\\';
-const char PERCENT = '%';
+const char QUOTE              = '"';
+const char ESCAPE             = '\\';
+const char PERCENT            = '%';
 const char ARGUMENT_SEPARATOR = ' ';
-const char TAB = '\t';
-const String ICON_FLAG = "--icon";
+const char TAB                = '\t';
+const String ICON_FLAG        = "--icon";
 
 <*
  Values that the field codes stand for. Lists give one value per file or URL.
 *>
 struct Context
 {
-	String[] files;     // %f (one per invocation) and %F (all of them)
-	String[] urls;      // %u (one per invocation) and %U (all of them)
-	String icon;        // %i, expanded to `--icon` and this, or to nothing when empty
-	String name;        // %c, the translated Name
-	String location;    // %k, the desktop file's location, empty when unknown
+	String[] files; // %f (one per invocation) and %F (all of them)
+	String[] urls; // %u (one per invocation) and %U (all of them)
+	String icon; // %i, expanded to `--icon` and this, or to nothing when empty
+	String name; // %c, the translated Name
+	String location; // %k, the desktop file's location, empty when unknown
 }
 
 <* A literal run of text, or a field code, inside one argument. *>
 struct Part
 {
 	bool is_field;
-	String text;   // literal text, when !is_field
-	char code;     // the field code letter, when is_field
+	String text; // literal text, when !is_field
+	char code; // the field code letter, when is_field
 }
 
 <* One argument as written: its parts, and whether any literal text (even an empty quoted one) was written. *>
@@ -93,7 +93,12 @@ fn String[][]? expand(Allocator allocator, String exec, Context context)
 	for (sz index = 0; index < count; index++)
 	{
 		String[] argv = build_argv(allocator, words.array_view(), context, index);
-		if (argv.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "the Exec command line names no program")~;
+		if (argv.len == 0) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"the Exec command line names no program"
+		)~;
 		invocations.push(argv);
 	}
 	return invocations.to_aligned_array(allocator);
@@ -104,10 +109,10 @@ fn void? tokenize(String exec, List{Word}* words) @local
 {
 	DString text;
 	text.init(tmem, exec.len);
-	Word word = new_word();
-	bool in_word = false;
+	Word word      = new_word();
+	bool in_word   = false;
 	bool in_quotes = false;
-	sz i = 0;
+	sz i           = 0;
 	while (i < exec.len)
 	{
 		char c = exec[i];
@@ -173,7 +178,12 @@ fn void? tokenize(String exec, List{Word}* words) @local
 fn bool? try_field(Word* word, DString* text, String exec, sz* index) @local
 {
 	sz i = *index;
-	if (i + 1 >= exec.len) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "Exec ends with a lone '%%'")~;
+	if (i + 1 >= exec.len) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"Exec ends with a lone '%%'"
+	)~;
 	char code = exec[i + 1];
 	*index = i + 2;
 	if (code == PERCENT)
@@ -228,11 +238,22 @@ fn void? validate(Word[] words) @local
 			if (is_file_code(part.code)) file_codes++;
 			if (is_standalone_code(part.code) && (word.parts.len() != 1 || word.has_literal))
 			{
-				return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "%%%c must be an argument of its own in Exec", part.code)~;
+				return error::raise(
+					error::PROTOCOL,
+					error::Domain.INTERNAL,
+					0,
+					"%%%c must be an argument of its own in Exec",
+					part.code
+				)~;
 			}
 		}
 	}
-	if (file_codes > 1) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "Exec has more than one of %%f %%u %%F %%U")~;
+	if (file_codes > 1) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"Exec has more than one of %%f %%u %%F %%U"
+	)~;
 }
 
 // How many argument vectors to run: one per file (for %f) or URL (for %u), else one.
@@ -308,7 +329,7 @@ fn String field_value(char code, Context context, sz index) @local
 		case 'u': return index < context.urls.len ? context.urls[index] : "";
 		case 'c': return context.name;
 		case 'k': return context.location;
-		default:  return "";
+		default: return "";
 	}
 }
 

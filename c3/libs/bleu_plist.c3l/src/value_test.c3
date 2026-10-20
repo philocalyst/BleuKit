@@ -13,7 +13,12 @@ fn void dates_match_independent_calculations() @test
 
 fn void dates_round_trip() @test
 {
-	String[] samples = { "2013-06-22T10:18:00Z", "2024-02-29T23:59:59Z", "1969-12-31T23:59:59Z", "2001-01-01T00:00:00Z" };
+	String[] samples = {
+		"2013-06-22T10:18:00Z",
+		"2024-02-29T23:59:59Z",
+		"1969-12-31T23:59:59Z",
+		"2001-01-01T00:00:00Z"
+	};
 	foreach (sample : samples)
 	{
 		test::eq(sample, format_date(tmem, parse_date(sample)!!));
@@ -36,7 +41,10 @@ fn void malformed_dates_are_refused() @test
 fn void accessors_report_missing_and_mismatched_values() @test
 {
 	Value[] list_items = { { .kind = STRING, .text = "a\"b" } };
-	Member[] members = { { .key = "n", .value = { .kind = INTEGER, .integer = 5 } }, { .key = "list", .value = { .kind = ARRAY, .items = list_items } } };
+	Member[] members = {
+		{ .key = "n", .value = { .kind = INTEGER, .integer = 5 } },
+		{ .key = "list", .value = { .kind = ARRAY, .items = list_items } }
+	};
 	Value root = { .kind = DICT, .members = members };
 	test::eq(5, root.get("n")!!.as_integer()!!);
 	test::@error(root.get("absent"), NOT_FOUND);
@@ -50,10 +58,19 @@ fn void accessors_report_missing_and_mismatched_values() @test
 fn void canonical_form_is_stable() @test
 {
 	Value[] list_items = { { .kind = STRING, .text = "a\"b" } };
-	Member[] members = { { .key = "n", .value = { .kind = INTEGER, .integer = 5 } }, { .key = "list", .value = { .kind = ARRAY, .items = list_items } } };
+	Member[] members = {
+		{ .key = "n", .value = { .kind = INTEGER, .integer = 5 } },
+		{ .key = "list", .value = { .kind = ARRAY, .items = list_items } }
+	};
 	Value root = { .kind = DICT, .members = members };
 	test::eq("{\"n\":i5,\"list\":[s\"a\\\"b\"]}", canonical(tmem, &root));
-	Value flags = { .kind = DICT, .members = { { .key = "t", .value = { .kind = BOOL, .boolean = true } }, { .key = "u", .value = { .kind = UID, .integer = 9 } } } };
+	Value flags = {
+		.kind = DICT,
+		.members = {
+			{ .key = "t", .value = { .kind = BOOL, .boolean = true } },
+			{ .key = "u", .value = { .kind = UID, .integer = 9 } }
+		}
+	};
 	test::eq("{\"t\":true,\"u\":u9}", canonical(tmem, &flags));
 	Value text = { .kind = STRING, .text = "tab\there\\" };
 	test::eq("s\"tab\\u{9}here\\\\\"", canonical(tmem, &text));

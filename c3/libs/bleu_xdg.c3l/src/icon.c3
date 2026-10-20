@@ -25,19 +25,19 @@
 module bleu::xdg::icon;
 import bleu::error, bleu::xdg::keyfile, bleu::xdg::dirs, std::io, std::collections::list, std::collections::set, std::collections::map;
 
-const String INDEX_FILE = "index.theme";
-const String ICON_THEME_GROUP = "Icon Theme";
-const String FALLBACK_THEME = "hicolor";
-const String PIXMAPS_DIRECTORY = "/usr/share/pixmaps";
+const String INDEX_FILE           = "index.theme";
+const String ICON_THEME_GROUP     = "Icon Theme";
+const String FALLBACK_THEME       = "hicolor";
+const String PIXMAPS_DIRECTORY    = "/usr/share/pixmaps";
 const String HOME_ICONS_DIRECTORY = ".icons";
-const String ICONS_DIRECTORY = "icons";
-const String EXTENSION_SEPARATOR = ".";
-const String PATH_SEPARATOR = "/";
-const String[3] EXTENSIONS = { "png", "svg", "xpm" };
-const int DEFAULT_SCALE = 1;
-const int DEFAULT_THRESHOLD = 2;
-const int MAX_THEME_DEPTH = 16;
-const usz ARENA_PAGE_SIZE = 1024;
+const String ICONS_DIRECTORY      = "icons";
+const String EXTENSION_SEPARATOR  = ".";
+const String PATH_SEPARATOR       = "/";
+const String[3] EXTENSIONS        = { "png", "svg", "xpm" };
+const int DEFAULT_SCALE           = 1;
+const int DEFAULT_THRESHOLD       = 2;
+const int MAX_THEME_DEPTH         = 16;
+const usz ARENA_PAGE_SIZE         = 1024;
 
 <* The `Type` of a directory: how far its icons can be scaled from their nominal size. *>
 enum DirectoryType : char
@@ -84,8 +84,8 @@ fn bool Directory.matches(self, int size, int scale)
 	if (self.scale != scale) return false;
 	switch (self.type)
 	{
-		case FIXED:     return self.size == size;
-		case SCALABLE:  return self.min_size <= size && size <= self.max_size;
+		case FIXED: return self.size == size;
+		case SCALABLE: return self.min_size <= size && size <= self.max_size;
 		case THRESHOLD: return self.size - self.threshold <= size && size <= self.size + self.threshold;
 	}
 }
@@ -128,7 +128,9 @@ fn int Directory.distance(self, int size, int scale)
 fn Theme? parse_index(Allocator allocator, String name, String source)
 {
 	KeyFile file = keyfile::parse(tmem, source)!;
-	if (!file.has_group(ICON_THEME_GROUP)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no [Icon Theme] group")~;
+	if (!file.has_group(
+		ICON_THEME_GROUP
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no [Icon Theme] group")~;
 	List{Directory} directories;
 	directories.tinit();
 	String[2] list_keys = { "Directories", "ScaledDirectories" };
@@ -220,7 +222,8 @@ fn String[] default_base_dirs(Environment env, Allocator allocator)
 	bases.tinit();
 	if (try home = env.get(tmem, "HOME"))
 	{
-		if (dirs::is_absolute(home)) bases.push(string::tformat("%s/%s", home.trim_right("/"), HOME_ICONS_DIRECTORY).copy(allocator));
+		if (dirs::is_absolute(home)) bases.push(string::tformat("%s/%s", home.trim_right("/"), HOME_ICONS_DIRECTORY)
+			.copy(allocator));
 	}
 	foreach (data : dirs::data_dirs(env, tmem))
 	{
@@ -253,7 +256,7 @@ fn String? Finder.lookup_in_theme(&self, Theme* theme, String name, int size, in
 		if (try path = self.find_in_directory(theme, dir, name)) return path;
 	}
 	String chosen = "";
-	int best = 0;
+	int best      = 0;
 	foreach (&dir : theme.directories)
 	{
 		int distance = dir.distance(size, scale);
@@ -358,8 +361,8 @@ fn String file_name(String name, String extension) @local
 // Parse one `[directory]` section. Size is required; the rest have the specification's defaults.
 fn Directory? parse_directory(KeyFile* file, Allocator allocator, String group) @local
 {
-	int size = required_int(file, group, "Size")!;
-	int scale = int_value(file, group, "Scale", DEFAULT_SCALE)!;
+	int size      = required_int(file, group, "Size")!;
+	int scale     = int_value(file, group, "Scale", DEFAULT_SCALE)!;
 	int threshold = int_value(file, group, "Threshold", DEFAULT_THRESHOLD)!;
 	return {
 		.path = group.copy(allocator),
@@ -379,13 +382,27 @@ fn DirectoryType? directory_type(KeyFile* file, String group) @local
 	if (value.len == 0 || value == "Threshold") return THRESHOLD;
 	if (value == "Fixed") return FIXED;
 	if (value == "Scalable") return SCALABLE;
-	return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "directory '%s' has unknown Type '%s'", group, value)~;
+	return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"directory '%s' has unknown Type '%s'",
+		group,
+		value
+	)~;
 }
 
 fn int? required_int(KeyFile* file, String group, String key) @local
 {
 	String value = string_value(file, tmem, group, key)!;
-	if (value.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "directory '%s' has no %s", group, key)~;
+	if (value.len == 0) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"directory '%s' has no %s",
+		group,
+		key
+	)~;
 	return int_value(file, group, key, 0)!;
 }
 

@@ -5,17 +5,17 @@ import bleu::error, bleu::plist::value, std::core::test;
 
 fn void sample_matches_plistlib() @test
 {
-	String text = $embed("../fixtures/sample.plist");
+	String text     = $embed("../fixtures/sample.plist");
 	String expected = $embed("../fixtures/sample.plist.canon");
-	Value root = parse(tmem, text)!!;
+	Value root      = parse(tmem, text)!!;
 	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
 }
 
 fn void handwritten_document_matches_plistlib() @test
 {
-	String text = $embed("../fixtures/handwritten.plist");
+	String text     = $embed("../fixtures/handwritten.plist");
 	String expected = $embed("../fixtures/handwritten.plist.canon");
-	Value root = parse(tmem, text)!!;
+	Value root      = parse(tmem, text)!!;
 	test::eq(expected.trim("\n"), value::canonical(tmem, &root));
 }
 
@@ -42,7 +42,10 @@ fn void malformed_documents_are_refused() @test
 	test::@error(parse(tmem, "<plist><string>a<integer>1</integer></string></plist>"), error::PROTOCOL);
 	test::@error(parse(tmem, "<plist><dict><string>a</string></dict></plist>"), error::PROTOCOL);
 	test::@error(parse(tmem, "<plist><dict><key>a</key></dict></plist>"), error::PROTOCOL);
-	test::@error(parse(tmem, "<plist><dict><key>a</key><integer>1</integer><key>a</key><integer>2</integer></dict></plist>"), error::PROTOCOL);
+	test::@error(
+		parse(tmem, "<plist><dict><key>a</key><integer>1</integer><key>a</key><integer>2</integer></dict></plist>"),
+		error::PROTOCOL
+	);
 }
 
 fn void nesting_is_limited() @test
@@ -64,22 +67,33 @@ fn void entities_and_whitespace_are_kept() @test
 
 fn void writer_round_trips_the_sample() @test
 {
-	String text = $embed("../fixtures/sample.plist");
-	Value first = parse(tmem, text)!!;
+	String text    = $embed("../fixtures/sample.plist");
+	Value first    = parse(tmem, text)!!;
 	String written = write(tmem, &first)!!;
-	Value second = parse(tmem, written)!!;
+	Value second   = parse(tmem, written)!!;
 	test::eq(value::canonical(tmem, &first), value::canonical(tmem, &second));
 }
 
 fn void writer_escapes_and_formats() @test
 {
-	Value text = { .kind = STRING, .text = "a<b>&c\r" };
+	Value text     = { .kind = STRING, .text = "a<b>&c\r" };
 	String written = write(tmem, &text)!!;
 	test::@check(written.contains("<string>a&lt;b&gt;&amp;c&#xD;</string>"), "markup is escaped");
 	Value tenth = { .kind = REAL, .real = 0.1 };
 	test::@check(write(tmem, &tenth)!!.contains("<real>0.1</real>"), "shortest real");
 	Value date = { .kind = DATE, .date = 393589080.0 };
 	test::@check(write(tmem, &date)!!.contains("<date>2013-06-22T10:18:00Z</date>"), "ISO date");
+}
+
+fn void uid_dictionaries_read_as_uids_and_uids_are_not_written() @test
+{
+	Value uid = parse(tmem, "<plist><dict><key>CF$UID</key><integer>7</integer></dict></plist>")!!;
+	test::eq(Kind.UID, uid.kind);
+	test::eq(7, uid.as_integer()!!);
+	Value other = parse(tmem, "<plist><dict><key>CF$UID</key><integer>7</integer><key>x</key><true/></dict></plist>")!!;
+	test::eq(Kind.DICT, other.kind);
+	Value reference = { .kind = UID, .integer = 7 };
+	test::@error(write(tmem, &reference), error::INVALID_ARGUMENT);
 }
 
 fn void writer_refuses_what_xml_cannot_hold() @test

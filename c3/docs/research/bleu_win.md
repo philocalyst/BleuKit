@@ -210,6 +210,11 @@ bytes and the signature), and agree with both the mingw values and the C3 test.
 * Window messages (**M** `winuser.h`, all matching **W** where present): `WM_NCCREATE` 0x0081,
   `WM_SETTINGCHANGE` = `WM_WININICHANGE` 0x001A (**M**; **L** gives the same value), `WM_DEVICECHANGE` 0x0219,
   `WM_POWERBROADCAST` 0x0218, `WM_DPICHANGED` 0x02E0 (also in std), `WM_APP` 0x8000, `WM_DISPLAYCHANGE` 0x007E (also std).
+* Parameter layouts used by the event translation: `WM_DPICHANGED` wParam `LOWORD` = X DPI, `HIWORD` = Y DPI
+  (**L** `WM_DPICHANGED`); `WM_DISPLAYCHANGE` wParam = bits per pixel, lParam `LOWORD` width, `HIWORD` height
+  (**L** `WM_DISPLAYCHANGE`); `WM_WTSSESSION_CHANGE` wParam = the `WTS_SESSION_*` code, lParam = session id
+  (**L** `WM_WTSSESSION_CHANGE`); `WM_SETTINGCHANGE` wParam = the SPI action, lParam = the section name or null
+  (**L** `WM_SETTINGCHANGE`, the text "sent to all top-level windows").
 * Power (`PBT_*`, **M** and **W** `winuser.h`): `PBT_POWERSETTINGCHANGE` 0x8013 (32787), `PBT_APMSUSPEND` 0x0004,
   `PBT_APMRESUMESUSPEND` 0x0007, `PBT_APMRESUMEAUTOMATIC` 0x0012, `PBT_APMPOWERSTATUSCHANGE` 0x000A.
 * `POWERBROADCAST_SETTING` = `{ GUID PowerSetting; DWORD DataLength; UCHAR Data[1]; }` (**M** `winuser.h` ~line 1313):

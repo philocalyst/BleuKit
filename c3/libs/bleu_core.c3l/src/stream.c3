@@ -51,7 +51,7 @@ fn void Stream.close(&self)
 	defer self.mutex.unlock();
 	self.closed = true;
 	foreach (reader : self.readers) shutdown(reader);
-	self.readers.clear();
+	self.readers.free();
 }
 
 <*

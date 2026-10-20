@@ -46,27 +46,27 @@ const uint RPC_E_CHANGED_MODE = 0x80010106;
 const uint RPC_E_DISCONNECTED = 0x80010108;
 
 <* System error codes (Win32 `GetLastError` values), from winerror.h. *>
-const uint ERROR_FILE_NOT_FOUND       = 2;
-const uint ERROR_PATH_NOT_FOUND       = 3;
-const uint ERROR_ACCESS_DENIED        = 5;
-const uint ERROR_INVALID_HANDLE       = 6;
-const uint ERROR_NOT_ENOUGH_MEMORY    = 8;
-const uint ERROR_INVALID_FUNCTION     = 1;
-const uint ERROR_NOT_SUPPORTED        = 50;
-const uint ERROR_INVALID_PARAMETER    = 87;
-const uint ERROR_INSUFFICIENT_BUFFER  = 122;
-const uint ERROR_BUSY                 = 170;
-const uint ERROR_ALREADY_EXISTS       = 183;
-const uint ERROR_OUTOFMEMORY          = 14;
-const uint ERROR_MORE_DATA            = 234;
-const uint ERROR_NO_MORE_ITEMS        = 259;
-const uint ERROR_CANCELLED            = 1223;
-const uint ERROR_TIMEOUT              = 1460;
-const uint ERROR_NOT_FOUND            = 1168;
-const uint ERROR_NONE_MAPPED          = 1332;
-const uint WAIT_TIMEOUT               = 258;
+const uint ERROR_FILE_NOT_FOUND      = 2;
+const uint ERROR_PATH_NOT_FOUND      = 3;
+const uint ERROR_ACCESS_DENIED       = 5;
+const uint ERROR_INVALID_HANDLE      = 6;
+const uint ERROR_NOT_ENOUGH_MEMORY   = 8;
+const uint ERROR_INVALID_FUNCTION    = 1;
+const uint ERROR_NOT_SUPPORTED       = 50;
+const uint ERROR_INVALID_PARAMETER   = 87;
+const uint ERROR_INSUFFICIENT_BUFFER = 122;
+const uint ERROR_BUSY                = 170;
+const uint ERROR_ALREADY_EXISTS      = 183;
+const uint ERROR_OUTOFMEMORY         = 14;
+const uint ERROR_MORE_DATA           = 234;
+const uint ERROR_NO_MORE_ITEMS       = 259;
+const uint ERROR_CANCELLED           = 1223;
+const uint ERROR_TIMEOUT             = 1460;
+const uint ERROR_NOT_FOUND           = 1168;
+const uint ERROR_NONE_MAPPED         = 1332;
+const uint WAIT_TIMEOUT              = 258;
 <* RPC server unavailable (`RPC_S_SERVER_UNAVAILABLE`), a Win32 code. *>
-const uint RPC_S_SERVER_UNAVAILABLE   = 1722;
+const uint RPC_S_SERVER_UNAVAILABLE  = 1722;
 
 <* True when the severity bit is set. Same as the `FAILED` macro. *>
 fn bool Hresult.failed(self) @inline => (int)self < 0;

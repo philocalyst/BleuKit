@@ -17,16 +17,16 @@
 module bleu::xdg::desktop_entry;
 import bleu::error, bleu::xdg::keyfile, bleu::xdg::dirs, std::io, std::collections::list, std::collections::set;
 
-const String MAIN_GROUP = "Desktop Entry";
-const String ACTION_GROUP_PREFIX = "Desktop Action ";
-const String APPLICATIONS_DIRECTORY = "applications";
-const String DESKTOP_SUFFIX = ".desktop";
+const String MAIN_GROUP               = "Desktop Entry";
+const String ACTION_GROUP_PREFIX      = "Desktop Action ";
+const String APPLICATIONS_DIRECTORY   = "applications";
+const String DESKTOP_SUFFIX           = ".desktop";
 const String CURRENT_DESKTOP_VARIABLE = "XDG_CURRENT_DESKTOP";
-const String PATH_SEPARATOR = "/";
-const String ID_SEPARATOR = "-";
-const String DESKTOP_LIST_SEPARATOR = ":";
-const int MAX_SCAN_DEPTH = 8;
-const usz ARENA_PAGE_SIZE = 1024;
+const String PATH_SEPARATOR           = "/";
+const String ID_SEPARATOR             = "-";
+const String DESKTOP_LIST_SEPARATOR   = ":";
+const int MAX_SCAN_DEPTH              = 8;
+const usz ARENA_PAGE_SIZE             = 1024;
 
 <* The `Type` of a desktop entry. *>
 enum EntryType : char
@@ -83,15 +83,15 @@ struct DesktopEntry
 *>
 struct DesktopFile
 {
-	String id;      // the desktop file ID, for example org.example.App.desktop
-	String path;    // the file that holds this ID; valid only during the visit
+	String id; // the desktop file ID, for example org.example.App.desktop
+	String path; // the file that holds this ID; valid only during the visit
 }
 
 <*
  Called once for every desktop file, in precedence order. Returning a fault
  stops the scan and passes the fault on.
 *>
-alias ScanVisitor = fn void? (void* context, DesktopFile file);
+alias ScanVisitor = fn void?(void* context, DesktopFile file);
 
 <*
  Parse a desktop entry.
@@ -104,7 +104,7 @@ alias ScanVisitor = fn void? (void* context, DesktopFile file);
 *>
 fn DesktopEntry*? parse(Allocator allocator, String source, String locale)
 {
-	KeyFile file = keyfile::parse(tmem, source)!;
+	KeyFile file        = keyfile::parse(tmem, source)!;
 	DesktopEntry* entry = alloc::new(allocator, DesktopEntry);
 	entry.parent = allocator;
 	entry.arena.init(allocator, ARENA_PAGE_SIZE);
@@ -198,7 +198,14 @@ fn void? scan(String[] data_dirs, void* context, ScanVisitor visitor)
 
 // Visit the desktop files directly in `directory` and below it. `prefix` is the
 // path of `directory` relative to the `applications` root, with a trailing slash.
-fn void? walk(String directory, String prefix, int depth, HashSet{String}* seen, void* context, ScanVisitor visitor) @local
+fn void? walk(
+	String directory,
+	String prefix,
+	int depth,
+	HashSet{String}* seen,
+	void* context,
+	ScanVisitor visitor
+) @local
 {
 	if (depth > MAX_SCAN_DEPTH) return;
 	PathList? listing = io::path::ls(tmem, (Path)directory);
@@ -221,7 +228,9 @@ fn void? walk(String directory, String prefix, int depth, HashSet{String}* seen,
 // Fill `entry` from the main group, and its actions, of `file`.
 fn void? fill(DesktopEntry* entry, KeyFile* file, String locale) @local
 {
-	if (!file.has_group(MAIN_GROUP)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no [Desktop Entry] group")~;
+	if (!file.has_group(
+		MAIN_GROUP
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "no [Desktop Entry] group")~;
 	Allocator a = &entry.arena;
 	entry.type = type_of(string_value(file, tmem, MAIN_GROUP, "Type")!)!;
 	entry.name = required_localized(file, a, MAIN_GROUP, "Name", locale)!;
@@ -244,7 +253,12 @@ fn void? fill(DesktopEntry* entry, KeyFile* file, String locale) @local
 	entry.mime_types = list_value(file, a, MAIN_GROUP, "MimeType")!;
 	if (entry.type == APPLICATION && entry.exec.len == 0 && !entry.dbus_activatable)
 	{
-		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "an application needs Exec unless DBusActivatable is true")~;
+		return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"an application needs Exec unless DBusActivatable is true"
+		)~;
 	}
 	entry.actions = actions(file, a, list_value(file, tmem, MAIN_GROUP, "Actions")!, locale)!;
 }
@@ -269,12 +283,14 @@ fn Action[]? actions(KeyFile* file, Allocator allocator, String[] ids, String lo
 		if (!file.has_group(group)) continue;
 		String name = localized_value(file, allocator, group, "Name", locale)!;
 		if (name.len == 0) continue;
-		found.push({
-			.id = id.copy(allocator),
-			.name = name,
-			.icon = localized_value(file, allocator, group, "Icon", locale)!,
-			.exec = string_value(file, allocator, group, "Exec")!,
-		});
+		found.push(
+			{
+				.id = id.copy(allocator),
+				.name = name,
+				.icon = localized_value(file, allocator, group, "Icon", locale)!,
+				.exec = string_value(file, allocator, group, "Exec")!,
+			}
+		);
 	}
 	return found.to_aligned_array(allocator);
 }
@@ -306,7 +322,13 @@ fn String? localized_value(KeyFile* file, Allocator allocator, String group, Str
 fn String? required_localized(KeyFile* file, Allocator allocator, String group, String key, String locale) @local
 {
 	String value = localized_value(file, allocator, group, key, locale)!;
-	if (value.len == 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "missing required key '%s'", key)~;
+	if (value.len == 0) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"missing required key '%s'",
+		key
+	)~;
 	return value;
 }
 
@@ -315,7 +337,7 @@ fn String[]? list_value(KeyFile* file, Allocator allocator, String group, String
 	String[]? values = file.get_strings(allocator, group, key);
 	if (catch err = values)
 	{
-		if (err == NOT_FOUND) return {};
+		if (err == NOT_FOUND) return { };
 		return err~;
 	}
 	return values;

@@ -43,7 +43,7 @@ fn void empty_variables_mean_unset() @test
 
 fn void missing_home_is_unavailable() @test
 {
-	Variables vars = { .names = {}, .values = {} };
+	Variables vars = { .names = { }, .values = { } };
 	test::@error(data_home(&vars, tmem), error::UNAVAILABLE);
 	test::@error(config_home(&vars, tmem), error::UNAVAILABLE);
 }
@@ -74,14 +74,14 @@ fn void runtime_dir_has_no_default() @test
 
 fn void data_dirs_default_and_filtering() @test
 {
-	Variables none = { .names = {}, .values = {} };
+	Variables none    = { .names = { }, .values = { } };
 	String[] defaults = data_dirs(&none, tmem);
 	test::eq(2, defaults.len);
 	test::eq("/usr/local/share/", defaults[0]);
 	test::eq("/usr/share/", defaults[1]);
 
 	Variables messy = { .names = { "XDG_DATA_DIRS" }, .values = { "a:/x::/y:" } };
-	String[] kept = data_dirs(&messy, tmem);
+	String[] kept   = data_dirs(&messy, tmem);
 	test::eq(2, kept.len);
 	test::eq("/x", kept[0]);
 	test::eq("/y", kept[1]);
@@ -89,8 +89,8 @@ fn void data_dirs_default_and_filtering() @test
 
 fn void config_dirs_default_is_etc_xdg() @test
 {
-	Variables none = { .names = {}, .values = {} };
-	String[] dirs = config_dirs(&none, tmem);
+	Variables none = { .names = { }, .values = { } };
+	String[] dirs  = config_dirs(&none, tmem);
 	test::eq(1, dirs.len);
 	test::eq("/etc/xdg", dirs[0]);
 }

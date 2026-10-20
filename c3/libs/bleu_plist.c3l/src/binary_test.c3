@@ -59,11 +59,11 @@ fn String[] chain(int depth) @local
 fn void golden_binary_fixtures_match_plistlib() @test
 {
 	String sample = $embed("../fixtures/sample.bplist");
-	Value root = parse(tmem, sample)!!;
+	Value root    = parse(tmem, sample)!!;
 	test::eq(((String)$embed("../fixtures/sample.bplist.canon")).trim("\n"), value::canonical(tmem, &root));
 
 	String shared = $embed("../fixtures/shared.bplist");
-	Value many = parse(tmem, shared)!!;
+	Value many    = parse(tmem, shared)!!;
 	test::eq(((String)$embed("../fixtures/shared.bplist.canon")).trim("\n"), value::canonical(tmem, &many));
 
 	String uid = $embed("../fixtures/uid.bplist");
@@ -73,8 +73,20 @@ fn void golden_binary_fixtures_match_plistlib() @test
 
 fn void integers_in_every_width() @test
 {
-	test::eq(-5, parse(tmem, build_bplist({ object("\x14", "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFB") }, 0))!!.as_integer()!!);
-	test::eq(5, parse(tmem, build_bplist({ object("\x14", "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05") }, 0))!!.as_integer()!!);
+	test::eq(
+		-5,
+		parse(
+			tmem,
+			build_bplist({ object("\x14", "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFB") }, 0)
+		)!!.as_integer()!!
+	);
+	test::eq(
+		5,
+		parse(
+			tmem,
+			build_bplist({ object("\x14", "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05") }, 0)
+		)!!.as_integer()!!
+	);
 	test::eq(-1, parse(tmem, build_bplist({ object("\x13", "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF") }, 0))!!.as_integer()!!);
 	test::eq(255, parse(tmem, build_bplist({ object("\x10", "\xFF") }, 0))!!.as_integer()!!);
 	test::eq(65535, parse(tmem, build_bplist({ object("\x11", "\xFF\xFF") }, 0))!!.as_integer()!!);
@@ -83,7 +95,13 @@ fn void integers_in_every_width() @test
 
 fn void integers_too_wide_for_64_bits_are_refused() @test
 {
-	test::@error(parse(tmem, build_bplist({ object("\x14", "\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00") }, 0)), error::OUT_OF_RANGE);
+	test::@error(
+		parse(
+			tmem,
+			build_bplist({ object("\x14", "\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00") }, 0)
+		),
+		error::OUT_OF_RANGE
+	);
 }
 
 fn void reals_and_dates() @test
@@ -106,7 +124,10 @@ fn void utf16_strings_use_surrogate_pairs() @test
 fn void ascii_strings() @test
 {
 	test::eq("hi", parse(tmem, build_bplist({ object("\x52", "hi") }, 0))!!.as_string()!!);
-	test::eq("aaaaaaaaaaaaaaaaaaaa", parse(tmem, build_bplist({ object("\x5F", "\x10\x14aaaaaaaaaaaaaaaaaaaa") }, 0))!!.as_string()!!);
+	test::eq(
+		"aaaaaaaaaaaaaaaaaaaa",
+		parse(tmem, build_bplist({ object("\x5F", "\x10\x14aaaaaaaaaaaaaaaaaaaa") }, 0))!!.as_string()!!
+	);
 	test::@error(parse(tmem, build_bplist({ object("\x51", "\xC3") }, 0)), error::PROTOCOL);
 }
 
@@ -166,7 +187,7 @@ fn void malformed_trailers_are_refused() @test
 
 fn void offsets_outside_the_file_are_refused() @test
 {
-	String valid = build_bplist({ "\x09" }, 0);
+	String valid   = build_bplist({ "\x09" }, 0);
 	// The single offset sits two bytes before the 32-byte trailer.
 	char[] damaged = alloc::new_array(tmem, char, valid.len);
 	mem::copy(damaged.ptr, valid.ptr, valid.len);

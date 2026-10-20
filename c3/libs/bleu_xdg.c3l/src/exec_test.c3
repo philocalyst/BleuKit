@@ -3,7 +3,7 @@
 module bleu::xdg::exec;
 import bleu::error, std::core::test;
 
-fn Context empty_context() @inline => { .files = {}, .urls = {}, .icon = "", .name = "", .location = "" };
+fn Context empty_context() @inline => { .files = { }, .urls = { }, .icon = "", .name = "", .location = "" };
 
 fn void quoting_groups_words_and_undoes_escapes() @test
 {

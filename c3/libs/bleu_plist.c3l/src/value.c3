@@ -15,17 +15,17 @@
 module bleu::plist::value;
 import bleu::error, std::collections::list, std::collections::set;
 
-const long UNIX_TO_CF_EPOCH_SECONDS = 978307200;
-const long SECONDS_PER_DAY = 86400;
-const long SECONDS_PER_HOUR = 3600;
-const long SECONDS_PER_MINUTE = 60;
+const long UNIX_TO_CF_EPOCH_SECONDS    = 978307200;
+const long SECONDS_PER_DAY             = 86400;
+const long SECONDS_PER_HOUR            = 3600;
+const long SECONDS_PER_MINUTE          = 60;
 const long DAYS_FROM_CIVIL_EPOCH_SHIFT = 719468;
-const long DAYS_PER_ERA = 146097;
-const long YEARS_PER_ERA = 400;
-const int DATE_LENGTH = 20;
-const int MONTHS_PER_YEAR = 12;
+const long DAYS_PER_ERA                = 146097;
+const long YEARS_PER_ERA               = 400;
+const int DATE_LENGTH                  = 20;
+const int MONTHS_PER_YEAR              = 12;
 <* Deepest container nesting the readers accept; deeper input is refused, not followed. *>
-const int MAX_NESTING = 512;
+const int MAX_NESTING                  = 512;
 
 <* The eight types a property list can hold. *>
 enum Kind : char
@@ -56,13 +56,13 @@ struct Member
 struct Value
 {
 	Kind kind;
-	bool boolean;     // BOOL
-	long integer;     // INTEGER, and the value of UID
-	double real;      // REAL
-	double date;      // DATE: seconds since 2001-01-01T00:00:00Z
-	String text;      // STRING
-	char[] bytes;     // DATA
-	Value[] items;    // ARRAY
+	bool boolean; // BOOL
+	long integer; // INTEGER, and the value of UID
+	double real; // REAL
+	double date; // DATE: seconds since 2001-01-01T00:00:00Z
+	String text; // STRING
+	char[] bytes; // DATA
+	Value[] items; // ARRAY
 	Member[] members; // DICT
 }
 
@@ -145,22 +145,28 @@ fn char[]? Value.as_data(&self) @inline
 *>
 fn double? parse_date(String text)
 {
-	if (text.len != DATE_LENGTH || text[4] != '-' || text[7] != '-' || text[10] != 'T' || text[13] != ':' || text[16] != ':' || text[19] != 'Z')
+	if (text.len != DATE_LENGTH || text[4] != '-' || text[7] != '-' || text[10] != 'T' || text[13] != ':'
+		|| text[16] != ':'
+		|| text[19] != 'Z')
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "date '%s' is not YYYY-MM-DDTHH:MM:SSZ", text)~;
 	}
-	long year = digits(text[0:4])!;
-	long month = digits(text[5:2])!;
-	long day = digits(text[8:2])!;
-	long hour = digits(text[11:2])!;
+	long year   = digits(text[0:4])!;
+	long month  = digits(text[5:2])!;
+	long day    = digits(text[8:2])!;
+	long hour   = digits(text[11:2])!;
 	long minute = digits(text[14:2])!;
 	long second = digits(text[17:2])!;
-	if (year < 1 || month < 1 || month > MONTHS_PER_YEAR || day < 1 || day > days_in_month(year, month) || hour > 23 || minute > 59 || second > 59)
+	if (year < 1 || month < 1 || month > MONTHS_PER_YEAR || day < 1 || day > days_in_month(
+		year,
+		month
+	) || hour > 23 || minute > 59 || second > 59)
 	{
 		return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "date '%s' has a field out of range", text)~;
 	}
 	long days = days_from_civil(year, month, day);
-	return (double)(days * SECONDS_PER_DAY + hour * SECONDS_PER_HOUR + minute * SECONDS_PER_MINUTE + second - UNIX_TO_CF_EPOCH_SECONDS);
+	return (double)(days * SECONDS_PER_DAY + hour * SECONDS_PER_HOUR + minute * SECONDS_PER_MINUTE + second
+		- UNIX_TO_CF_EPOCH_SECONDS);
 }
 
 <*
@@ -180,8 +186,16 @@ fn String format_date(Allocator allocator, double seconds)
 		days--;
 	}
 	CivilDate date = civil_from_days(days);
-	return string::tformat("%04d-%02d-%02dT%02d:%02d:%02dZ", date.year, date.month, date.day,
-		rest / SECONDS_PER_HOUR, (rest % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE, rest % SECONDS_PER_MINUTE).copy(allocator);
+	return string::tformat(
+		"%04d-%02d-%02dT%02d:%02d:%02dZ",
+		date.year,
+		date.month,
+		date.day,
+		rest / SECONDS_PER_HOUR,
+		(rest % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE,
+		rest % SECONDS_PER_MINUTE
+	)
+		.copy(allocator);
 }
 
 <*
@@ -193,7 +207,9 @@ fn String format_date(Allocator allocator, double seconds)
 *>
 fn void? add_member(List{Member}* members, HashSet{String}* keys, String key, Value value)
 {
-	if (!keys.add(key)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "duplicate dictionary key '%s'", key)~;
+	if (!keys.add(
+		key
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "duplicate dictionary key '%s'", key)~;
 	members.push({ .key = key, .value = value });
 }
 
@@ -208,27 +224,27 @@ struct CivilDate
 // Days since 1970-01-01 for a proleptic Gregorian date (Howard Hinnant's algorithm).
 fn long days_from_civil(long year, long month, long day) @local
 {
-	long y = month <= 2 ? year - 1 : year;
-	long era = (y >= 0 ? y : y - (YEARS_PER_ERA - 1)) / YEARS_PER_ERA;
-	long year_of_era = y - era * YEARS_PER_ERA;
+	long y             = month <= 2 ? year - 1 : year;
+	long era           = (y >= 0 ? y : y - (YEARS_PER_ERA - 1)) / YEARS_PER_ERA;
+	long year_of_era   = y - era * YEARS_PER_ERA;
 	long shifted_month = month > 2 ? month - 3 : month + 9;
-	long day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
-	long day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+	long day_of_year   = (153 * shifted_month + 2) / 5 + day - 1;
+	long day_of_era    = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
 	return era * DAYS_PER_ERA + day_of_era - DAYS_FROM_CIVIL_EPOCH_SHIFT;
 }
 
 // The inverse of `days_from_civil`.
 fn CivilDate civil_from_days(long days) @local
 {
-	long z = days + DAYS_FROM_CIVIL_EPOCH_SHIFT;
-	long era = (z >= 0 ? z : z - (DAYS_PER_ERA - 1)) / DAYS_PER_ERA;
-	long day_of_era = z - era * DAYS_PER_ERA;
+	long z           = days + DAYS_FROM_CIVIL_EPOCH_SHIFT;
+	long era         = (z >= 0 ? z : z - (DAYS_PER_ERA - 1)) / DAYS_PER_ERA;
+	long day_of_era  = z - era * DAYS_PER_ERA;
 	long year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
 	long day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-	long shifted = (5 * day_of_year + 2) / 153;
-	long day = day_of_year - (153 * shifted + 2) / 5 + 1;
-	long month = shifted < 10 ? shifted + 3 : shifted - 9;
-	long year = year_of_era + era * YEARS_PER_ERA + (month <= 2 ? 1 : 0);
+	long shifted     = (5 * day_of_year + 2) / 153;
+	long day         = day_of_year - (153 * shifted + 2) / 5 + 1;
+	long month       = shifted < 10 ? shifted + 3 : shifted - 9;
+	long year        = year_of_era + era * YEARS_PER_ERA + (month <= 2 ? 1 : 0);
 	return { .year = year, .month = month, .day = day };
 }
 
@@ -248,7 +264,13 @@ fn long? digits(String text) @local
 	long result = 0;
 	foreach (c : text)
 	{
-		if (c < '0' || c > '9') return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "date field '%s' is not numeric", text)~;
+		if (c < '0' || c > '9') return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"date field '%s' is not numeric",
+			text
+		)~;
 		result = result * 10 + (long)(c - '0');
 	}
 	return result;

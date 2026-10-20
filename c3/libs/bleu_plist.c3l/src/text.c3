@@ -13,25 +13,25 @@ module bleu::plist::text;
 import bleu::error;
 
 const uint FIRST_HIGH_SURROGATE = 0xD800;
-const uint LAST_HIGH_SURROGATE = 0xDBFF;
-const uint FIRST_LOW_SURROGATE = 0xDC00;
-const uint LAST_LOW_SURROGATE = 0xDFFF;
-const uint MAX_CODE_POINT = 0x10FFFF;
-const uint SURROGATE_OFFSET = 0x10000;
-const uint SURROGATE_BITS = 10;
-const uint SURROGATE_MASK = 0x3FF;
-const uint ONE_BYTE_LIMIT = 0x80;
-const uint TWO_BYTE_LIMIT = 0x800;
-const uint THREE_BYTE_LIMIT = 0x10000;
-const uint CONTINUATION_TAG = 0x80;
-const uint CONTINUATION_BITS = 6;
-const uint CONTINUATION_MASK = 0x3F;
-const uint TWO_BYTE_TAG = 0xC0;
-const uint THREE_BYTE_TAG = 0xE0;
-const uint FOUR_BYTE_TAG = 0xF0;
-const uint UTF16_UNIT_BYTES = 2;
-const char UTF16_BE_BOM_HIGH = 0xFE;
-const char UTF16_BE_BOM_LOW = 0xFF;
+const uint LAST_HIGH_SURROGATE  = 0xDBFF;
+const uint FIRST_LOW_SURROGATE  = 0xDC00;
+const uint LAST_LOW_SURROGATE   = 0xDFFF;
+const uint MAX_CODE_POINT       = 0x10FFFF;
+const uint SURROGATE_OFFSET     = 0x10000;
+const uint SURROGATE_BITS       = 10;
+const uint SURROGATE_MASK       = 0x3FF;
+const uint ONE_BYTE_LIMIT       = 0x80;
+const uint TWO_BYTE_LIMIT       = 0x800;
+const uint THREE_BYTE_LIMIT     = 0x10000;
+const uint CONTINUATION_TAG     = 0x80;
+const uint CONTINUATION_BITS    = 6;
+const uint CONTINUATION_MASK    = 0x3F;
+const uint TWO_BYTE_TAG         = 0xC0;
+const uint THREE_BYTE_TAG       = 0xE0;
+const uint FOUR_BYTE_TAG        = 0xF0;
+const uint UTF16_UNIT_BYTES     = 2;
+const char UTF16_BE_BOM_HIGH    = 0xFE;
+const char UTF16_BE_BOM_LOW     = 0xFF;
 
 <*
  Append one code point to `out` as UTF-8.
@@ -40,8 +40,20 @@ const char UTF16_BE_BOM_LOW = 0xFF;
 *>
 fn void? append_utf8(DString* out, uint code_point)
 {
-	if (code_point >= FIRST_HIGH_SURROGATE && code_point <= LAST_LOW_SURROGATE) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "surrogate U+%X is not a character", code_point)~;
-	if (code_point > MAX_CODE_POINT) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "code point U+%X is out of range", code_point)~;
+	if (code_point >= FIRST_HIGH_SURROGATE && code_point <= LAST_LOW_SURROGATE) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"surrogate U+%X is not a character",
+		code_point
+	)~;
+	if (code_point > MAX_CODE_POINT) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"code point U+%X is out of range",
+		code_point
+	)~;
 	if (code_point < ONE_BYTE_LIMIT)
 	{
 		out.append_char((char)code_point);
@@ -82,7 +94,9 @@ fn bool has_utf16_mark(char[] bytes) @inline
 *>
 fn String? from_utf16_with_mark(Allocator allocator, char[] bytes)
 {
-	if (!has_utf16_mark(bytes)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "UTF-16 data has no byte-order mark")~;
+	if (!has_utf16_mark(
+		bytes
+	)) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "UTF-16 data has no byte-order mark")~;
 	bool big_endian = bytes[0] == UTF16_BE_BOM_HIGH;
 	return utf16_to_utf8(allocator, bytes[UTF16_UNIT_BYTES:bytes.len - UTF16_UNIT_BYTES], big_endian);
 }
@@ -97,7 +111,12 @@ fn String? from_utf16_with_mark(Allocator allocator, char[] bytes)
 *>
 fn String? utf16_to_utf8(Allocator allocator, char[] bytes, bool big_endian)
 {
-	if (bytes.len % UTF16_UNIT_BYTES != 0) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "UTF-16 data has an odd length")~;
+	if (bytes.len % UTF16_UNIT_BYTES != 0) return error::raise(
+		error::PROTOCOL,
+		error::Domain.INTERNAL,
+		0,
+		"UTF-16 data has an odd length"
+	)~;
 	DString out;
 	out.init(tmem, bytes.len);
 	usz i = 0;
@@ -110,11 +129,22 @@ fn String? utf16_to_utf8(Allocator allocator, char[] bytes, bool big_endian)
 			append_utf8(&out, unit)!;
 			continue;
 		}
-		if (unit > LAST_HIGH_SURROGATE || i >= bytes.len) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "unpaired UTF-16 surrogate")~;
+		if (unit > LAST_HIGH_SURROGATE || i >= bytes.len) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"unpaired UTF-16 surrogate"
+		)~;
 		uint low = read_unit(bytes, i, big_endian);
-		if (low < FIRST_LOW_SURROGATE || low > LAST_LOW_SURROGATE) return error::raise(error::PROTOCOL, error::Domain.INTERNAL, 0, "unpaired UTF-16 surrogate")~;
+		if (low < FIRST_LOW_SURROGATE || low > LAST_LOW_SURROGATE) return error::raise(
+			error::PROTOCOL,
+			error::Domain.INTERNAL,
+			0,
+			"unpaired UTF-16 surrogate"
+		)~;
 		i += UTF16_UNIT_BYTES;
-		uint code_point = SURROGATE_OFFSET + ((unit - FIRST_HIGH_SURROGATE) << SURROGATE_BITS) + (low - FIRST_LOW_SURROGATE);
+		uint code_point = SURROGATE_OFFSET + ((unit - FIRST_HIGH_SURROGATE) << SURROGATE_BITS)
+			+ (low - FIRST_LOW_SURROGATE);
 		append_utf8(&out, code_point)!;
 	}
 	return out.copy_str(allocator);
@@ -123,7 +153,7 @@ fn String? utf16_to_utf8(Allocator allocator, char[] bytes, bool big_endian)
 // The 16-bit unit at byte `index` of `bytes`.
 fn uint read_unit(char[] bytes, usz index, bool big_endian) @local @inline
 {
-	uint first = (uint)(bytes[index] & 0xFF);
+	uint first  = (uint)(bytes[index] & 0xFF);
 	uint second = (uint)(bytes[index + 1] & 0xFF);
 	return big_endian ? (first << 8) | second : (second << 8) | first;
 }
