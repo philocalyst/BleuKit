@@ -215,7 +215,7 @@ enum EventKind : char
 	DEVICE_REMOVED,
 	DEVICE_CHANGED,
 	DEVICE_DISCONNECTED, // `text` is the reason the bus or the controller gave
-	PAIRING_REQUEST,     // `request` holds the prompt
+	PAIRING_REQUEST,     // `request` holds the prompt; for a shown code `text` is the code as BlueZ sent it
 	PAIRING_ENDED,       // `request.id` names the prompt that is no longer waiting for an answer
 }
 

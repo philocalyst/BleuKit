@@ -1,5 +1,5 @@
 module bleu::apps;
-import std::collections::list;
+import std::collections::list, std::time, std::time::clock;
 
 fn State sample_state() @local
 {

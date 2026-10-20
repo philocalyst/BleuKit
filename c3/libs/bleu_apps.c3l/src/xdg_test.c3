@@ -1,5 +1,5 @@
 module bleu::apps::xdg_test @feat(LINUX);
-import std::io, std::io::path, std::thread, std::time, std::time::clock, bleu::apps, bleu::error, bleu::operation, bleu::rt::fs, bleu::stream;
+import std::core::test, std::io, std::io::path, std::thread, std::time, std::time::clock, bleu::apps, bleu::error, bleu::operation, bleu::rt::fs, bleu::stream, bleu::apps::xdg_desktop;
 
 // A fresh fake XDG tree: system entries under usr/share, user entries under home/.local/share.
 fn String make_tree(String stem) @local
@@ -157,4 +157,40 @@ fn void icons_absolute_paths_and_missing_names() @test
 	assert(found == picture, "an absolute path that exists is its own file");
 	assert(@catch(apps.icon_file("/nonexistent/icon.png", 48, 1, mem)) == NOT_FOUND);
 	assert(@catch(apps.icon_file("no-such-icon-name", 48, 1, mem)) == NOT_FOUND);
+}
+fn void file_uris_percent_encode_the_path() @test
+{
+	@pool()
+	{
+		// RFC 3986: space, %, # and ? are not allowed in a path and must not change which file a URI names.
+		test::@check(
+			xdg_desktop::file_uri("/tmp/a b%c#d?.txt", tmem) == "file:///tmp/a%20b%25c%23d%3F.txt",
+			"reserved and unsafe bytes are percent-encoded"
+		);
+		test::@check(xdg_desktop::file_uri("/x/~a-b_c.d/", tmem) == "file:///x/~a-b_c.d/", "unreserved bytes stay");
+	};
+}
+
+fn void only_the_exact_variable_name_is_filtered() @test
+{
+	test::@check(xdg_desktop::is_variable("DESKTOP_STARTUP_ID=abc", xdg_desktop::ENV_STARTUP_ID), "the variable itself");
+	test::@check(
+		!xdg_desktop::is_variable("DESKTOP_STARTUP_IDENTITY=abc", xdg_desktop::ENV_STARTUP_ID),
+		"a longer name is kept"
+	);
+}
+
+fn void try_exec_under_a_fake_root_is_looked_up_in_the_root() @test
+{
+	// /bin/sh exists on the host, but not under this root: with a root, an absolute TryExec is not the host's file.
+	test::@check(xdg_desktop::try_exec_found("/bin/sh", ""), "without a root the host file counts");
+	test::@check(!xdg_desktop::try_exec_found("/bin/sh", "/nonexistent-bleu-root"), "under a root it is looked up there");
+}
+
+fn void dbus_activation_is_offered() @test
+{
+	Capabilities caps;
+	void* state = xdg_desktop::create(mem, { .root = "/nonexistent-bleu-root" }, &caps)!!;
+	defer xdg_desktop::destroy(mem, state);
+	test::@check(caps.values[Cap.DBUS_ACTIVATE.ordinal].ok(), "the bus route is reported, not refused as unimplemented");
 }
