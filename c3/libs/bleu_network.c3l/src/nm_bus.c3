@@ -117,6 +117,16 @@ fn Value? method_value(Proxy* proxy, String member, Allocator allocator)
 	return reply.reader()!.read_value(allocator);
 }
 
+<* Call a method that takes one string and returns nothing. *>
+fn void? method_string(Proxy* proxy, String member, String argument)
+{
+	Message* call = proxy.new_call(mem, member)!;
+	defer call.release();
+	call.body_writer("s")!.append_string(argument)!;
+	Message* reply = proxy.connection.call(call)!;
+	defer reply.release();
+}
+
 <* Call a method with no arguments and no reply value. *>
 fn void? method_void(Proxy* proxy, String member)
 {

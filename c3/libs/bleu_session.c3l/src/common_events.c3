@@ -1,36 +1,59 @@
 <*
- Publishing changes: transients to the event stream, and the rule by which a platform
- change updates the backend's own copy of the state. Shared by every backend; no OS names.
+ Publishing changes: transients to the event stream, and the rule by which the platform
+ changes recorded by a backend update its own copy of the state. Shared by every backend;
+ no OS names.
+
+ Order matters: a backend records the changes it saw, applies them to its copies, publishes
+ the next snapshot, and only then announces the events. A reader woken by an event must find
+ the state already updated.
 *>
 module bleu::session;
-import std::collections::maybe, std::time, bleu::observe;
+import std::collections::list, std::collections::maybe, std::time, bleu::observe;
 
-<*
- Announce `kind` to every reader of the hub's events.
-
- @param watch : "The idle watch an IDLE or RESUMED belongs to; 0 otherwise"
- @param threshold : "The idle time an IDLE or RESUMED refers to; zero otherwise"
-*>
-fn void emit(SessionHub* hub, EventKind kind, ulong watch = 0, Duration threshold = time::DURATION_ZERO)
+<* Announce `event` to every reader of the hub's events. *>
+fn void emit(SessionHub* hub, Event event)
 {
 	Snapshot{Event}* packet = hub.emit_begin();
-	packet.value = { .kind = kind, .watch = watch, .threshold = threshold };
+	packet.value = event;
 	hub.emit(packet);
 }
 
 <*
- Apply one platform change to the backend's copies of `locked` and `sleeping`, then announce
- it. The caller publishes the next snapshot afterwards, so a reader that wakes on the event
- finds the state already updated.
+ Apply the recorded changes to the backend's copies of `locked` and `sleeping`. Only LOCKED,
+ UNLOCKED, WILL_SLEEP and DID_WAKE are changes of the state; idle edges belong to their watch.
 
- @param kind : "LOCKED, UNLOCKED, WILL_SLEEP or DID_WAKE"
- @require kind != EventKind.IDLE && kind != EventKind.RESUMED : "idle edges belong to their watch, not to the state"
+ @param pending : "The events recorded since the last snapshot, in the order they happened"
 *>
-fn void apply_transition(EventKind kind, Maybe{bool}* locked, bool* sleeping, SessionHub* hub)
+fn void apply_pending(List{Event}* pending, Maybe{bool}* locked, bool* sleeping)
 {
-	if (kind == EventKind.LOCKED) *locked = maybe::value(true);
-	else if (kind == EventKind.UNLOCKED) *locked = maybe::value(false);
-	else if (kind == EventKind.WILL_SLEEP) *sleeping = true;
-	else *sleeping = false;
-	emit(hub, kind);
+	for (sz i = 0; i < pending.len(); i++)
+	{
+		EventKind kind = pending.get(i).kind;
+		if (kind == EventKind.LOCKED)
+		{
+			*locked = maybe::value(true);
+		}
+		else if (kind == EventKind.UNLOCKED)
+		{
+			*locked = maybe::value(false);
+		}
+		else if (kind == EventKind.WILL_SLEEP)
+		{
+			*sleeping = true;
+		}
+		else if (kind == EventKind.DID_WAKE)
+		{
+			*sleeping = false;
+		}
+	}
+}
+
+<*
+ Announce the recorded changes, in order, and forget them. Call after the snapshot that
+ includes them has been published.
+*>
+fn void announce(List{Event}* pending, SessionHub* hub)
+{
+	for (sz i = 0; i < pending.len(); i++) emit(hub, pending.get(i));
+	pending.clear();
 }

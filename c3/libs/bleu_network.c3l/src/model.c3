@@ -293,6 +293,8 @@ enum CommandKind : char
 	FORGET,
 	SET_RADIO,
 	SET_AUTOCONNECT,
+	SUPPLY_CREDENTIALS, // answer a CREDENTIALS_WANTED request with its passphrase
+	CANCEL_CREDENTIALS, // refuse a CREDENTIALS_WANTED request
 }
 
 <*
@@ -304,6 +306,7 @@ struct Command
 {
 	CommandKind kind;
 	bool flag; // SET_RADIO, SET_AUTOCONNECT: the new value; CONNECT: autoconnect
+	ulong request; // SUPPLY_CREDENTIALS, CANCEL_CREDENTIALS: the request id
 	SsidBuffer ssid; // CONNECT, FORGET, SET_AUTOCONNECT
 	SecretBuffer secret; // CONNECT: "" for open networks and saved profiles
 	ConnectOp* connect; // CONNECT

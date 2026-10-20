@@ -17,29 +17,28 @@
  section 2.1, [BZ-AGT] L24-146, [BZ-AGM] L171-232; capability table C6).
 *>
 module bleu::bluetooth::bluez @feat(LINUX);
-import std::collections::maybe, bleu::bluetooth, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server,
-	bleu::dbus::value, bleu::error, bleu::observe, bleu::rt::worker;
+import std::collections::maybe, bleu::bluetooth, bleu::dbus::marshal, bleu::dbus::message, bleu::dbus::proxy, bleu::dbus::server, bleu::dbus::value, bleu::error, bleu::observe, bleu::rt::worker;
 
 <* Where the agent object lives on this process's connection. *>
-const AGENT_PATH = "/org/bleu/bluetooth/agent";
+const AGENT_PATH             = "/org/bleu/bluetooth/agent";
 <* BlueZ's AgentManager1 object, and the capability this agent advertises. *>
-const AGENT_MANAGER_PATH = "/org/bluez";
-const AGENT_MANAGER_IFACE = "org.bluez.AgentManager1";
-const AGENT_IFACE = "org.bluez.Agent1";
-const AGENT_CAPABILITY = "KeyboardDisplay";
+const AGENT_MANAGER_PATH     = "/org/bluez";
+const AGENT_MANAGER_IFACE    = "org.bluez.AgentManager1";
+const AGENT_IFACE            = "org.bluez.Agent1";
+const AGENT_CAPABILITY       = "KeyboardDisplay";
 <* The number of methods of org.bluez.Agent1. *>
 const usz AGENT_METHOD_COUNT = 9;
 <* Prompts that may wait for a user at once. A request beyond this is refused. *>
-const usz MAX_PROMPTS = 8;
+const usz MAX_PROMPTS        = 8;
 <* The longest PIN BlueZ accepts. *>
-const usz PIN_MAX_LENGTH = 16;
+const usz PIN_MAX_LENGTH     = 16;
 <* The largest passkey: six decimal digits. *>
-const uint PASSKEY_MAX = 999999;
+const uint PASSKEY_MAX       = 999999;
 <* The longest decimal passkey text. *>
-const usz PASSKEY_DIGITS = 6;
+const usz PASSKEY_DIGITS     = 6;
 <* Error names an agent returns when it refuses or cancels. *>
-const String AGENT_REJECTED = "org.bluez.Error.Rejected";
-const String AGENT_CANCELED = "org.bluez.Error.Canceled";
+const String AGENT_REJECTED  = "org.bluez.Error.Rejected";
+const String AGENT_CANCELED  = "org.bluez.Error.Canceled";
 
 <* A request waiting for the user: its parked reply, its id, and the device it concerns. *>
 struct Prompt
@@ -62,21 +61,63 @@ fn void? register_agent(Bluez* self) @private
 {
 	self.agent_methods = {
 		{ .name = "Release", .in_signature = "", .out_signature = "", .handler = &on_release, .context = self },
-		{ .name = "RequestPinCode", .in_signature = "o", .out_signature = "s", .handler = &on_request_pin, .context = self },
-		{ .name = "DisplayPinCode", .in_signature = "os", .out_signature = "", .handler = &on_display_pin, .context = self },
-		{ .name = "RequestPasskey", .in_signature = "o", .out_signature = "u", .handler = &on_request_passkey, .context = self },
-		{ .name = "DisplayPasskey", .in_signature = "ouq", .out_signature = "", .handler = &on_display_passkey, .context = self },
-		{ .name = "RequestConfirmation", .in_signature = "ou", .out_signature = "", .handler = &on_request_confirmation, .context = self },
-		{ .name = "RequestAuthorization", .in_signature = "o", .out_signature = "", .handler = &on_request_authorization, .context = self },
-		{ .name = "AuthorizeService", .in_signature = "os", .out_signature = "", .handler = &on_authorize_service, .context = self },
+		{
+			.name = "RequestPinCode",
+			.in_signature = "o",
+			.out_signature = "s",
+			.handler = &on_request_pin,
+			.context = self
+		},
+		{
+			.name = "DisplayPinCode",
+			.in_signature = "os",
+			.out_signature = "",
+			.handler = &on_display_pin,
+			.context = self
+		},
+		{
+			.name = "RequestPasskey",
+			.in_signature = "o",
+			.out_signature = "u",
+			.handler = &on_request_passkey,
+			.context = self
+		},
+		{
+			.name = "DisplayPasskey",
+			.in_signature = "ouq",
+			.out_signature = "",
+			.handler = &on_display_passkey,
+			.context = self
+		},
+		{
+			.name = "RequestConfirmation",
+			.in_signature = "ou",
+			.out_signature = "",
+			.handler = &on_request_confirmation,
+			.context = self
+		},
+		{
+			.name = "RequestAuthorization",
+			.in_signature = "o",
+			.out_signature = "",
+			.handler = &on_request_authorization,
+			.context = self
+		},
+		{
+			.name = "AuthorizeService",
+			.in_signature = "os",
+			.out_signature = "",
+			.handler = &on_authorize_service,
+			.context = self
+		},
 		{ .name = "Cancel", .in_signature = "", .out_signature = "", .handler = &on_cancel, .context = self },
 	};
 	self.agent_interfaces = { { .name = AGENT_IFACE, .methods = self.agent_methods[..] } };
 	self.server.export(AGENT_PATH, self.agent_interfaces[..])!;
 	@pool()
 	{
-		Proxy manager = proxy::for_object(&self.bus, BLUEZ_NAME, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE)!;
-		Message* register = manager.new_call(tmem, "RegisterAgent")!;
+		Proxy manager      = proxy::for_object(&self.bus, BLUEZ_NAME, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE)!;
+		Message* register  = manager.new_call(tmem, "RegisterAgent")!;
 		Writer* registered = register.body_writer("os")!;
 		registered.append_object_path(AGENT_PATH)!;
 		registered.append_string(AGENT_CAPABILITY)!;
@@ -92,7 +133,7 @@ fn void? unregister_agent(Bluez* self) @private
 {
 	@pool()
 	{
-		Proxy manager = proxy::for_object(&self.bus, BLUEZ_NAME, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE)!;
+		Proxy manager       = proxy::for_object(&self.bus, BLUEZ_NAME, AGENT_MANAGER_PATH, AGENT_MANAGER_IFACE)!;
 		Message* unregister = manager.new_call(tmem, "UnregisterAgent")!;
 		unregister.body_writer("o")!.append_object_path(AGENT_PATH)!;
 		call_sync(self, unregister)!;
@@ -108,31 +149,38 @@ fn void? on_release(void* context, Call* call) @private
 // BlueZ asks for a PIN to type on the device. The user answers.
 fn void? on_request_pin(void* context, Call* call) @private
 {
-	return park(context, call, PIN);
+	return park(context, call, PIN, { });
 }
 
 // BlueZ asks for a passkey to type on the device. The user answers.
 fn void? on_request_passkey(void* context, Call* call) @private
 {
-	return park(context, call, PASSKEY_ENTRY);
+	return park(context, call, PASSKEY_ENTRY, { });
 }
 
 // BlueZ asks the user to confirm a number shown on both devices.
 fn void? on_request_confirmation(void* context, Call* call) @private
 {
-	return park(context, call, CONFIRM);
+	Maybe{uint} passkey = { };
+	@pool()
+	{
+		Reader r = call.reader()!;
+		r.read_object_path()!;
+		passkey = maybe::value(r.read_u32()!);
+	};
+	return park(context, call, CONFIRM, passkey);
 }
 
 // BlueZ asks the user to allow a device to pair without a code.
 fn void? on_request_authorization(void* context, Call* call) @private
 {
-	return park(context, call, AUTHORIZE);
+	return park(context, call, AUTHORIZE, { });
 }
 
 // BlueZ asks the user to allow a service of a device.
 fn void? on_authorize_service(void* context, Call* call) @private
 {
-	return park(context, call, AUTHORIZE);
+	return park(context, call, AUTHORIZE, { });
 }
 
 // BlueZ shows a PIN the user must type on the device. The PIN is reported when it is numeric.
@@ -141,10 +189,10 @@ fn void? on_display_pin(void* context, Call* call) @private
 	Bluez* self = (Bluez*)context;
 	@pool()
 	{
-		Reader r = call.reader()!;
-		String device = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
-		String pin = r.read_string()!;
-		uint passkey = parse_passkey(pin) ?? 0;
+		Reader r          = call.reader()!;
+		String device     = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
+		String pin        = r.read_string()!;
+		uint passkey      = parse_passkey(pin) ?? 0;
 		Maybe{uint} shown = { };
 		if (pin.len == PASSKEY_DIGITS) shown = maybe::value(passkey);
 		report_display(self, device, shown);
@@ -158,9 +206,9 @@ fn void? on_display_passkey(void* context, Call* call) @private
 	Bluez* self = (Bluez*)context;
 	@pool()
 	{
-		Reader r = call.reader()!;
-		String device = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
-		uint passkey = r.read_u32()!;
+		Reader r       = call.reader()!;
+		String device  = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
+		uint passkey   = r.read_u32()!;
 		ushort entered = r.read_u16()!;
 		if (entered == 0) report_display(self, device, maybe::value(passkey));
 	};
@@ -176,30 +224,32 @@ fn void? on_cancel(void* context, Call* call) @private
 		if (!prompt.waiting) continue;
 		close_prompt(self, prompt);
 		// The reply is best effort: the bus may have dropped the parked call already.
-		if (catch self.server.reply_error(prompt.token, AGENT_CANCELED, "pairing was cancelled")) {}
+		if (catch self.server.reply_error(prompt.token, AGENT_CANCELED, "pairing was cancelled"))
+		{
+		}
 	}
 	return call.reply(none_values());
 }
 
 // Parks a request that needs the user's answer, and tells the panel about it.
-fn void? park(void* context, Call* call, PromptKind kind) @private
+fn void? park(void* context, Call* call, PromptKind kind, Maybe{uint} passkey) @private
 {
-	Bluez* self = (Bluez*)context;
+	Bluez* self  = (Bluez*)context;
 	Prompt* slot = free_slot(self) ?? null;
 	if (slot == null) return call.reply_error(AGENT_REJECTED, "too many pairing prompts are waiting");
-	String device = "";
+	// The device address is copied into the slot while the temporary allocator still holds it.
 	@pool()
 	{
-		Reader r = call.reader()!;
-		device = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
+		Reader r      = call.reader()!;
+		String device = bluetooth::address_of_device_path(r.read_object_path()!, tmem) ?? "";
+		slot.device_length = device.len;
+		for (usz i = 0; i < bluetooth::ADDRESS_TEXT_LENGTH; i++) slot.device[i] = i < device.len ? device[i] : '\0';
 	};
-	slot.device_length = device.len;
-	for (usz i = 0; i < bluetooth::ADDRESS_TEXT_LENGTH; i++) slot.device[i] = i < device.len ? device[i] : '\0';
 	slot.token = call.defer_reply()!;
 	slot.waiting = true;
 	slot.id = ++self.next_prompt;
 	slot.kind = kind;
-	emit_request(self, kind, slot.id, device, { });
+	emit_request(self, kind, slot.id, (String)slot.device[0:slot.device_length], passkey);
 }
 
 // An unused prompt slot, or NOT_FOUND when every slot is waiting.
@@ -289,8 +339,8 @@ fn Value[] none_values() @private
 fn void emit_request(Bluez* self, PromptKind kind, ulong id, String device, Maybe{uint} passkey) @private
 {
 	Snapshot{Event}* packet = self.hub.emit_begin();
-	Allocator arena = packet.allocator();
-	String address = bluetooth::copy_text(device, arena);
+	Allocator arena         = packet.allocator();
+	String address          = bluetooth::copy_text(device, arena);
 	packet.value = {
 		.kind = EventKind.PAIRING_REQUEST,
 		.address = address,

@@ -41,7 +41,7 @@ else
 fi
 
 libdir="$(TMPDIR="$work" "$repo/tools/libdir.sh")"
-c3c --libdir "$libdir" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_win --lib bleu_audio \
+c3c --libdir "$libdir" --lib bleu_core --lib bleu_rt --lib bleu_service --lib bleu_win --lib bleu_objc --lib bleu_audio \
   compile "$here/integration_main.c3" -o "$work/integration" >"$work/build.log" 2>&1 || {
   cat "$work/build.log"; rm -rf "$libdir"; exit 2; }
 rm -rf "$libdir"

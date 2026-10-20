@@ -191,7 +191,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 fn void? register(Backend* b, Mailbox{Command}* box) @local
 {
 	uint previous = 0;
-	uint code     = wlan_native::wlan_register_notification(
+	uint code = wlan_native::wlan_register_notification(
 		b.handle,
 		wlan_native::NOTIFICATION_SOURCE_ACM,
 		1,
@@ -243,6 +243,8 @@ fn void execute(Backend* b, NetworkHub* hub, Command* c)
 			if (catch err = forget(b, c)) fail_settle(c.settle, err);
 		case SET_RADIO:
 		case SET_AUTOCONNECT:
+		case SUPPLY_CREDENTIALS:
+		case CANCEL_CREDENTIALS:
 			// The capability check refuses these before they are posted; reaching here is a bug.
 			c.settle.fail(error::UNSUPPORTED);
 			c.settle.release();
@@ -343,7 +345,7 @@ fn void? join(Backend* b, NetworkHub* hub, Command* c) @local
 		WideZ xml_wide  = text::to_wide(tmem, xml)!!;
 		WideZ name_wide = text::to_wide(tmem, name)!!;
 		uint reason     = 0;
-		uint code       = wlan_native::wlan_set_profile(
+		uint code = wlan_native::wlan_set_profile(
 			b.handle,
 			&b.interface_guid,
 			0,
@@ -525,7 +527,7 @@ fn AccessPoint[]? read_networks(Backend* b, Allocator out) @local
 fn WlanBssList* read_bss(Backend* b) @local
 {
 	WlanBssList* bss = null;
-	uint code        = wlan_native::wlan_get_network_bss_list(
+	uint code = wlan_native::wlan_get_network_bss_list(
 		b.handle,
 		&b.interface_guid,
 		null,

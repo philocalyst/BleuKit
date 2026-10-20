@@ -134,6 +134,39 @@ fn Reader{Event}*? Network.subscribe(&self) => self.hub.events.subscribe();
 fn void? Network.refresh(&self) => self.hub.post({ .kind = REFRESH });
 
 <*
+ Answer a CREDENTIALS_WANTED event with the passphrase the user typed. The
+ network's connection then proceeds. Completes CHANGED when the answer is
+ delivered, NOT_FOUND when no request has that id (it was already answered,
+ cancelled or withdrawn).
+
+ @param request : "The id of the CREDENTIALS_WANTED event"
+ @param secret : "The passphrase, 1 to 255 characters"
+ @return? error::INVALID_ARGUMENT : "The passphrase is empty or longer than 255 characters"
+ @return? error::UNSUPPORTED : "This backend does not ask for credentials"
+*>
+fn SettleOp*? Network.supply_credentials(&self, ulong request, String secret)
+{
+	if (secret.len == 0 || secret.len > SECRET_MAX) return error::INVALID_ARGUMENT~;
+	self.require(WIFI_SECRET_PROMPT)!;
+	Command command = { .kind = SUPPLY_CREDENTIALS, .request = request };
+	mem::copy(&command.secret.bytes, secret.ptr, secret.len);
+	command.secret.len = secret.len;
+	return self.submit_settle(command)!;
+}
+
+<*
+ Refuse a CREDENTIALS_WANTED request: the connection it belongs to fails.
+ Completes CHANGED when refused, NOT_FOUND when no request has that id.
+
+ @return? error::UNSUPPORTED : "This backend does not ask for credentials"
+*>
+fn SettleOp*? Network.cancel_credentials(&self, ulong request)
+{
+	self.require(WIFI_SECRET_PROMPT)!;
+	return self.submit_settle({ .kind = CANCEL_CREDENTIALS, .request = request })!;
+}
+
+<*
  Scan for networks. Completes when the platform reports a finished scan; the
  operation fails with TIMEOUT when the scan does not finish in time.
 

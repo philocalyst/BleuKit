@@ -156,7 +156,13 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	defer self.server.free();
 	self.server.attach(&self.bus);
 	// Without the agent BlueZ still pairs what needs no answer; prompts are then not offered.
-	if (catch register_agent(self)) {} else { self.agent_ready = true; }
+	if (catch register_agent(self))
+	{
+	}
+	else
+	{
+		self.agent_ready = true;
+	}
 	Request[COMMAND_BATCH] commands;
 	while (!host.stopping())
 	{
@@ -182,7 +188,9 @@ fn void run(void* state, BluetoothHub* hub, Host{Request}* host)
 	fail_queued(host);
 	if (self.agent_ready)
 	{
-		if (catch unregister_agent(self)) {}
+		if (catch unregister_agent(self))
+		{
+		}
 	}
 	self.bus.close();
 	bluetooth::publish_empty(hub);

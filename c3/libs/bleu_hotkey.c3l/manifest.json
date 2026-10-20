@@ -1,0 +1,20 @@
+{
+  "provides": "bleu_hotkey",
+  "sources": ["src/**"],
+  "dependencies": [
+    "bleu_core",
+    "bleu_rt",
+    "bleu_service",
+    "bleu_dbus",
+    "bleu_dl",
+    "bleu_win"
+  ],
+  "targets": {
+    "linux-x64": {},
+    "linux-aarch64": {},
+    "macos-x64": {},
+    "macos-aarch64": {},
+    "windows-x64": {},
+    "windows-aarch64": {}
+  }
+}

@@ -1,12 +1,14 @@
-// The NetworkManager backend: the driver entry, the bus, the signal handlers
-// and the worker loop. Reading, commands and pending requests are in the other
-// `nm_*.c3` files of this module.
-// 
+// The NetworkManager backend: the driver entry, the bus, the signal handlers,
+// the secret agent and the worker loop. Reading, commands, pending requests and
+// prompts are in the other `nm_*.c3` files of this module.
+//
 // Threading: the loop, every bus call and every handler run on the worker
 // thread. Signal handlers only record what happened (a flag, a transition);
 // the loop acts on it after `process()` returns, so no handler calls the bus.
+// The agent's method handlers answer or park calls inside `process()`; they
+// publish an event but make no bus call of their own.
 module bleu::network::networkmanager @feat(LINUX);
-import std::io::path, std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::observe, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::value;
+import std::time, std::collections::list, bleu::availability, bleu::error, bleu::network, bleu::rt::poller, bleu::rt::worker, bleu::dbus::connection, bleu::dbus::match, bleu::dbus::message, bleu::dbus::marshal, bleu::dbus::proxy, bleu::dbus::server, bleu::dbus::value;
 
 <* The backend's state. Allocated by `create`, released by `destroy`. *>
 struct Backend
@@ -27,6 +29,12 @@ struct Backend
 	ulong transition_sequence; // numbers device transitions in arrival order
 	List{Transition} transitions;
 	List{Pending} pending;
+	NetworkHub* hub; // where events go; set by `run`
+	ObjectServer server; // answers NetworkManager's calls to the secret agent
+	server::Method[4] agent_methods; // the agent's methods; the server keeps pointers to them
+	bool agent_registered; // NetworkManager has the agent: passphrases are asked for through it
+	List{Prompt} prompts; // GetSecrets calls waiting for the user
+	ulong prompt_sequence; // numbers the prompts (the request ids of CREDENTIALS_WANTED)
 }
 
 const Driver DRIVER = {
@@ -63,18 +71,15 @@ fn bool probe(Options* options)
 fn void*? create(Allocator allocator, Options options, Capabilities* capabilities)
 {
 	if (catch err = probe_bus(allocator, options.bus_address)) return err~;
-	Backend* self = alloc::new(
-		allocator,
-		Backend,
-		{
-			.allocator = allocator,
-			.root = own_text(allocator, options.root),
-			.poll = options.poll,
-			.bus_address = own_text(allocator, options.bus_address),
-		}
-	);
+	Backend* self = alloc::new(allocator, Backend, {
+		.allocator = allocator,
+		.root = own_text(allocator, options.root),
+		.poll = options.poll,
+		.bus_address = own_text(allocator, options.bus_address),
+	});
 	self.transitions.init(allocator);
 	self.pending.init(allocator);
+	self.prompts.init(allocator);
 	fill_capabilities(capabilities);
 	return self;
 }
@@ -94,20 +99,13 @@ fn void? probe_bus(Allocator allocator, String address) @local
 		bus.open_system()!;
 	}
 	bool running = bus.name_has_owner(NM_SERVICE)!;
-	if (!running) return error::raise(
-		error::UNAVAILABLE,
-		error::Domain.INTERNAL,
-		0,
-		"NetworkManager is not running on the bus"
-	)~;
+	if (!running) return error::raise(error::UNAVAILABLE, error::Domain.INTERNAL, 0, "NetworkManager is not running on the bus")~;
 }
 
 // Offer what this backend can do. Everything else keeps its "not offered" reason.
 fn void fill_capabilities(Capabilities* capabilities) @local
 {
-	capabilities.init(
-		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "not offered by the NetworkManager backend")
-	);
+	capabilities.init(availability::no(availability::Reason.UNSUPPORTED_BACKEND, "not offered by the NetworkManager backend"));
 	capabilities.set(Cap.WIFI_RADIO, availability::YES);
 	capabilities.set(Cap.WIFI_SCAN, availability::YES);
 	capabilities.set(Cap.WIFI_CONNECT_OPEN, availability::YES);
@@ -115,23 +113,14 @@ fn void fill_capabilities(Capabilities* capabilities) @local
 	capabilities.set(Cap.WIFI_DISCONNECT, availability::YES);
 	capabilities.set(Cap.WIFI_FORGET, availability::YES);
 	capabilities.set(Cap.WIFI_AUTOCONNECT, availability::YES);
+	capabilities.set(Cap.WIFI_SECRET_PROMPT, availability::YES);
 	capabilities.set(Cap.SSID_VISIBILITY, availability::YES);
 	capabilities.set(Cap.WIFI_BSSID, availability::YES);
 	capabilities.set(Cap.INTERFACE_STATE, availability::YES);
 	capabilities.set(Cap.INTERFACE_SPEED, availability::YES);
 	capabilities.set(Cap.INTERFACE_COUNTERS, availability::YES);
 	capabilities.set(Cap.CONNECTIVITY, availability::YES);
-	capabilities.set(
-		Cap.WIFI_SIGNAL_DBM,
-		availability::no(availability::Reason.UNSUPPORTED_BACKEND, "NetworkManager reports a 0-100 strength, not dBm")
-	);
-	capabilities.set(
-		Cap.WIFI_SECRET_PROMPT,
-		availability::no(
-			availability::Reason.UNSUPPORTED_BACKEND,
-			"the secret agent needs D-Bus object export, which bleu_dbus does not have yet"
-		)
-	);
+	capabilities.set(Cap.WIFI_SIGNAL_DBM, availability::no(availability::Reason.UNSUPPORTED_BACKEND, "NetworkManager reports a 0-100 strength, not dBm"));
 }
 
 // Open the connection on the worker thread and subscribe to what the backend reads.
@@ -171,6 +160,7 @@ fn void destroy(Allocator allocator, void* state)
 	drop_text(allocator, b.wifi_name);
 	b.transitions.free();
 	b.pending.free();
+	b.prompts.free();
 	alloc::free(allocator, b);
 }
 
@@ -194,26 +184,22 @@ fn void on_device_state(void* context, Message* signal)
 	Backend* b = (Backend*)context;
 	b.changed = true;
 	// A malformed signal cannot be applied; the next read still shows the device's state.
-	if (catch err = queue_transition(b, signal))
-	{
-	}
+	if (catch err = queue_transition(b, signal)) {}
 }
 
-fn void? queue_transition(Backend* b, Message* signal)
+fn void? queue_transition(Backend* b, Message* signal) @local
 {
-	Reader r   = signal.reader()!;
+	Reader r = signal.reader()!;
 	uint state = r.read_u32()!;
 	r.read_u32()!;
 	uint reason = r.read_u32()!;
 	b.transition_sequence++;
-	b.transitions.push(
-		{
-			.sequence = b.transition_sequence,
-			.device = own_text(b.allocator, signal.path),
-			.state = state,
-			.reason = reason,
-		}
-	);
+	b.transitions.push({
+		.sequence = b.transition_sequence,
+		.device = own_text(b.allocator, signal.path),
+		.state = state,
+		.reason = reason,
+	});
 }
 
 <* The loop: wait for the bus, the mailbox or the next read; run the commands; read and settle. *>
@@ -222,11 +208,16 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	Backend* b = (Backend*)state;
 	b.bus.init(b.allocator);
 	defer b.bus.free();
+	b.hub = hub;
 	if (catch err = open_bus(b))
 	{
 		network::publish_empty(hub);
 		return;
 	}
+	b.server.init(b.allocator);
+	defer b.server.free();
+	b.server.attach(&b.bus);
+	start_agent(b);
 	Poller poller;
 	if (catch poller.init(mem, host.wakeup(), 4)) return;
 	defer poller.free();
@@ -237,7 +228,7 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 	refresh(b, hub);
 	while (!host.stopping())
 	{
-		bool woke     = true;
+		bool woke = true;
 		Duration wait = b.pending.len() > 0 ? PENDING_TICK : b.poll;
 		if (catch poller.wait(wait))
 		{
@@ -264,6 +255,22 @@ fn void run(void* state, NetworkHub* hub, Host{Command}* host)
 		if (lost) break;
 	}
 	abandon_pending(b);
+	abandon_prompts(b);
+	if (b.agent_registered) unregister_agent(b);
+}
+
+<*
+ Export the secret agent and register it with NetworkManager. When either step
+ fails the backend has no agent: a network that needs a passphrase then fails
+ with AUTH_REQUIRED instead of prompting.
+*>
+fn void start_agent(Backend* b) @local
+{
+	server::Interface[1] interfaces;
+	interfaces[0] = agent_interface(b, b.agent_methods[..]);
+	if (catch err = b.server.export(AGENT_PATH, interfaces[..])) return;
+	if (catch err = register_agent(b)) return;
+	b.agent_registered = true;
 }
 
 <*
@@ -275,11 +282,11 @@ fn void refresh(Backend* b, NetworkHub* hub)
 	b.changed = false;
 	Snapshot{State}* snapshot = hub.begin();
 	Reading reading;
-	State? state              = read_state(b, snapshot.allocator(), &reading);
+	State? state = read_state(b, snapshot.allocator(), &reading);
 	if (catch err = state)
 	{
-		snapshot.value = { };
-		reading = { };
+		snapshot.value = {};
+		reading = {};
 	}
 	else
 	{

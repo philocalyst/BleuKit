@@ -202,6 +202,8 @@ fn void execute(Backend* b, Command* c)
 			if (catch err = set_radio(b, c.settle, c.flag)) fail_settle(c.settle, err);
 		case FORGET:
 		case SET_AUTOCONNECT:
+		case SUPPLY_CREDENTIALS:
+		case CANCEL_CREDENTIALS:
 			// The capability check refuses these before they are posted; reaching here is a bug.
 			c.settle.fail(error::UNSUPPORTED);
 			c.settle.release();

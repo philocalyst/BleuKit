@@ -37,6 +37,10 @@ fn void execute(Backend* b, NetworkHub* hub, Command* c)
 			if (catch err = try_radio(b, c)) fail_settle(c.settle, err);
 		case SET_AUTOCONNECT:
 			if (catch err = try_autoconnect(b, c)) fail_settle(c.settle, err);
+		case SUPPLY_CREDENTIALS:
+			if (catch err = try_supply(b, c)) fail_settle(c.settle, err);
+		case CANCEL_CREDENTIALS:
+			if (catch err = try_cancel(b, c)) fail_settle(c.settle, err);
 	}
 }
 
@@ -104,7 +108,16 @@ fn void? try_connect(Backend* b, NetworkHub* hub, Command* c)
 		}
 		else
 		{
-			return error::raise(error::AUTH_REQUIRED, error::Domain.INTERNAL, 0, "the network needs a passphrase")~;
+			// A secured network with no passphrase: the profile has no psk, so NetworkManager asks the
+			// secret agent for it, which publishes CREDENTIALS_WANTED.
+			nm_settings::ProfileSpec ask_spec = {
+				.ssid = ssid,
+				.id = display_id(ssid),
+				.uuid = nm_settings::uuid_for_ssid(tmem, ssid),
+				.autoconnect = c.flag,
+				.key_mgmt = security == Security.WPA3_SAE ? nm_settings::KeyManagement.SAE : nm_settings::KeyManagement.WPA_PSK,
+			};
+			active = add_and_activate(b, ask_spec)!;
 		}
 		b.last_supplied = false;
 	}
@@ -332,4 +345,48 @@ fn void? deactivate(Backend* b, String active)
 	call.body_writer("o")!.append_object_path(active)!;
 	Message* reply = b.bus.call(call)!;
 	reply.release();
+}
+
+<*
+ Answer the prompt `c.request` with the passphrase: the agent's reply to
+ NetworkManager's GetSecrets carries it, and the connection proceeds.
+*>
+fn void? try_supply(Backend* b, Command* c)
+{
+	if (try index = find_prompt(b, c.request))
+	{
+		Prompt* prompt = b.prompts.get_ref(index);
+		Value secrets = nm_settings::secrets_settings(tmem, (String)c.secret.bytes[0 : c.secret.len])!;
+		Value[] answer = { secrets };
+		b.server.reply(prompt.token, answer)!;
+		mark_supplied(b, prompt.ssid);
+		b.last_supplied = true;
+		drop_prompt(b, index);
+		settle_now(c.settle, Settled.CHANGED);
+		return;
+	}
+	return NOT_FOUND~;
+}
+
+<* Refuse the prompt `c.request`: NetworkManager fails the connection it belongs to. *>
+fn void? try_cancel(Backend* b, Command* c)
+{
+	if (try index = find_prompt(b, c.request))
+	{
+		Prompt* prompt = b.prompts.get_ref(index);
+		b.server.reply_error(prompt.token, ERROR_USER_CANCELED, "the user cancelled the request")!;
+		drop_prompt(b, index);
+		settle_now(c.settle, Settled.CHANGED);
+		return;
+	}
+	return NOT_FOUND~;
+}
+
+// The connections waiting for this SSID's passphrase have it now.
+fn void mark_supplied(Backend* b, char[] ssid) @local
+{
+	foreach (&p : b.pending.array_view())
+	{
+		if (p.kind == CONNECT && network::same_ssid(p.ssid, ssid)) p.supplied = true;
+	}
 }

@@ -65,13 +65,28 @@ fn Value? profile_settings(Allocator allocator, ProfileSpec spec)
 		List{Value} security;
 		security.init(tmem);
 		security.push(kv(allocator, "key-mgmt", value::str(allocator, key_mgmt_name(spec.key_mgmt))!!));
-		if (spec.key_mgmt == WPA_PSK || spec.key_mgmt == SAE)
+		// No passphrase: the psk key is left out, so NetworkManager asks its secret agent for it.
+		if ((spec.key_mgmt == WPA_PSK || spec.key_mgmt == SAE) && spec.psk.len > 0)
 		{
 			security.push(kv(allocator, "psk", value::str(allocator, spec.psk)!!));
 		}
 		groups.push(group(allocator, GROUP_SECURITY, security.array_view()));
 	}
 	return value::array(allocator, "{sa{sv}}", groups.array_view());
+}
+
+<*
+ The secrets an agent answers NetworkManager's GetSecrets with: the passphrase,
+ as an `a{sa{sv}}` holding only the security group.
+
+ @param allocator : "Allocator for the returned value"
+ @return? error::INVALID_ARGUMENT : "A value could not be encoded"
+*>
+fn Value? secrets_settings(Allocator allocator, String psk)
+{
+	Value[] fields = { kv(allocator, "psk", value::str(allocator, psk)!!) };
+	Value[] groups = { group(allocator, GROUP_SECURITY, fields) };
+	return value::array(allocator, "{sa{sv}}", groups);
 }
 
 <* The NetworkManager `key-mgmt` string for a key-management kind; "none" for open networks. *>

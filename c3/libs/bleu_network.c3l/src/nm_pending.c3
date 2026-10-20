@@ -160,7 +160,9 @@ fn bool apply_connect_state(Backend* b, sz index, uint state, uint reason)
 			retire_at(b, index);
 			return true;
 		case nm_convert::DEVICE_STATE_NEED_AUTH:
-			// NetworkManager asks for a secret only when the one it has is missing or refused.
+			// With an agent, NetworkManager asks it for the passphrase (a prompt): the request
+			// waits for the answer, and the terminal state decides if the answer never comes.
+			if (b.agent_registered) return false;
 			if (p.supplied)
 			{
 				fail_connect(b, index, AUTH_REJECTED, state, "the network rejected the passphrase");

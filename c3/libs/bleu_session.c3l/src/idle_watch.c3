@@ -12,7 +12,7 @@
  watch must be closed before the session that made it.
 *>
 module bleu::session;
-import std::time, bleu::deadline, bleu::error, bleu::stream;
+import std::time, bleu::deadline, bleu::error, bleu::observe, bleu::stream;
 
 struct IdleWatch
 {

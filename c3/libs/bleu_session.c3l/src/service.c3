@@ -13,7 +13,7 @@
  Every method may be called from any thread.
 *>
 module bleu::session;
-import std::collections::enummap, std::time, bleu::availability, bleu::error, bleu::observe, bleu::operation, bleu::stream, bleu::service;
+import std::atomic, std::collections::enummap, std::time, bleu::availability, bleu::error, bleu::observe, bleu::operation, bleu::stream, bleu::service;
 
 alias SessionHub = Hub{State, Command, Event};
 alias Capabilities = EnumMap{Cap, Availability};

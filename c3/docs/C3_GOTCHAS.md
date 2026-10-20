@@ -137,3 +137,12 @@
 * `List`/`HashMap` need an explicit `import std::collections::list;` even when `List{T}` is only used in a struct field.
 * Generated protocol code: a constset conversion from `int` needs `(T)(uint)value`; a method name equal to a struct field (`Display.fd` vs `fd`) is rejected → rename the field.
 * `c3c compile-test` writes `./out/testrun` by default, which another engineer's build may also use → pass `-o <scratch path>` and run the binary under `timeout`, since a deadlocked scenario thread hangs the run without a message.
+* `alias` is a keyword: a local named `alias` is rejected → name it `nickname`.
+* `if (try x = f()) ... else` needs braces around the `else` body; `if (catch e = v) {} else { ... }` is accepted.
+* Struct `.sizeof` and `$sizeof(T)` do not exist in 0.8.5 here → use named constants with the layout cited.
+* `foreach (&x : array)` binds `x` as a pointer already: `return &x;` is `T**` → `return x;`.
+* A local named `value` shadows `bleu::dbus::value` (and `list` shadows `std::collections::list`) → pick other names.
+* Inside `@pool()`, a value copied into a variable declared outside the pool is dangling after the pool closes → copy into a slot or heap allocator first.
+* `Enum.MEMBER` in a `case` label of another module must be qualified, and two enums sharing a member name (Cap, Command) need the right one.
+* `c3c --libdir libs` fails while any half-created lib lacks manifest.json → use `tools/libdir.sh`.
+* `Type?` cannot be tested with `.has_value`; use `if (try ...)` or `@catch(...)` comparisons.

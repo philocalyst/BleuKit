@@ -85,7 +85,7 @@ fn void with_bool_replaces_one_key() @test
 {
 	@pool()
 	{
-		Value settings   = nm_settings::profile_settings(
+		Value settings = nm_settings::profile_settings(
 			tmem,
 			{
 				.ssid = (char[])"Office",

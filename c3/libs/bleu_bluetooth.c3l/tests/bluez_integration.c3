@@ -17,7 +17,7 @@ const String PHONE     = "AA:BB:CC:DD:EE:04";
 const ulong WAIT_MS    = 200;
 const int WAIT_ROUNDS  = 50;
 const ulong TASK_MS    = 10000;
-const int EVENT_ROUNDS = 2000;
+const int EVENT_ROUNDS = 25;
 
 alias Check = fn bool(State* state);
 
@@ -130,8 +130,12 @@ fn PromptSeen wait_for_prompt(stream::Reader{Event}* events, bluetooth::PromptKi
 			if (event.kind == bluetooth::EventKind.PAIRING_REQUEST && event.request.kind == kind
 				&& event.request.device == device)
 			{
-				seen = { .found = true, .id = event.request.id, .has_passkey = event.request.passkey.has_value,
-					.passkey = event.request.passkey.value };
+				seen = {
+					.found = true,
+					.id = event.request.id,
+					.has_passkey = event.request.passkey.has_value,
+					.passkey = event.request.passkey.value
+				};
 			}
 		}
 	}
@@ -174,7 +178,7 @@ fn int main(String[] args)
 	}
 	defer bt.close();
 	expect(bt.backend_name() == "bluez", "backend is bluez");
-	expect(!bt.capability(bluetooth::Cap.PAIRING_PROMPTS).ok(), "pairing prompts are reported unavailable");
+	expect(bt.capability(bluetooth::Cap.PAIRING_PROMPTS).ok(), "pairing prompts are offered");
 	stream::Reader{Event}* events = bt.subscribe() ?? null;
 	defer
 	{
@@ -220,7 +224,7 @@ fn int main(String[] args)
 
 	// Pairing through the agent: the user confirms a number, types a PIN, and refuses a passkey.
 	// A keyboard pairing is cancelled by the caller instead.
-	Task* pair_ok = bt.pair(HEADSET) ?? null;
+	Task* pair_ok      = bt.pair(HEADSET) ?? null;
 	PromptSeen confirm = wait_for_prompt(events, bluetooth::PromptKind.CONFIRM, HEADSET);
 	expect(confirm.found && confirm.has_passkey && confirm.passkey == 123456, "headset asks to confirm 123456");
 	expect(answer(bt, confirm.id, true, ""), "confirming the number is accepted");
@@ -234,7 +238,10 @@ fn int main(String[] args)
 	Task* empty_pin = bt.reply_pairing(pin.id, true, "") ?? null;
 	if (empty_pin != null)
 	{
-		expect(!succeeded(empty_pin) && empty_pin.failure == error::INVALID_ARGUMENT, "an empty PIN is refused, not sent");
+		expect(
+			!succeeded(empty_pin) && empty_pin.failure == error::INVALID_ARGUMENT,
+			"an empty PIN is refused, not sent"
+		);
 		empty_pin.release();
 	}
 	if (pair_pin != null)
@@ -251,19 +258,25 @@ fn int main(String[] args)
 	expect(answer(bt, passkey.id, false, ""), "refusing the passkey is accepted");
 	if (pair_refused != null)
 	{
-		expect(!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE, "refused pairing fails as BACKEND_FAILURE");
+		expect(
+			!succeeded(pair_refused) && pair_refused.failure == error::BACKEND_FAILURE,
+			"refused pairing fails as BACKEND_FAILURE"
+		);
 		pair_refused.release();
 	}
 
 	Task* unknown = bt.reply_pairing(999999, true, "") ?? null;
 	if (unknown != null)
 	{
-		expect(!succeeded(unknown) && unknown.failure == error::INVALID_STATE, "an answer to no waiting prompt is INVALID_STATE");
+		expect(
+			!succeeded(unknown) && unknown.failure == error::INVALID_STATE,
+			"an answer to no waiting prompt is INVALID_STATE"
+		);
 		unknown.release();
 	}
 
 	Task* pair_cancel = bt.pair(KEYBOARD) ?? null;
-	Task* cancel = bt.cancel_pairing(KEYBOARD) ?? null;
+	Task* cancel      = bt.cancel_pairing(KEYBOARD) ?? null;
 	if (cancel)
 	{
 		expect(succeeded(cancel), "cancel_pairing completes");
@@ -361,17 +374,6 @@ fn int main(String[] args)
 		refresh.release();
 	}
 	expect(settle(bt, &dev_unblocked), "clearing the switch in sysfs is seen");
-
-	// Pairing prompts are not offered on this backend: the request is refused at once.
-	Task*? reply = bt.reply_pairing(1, true);
-	if (catch err = reply)
-	{
-		expect(err == error::UNSUPPORTED, "reply_pairing is refused as UNSUPPORTED");
-	}
-	else
-	{
-		expect(false, "reply_pairing is refused as UNSUPPORTED");
-	}
 
 	if (failures == 0)
 	{

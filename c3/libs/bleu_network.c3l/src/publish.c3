@@ -40,8 +40,18 @@ fn void emit_changes(NetworkHub* hub, State* before, State* after) @local
 
 fn void emit(NetworkHub* hub, EventKind kind, Ssid ssid) @local
 {
+	emit_event(hub, { .kind = kind, .ssid = ssid });
+}
+
+<*
+ Deliver an event to every reader. Its SSID is copied into the event packet, so
+ the caller's octets may be temporary.
+*>
+fn void emit_event(NetworkHub* hub, Event event)
+{
 	Snapshot{Event}* packet = hub.emit_begin();
-	packet.value = { .kind = kind, .ssid = make_ssid(packet.allocator(), ssid.bytes) };
+	event.ssid = make_ssid(packet.allocator(), event.ssid.bytes);
+	packet.value = event;
 	hub.emit(packet);
 }
 

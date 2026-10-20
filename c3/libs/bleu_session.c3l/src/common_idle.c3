@@ -9,7 +9,7 @@
  alternation that `ext-idle-notify` gives.
 *>
 module bleu::session;
-import std::collections::list, std::time, bleu::rt::worker;
+import std::collections::list, std::time;
 
 <* One threshold the worker watches. *>
 struct IdleSlot
@@ -65,11 +65,13 @@ fn void IdleRegistry.apply(&self, Command* command)
 }
 
 <*
- Compare every slot with the idle time `elapsed`, and announce each that changed state.
+ Compare every slot with the idle time `elapsed`, and record an IDLE or RESUMED event for each
+ that changed state. The caller announces them after publishing.
 
+ @param pending : "Where the events are appended"
  @return "true when a configured threshold changed state, so the published state is stale"
 *>
-fn bool IdleRegistry.advance(&self, Duration elapsed, SessionHub* hub)
+fn bool IdleRegistry.advance(&self, Duration elapsed, List{Event}* pending)
 {
 	bool configured_changed = false;
 	for (sz i = 0; i < self.slots.len(); i++)
@@ -78,7 +80,7 @@ fn bool IdleRegistry.advance(&self, Duration elapsed, SessionHub* hub)
 		bool now = reached(elapsed, slot.threshold);
 		if (now == slot.idle) continue;
 		slot.idle = now;
-		emit(hub, now ? EventKind.IDLE : EventKind.RESUMED, slot.watch, slot.threshold);
+		pending.push({ .kind = now ? EventKind.IDLE : EventKind.RESUMED, .watch = slot.watch, .threshold = slot.threshold });
 		if (slot.configured) configured_changed = true;
 	}
 	return configured_changed;
